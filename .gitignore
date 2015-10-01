@@ -26,3 +26,13 @@
 *.exe
 *.out
 *.app
+/tests/Debug/tr.tlog/cl.command.1.tlog
+/tests/Debug/tr.tlog/CL.read.1.tlog
+/tests/Debug/tr.tlog/CL.write.1.tlog
+/tests/Debug/tr.tlog/tr.lastbuildstate
+/tests/Debug/tr.tlog/unsuccessfulbuild
+/tests/Debug/tr.log
+/tests/Debug/vc120.idb
+/tests/Debug/vc120.pdb
+/tests/x64/Debug/tr.tlog
+/tests/x64/Debug

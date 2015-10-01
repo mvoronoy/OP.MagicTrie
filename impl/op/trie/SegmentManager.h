@@ -719,19 +719,23 @@ namespace OP
             {
                 segment_helper_p region = _segment_cache_manager.get(
                     index,
-                    [this](segment_idx_t key)
+                    [index, this](segment_idx_t key)
                 {
                     auto offset = key * this->_segment_size;
-                    return std::make_shared<SegmentHelper>(
+                    auto result = std::make_shared<SegmentHelper>(
                         this->_mapping,
                         offset,
                         this->_segment_size);
+                    //notify listeners that some segment was opened
+                    _listener->on_segment_opening(index, *this);
+                    //place mapping of address space to indexes 
+                    slot_address_range_t range(result->at<std::uint8_t>(0), this->_segment_size);
+                    wo_guard_t lock(_slot_address_lock);
+                    _slot_addresses[range] = index;  //uncondition place
+                    return result;
                 }
                 );
-                //place mapping of address space to indexes 
-                slot_address_range_t range(region->at<std::uint8_t>(0), this->_segment_size);
-                wo_guard_t lock(_slot_address_lock);
-                _slot_addresses[range] = index;
+                
                 return region;
             }
             /**Tries to locate segment index by memory address*/

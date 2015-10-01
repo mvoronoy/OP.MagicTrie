@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include <iostream>
 #include <vector>
 #include <stdlib.h>
@@ -15,7 +14,7 @@ struct Nav
     typedef std::shared_ptr<Nav> nav_ptr;
     nav_ptr _next;
     Nav():key(~0u), entries(0){}
-    Nav(size_t key):key(key), entries(1){}
+    Nav(int key):key(key), entries(1){}
     bool operator < (const Nav& right) const
     {
         return this->key < right.key;
@@ -312,12 +311,12 @@ struct TestTrait
     }
     static key_t key(const nav_ptr& n)
     {
-        
-        const size_t range = (512 + 256) / 2;
-        if (n->key > range)//key is in range[0..1000), so unfold to [0..2^32)
-        {
-            return ((n->key - range)* ((1ull << 32) - 1)) / (512. * std::log10(n->key));
-        }
+        //
+        //const size_t range = (512 + 256) / 2;
+        //if (n->key > range)//key is in range[0..1000), so unfold to [0..2^32)
+        //{
+        //    return ((n->key - range)* ((1ull << 32) - 1)) / (512. * std::log10(n->key));
+        //}
         return n->key;
     }
     
@@ -368,7 +367,7 @@ void random_population()
     std::cout << std::endl;
 }
 
-int main()
+void test_Skiplst()
 {
     typedef Log2SkipList<nav_ptr, TestTrait> skplst_t;
     skplst_t lst;
@@ -406,5 +405,4 @@ int main()
     }
     std::cout << std::endl;
     random_population();
-    return 0;
 }

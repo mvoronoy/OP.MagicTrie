@@ -24,7 +24,24 @@ namespace OP
             */
             virtual std::uint8_t* allocate(segment_idx_t segment_idx, segment_pos_t size)
             {
-                return 0;// _far(segment_idx, offset);
+                guard_t l(_free_map_lock);
+                if (_avail_bytes < to_alloc)
+                    throw trie::Exception(trie::er_no_memory);
+                auto found = _free_blocks.lower_bound(&MemoryBlockHeader(to_alloc));
+                if (found == _free_blocks.end()) //there is free blocks, but compression is needed
+                    throw trie::Exception(trie::er_memory_need_compression);
+                auto current_pair = *found;
+                //before splittng remove block from map
+                free_block_erase(found);
+                auto new_block = current_pair->split_this(to_alloc);
+                if (new_block != current_pair) //new block was allocated
+                {
+                    free_block_insert(current_pair);
+                    _avail_bytes -= new_block->real_size();
+                }
+                else //when existing block is used it is not needed to use 'real_size' - because header alredy counted
+                    _avail_bytes -= new_block->size();
+                return unchecked_to_offset(new_block->memory());
             }
             segment_pos_t available(segment_idx_t segment_idx) const
             {
@@ -80,14 +97,14 @@ namespace OP
                 segment_pos_t first_block_pos = offset;
                 if (segment_idx == 0)
                 {//only single instance of free-space list
-                    first_block_pos += sizeof(free_blocks_t);
-                    MemoryRange free_blocks_mem = manager.writable_block(offset, sizeof(free_blocks_t));
-                    _free_bloks = new (free_blocks_mem.pos()) free_blocks_t(FreeMemoryBlockTraits(&manager));
+                    first_block_pos += aligned_sizeof<free_blocks_t>(SegmentHeader::align_c);
+                    MemoryRange free_blocks_mem = _segment_manager->writable_block(offset, sizeof(free_blocks_t));
+                    _free_bloks = new (free_blocks_mem.pos()) free_blocks_t(FreeMemoryBlockTraits(_segment_manager));
                 }
                 const segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c)
                     + sizeof(FreeMemoryBlock);
-                segment_pos_t byte_size = manager.segment_size() - first_block_pos;
-                MemoryRange zero_header = manager.writable_block(first_block_pos, mbh_size_align);
+                segment_pos_t byte_size = _segment_manager->segment_size() - first_block_pos;
+                MemoryRange zero_header = _segment_manager->writable_block(first_block_pos, mbh_size_align);
                 MemoryBlockHeader * block = new (zero_header.pos()) MemoryBlockHeader(emplaced_t());
                 block
                     ->size(byte_size - mbh_size_align)
