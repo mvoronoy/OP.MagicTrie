@@ -201,7 +201,7 @@ namespace OP
             }
         private:
             typedef RangeContainer<NodeAddress> free_ranges_t;
-            typedef operation_guard_t< SegmentManager, &SegmentManager::begin_write_operation, &SegmentManager::end_write_operation > guard_t;
+            typedef segment_operations_guard_t guard_t;
             typedef std::shared_ptr<SegmentManager> segments_ptr_t;
             segments_ptr_t _segment_manager;
             /**number of nodes per 1 segment*/

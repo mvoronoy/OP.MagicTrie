@@ -39,7 +39,7 @@ struct ListEntry
         return ins_pos;
     }
     template <class F>
-    entry_ptr_t pull_that(const Traits& traits, F& f)
+    entry_ptr_t pull_that( Traits& traits, F& f)
     {
         entry_ptr_t* ins_pos = &_value;
         entry_ptr_t* result = ins_pos;
@@ -52,7 +52,7 @@ struct ListEntry
                 if (ins_pos == result) //peek first item
                     _value = traits.next(*ins_pos);
                 else
-                    traits.set_next(*result) = traits.next(*ins_pos);
+                    traits.set_next(*result, traits.next(*ins_pos));
                 --_count;
                 return rv;
             }
@@ -61,7 +61,7 @@ struct ListEntry
         //run out of existing keys or entry is empty
         return *ins_pos;
     }
-    size_t _count;
+    std::atomic_size_t _count;
     entry_ptr_t _value;
 };
 template <class T, class Traits, size_t bitmask_size_c = 32>
@@ -72,31 +72,41 @@ struct Log2SkipList
     
     typedef Log2SkipList<T, Traits, bitmask_size_c> this_t;
 
-    Log2SkipList(Traits&& traits = Traits()):
-        _traits(std::move(traits))
+    Log2SkipList()
     {
     }
     
-    T pull_not_less(T t)
+    T pull_not_less(traits_t& traits, typename Traits::key_t key)
     {
-        auto key = _traits.key(t);
-        auto index = key_slot(key);
-        auto& ent = _entries[index];
-        wr_lock lock(_traits, index );
-        return ent.pull_that(_traits, [key, this](const T& t){
-            return !_traits.less(_traits.key(t), key);
-        });
+        auto index = key_slot(traits, key);
+        for (;index < _entries.size(); ++index)
+        {
+            auto& ent = _entries[index];
+            if (ent._count)
+            {
+                wr_lock lock(traits, index);
+                if (ent._count) //apply double-check pattern
+                {
+                    auto pulled = ent.pull_that(traits, [key, traits, this](const T& t){
+                        return !traits.less(traits.key(t), key);
+                    });
+                    if (!traits.is_eos(pulled))
+                        return pulled;
+                }
+            }
+        }
+        return traits_t::eos();
     }
-    void insert(T t)
+    void insert(traits_t& traits, T t)
     {
-        auto key = _traits.key(t);
+        auto key = traits.key(t);
         //using ln(n) algorithm to detect entry position
-        auto index = key_slot(key);
+        auto index = key_slot(traits, key);
         auto& ent = _entries[index];
-        wr_lock lock(_traits, index);
-        auto * ins_ptr = ent.prev_lower_bound(key, _traits);
-        _traits.set_next(t, * ins_ptr);
-        * ins_ptr = _traits.deref( t );
+        wr_lock lock(traits, index);
+        auto * ins_ptr = ent.prev_lower_bound(key, traits);
+        traits.set_next(t, * ins_ptr);
+        * ins_ptr = traits.deref( t );
         ent._count++;
     }
     
@@ -108,10 +118,9 @@ private:
     typedef typename entries_t::const_iterator const_inner_iterator_t;
     
     entries_t _entries;
-    Traits _traits;
     /**Using O(ln(n)) complexity evaluate slot for specific key*/
     template <class K>
-    size_t key_slot(K& k)
+    size_t key_slot(traits_t& traits, K& k)
     {
         auto count = bitmask_size_c;
         size_t it, step, first = 0;
@@ -120,7 +129,7 @@ private:
             it = first; 
             step = count / 2; 
             it+= step;
-            if (_traits.less(1 << it, k)) {
+            if (traits.less(1 << it, k)) {
                 first = ++it; 
                 count -= step + 1; 
             }
@@ -232,10 +241,10 @@ public:
         }
         inner_iterator_t _from, _to;
         entry_ptr_t _list_ptr;
-        traits_t* _traits;
     };
     typedef SkipListIterator<this_t, inner_iterator_t> iterator;
     typedef SkipListIterator<this_t, const_inner_iterator_t> const_iterator;
+    private:
     const_iterator begin() const
     {
         return const_iterator(_entries.begin(), _entries.end(), &_traits);

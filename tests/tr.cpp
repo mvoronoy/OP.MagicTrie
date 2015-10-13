@@ -14,7 +14,11 @@
 #include <cstdint>
 #include <cassert>
 #include <iterator>
-#include <windows.h>
+//#include <windows.h>
+
+#include <ctime>
+#include <chrono>
+
 using namespace OP::trie;
 
 template <node_size_t capacity_c>
@@ -376,6 +380,7 @@ void test_SegmentManager()
     typedef NodeHashTable<EmptyPayload, 8> htbl64_t;
     typedef NodeSortedArray<EmptyPayload, 32> sarr32_t;
     typedef std::shared_ptr<SegmentManager> segments_ptr_t;
+    std::uint8_t* one_byte_block = nullptr;
     if (1 == 1)
     {       
         auto options = OP::trie::SegmentOptions()
@@ -391,27 +396,29 @@ void test_SegmentManager()
         auto mngr1 = OP::trie::SegmentManager::create_new(seg_file_name, options);
         tst_size = mngr1->segment_size();
         SegmentTopology<MemoryManager> mngrTopology = SegmentTopology<MemoryManager>(mngr1);
-        
+        one_byte_block = mngrTopology.slot<MemoryManager>().allocate(1);
         mngr1->_check_integrity();
     }
     std::shared_ptr<SegmentManager> segmentMngr2 = SegmentManager::open(seg_file_name);
     assert(tst_size == segmentMngr2->segment_size());
     SegmentTopology<MemoryManager>& mngr2 = *new SegmentTopology<MemoryManager>(segmentMngr2);
 
-    auto half_block = mngr2.slot<MemoryManager>().allocate(0, tst_size / 2);
+    auto half_block = mngr2.slot<MemoryManager>().allocate(tst_size / 2);
     mngr2._check_integrity();
     //try consume bigger than available
-    try
+    //try
     {
-        mngr2.slot<MemoryManager>().allocate(0, mngr2.slot<MemoryManager>().available(0) + 1);
+        mngr2.slot<MemoryManager>().allocate(mngr2.slot<MemoryManager>().available(0) + 1);
+        //new segment must be allocated
+        assert(segmentMngr2->available_segments() == 2);
     }
-    catch (const OP::trie::Exception& e)
-    {
-        assert(e.code() == OP::trie::er_no_memory);
-    }
+    //catch (const OP::trie::Exception& e)
+    //{
+    //    assert(e.code() == OP::trie::er_no_memory);
+    //}
     mngr2._check_integrity();
     //consume allmost all
-    auto rest = mngr2.slot<MemoryManager>().allocate(0, mngr2.slot<MemoryManager>().available(0) - 16);
+    auto rest = mngr2.slot<MemoryManager>().allocate( mngr2.slot<MemoryManager>().available(0) - 16);
     mngr2._check_integrity();
     try
     {
@@ -434,72 +441,86 @@ void test_SegmentManager()
     //{
     //    assert(e.code() == OP::trie::er_invalid_block);
     //}
+    mngr2.slot<MemoryManager>().deallocate(one_byte_block);
+    mngr2._check_integrity();
     mngr2.slot<MemoryManager>().deallocate(rest);
     mngr2._check_integrity();
     mngr2.slot<MemoryManager>().deallocate(half_block);
     mngr2._check_integrity();
-    auto bl_control = mngr2.slot<MemoryManager>().allocate(0, 100);
+    auto bl_control = mngr2.slot<MemoryManager>().allocate(100);
     auto test_size = mngr2.slot<MemoryManager>().available(0);
     //make striped blocks
     std::uint8_t* stripes[7];
     for (size_t i = 0; i < 7; ++i)
-        stripes[i] = mngr2.slot<MemoryManager>().allocate(0, 100);
+        stripes[i] = mngr2.slot<MemoryManager>().allocate(100);
     mngr2._check_integrity();
     //check closing and reopenning
     delete&mngr2;//mngr2.reset();//causes delete
-/*    auto mngr3 = SegmentManager::open(seg_file_name);
+    segmentMngr2.reset();
+
+    std::shared_ptr<SegmentManager> segmentMngr3 = SegmentManager::open(seg_file_name);
+    SegmentTopology<MemoryManager>* mngr3 = new SegmentTopology<MemoryManager>(segmentMngr3);
+    auto& mm = mngr3->slot<MemoryManager>();
+    /**Flag must be set if memory management allows merging of free adjacent blocks*/
+    OP_CONSTEXPR bool has_block_compression = mm.merge_free_blocks_c; 
     mngr3->_check_integrity();
     //make each odd block free
-    for (size_t i = 1; i < 7; i+=2)
-        mngr3->deallocate(stripes[i]);
+    for (size_t i = 1; i < 7; i += 2)
+    {
+        if (!has_block_compression)
+            test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);
+        mm.deallocate(stripes[i]);
+    }
     mngr3->_check_integrity();
     //now test merging of adjacency blocks
     for (size_t i = 0; i < 7; i += 2)
     {
-        mngr3->deallocate(stripes[i]);
+        if (!has_block_compression)
+            test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);
+        mm.deallocate(stripes[i]);
         mngr3->_check_integrity();
     }
-    assert(test_size == mngr3->available(0));
+    assert(test_size == mm.available(0));
     //repeat prev test on condition of releasing even blocks
     for (size_t i = 0; i < 7; ++i)
-        stripes[i] = mngr3->allocate(0, 100);
+        stripes[i] = mm.allocate(100);
     for (size_t i = 0; i < 7; i+=2)
-        mngr3->deallocate(stripes[i]);
+        mm.deallocate(stripes[i]);
     mngr3->_check_integrity();
     for (size_t i = 1; i < 7; i += 2)
     {
-        mngr3->deallocate(stripes[i]);
+        mm.deallocate(stripes[i]);
         mngr3->_check_integrity();
     }
-    assert(test_size == mngr3->available(0));
-    auto large_bl = mngr3->allocate(0, test_size);
-    assert(0 == mngr3->available(0));
-    mngr3->deallocate(large_bl);
-    assert(test_size == mngr3->available(0));
+    assert(test_size == mm.available(0));
+    
     //make random test
-    OP::trie::far_pos_t rand_buf[1000];
+    void* rand_buf[1000];
     size_t rnd_indexes[1000];//make unique vector and randomize access over it
     for (size_t i = 0; i < 1000; ++i)
     {
         rnd_indexes[i] = i;
         auto r = rand();
         if (r & 1)
-            rand_buf[i] = mngr3->make_new<TestMemAlloc2>(0);
+            rand_buf[i] = mm.make_new<TestMemAlloc2>();
         else
-            rand_buf[i] = mngr3->make_new<TestMemAlloc1>(0);
+            rand_buf[i] = mm.make_new<TestMemAlloc1>();
     }
     std::random_shuffle(std::begin(rnd_indexes), std::end(rnd_indexes));
     mngr3->_check_integrity();
+    std::chrono::system_clock::time_point now = std::chrono::steady_clock::now();
     for (size_t i = 0; i < 1000; ++i)
     {
         auto p = rand_buf[rnd_indexes[i]];
-        mngr3->deallocate( p );
-        mngr3->_check_integrity();
+        mm.deallocate((std::uint8_t*) p );
+        //mngr3->_check_integrity();
     }
+    std::cout << "\tTook:" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() << "us" << std::endl;
     mngr3->_check_integrity();
-    assert(test_size == mngr3->available(0));
+    /*assert(test_size == mm.available(0));
+    
     //do more real example with NodeHead + conatiner
-    far_pos_t heads_off = mngr3->make_array<TestHead>(0, 2, NodeType::hash_c);
+    far_pos_t heads_off = mngr3->slot<MemoryManager>().make_array<TestHead>(0, 2, NodeType::hash_c);
     TestHead *heads = mngr3->from_far<TestHead>(heads_off);
     const std::string named_object = "heads";
     mngr3->put_named_object(0, named_object, heads_off);
@@ -562,7 +583,7 @@ void test_CacheManager()
         TestValue r = cache.get(i, f);
         TestValue r1 = cache.get(i, f);//may return new instance of value
         //assert(r._version == r1._version);
-        Sleep(100);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         auto trie = cache.get(i);
         assert(trie._version == r._version || trie._version == r1._version);
@@ -570,7 +591,7 @@ void test_CacheManager()
     cache._check_integrity();
     assert(cache.size() == cache.limit());
     TestValue r = cache.get(limit+1, f);
-    Sleep(100);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     assert(r._value == (limit + 2));
     //check that 0 was wiped
     bool f2_called = false;
@@ -582,7 +603,7 @@ void test_CacheManager()
     
     assert(f2_called);
     assert(r._value == -1);
-    Sleep(100);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     try{
         cache.get(1);//1 had to be poped
         assert(false); //exception must be raised
@@ -595,11 +616,11 @@ void test_CacheManager()
     assert(!f2_called); //factory must not be invoked for 2
     //pop up some value (it is 3)
     r = cache.get(limit + 10, f2);
-    Sleep(100);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     assert(f2_called);
     //now test that 2 is there
     cache.get(2);
-    Sleep(100);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     cache._check_integrity();
 }
 extern void test_NodeManager();

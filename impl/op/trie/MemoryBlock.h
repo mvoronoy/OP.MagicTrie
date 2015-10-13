@@ -48,7 +48,16 @@ namespace OP
             {
                 return size() + aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
             }
-            MemoryBlockHeader* next() const
+            segment_idx_t my_segement() const
+            {
+                return nav._my_segment;
+            }
+            MemoryBlockHeader* my_segement(segment_idx_t segment) 
+            {
+                nav._my_segment = segment;
+                return this;
+            }
+            /*!@:To delete MemoryBlockHeader* next() const
             {
                 assert(has_next());
 
@@ -60,7 +69,7 @@ namespace OP
 
                 return reinterpret_cast<MemoryBlockHeader*>(
                     ((std::uint8_t*)this) + prev_block_offset());
-            }
+            } */
             MemoryBlockHeader* set_prev(MemoryBlockHeader* prev)
             {
                 prev_block_offset(static_cast<segment_off_t>((std::uint8_t*)prev - (std::uint8_t*)this));
@@ -75,6 +84,7 @@ namespace OP
                 nav._prev_block_offset = offset;
                 return this;
             }
+            
             bool is_free() const
             {
                 return this->_free;
@@ -97,30 +107,40 @@ namespace OP
             * @param byte_size - user needs byte size (not real_size)
             *@return either this if byte_size consumes entire free-space or new block that is part of this block free space
             */
-            MemoryBlockHeader *split_this(segment_pos_t byte_size)
+            MemoryBlockHeader *split_this(SegmentManager& segment_manager, far_pos_t this_pos, segment_pos_t byte_size)
             {
                 assert(_free);
-                const segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                OP_CONSTEXPR segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 byte_size = align_on(byte_size, SegmentHeader::align_c);
                 assert(size() >= byte_size);
                 if ((nav._size - byte_size) < (mbh_size_align + SegmentHeader::align_c))
-                {//use entire this block
+                {//use entire this 
+                    //extend transaction region
+                    segment_manager
+                        .writable_block(FarPosHolder(this_pos + mbh_size_align), byte_size);
                     _free = 0;
                     return this;
                 }
                 byte_size += mbh_size_align;
                 //alloc new segment at the end of current
                 segment_pos_t offset = size() - byte_size;
-                //allocate new block inside this
-                MemoryBlockHeader * result = new (memory() + offset) MemoryBlockHeader(emplaced_t());
+                //allocate new block inside this memory but mark this free
+                auto access = segment_manager
+                    .writable_block(FarPosHolder((this_pos+mbh_size_align) + offset), byte_size);
+                    
+                MemoryBlockHeader * result = new (access.pos()) MemoryBlockHeader(emplaced_t());
                 result
                     ->size(byte_size - mbh_size_align)
                     ->set_prev(this)
                     ->set_free(false)
                     ->set_has_next(this->has_next())
+                    ->my_segement(segment_of_far(this_pos))
                     ;
                 if (this->has_next())
-                    this->next()->set_prev(result);
+                {
+                    MemoryBlockHeader *next = segment_manager.wr_at<MemoryBlockHeader>(FarPosHolder(this_pos + real_size()));
+                    next->set_prev(result);
+                }
                 this
                     ->size(offset)
                     ->set_has_next(true)
@@ -129,7 +149,7 @@ namespace OP
                 return result;
             }
             /**Glues this with previous block*/
-            MemoryBlockHeader *glue_prev()
+            /*!@:To delete MemoryBlockHeader *glue_prev()
             {
                 MemoryBlockHeader *prev = this->prev();
                 assert(prev->is_free());
@@ -142,15 +162,15 @@ namespace OP
                     ;
                 return prev;
             }
-
+            */
             std::uint8_t* memory() const
             {
                 return ((std::uint8_t*)this) + aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
             }
-            void _check_integrity()
+            void _check_integrity() const
             {
                 assert(this->check_signature());
-                if (has_next())
+                /*@!:To delete if (has_next())
                 {
                     assert(this < this->next());
                     assert(this->next()->check_signature());
@@ -159,7 +179,7 @@ namespace OP
                 {
                     MemoryBlockHeader* prev = this->prev();
                     assert(prev->check_signature());
-                }
+                } */
             }
 
             std::uint32_t _free : 1;
@@ -167,6 +187,7 @@ namespace OP
             std::uint32_t _signature : 30;
             struct data_t
             {
+                segment_idx_t _my_segment;
                 segment_pos_t _size;
                 segment_off_t _prev_block_offset;
             };
@@ -196,6 +217,17 @@ namespace OP
                     reinterpret_cast<const std::uint8_t*>(this) - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c)
                     );
             }
+            /**
+            *   Taking this far address convert it to far address of associated MemoryBlockHeader
+            */
+            static far_pos_t get_header_addr(far_pos_t this_addr)
+            {
+                return this_addr - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+            }
+            /**
+            * Giving MemoryBlockHeader resolve placed inside FreeMemoryBlock. Important that source block must be 
+            * free
+            */
             static const FreeMemoryBlock* of_block(const MemoryBlockHeader* mem)
             {
                 assert(mem->is_free());//memory block must be free to contain inner FreeMemoryBlock
@@ -234,27 +266,27 @@ namespace OP
             {
                 const FreeMemoryBlock* inst = 
                     _segment_manager
-                        ->readonly_block(ptr, sizeof(FreeMemoryBlock))
+                        ->readonly_block(FarPosHolder(ptr), sizeof(FreeMemoryBlock))
                         .at<FreeMemoryBlock>(0);
                 return inst->get_header()->nav._size;
             }
     
-            const ptr_t& next(ptr_t ref) const
+            /*const ptr_t& next(ptr_t ref) const
             {
                 const FreeMemoryBlock* inst = 
                     _segment_manager->readonly_block(ref, sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
                 return inst->down;
-            }
-            ptr_t& next(ptr_t ref)
+            }*/
+            ptr_t& next(ptr_t ref) 
             {
                 FreeMemoryBlock* inst = 
-                    _segment_manager->writable_block(ref, sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
+                    _segment_manager->writable_block(FarPosHolder(ref), sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
                 return inst->down;
             }
             void set_next(ptr_t mutate, ptr_t next)
             {
                 FreeMemoryBlock* inst = 
-                    _segment_manager->writable_block(mutate, sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
+                    _segment_manager->writable_block(FarPosHolder(mutate), sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
                 inst->down = next;
             }
             

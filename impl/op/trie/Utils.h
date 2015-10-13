@@ -3,6 +3,17 @@
 
 #include <type_traits>
 #include <tuple>
+
+#ifdef _MSC_VER
+    #if _MSC_VER <= 1800
+        #define OP_CONSTEXPR 
+    #else
+        #define OP_CONSTEXPR constexpr
+    #endif
+#else
+    #define OP_CONSTEXPR constexpr
+#endif //
+
 namespace OP
 {
     namespace trie
