@@ -5,6 +5,7 @@
 
 #include <OP/trie/SegmentManager.h>
 #include <OP/trie/MemoryBlock.h>
+#include <op/trie/Skplst.h>
 
 namespace OP
 {
@@ -32,23 +33,24 @@ namespace OP
                 auto avail_segments = _segment_manager->available_segments();
                 FreeMemoryBlockTraits free_traits(_segment_manager);
                 //try do without locking
-                far_pos_t free_block_ptr = _free_blocks->pull_not_less(free_traits, size);
-                if (free_traits.is_eos(free_block_ptr))
+                
+                far_pos_t free_block_pos = _free_blocks->pull_not_less(free_traits, size);
+                if (free_traits.is_eos(free_block_pos))
                 { //need lock - because may need allocate new segment
                     guard_t l(_segments_map_lock);
                     //check again
-                    free_block_ptr = _free_blocks->pull_not_less(free_traits, size);
-                    if (free_traits.is_eos(free_block_ptr))
+                    free_block_pos = _free_blocks->pull_not_less(free_traits, size);
+                    if (free_traits.is_eos(free_block_pos))
                     {
                         _segment_manager->ensure_segment(avail_segments);
-                        free_block_ptr = _free_blocks->pull_not_less(free_traits, size);
-                        if (free_traits.is_eos(free_block_ptr))
+                        free_block_pos = _free_blocks->pull_not_less(free_traits, size);
+                        if (free_traits.is_eos(free_block_pos))
                             throw OP::trie::Exception(OP::trie::er_no_memory);
                     }
                 }
-                segment_idx_t segment_idx = segment_of_far(free_block_ptr); 
-                //auto current_free = _segment_manager->writable_block(free_block_ptr, sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
-                auto current_mem_ptr = FarPosHolder(FreeMemoryBlock::get_header_addr(free_block_ptr));
+                segment_idx_t segment_idx = segment_of_far(free_block_pos); 
+                //auto current_free = _segment_manager->writable_block(free_block_pos, sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
+                auto current_mem_ptr = FarPosHolder(FreeMemoryBlock::get_header_addr(free_block_pos));
                 auto current_mem =
                     _segment_manager->wr_at<MemoryBlockHeader>(current_mem_ptr);
 
@@ -56,7 +58,8 @@ namespace OP
 
                 if (new_block != current_mem) //new block was allocated
                 {  //old block was splitted, so place the rest back to free list
-                    _free_blocks->insert(free_traits, free_block_ptr);
+                    FreeMemoryBlock *free_block = _segment_manager->wr_at< FreeMemoryBlock >(FarPosHolder(free_block_pos));
+                    _free_blocks->insert(free_traits, free_block_pos, free_block);
                     get_available_bytes(segment_idx) -= new_block->real_size();
                 }
                 else //when existing block is used it is not needed to use 'real_size' - because header alredy counted
@@ -90,7 +93,7 @@ namespace OP
                 //retrieve file pos
                 auto segment_idx = header->nav._my_segment;
                 FarPosHolder header_far (_segment_manager->to_far(segment_idx, header));
-                OP_CONSTEXPR segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
 
                 auto free_block_pos = header_far+mbh;
 
@@ -100,7 +103,7 @@ namespace OP
                 header->set_free(true);
                 auto free_marker = block.at<void>(mbh);
                 FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(emplaced_t());
-                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), free_block_pos);
+                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), free_block_pos, span_of_free);
                 get_available_bytes(segment_idx) += header->size();
             }
 
@@ -207,17 +210,17 @@ namespace OP
                 FarPosHolder first_block_pos (segment_idx, offset);
                 if (segment_idx == 0)
                 {//only single instance of free-space list
-                    MemoryRange free_blocks_mem = _segment_manager->writable_block(first_block_pos, sizeof(free_blocks_t));
-                    _free_blocks = new (free_blocks_mem.pos()) free_blocks_t();
-                    first_block_pos.offset += aligned_sizeof<free_blocks_t>(SegmentHeader::align_c);
+                    _free_blocks = free_blocks_t::create_new(manager, first_block_pos);
+                    first_block_pos.offset += free_blocks_t::byte_size();
                 }
+                first_block_pos.offset = align_on(first_block_pos.offset, SegmentDef::align_c);
                 //reserve 4bytes for segment size
                 FarPosHolder avail_bytes_offset = first_block_pos;
                 MemoryRange avail_space_mem = _segment_manager->writable_block(avail_bytes_offset, sizeof(segment_pos_t));
                 first_block_pos.offset = align_on(first_block_pos.offset +static_cast<segment_pos_t>(sizeof(segment_pos_t)), SegmentHeader::align_c);
 
                 segment_pos_t byte_size = ceil_align_on(_segment_manager->segment_size() - first_block_pos.offset, SegmentHeader::align_c);
-                OP_CONSTEXPR segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                OP_CONSTEXPR(const) segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 MemoryRange zero_header = _segment_manager->writable_block(first_block_pos, mbh_size_align + sizeof(FreeMemoryBlock));
                 MemoryBlockHeader * block = new (zero_header.pos()) MemoryBlockHeader(emplaced_t());
                 block
@@ -228,7 +231,11 @@ namespace OP
                     ;
                 //just created block is free, so place FreeMemoryBlock info inside it
                 FreeMemoryBlock *span_of_free = new (block->memory()) FreeMemoryBlock(emplaced_t());
-                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), _segment_manager->to_far(segment_idx, span_of_free));
+                
+                _free_blocks->insert(
+                    FreeMemoryBlockTraits(_segment_manager), 
+                    _segment_manager->to_far(segment_idx, span_of_free),
+                    span_of_free);
                 *avail_space_mem.at<segment_pos_t>(0) = block->size();
                 
                 Description desc;
@@ -248,13 +255,15 @@ namespace OP
                 segment_operations_guard_t op_g(&manager); //invoke begin/end write-op
                 _segment_manager = &manager;
                 segment_pos_t avail_bytes_offset = offset;
+                
                 if (segment_idx == 0)
                 {//only single instance of free-space list
+                    auto free_blocks_pos = FarPosHolder(segment_idx, offset);
                     //auto first_block_pos = offset + aligned_sizeof<free_blocks_t>(SegmentHeader::align_c);
-                    _free_blocks = _segment_manager->wr_at<free_blocks_t>(FarPosHolder(segment_idx, offset));
-                    avail_bytes_offset += aligned_sizeof<free_blocks_t>(SegmentHeader::align_c);
+                    _free_blocks = free_blocks_t::open(manager, free_blocks_pos);
+                    avail_bytes_offset += free_blocks_t::byte_size();
                 }
-                
+                avail_bytes_offset = align_on(avail_bytes_offset, SegmentDef::align_c);
                 guard_t l(_segments_map_lock);
                 auto insres = _opened_segments.emplace( std::piecewise_construct,
                      std::forward_as_tuple(segment_idx),
@@ -297,9 +306,9 @@ namespace OP
             typedef std::unordered_map<segment_idx_t, Description> opened_segment_t;
             mutable map_lock_t _segments_map_lock;
             opened_segment_t _opened_segments;
-            typedef Log2SkipList<far_pos_t, FreeMemoryBlockTraits> free_blocks_t;
+            typedef Log2SkipList<FreeMemoryBlockTraits> free_blocks_t;
 
-            free_blocks_t *_free_blocks;
+            std::unique_ptr<free_blocks_t> _free_blocks;
             SegmentManager* _segment_manager;
         private:
             /**Return modifyable reference to variable that keep available memory in segment */

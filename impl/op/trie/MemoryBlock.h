@@ -2,7 +2,7 @@
 #define _OP_TRIE_MEMORYBLOCK__H_
 
 #include <OP/trie/SegmentManager.h>
-
+#include <op/trie/Skplst.h>
 namespace OP
 {
 
@@ -110,7 +110,7 @@ namespace OP
             MemoryBlockHeader *split_this(SegmentManager& segment_manager, far_pos_t this_pos, segment_pos_t byte_size)
             {
                 assert(_free);
-                OP_CONSTEXPR segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                OP_CONSTEXPR(const) segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 byte_size = align_on(byte_size, SegmentHeader::align_c);
                 assert(size() >= byte_size);
                 if ((nav._size - byte_size) < (mbh_size_align + SegmentHeader::align_c))
@@ -203,14 +203,12 @@ namespace OP
         *   This structure is placed inside MemoryBlockHeader (so doesn't consume space) to support 
         *   sorted navigation between free memory blocks.
         */
-        struct FreeMemoryBlock
+        struct FreeMemoryBlock : public OP::trie::ForwardListBase
         {
             /**Special constructor for objects allocated in existing memory*/
             FreeMemoryBlock(emplaced_t)
             {
-                down = SegmentDef::far_null_c;
             }
-            far_pos_t down;
             const MemoryBlockHeader* get_header() const
             {
                 return reinterpret_cast<const MemoryBlockHeader*>(
@@ -224,30 +222,32 @@ namespace OP
             {
                 return this_addr - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
             }
-            /**
-            * Giving MemoryBlockHeader resolve placed inside FreeMemoryBlock. Important that source block must be 
-            * free
-            */
-            static const FreeMemoryBlock* of_block(const MemoryBlockHeader* mem)
-            {
-                assert(mem->is_free());//memory block must be free to contain inner FreeMemoryBlock
-                return reinterpret_cast<const FreeMemoryBlock*>(mem->memory());
-            }
+            
         };
         struct FreeMemoryBlockTraits
         {
+            typedef FreeMemoryBlock target_t;
             typedef size_t key_t;
-            typedef far_pos_t ptr_t;
-            
+            typedef far_pos_t pos_t;
+            typedef FreeMemoryBlock& reference_t;
+            typedef FreeMemoryBlock* ptr_t;
+            typedef const FreeMemoryBlock* const_ptr_t;
+            typedef const FreeMemoryBlock& const_reference_t;
+
+            /**
+            * @param entry_list_pos position that points to skip-list root
+            */
             FreeMemoryBlockTraits(SegmentManager *segment_manager):
-                _segment_manager(segment_manager)
+                _segment_manager(segment_manager),
+                _low(SegmentDef::align_c),//smallest block is always aligned
+                _high(segment_manager->segment_size())
             {
             }
-            static inline const ptr_t eos()
+            static inline const pos_t eos()
             {
                 return SegmentDef::far_null_c;
             }
-            static bool is_eos(ptr_t pt)
+            static bool is_eos(pos_t pt)
             {
                 return pt == eos();
             }
@@ -256,46 +256,49 @@ namespace OP
             {
                 return left < right;
             }
-            void write_lock(size_t idx)
+            
+            size_t entry_index(key_t key) const
             {
+                if (key <= _low)
+                    return 0;
+                auto result = (((key - _low)*(slots_c/*aka 32*/)) /
+                    (_high / 2/*half of biggest possible block*/));
+                if (result >= slots_c)
+                    return slots_c - 1;
+                return result;
             }
-            void write_unlock(size_t idx)
+            key_t key(const_reference_t fb) const
             {
-            }
-            key_t key(ptr_t ptr) const
-            {
-                const FreeMemoryBlock* inst = 
-                    _segment_manager
-                        ->readonly_block(FarPosHolder(ptr), sizeof(FreeMemoryBlock))
-                        .at<FreeMemoryBlock>(0);
-                return inst->get_header()->nav._size;
+                return fb.get_header()->nav._size;
             }
     
-            /*const ptr_t& next(ptr_t ref) const
+            static const pos_t& next(const_reference_t ref)
             {
-                const FreeMemoryBlock* inst = 
-                    _segment_manager->readonly_block(ref, sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
-                return inst->down;
-            }*/
-            ptr_t& next(ptr_t ref) 
-            {
-                FreeMemoryBlock* inst = 
-                    _segment_manager->writable_block(FarPosHolder(ref), sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
-                return inst->down;
+                return ref.next;
             }
-            void set_next(ptr_t mutate, ptr_t next)
+            static pos_t& next(reference_t ref)
             {
-                FreeMemoryBlock* inst = 
-                    _segment_manager->writable_block(FarPosHolder(mutate), sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
-                inst->down = next;
+                return ref.next;
+            }
+            void set_next(reference_t mutate, pos_t next)
+            {
+                mutate.next = next;
             }
             
-            static ptr_t deref(ptr_t n)
+            reference_t deref(pos_t n)
             {
-                return n;
+                return *_segment_manager->wr_at<FreeMemoryBlock>(FarPosHolder(n));
+            }
+            const_reference_t const_deref(pos_t n) const
+            {
+                return *_segment_manager->ro_at<FreeMemoryBlock>(FarPosHolder(n));
             }
         private:
+            OP_CONSTEXPR(static const) size_t slots_c = sizeof(std::uint32_t) << 3;
             SegmentManager *_segment_manager;
+            
+            const size_t _low;
+            const size_t _high;
         };
 
         struct FreeMemoryBlockPtrLess

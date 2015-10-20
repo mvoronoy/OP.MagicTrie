@@ -23,7 +23,7 @@
 #include <op/trie/CacheManager.h>
 #include <op/trie/Transactional.h>
 #include <op/trie/Utils.h>
-#include <op/trie/Skplst.h>
+
 
 namespace OP
 {
@@ -89,19 +89,19 @@ namespace OP
         };
 
         template <class T, class Y>
-        OP_CONSTEXPR inline T align_on(T address, Y base)
+        OP_CONSTEXPR(OP_EMPTY_ARG) inline T align_on(T address, Y base)
         {
             auto align = address % base;
             return align ? (address + (base - align)) : address;
         }
         /**Rounds align down (compare with #align_on that rounds up)*/
         template <class T, class Y>
-        OP_CONSTEXPR inline T ceil_align_on(T address, Y base)
+        OP_CONSTEXPR(OP_EMPTY_ARG) inline T ceil_align_on(T address, Y base)
         {
             return (address / base)*base;
         }
         template <class T, class Y>
-        OP_CONSTEXPR inline segment_pos_t aligned_sizeof(Y base)
+        OP_CONSTEXPR(OP_EMPTY_ARG) inline segment_pos_t aligned_sizeof(Y base)
         {
             return align_on(static_cast<segment_pos_t>(sizeof(T)), base);
         }
@@ -531,9 +531,21 @@ namespace OP
                 assert(idx < this->count());
                 return reinterpret_cast<T*>(pos() + idx);
             }
-
         };
-
+        /**Hint allows specify how writable block will be used*/
+        enum class WritableBlockHint : std::uint8_t
+        {
+            /**Block contains some information and will be used for r/w operations*/
+            update_c = 0,
+            /**Block is used only for write purpose and doesn't contain usefull information yet*/
+            new_c = 1
+        };
+        /**Exception is raised when imposible to obtain lock over memory block*/
+        struct ConcurentLockException : public OP::trie::Exception
+        {
+            ConcurentLockException() :
+                Exception(OP::trie::er_transaction_concurent_lock){}
+        };
         /**
         * Wrap together boost's class to manage segments
         */
@@ -601,6 +613,9 @@ namespace OP
             virtual void end_write_operation()
             {
             }
+            /**
+            * @throws ConcurentLockException if block is already locked for write
+            */
             virtual ReadonlyMemoryRange readonly_block(const FarPosHolder& pos, segment_pos_t size) 
             {
                 segment_helper_p seg_hlp = this->get_segment(pos.segment);
@@ -608,12 +623,24 @@ namespace OP
                 auto memory = seg_hlp->at<std::uint8_t>(pos.offset);
                 return ReadonlyMemoryRange(memory, size, pos, seg_hlp);
             }
-            virtual MemoryRange writable_block(const FarPosHolder& pos, segment_pos_t size)
+            /**
+            * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
+            */
+            virtual MemoryRange writable_block(const FarPosHolder& pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
             {
                 segment_helper_p seg_hlp = this->get_segment(pos.segment);
                 assert((pos.offset + size) <= this->segment_size());
                 auto memory = seg_hlp->at<std::uint8_t>(pos.offset);
                 return MemoryRange(memory, size, pos, seg_hlp);
+            }
+            /**
+            * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
+            */
+            virtual MemoryRange upgrade_to_writable_block(ReadonlyMemoryRange& ro)
+            {
+                segment_helper_p seg_hlp = ro.segment();
+                auto memory = seg_hlp->at<std::uint8_t>(ro.address().offset);
+                return MemoryRange(memory, ro.count(), ro.address(), ro.segment());
             }
             /** Shorthand for \code
                 readonly_block(pos, sizeof(T)).at<T>(0)
@@ -669,16 +696,15 @@ namespace OP
                     segment_helper_p segment = get_segment(idx);
                     f(idx, *this);
                 }
-
             }
             void _check_integrity()
             {
-                this->_segment_cache_manager._check_integrity();
+                //this->_cached_segments._check_integrity();
             }
         protected:
             SegmentManager(const char * file_name, bool create_new, bool is_readonly) :
                 _file_name(file_name),
-                _segment_cache_manager(10)
+                _cached_segments(10)
             {
                 //file is opened always in RW mode
                 std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary
@@ -776,7 +802,7 @@ namespace OP
             file_lock_t _file_lock;
             mutable file_mapping _mapping;
 
-            typedef trie::CacheManager<segment_idx_t, segment_helper_p> cache_region_t;
+            typedef SparseCache<SegmentHelper, segment_idx_t> cache_region_t;
             typedef _internal::named_map_t named_map_t;
             typedef Range<const std::uint8_t*, segment_pos_t> slot_address_range_t;
             typedef std::map<slot_address_range_t, segment_idx_t> slot_address_container_t;
@@ -786,7 +812,7 @@ namespace OP
             typedef boost::upgrade_to_unique_lock< shared_mutex_t > upgraded_guard_t;
             typedef boost::unique_lock< shared_mutex_t > wo_guard_t;
 
-            mutable cache_region_t _segment_cache_manager;
+            mutable cache_region_t _cached_segments;
             mutable slot_address_container_t _slot_addresses;
             mutable shared_mutex_t _slot_address_lock;
 
@@ -807,7 +833,7 @@ namespace OP
                 _fbuf.seekp(new_pos + std::streamoff(_segment_size - 1), std::ios_base::beg);
                 _fbuf.put(0);
                 file_flush();
-                _segment_cache_manager.put(result, std::make_shared<SegmentHelper>(
+                _cached_segments.put(result, std::make_shared<SegmentHelper>(
                     this->_mapping,
                     segment_offset,
                     this->_segment_size));
@@ -818,7 +844,7 @@ namespace OP
             segment_helper_p get_segment(segment_idx_t index) 
             {
                 bool render_new = false;
-                segment_helper_p region = _segment_cache_manager.get(
+                segment_helper_p region = _cached_segments.get(
                     index,
                     [&](segment_idx_t key)
                 {
@@ -931,8 +957,6 @@ namespace OP
             void _check_integrity()
             {
                 _segments->_check_integrity();
-                
-
                 _segments->foreach_segment([this](segment_idx_t idx, SegmentManager& segments){
                     segment_pos_t current_offset = segments.header_size();
                     //start write toplogy right after header

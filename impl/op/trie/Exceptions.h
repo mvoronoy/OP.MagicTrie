@@ -40,6 +40,8 @@ namespace OP
             //  Transactions
             //
             er_transaction_not_started = 40,
+            /**Cannot obtain lock over already existing*/
+            er_transaction_concurent_lock = 41,
         };
         struct Exception : public std::exception
         {

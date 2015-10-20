@@ -6,261 +6,246 @@
 #include <numeric>
 #include <memory>
 #include <op/trie/Utils.h>
+#include <op/trie/SegmentManager.h>
 
-struct DummyEntryLock
+
+namespace OP
 {
-};
-
-template <class Traits>
-struct ListEntry
-{
-    typedef Traits traits_t;
-    typedef typename traits_t::ptr_t entry_ptr_t;
-    typedef typename traits_t::key_t key_t;
-
-    ListEntry():
-        _count(0),
-        _value(Traits::eos())
+    namespace trie
     {
-    }
-    
-    /**@return always valid pointer, that can be used to insert item or find element. 
-    *           To detect if value found just check if `(**result)` is not equal `ListEntity::eos` */
-    entry_ptr_t* prev_lower_bound(key_t key, Traits& traits)
-    {
-        entry_ptr_t* ins_pos = &_value;
-        for(; !Traits::is_eos(*ins_pos);
-            ins_pos = &traits.next( *ins_pos ))
+        struct ForwardListBase
         {
-            if( traits.less( key, traits.key( *ins_pos )))
-                return ins_pos;
-        }
-        //run out of existing keys or entry is empty
-        return ins_pos;
-    }
-    template <class F>
-    entry_ptr_t pull_that( Traits& traits, F& f)
-    {
-        entry_ptr_t* ins_pos = &_value;
-        entry_ptr_t* result = ins_pos;
-        for(; !Traits::is_eos(*ins_pos);
-            ins_pos = &traits.next( *ins_pos ))
+            typedef far_pos_t entry_pos_t;
+            ForwardListBase() :next(SegmentDef::far_null_c){}
+            entry_pos_t next;
+        };
+
+        //template <class Traits>
+        //struct ListEntry : public ForwardListBase<Traits>
+        //{
+        //    typedef typename traits_t::ptr_t ptr_t;
+        //    typedef typename traits_t::key_t key_t;
+
+        //    ListEntry() :
+        //        _count(0),
+        //        _value(Traits::eos())
+        //    {
+        //    }
+
+        //    /**@return always valid pointer, that can be used to insert item or find element.
+        //    *           To detect if value found just check if `(**result)` is not equal `ListEntity::eos` */
+        //    entry_pos_t* prev_lower_bound(key_t key, Traits& traits)
+        //    {
+        //        entry_pos_t* ins_pos = &_value;
+        //        while (!Traits::is_eos(*ins_pos))
+        //        {
+        //            Traits::reference_t curr = traits.deref(*ins_pos);
+        //            if (traits.less(key, traits.key(curr)))
+        //                return ins_pos;
+        //            ins_pos = &traits.next(curr);
+        //        }
+        //        //run out of existing keys or entry is empty
+        //        return ins_pos;
+        //    }
+        //    template <class F>
+        //    entry_pos_t pull_that(Traits& traits, F& f)
+        //    {
+        //        entry_pos_t* ins_pos = &_value;
+        //        entry_pos_t* result = ins_pos;
+        //        ptr_t last = nullptr;
+        //        while (!Traits::is_eos(*ins_pos))
+        //        {
+        //            Traits::const_reference_t curr = traits.const_deref(*ins_pos);
+        //            if (f(curr))
+        //            {
+        //                auto rv = *ins_pos;
+        //                if (ins_pos == result) //peek first item
+        //                    _value = traits.next(curr);
+        //                else
+        //                    traits.set_next(*last, traits.next(curr));
+        //                return rv;
+        //            }
+        //            result = ins_pos;
+        //            last = &curr;
+        //            ins_pos = &traits.next(curr);
+        //        }
+        //        //run out of existing keys or entry is empty
+        //        return *ins_pos;
+        //    }
+        //};
+        /***/
+        template <class Traits, size_t bitmask_size_c = 32>
+        struct Log2SkipList
         {
-            if (f(*ins_pos))
+            typedef Traits traits_t;
+            typedef typename traits_t::pos_t entry_pos_t;
+            typedef Log2SkipList<Traits, bitmask_size_c> this_t;
+
+            /**
+            *   Evaluate how many bytes expected to place header of this datastructure.
+            */
+            OP_CONSTEXPR(OP_EMPTY_ARG) static segment_pos_t byte_size()
             {
-                auto rv = *ins_pos;
-                if (ins_pos == result) //peek first item
-                    _value = traits.next(*ins_pos);
-                else
-                    traits.set_next(*result, traits.next(*ins_pos));
-                --_count;
-                return rv;
+                return align_on(
+                    static_cast<segment_pos_t>(sizeof(ForwardListBase) * bitmask_size_c),
+                    SegmentHeader::align_c);
             }
-            result = ins_pos;
-        }
-        //run out of existing keys or entry is empty
-        return *ins_pos;
-    }
-    std::atomic_size_t _count;
-    entry_ptr_t _value;
-};
-template <class T, class Traits, size_t bitmask_size_c = 32>
-struct Log2SkipList
-{
-    typedef T value_t;
-    typedef Traits traits_t;
-    
-    typedef Log2SkipList<T, Traits, bitmask_size_c> this_t;
-
-    Log2SkipList()
-    {
-    }
-    
-    T pull_not_less(traits_t& traits, typename Traits::key_t key)
-    {
-        auto index = key_slot(traits, key);
-        for (;index < _entries.size(); ++index)
-        {
-            auto& ent = _entries[index];
-            if (ent._count)
+            /**Format memory starting from param `start` for skip-list header
+            *@return new instance of Log2SkipList
+            */
+            static std::unique_ptr<this_t> create_new(SegmentManager& manager, OP::trie::far_pos_t start)
             {
-                wr_lock lock(traits, index);
-                if (ent._count) //apply double-check pattern
+                auto wr = manager.writable_block(FarPosHolder(start), byte_size(), WritableBlockHint::new_c);
+                ForwardListBase *base_arr = wr.at<ForwardListBase>(0);
+                //make formatting for all bunches
+                new (base_arr)ForwardListBase[bitmask_size_c];
+                
+                return std::make_unique<this_t>(manager, start);
+            }
+            /**Open existing list from starting point 'start'
+            *@return new instance of Log2SkipList
+            */
+            static std::unique_ptr<this_t> open(SegmentManager& manager, OP::trie::far_pos_t start)
+            {
+                return std::make_unique<this_t>(manager, start);
+            }
+            /**
+            *   Construct new header for skip-list.
+            * \param start position where header will be placed. After this position header will occupy
+            memory block of #byte_size() length
+            */
+            Log2SkipList(SegmentManager& manager, OP::trie::far_pos_t start) :
+                _segment_manager(manager),
+                _list_pos(start)
+            {
+                static_assert(std::is_base_of<ForwardListBase, traits_t::target_t>::value, "To use skip-list you need inherit T from ForwardListBase");
+            }
+
+            far_pos_t pull_not_less(traits_t& traits, typename Traits::key_t key)
+            {
+                auto index = traits.entry_index(key);
+                
+                for (; index < bitmask_size_c; ++index)
                 {
-                    auto pulled = ent.pull_that(traits, [key, traits, this](const T& t){
-                        return !traits.less(traits.key(t), key);
-                    });
-                    if (!traits.is_eos(pulled))
-                        return pulled;
+                    FarPosHolder prev_pos = entry_offset_by_idx(index);
+                    auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));
+                    const ForwardListBase* prev_ent = prev_block.at<ForwardListBase>(0);
+                    for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos); )
+                    {
+                        traits_t::const_ptr_t curr = _segment_manager.ro_at<traits_t::target_t>(FarPosHolder(pos));
+                        try
+                        {
+                            if (traits.less(key, traits.key(*curr)))
+                            {
+                                auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
+                                auto ent = wr_prev_block.at< ForwardListBase >(0);
+                                ent->next = pos;
+                                return pos;
+                            }
+                        }
+                        catch (const ConcurentLockException&)
+                        {
+                            //just continue to explore available blocks
+                        }
+                        pos = curr->next;
+                    }
                 }
+                return SegmentDef::far_null_c;
             }
-        }
-        return traits_t::eos();
-    }
-    void insert(traits_t& traits, T t)
-    {
-        auto key = traits.key(t);
-        //using ln(n) algorithm to detect entry position
-        auto index = key_slot(traits, key);
-        auto& ent = _entries[index];
-        wr_lock lock(traits, index);
-        auto * ins_ptr = ent.prev_lower_bound(key, traits);
-        traits.set_next(t, * ins_ptr);
-        * ins_ptr = traits.deref( t );
-        ent._count++;
-    }
-    
-private:
-
-    typedef ListEntry<Traits> list_entry_t;
-    typedef std::array<list_entry_t, bitmask_size_c> entries_t;
-    typedef typename entries_t::iterator inner_iterator_t;
-    typedef typename entries_t::const_iterator const_inner_iterator_t;
-    
-    entries_t _entries;
-    /**Using O(ln(n)) complexity evaluate slot for specific key*/
-    template <class K>
-    size_t key_slot(traits_t& traits, K& k)
-    {
-        auto count = bitmask_size_c;
-        size_t it, step, first = 0;
-        while (count > 0) 
-        {
-            it = first; 
-            step = count / 2; 
-            it+= step;
-            if (traits.less(1 << it, k)) {
-                first = ++it; 
-                count -= step + 1; 
-            }
-            else
-                count = step;
-        }
-        //after all `first` is not less entry for `key` or smthng > bitmask_size_c
-        if( first >= bitmask_size_c )
-        {//place the rest (that are too big) to last entry
-            first = bitmask_size_c - 1;
-        }
-        return first;
-    }
-public:
-    template <class Traits, 
-            void (Traits::*start_op)(size_t slot_index), 
-            void (Traits::*end_op)(size_t slot_index) >
-    struct Guard
-    {
-        Guard(Traits& traits, size_t slot_index):
-            _traits(traits),
-            _slot_index(slot_index),
-            _is_closed(false)
-        {
-            (_traits.*start_op)(_slot_index);
-        }
-        void close()
-        {
-            _is_closed = true;
-        }
-        ~Guard()
-        {
-            if (!_is_closed)
-                (_traits.*end_op)(_slot_index);
-        }
-    private:
-        Traits& _traits;
-        size_t _slot_index;
-        bool _is_closed;
-    };
-    typedef Guard<Traits, &Traits::write_lock, &Traits::write_unlock> wr_lock;
-    template <class Container, class InnerIterator>
-    struct SkipListIterator
-    {
-        friend Container;
-        typedef SkipListIterator<Container, InnerIterator> this_t;
-        typedef typename Container::value_t value_t;
-        typedef typename Container::traits_t traits_t;
-        this_t& operator ++ ()
-        {   
-            assert(_from != _to);
-        
-            if (!_traits->is_eos(_list_ptr))
+            void insert(traits_t& traits, typename traits_t::pos_t t, typename traits_t::ptr_t ref)
             {
-                _list_ptr = _traits->next(_list_ptr);
-                if (!_traits->is_eos(_list_ptr))
-                    return *this;
+                auto key = traits.key(*ref);
+                auto index = traits.entry_index(key);
+                
+                FarPosHolder prev_pos = entry_offset_by_idx(index);
+                auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));
+                const ForwardListBase* prev_ent = prev_block.at<ForwardListBase>(0);
+                auto list_insert = [&](){
+                        auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
+                        auto wr_prev_ent = wr_prev_block.at< ForwardListBase >(0);
+                        ref->next = wr_prev_ent->next;
+                        wr_prev_ent->next = t;
+                };
+                for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos);)
+                {
+                    auto curr_block = _segment_manager.readonly_block(FarPosHolder(pos), sizeof(traits_t::target_t));
+                    traits_t::const_ptr_t curr = curr_block.at<traits_t::target_t>(0);
+
+                    if (!traits.less(traits.key(*curr), key))
+                    {
+                        list_insert();
+                        return;
+                    }
+                    pos = curr->next;
+                    prev_block = curr_block;
+                }
+                //there since no entries yet
+                list_insert();
             }
-            ++_from;
-            seek();
-            return *this;
-        }
-        bool operator == (const this_t& other) const
-        {
-            return (_list_ptr == other._list_ptr);
-        }
-        bool operator != (const this_t& other) const
-        {
-            return (_list_ptr != other._list_ptr);
-        }
-        value_t& operator *()
-        {
-            assert(_list_ptr);
-            return _list_ptr;
-        }
-        const value_t& operator *() const
-        {
-            assert(_list_ptr);
-            return *_list_ptr;
-        }
-    private:
 
-        typedef typename Container::traits_t traits_t;
-        typedef typename InnerIterator inner_iterator_t;
-        typedef typename traits_t::ptr_t entry_ptr_t;
-
-        SkipListIterator():
-            _traits(nullptr),
-            _list_ptr(Traits::eos())
-        {
-        }
-        SkipListIterator(inner_iterator_t from, inner_iterator_t to, traits_t* traits):
-            _from(from), 
-            _to(to),
-            _traits(traits),
-            _list_ptr(nullptr)
-        {
-            seek();
-        }
-        bool seek()
-        {
-            for (; _from != _to; ++_from)
+        private:
+            SegmentManager& _segment_manager;
+            OP::trie::far_pos_t _list_pos;
+            /**Using O(ln(n)) complexity evaluate slot for specific key*/
+            //template <class K>
+            //size_t key_slot(traits_t& traits, K& k)
+            //{
+            //    auto count = bitmask_size_c;
+            //    size_t it, step, first = 0;
+            //    while (count > 0) 
+            //    {
+            //        it = first; 
+            //        step = count / 2; 
+            //        it+= step;
+            //        if (traits.less(1 << it, k)) {
+            //            first = ++it; 
+            //            count -= step + 1; 
+            //        }
+            //        else
+            //            count = step;
+            //    }
+            //    //after all `first` is not less entry for `key` or smthng > bitmask_size_c
+            //    if( first >= bitmask_size_c )
+            //    {//place the rest (that are too big) to last entry
+            //        first = bitmask_size_c - 1;
+            //    }
+            //    return first;
+            //}
+        public:
+            template <class Traits,
+                void (Traits::*start_op)(size_t slot_index),
+                void (Traits::*end_op)(size_t slot_index) >
+            struct Guard
             {
-                _list_ptr = _from->_value;
-                if (!_traits->is_eos(_list_ptr))//this slot is not empty
-                    return true;
-            }
-            return false;
-        }
-        inner_iterator_t _from, _to;
-        entry_ptr_t _list_ptr;
-    };
-    typedef SkipListIterator<this_t, inner_iterator_t> iterator;
-    typedef SkipListIterator<this_t, const_inner_iterator_t> const_iterator;
-    private:
-    const_iterator begin() const
-    {
-        return const_iterator(_entries.begin(), _entries.end(), &_traits);
-    }
-    const_iterator end() const
-    {
-        return iterator();
-    }
-    iterator begin() 
-    {
-        return iterator(_entries.begin(), _entries.end(), &_traits);
-    }
-    iterator end() 
-    {
-        return iterator();
-    }
-};
+                Guard(Traits& traits, size_t slot_index) :
+                    _traits(traits),
+                    _slot_index(slot_index),
+                    _is_closed(false)
+                {
+                    (_traits.*start_op)(_slot_index);
+                }
+                void close()
+                {
+                    _is_closed = true;
+                }
+                ~Guard()
+                {
+                    if (!_is_closed)
+                        (_traits.*end_op)(_slot_index);
+                }
+            private:
+                Traits& _traits;
+                size_t _slot_index;
+                bool _is_closed;
+            };
+            
 
+            FarPosHolder entry_offset_by_idx(size_t index) const
+            {
+                FarPosHolder r(_list_pos);
+                return r+=static_cast<segment_pos_t>(index * sizeof(ForwardListBase));
+            }
+        };
+    }//trie
+}//OP
 #endif //_OP_TRIE_SKPLST__H_

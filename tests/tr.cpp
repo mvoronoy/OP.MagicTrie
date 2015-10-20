@@ -462,7 +462,7 @@ void test_SegmentManager()
     SegmentTopology<MemoryManager>* mngr3 = new SegmentTopology<MemoryManager>(segmentMngr3);
     auto& mm = mngr3->slot<MemoryManager>();
     /**Flag must be set if memory management allows merging of free adjacent blocks*/
-    OP_CONSTEXPR bool has_block_compression = mm.merge_free_blocks_c; 
+    OP_CONSTEXPR(const) bool has_block_compression = mm.merge_free_blocks_c; 
     mngr3->_check_integrity();
     //make each odd block free
     for (size_t i = 1; i < 7; i += 2)
@@ -513,14 +513,14 @@ void test_SegmentManager()
     {
         auto p = rand_buf[rnd_indexes[i]];
         mm.deallocate((std::uint8_t*) p );
-        //mngr3->_check_integrity();
+        mngr3->_check_integrity();
     }
-    std::cout << "\tTook:" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() << "us" << std::endl;
+    //std::cout << "\tTook:" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() << "ms" << std::endl;
     mngr3->_check_integrity();
-    /*assert(test_size == mm.available(0));
+    
     
     //do more real example with NodeHead + conatiner
-    far_pos_t heads_off = mngr3->slot<MemoryManager>().make_array<TestHead>(0, 2, NodeType::hash_c);
+    /*far_pos_t heads_off = mm.make_array<TestHead>(0, 2, NodeType::hash_c);
     TestHead *heads = mngr3->from_far<TestHead>(heads_off);
     const std::string named_object = "heads";
     mngr3->put_named_object(0, named_object, heads_off);

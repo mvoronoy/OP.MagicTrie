@@ -3,15 +3,15 @@
 
 #include <type_traits>
 #include <tuple>
-
+#define OP_EMPTY_ARG
 #ifdef _MSC_VER
     #if _MSC_VER <= 1800
-        #define OP_CONSTEXPR 
+#define OP_CONSTEXPR(alt) alt 
     #else
-        #define OP_CONSTEXPR constexpr
+        #define OP_CONSTEXPR(alt) constexpr
     #endif
 #else
-    #define OP_CONSTEXPR constexpr
+    #define OP_CONSTEXPR(alt) constexpr
 #endif //
 
 namespace OP
