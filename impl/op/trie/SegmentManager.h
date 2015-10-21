@@ -485,10 +485,10 @@ namespace OP
         struct MemoryRangeBase : public OP::Range<std::uint8_t *, segment_pos_t>
         {
             typedef OP::Range<std::uint8_t *> base_t;
-            MemoryRangeBase(std::uint8_t * pos, segment_pos_t count, far_pos_t address, segment_helper_p& segment ) :
-                base_t(pos, count),
-                _address(address),
-                _segment(segment)
+            MemoryRangeBase(segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+                base_t(segment->at<std::uint8_t>(address.offset), count),
+                _address(std::move(address)),
+                _segment(std::move(segment))
                 {
                 }
             const FarPosHolder& address() const
@@ -509,8 +509,8 @@ namespace OP
         */
         struct MemoryRange : public MemoryRangeBase
         {
-            MemoryRange(std::uint8_t * pos, segment_pos_t count, far_pos_t address, segment_helper_p& segment ) :
-                MemoryRangeBase(pos, count, address, segment){}
+            MemoryRange(segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+                MemoryRangeBase(count, std::move(address), std::move(segment)){}
 
             template <class T>
             T* at(segment_pos_t idx)
@@ -522,8 +522,8 @@ namespace OP
         };
         struct ReadonlyMemoryRange : MemoryRangeBase
         {
-            ReadonlyMemoryRange(std::uint8_t * pos, segment_pos_t count, far_pos_t address, segment_helper_p& segment ) :
-                MemoryRangeBase(pos, count, address, segment){}
+            ReadonlyMemoryRange(segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+                MemoryRangeBase(count, std::move(address), std::move(segment)){}
 
             template <class T>
             const T* at(segment_pos_t idx) const
@@ -616,31 +616,26 @@ namespace OP
             /**
             * @throws ConcurentLockException if block is already locked for write
             */
-            virtual ReadonlyMemoryRange readonly_block(const FarPosHolder& pos, segment_pos_t size) 
+            virtual ReadonlyMemoryRange readonly_block(FarPosHolder pos, segment_pos_t size) 
             {
-                segment_helper_p seg_hlp = this->get_segment(pos.segment);
                 assert((pos.offset + size) < this->segment_size());
-                auto memory = seg_hlp->at<std::uint8_t>(pos.offset);
-                return ReadonlyMemoryRange(memory, size, pos, seg_hlp);
+                return ReadonlyMemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
             }
             /**
             * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
             */
-            virtual MemoryRange writable_block(const FarPosHolder& pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
+            virtual MemoryRange writable_block(FarPosHolder pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
             {
-                segment_helper_p seg_hlp = this->get_segment(pos.segment);
                 assert((pos.offset + size) <= this->segment_size());
-                auto memory = seg_hlp->at<std::uint8_t>(pos.offset);
-                return MemoryRange(memory, size, pos, seg_hlp);
+                return MemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
             }
             /**
             * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
             */
             virtual MemoryRange upgrade_to_writable_block(ReadonlyMemoryRange& ro)
             {
-                segment_helper_p seg_hlp = ro.segment();
-                auto memory = seg_hlp->at<std::uint8_t>(ro.address().offset);
-                return MemoryRange(memory, ro.count(), ro.address(), ro.segment());
+                auto addr = ro.address();
+                return MemoryRange(ro.count(), std::move(addr), std::move(ro.segment()));
             }
             /** Shorthand for \code
                 readonly_block(pos, sizeof(T)).at<T>(0)

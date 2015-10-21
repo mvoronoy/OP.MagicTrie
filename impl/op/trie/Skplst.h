@@ -96,9 +96,9 @@ namespace OP
             static std::unique_ptr<this_t> create_new(SegmentManager& manager, OP::trie::far_pos_t start)
             {
                 auto wr = manager.writable_block(FarPosHolder(start), byte_size(), WritableBlockHint::new_c);
-                ForwardListBase *base_arr = wr.at<ForwardListBase>(0);
+                
                 //make formatting for all bunches
-                new (base_arr)ForwardListBase[bitmask_size_c];
+                new (wr.pos())ForwardListBase[bitmask_size_c];
                 
                 return std::make_unique<this_t>(manager, start);
             }
@@ -139,7 +139,7 @@ namespace OP
                             {
                                 auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
                                 auto ent = wr_prev_block.at< ForwardListBase >(0);
-                                ent->next = pos;
+                                ent->next = curr->next;
                                 return pos;
                             }
                         }

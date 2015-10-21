@@ -30,7 +30,6 @@ namespace OP
             */
             virtual std::uint8_t* allocate(segment_pos_t size)
             {
-                auto avail_segments = _segment_manager->available_segments();
                 FreeMemoryBlockTraits free_traits(_segment_manager);
                 //try do without locking
                 
@@ -42,6 +41,7 @@ namespace OP
                     free_block_pos = _free_blocks->pull_not_less(free_traits, size);
                     if (free_traits.is_eos(free_block_pos))
                     {
+                        auto avail_segments = _segment_manager->available_segments();
                         _segment_manager->ensure_segment(avail_segments);
                         free_block_pos = _free_blocks->pull_not_less(free_traits, size);
                         if (free_traits.is_eos(free_block_pos))
@@ -55,17 +55,18 @@ namespace OP
                     _segment_manager->wr_at<MemoryBlockHeader>(current_mem_ptr);
 
                 auto new_block = current_mem->split_this(*_segment_manager, current_mem_ptr, size);
-
+                segment_pos_t deposited_size = 0;
                 if (new_block != current_mem) //new block was allocated
                 {  //old block was splitted, so place the rest back to free list
                     FreeMemoryBlock *free_block = _segment_manager->wr_at< FreeMemoryBlock >(FarPosHolder(free_block_pos));
+                    deposited_size = new_block->real_size();
                     _free_blocks->insert(free_traits, free_block_pos, free_block);
-                    get_available_bytes(segment_idx) -= new_block->real_size();
                 }
                 else //when existing block is used it is not needed to use 'real_size' - because header alredy counted
                 {
-                    get_available_bytes(segment_idx) -= new_block->size();
+                    deposited_size = new_block->size();
                 }
+                get_available_bytes(segment_idx) -= deposited_size;
                 return new_block->memory();
             }
             /**\return number of bytes available for specific segment*/
@@ -98,13 +99,14 @@ namespace OP
                 auto free_block_pos = header_far+mbh;
 
                 //Mark segment and memory for FreeMemoryBlock as available for write
-                auto block = _segment_manager->writable_block(header_far, mbh + sizeof(FreeMemoryBlock));
+                auto block = _segment_manager->writable_block(std::move(header_far), mbh + sizeof(FreeMemoryBlock));
                 header = block.at<MemoryBlockHeader>(0);
                 header->set_free(true);
                 auto free_marker = block.at<void>(mbh);
                 FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(emplaced_t());
+                auto deposited = header->size();
                 _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), free_block_pos, span_of_free);
-                get_available_bytes(segment_idx) += header->size();
+                get_available_bytes(segment_idx) += deposited;
             }
 
             /**Allocate memory and create object of specified type
@@ -131,16 +133,16 @@ namespace OP
             void _check_integrity(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset)
             {
                 FarPosHolder first_block_pos (segment_idx, offset);
-                const free_blocks_t* test_free_blocks = nullptr;
                 if (segment_idx == 0)
                 {//only single instance of free-space list
-                    test_free_blocks = manager.ro_at<free_blocks_t>(first_block_pos);
-                    first_block_pos.offset += aligned_sizeof<free_blocks_t>(SegmentHeader::align_c);
+                    first_block_pos += free_blocks_t::byte_size();
                     //for zero segment check also table of free blocks
                     //@tbd
                 }
+                first_block_pos.offset = align_on(first_block_pos.offset, SegmentDef::align_c);
                 //skip reserved 4bytes for segment size
                 FarPosHolder avail_bytes_offset = first_block_pos;
+
                 auto avail_space_mem = manager.readonly_block(avail_bytes_offset, sizeof(segment_pos_t));
                 first_block_pos.offset = align_on(first_block_pos.offset +static_cast<segment_pos_t>(sizeof(segment_pos_t)), SegmentHeader::align_c);
 
@@ -216,12 +218,12 @@ namespace OP
                 first_block_pos.offset = align_on(first_block_pos.offset, SegmentDef::align_c);
                 //reserve 4bytes for segment size
                 FarPosHolder avail_bytes_offset = first_block_pos;
-                MemoryRange avail_space_mem = _segment_manager->writable_block(avail_bytes_offset, sizeof(segment_pos_t));
+                MemoryRange avail_space_mem = _segment_manager->writable_block(avail_bytes_offset, sizeof(segment_pos_t), WritableBlockHint::new_c);
                 first_block_pos.offset = align_on(first_block_pos.offset +static_cast<segment_pos_t>(sizeof(segment_pos_t)), SegmentHeader::align_c);
 
                 segment_pos_t byte_size = ceil_align_on(_segment_manager->segment_size() - first_block_pos.offset, SegmentHeader::align_c);
                 OP_CONSTEXPR(const) segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                MemoryRange zero_header = _segment_manager->writable_block(first_block_pos, mbh_size_align + sizeof(FreeMemoryBlock));
+                MemoryRange zero_header = _segment_manager->writable_block(first_block_pos, mbh_size_align + sizeof(FreeMemoryBlock), WritableBlockHint::new_c);
                 MemoryBlockHeader * block = new (zero_header.pos()) MemoryBlockHeader(emplaced_t());
                 block
                     ->size(byte_size - mbh_size_align)

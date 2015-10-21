@@ -239,7 +239,7 @@ namespace OP
             */
             FreeMemoryBlockTraits(SegmentManager *segment_manager):
                 _segment_manager(segment_manager),
-                _low(SegmentDef::align_c),//smallest block is always aligned
+                _low(32),//smallest block 
                 _high(segment_manager->segment_size())
             {
             }
@@ -259,10 +259,18 @@ namespace OP
             
             size_t entry_index(key_t key) const
             {
-                if (key <= _low)
-                    return 0;
-                auto result = (((key - _low)*(slots_c/*aka 32*/)) /
-                    (_high / 2/*half of biggest possible block*/));
+                size_t base = 0;
+                const size_t low_strat = 256;
+                if (key < low_strat)
+                    return key * 3 / low_strat;
+                base = 3;
+                key -= low_strat;
+                const size_t mid_strat = 4096;
+                if (key < mid_strat)/*Just an assumption about biggest payload stored in virtual memory*/
+                    return base + ((key*(slots_c/2/*aka 16*/))/(mid_strat));
+                base += slots_c / 2;
+                key -= mid_strat;
+                size_t result = base + (key * (slots_c - 3 - slots_c / 2/*aka 13*/)) / _high;
                 if (result >= slots_c)
                     return slots_c - 1;
                 return result;

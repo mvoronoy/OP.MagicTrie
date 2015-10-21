@@ -464,6 +464,7 @@ void test_SegmentManager()
     /**Flag must be set if memory management allows merging of free adjacent blocks*/
     OP_CONSTEXPR(const) bool has_block_compression = mm.merge_free_blocks_c; 
     mngr3->_check_integrity();
+    
     //make each odd block free
     for (size_t i = 1; i < 7; i += 2)
     {
@@ -515,7 +516,9 @@ void test_SegmentManager()
         mm.deallocate((std::uint8_t*) p );
         mngr3->_check_integrity();
     }
-    //std::cout << "\tTook:" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() << "ms" << std::endl;
+    std::cout << "\tTook:" 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() 
+        << "ms" << std::endl;
     mngr3->_check_integrity();
     
     
