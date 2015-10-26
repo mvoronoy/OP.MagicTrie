@@ -462,7 +462,7 @@ void test_SegmentManager()
     SegmentTopology<MemoryManager>* mngr3 = new SegmentTopology<MemoryManager>(segmentMngr3);
     auto& mm = mngr3->slot<MemoryManager>();
     /**Flag must be set if memory management allows merging of free adjacent blocks*/
-    OP_CONSTEXPR(const) bool has_block_compression = mm.merge_free_blocks_c; 
+    const bool has_block_compression = mm.has_block_merging(); 
     mngr3->_check_integrity();
     
     //make each odd block free
@@ -520,7 +520,8 @@ void test_SegmentManager()
         << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() 
         << "ms" << std::endl;
     mngr3->_check_integrity();
-    
+    delete mngr3;
+    segmentMngr3.reset();
     
     //do more real example with NodeHead + conatiner
     /*far_pos_t heads_off = mm.make_array<TestHead>(0, 2, NodeType::hash_c);

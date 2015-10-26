@@ -6,12 +6,15 @@
 #define OP_EMPTY_ARG
 #ifdef _MSC_VER
     #if _MSC_VER <= 1800
-#define OP_CONSTEXPR(alt) alt 
+        #define OP_CONSTEXPR(alt) alt 
+        #define OP_NOEXCEPT
     #else
         #define OP_CONSTEXPR(alt) constexpr
+        #define OP_NOEXCEPT noexcept 
     #endif
 #else
     #define OP_CONSTEXPR(alt) constexpr
+    #define OP_NOEXCEPT noexcept 
 #endif //
 
 namespace OP
@@ -71,6 +74,30 @@ namespace OP
         private:
             tuple_t _instance;
         };
+        template <class I>
+        struct FetchTicket
+        {
+            FetchTicket():
+                _ticket_number(0),
+                _turn(0)
+            {
+            }
+
+            void lock()
+            {
+                size_t r_turn = _ticket_number.fetch_add(1);
+                while (!_turn.compare_exchange_weak(r_turn, r_turn))
+                    /*empty body std::this_thread::yield()*/;
+            }
+            void unlock()
+            {
+                _turn.fetch_add(1);
+            }
+
+            std::atomic<I> _ticket_number;
+            std::atomic<I> _turn;
+
+        };
         //////////////////////////////////
         /**
         *   Wrapper to grant RAI operation by invoking pair of methods
@@ -88,12 +115,13 @@ namespace OP
             }
             void close()
             {
+                if (!_is_closed)
+                    (_ref->*end_op)();
                 _is_closed = true;
             }
             ~operation_guard_t()
             {
-                if (!_is_closed)
-                    (_ref->*end_op)();
+                close();
             }
         private:
             T* _ref;

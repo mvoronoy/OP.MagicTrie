@@ -60,6 +60,9 @@
     <ClInclude Include="..\impl\op\trie\Skplst.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GenericMemoryTest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tr.cpp">

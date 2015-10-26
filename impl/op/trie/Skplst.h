@@ -211,34 +211,7 @@ namespace OP
             //    }
             //    return first;
             //}
-        public:
-            template <class Traits,
-                void (Traits::*start_op)(size_t slot_index),
-                void (Traits::*end_op)(size_t slot_index) >
-            struct Guard
-            {
-                Guard(Traits& traits, size_t slot_index) :
-                    _traits(traits),
-                    _slot_index(slot_index),
-                    _is_closed(false)
-                {
-                    (_traits.*start_op)(_slot_index);
-                }
-                void close()
-                {
-                    _is_closed = true;
-                }
-                ~Guard()
-                {
-                    if (!_is_closed)
-                        (_traits.*end_op)(_slot_index);
-                }
-            private:
-                Traits& _traits;
-                size_t _slot_index;
-                bool _is_closed;
-            };
-            
+        private:
 
             FarPosHolder entry_offset_by_idx(size_t index) const
             {

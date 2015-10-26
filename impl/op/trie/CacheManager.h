@@ -337,31 +337,19 @@ namespace OP{
                     delete[]arr;
                 }
             };
-            struct Array
+            struct Array : public FetchTicket<size_t>
             {
+                typedef FetchTicket<size_t> super_t;
                 Array(index_t capacity):
-                    _ticket_number(0),
-                    _turn(0),
                     _capacity(capacity),
                     _data(new ptr_t[capacity], Dealloc())
                 {
 
                 }
-                void lock()
-                {
-                    size_t r_turn = _ticket_number.fetch_add(1);
-                    while (!_turn.compare_exchange_weak(r_turn, r_turn))
-                        /*empty body std::this_thread::yield()*/;
-                }
-                void unlock()
-                {
-                    _turn.fetch_add(1);
-                }
 
-                typedef operation_guard_t<Array, &Array::lock, &Array::unlock> guard_t;
+                typedef operation_guard_t<super_t, &super_t::lock, &super_t::unlock> guard_t;
                 typedef std::shared_ptr<ptr_t> container_t;
-                std::atomic<size_t> _ticket_number;
-                std::atomic<size_t> _turn;
+
                 container_t _data;
                 index_t _capacity;
                 void put(index_t pos, ptr_t& value)

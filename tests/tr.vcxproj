@@ -164,6 +164,7 @@
     <ClInclude Include="..\impl\op\trie\Transactional.h" />
     <ClInclude Include="..\impl\op\trie\Trie.h" />
     <ClInclude Include="..\impl\op\trie\Utils.h" />
+    <ClInclude Include="GenericMemoryTest.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NodeTest.cpp" />

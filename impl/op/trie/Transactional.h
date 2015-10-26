@@ -63,9 +63,15 @@ namespace OP
     template <class T>
     const std::string serial_declare<T>::id = typeid(T).name();
     
+    struct TransactionMedia
+    {
+        /**@throws std::exception when write fails*/
+        virtual void write(const std::uint8_t *buffer, std::uint32_t size) = 0;
+    };
     struct Transactable
     {
-    
+        virtual void on_commit(TransactionMedia& media) = 0;
+        virtual void on_rollback(TransactionMedia& media) = 0;
     };
 
     

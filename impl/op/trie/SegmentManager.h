@@ -71,6 +71,7 @@ namespace OP
                 assert(offset <= (~0u - pos)); //test overflow
                 return FarPosHolder(segment, offset + pos);
             }
+            /**Signed operation*/
             FarPosHolder operator + (segment_off_t a_offset) const
             {
                 assert(
@@ -85,6 +86,12 @@ namespace OP
                 assert(offset <= (~0u - pos)); //test overflow
                 offset += pos;
                 return *this;
+            }
+            /**Find signable distance between to holders on condition they belong to the same segment*/
+            segment_off_t diff(const FarPosHolder& other) const
+            {
+                assert(segment == other.segment);
+                return offset - other.offset;
             }
         };
 
@@ -485,6 +492,13 @@ namespace OP
         struct MemoryRangeBase : public OP::Range<std::uint8_t *, segment_pos_t>
         {
             typedef OP::Range<std::uint8_t *> base_t;
+            MemoryRangeBase(){}
+            MemoryRangeBase(std::uint8_t * pos, segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+                base_t(pos, count),
+                _address(std::move(address)),
+                _segment(std::move(segment))
+                {
+                }
             MemoryRangeBase(segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
                 base_t(segment->at<std::uint8_t>(address.offset), count),
                 _address(std::move(address)),
@@ -512,6 +526,11 @@ namespace OP
             MemoryRange(segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
                 MemoryRangeBase(count, std::move(address), std::move(segment)){}
 
+            MemoryRange(std::uint8_t * pos, segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+                MemoryRangeBase(pos, count, std::move(address), std::move(segment) )
+                {
+                }
+            MemoryRange() = default;
             template <class T>
             T* at(segment_pos_t idx)
             {
@@ -524,7 +543,11 @@ namespace OP
         {
             ReadonlyMemoryRange(segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
                 MemoryRangeBase(count, std::move(address), std::move(segment)){}
-
+            ReadonlyMemoryRange(std::uint8_t * pos, segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+                MemoryRangeBase(pos, count, std::move(address), std::move(segment) )
+                {
+                }
+            ReadonlyMemoryRange() = default;
             template <class T>
             const T* at(segment_pos_t idx) const
             {
@@ -535,10 +558,13 @@ namespace OP
         /**Hint allows specify how writable block will be used*/
         enum class WritableBlockHint : std::uint8_t
         {
+            block_no_hint_c = 0,
+            block_for_read_c = 0x1,
+            block_for_write_c = 0x2,
             /**Block contains some information and will be used for r/w operations*/
-            update_c = 0,
+            update_c = block_for_read_c | block_for_write_c,
             /**Block is used only for write purpose and doesn't contain usefull information yet*/
-            new_c = 1
+            new_c = block_for_write_c
         };
         /**Exception is raised when imposible to obtain lock over memory block*/
         struct ConcurentLockException : public OP::trie::Exception
@@ -607,6 +633,7 @@ namespace OP
                 MyFileBuf::pos_type pos = _fbuf.tellp();
                 return static_cast<segment_idx_t>(pos / segment_size());
             }
+            
             virtual void begin_write_operation()
             {
             }
@@ -765,23 +792,40 @@ namespace OP
             {
 
             }
-            /**Taking offset inside segment return readonly memory-block matched.*/
-            virtual inline const uint8_t* const_from_offset(segment_idx_t segment_idx, segment_pos_t offset) 
-            {
-                segment_helper_p segment = get_segment(segment_idx);
-                return segment->from_offset(offset);
-            }
-            /**Taking offset inside segment return updateable memory-block matched.*/
-            virtual inline uint8_t* updateable_from_offset(segment_idx_t segment_idx, segment_pos_t offset) 
-            {
-                segment_helper_p segment = get_segment(segment_idx);
-                return segment->from_offset(offset);
-            }
 
             inline static far_pos_t _far(segment_idx_t segment_idx, segment_pos_t offset)
             {
                 return (static_cast<far_pos_t>(segment_idx) << 32) | offset;
             }
+            segment_helper_p get_segment(segment_idx_t index) 
+            {
+                bool render_new = false;
+                segment_helper_p region = _cached_segments.get(
+                    index,
+                    [&](segment_idx_t key)
+                {
+                    render_new = true;
+                    auto offset = key * this->_segment_size;
+                    auto result = std::make_shared<SegmentHelper>(
+                        this->_mapping,
+                        offset,
+                        this->_segment_size);
+                    
+                    return result;
+                }
+                );
+                if (render_new)
+                {
+                    //notify listeners that some segment was opened
+                    _listener->on_segment_opening(index, *this);
+                    //place mapping of address space to indexes 
+                    slot_address_range_t range(region->at<std::uint8_t>(0), this->_segment_size);
+                    wo_guard_t lock(_slot_address_lock);
+                    _slot_addresses[range] = index;  //uncondition place
+                }
+                return region;
+            }
+            
 
         private:
 
@@ -832,37 +876,9 @@ namespace OP
                     this->_mapping,
                     segment_offset,
                     this->_segment_size));
-                _listener->on_segment_allocated(result, *this);
+                if (_listener)
+                    _listener->on_segment_allocated(result, *this);
                 return result;
-            }
-            
-            segment_helper_p get_segment(segment_idx_t index) 
-            {
-                bool render_new = false;
-                segment_helper_p region = _cached_segments.get(
-                    index,
-                    [&](segment_idx_t key)
-                {
-                    render_new = true;
-                    auto offset = key * this->_segment_size;
-                    auto result = std::make_shared<SegmentHelper>(
-                        this->_mapping,
-                        offset,
-                        this->_segment_size);
-                    
-                    return result;
-                }
-                );
-                if (render_new)
-                {
-                    //notify listeners that some segment was opened
-                    _listener->on_segment_opening(index, *this);
-                    //place mapping of address space to indexes 
-                    slot_address_range_t range(region->at<std::uint8_t>(0), this->_segment_size);
-                    wo_guard_t lock(_slot_address_lock);
-                    _slot_addresses[range] = index;  //uncondition place
-                }
-                return region;
             }
             
             /**Tries to locate segment index by memory address*/

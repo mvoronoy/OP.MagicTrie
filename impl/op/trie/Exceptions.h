@@ -42,6 +42,8 @@ namespace OP
             er_transaction_not_started = 40,
             /**Cannot obtain lock over already existing*/
             er_transaction_concurent_lock = 41,
+            /**Transactional memory blocks cannot be overlapped. Blocks must be nested or overlapped */
+            er_overlapping_block = 42
         };
         struct Exception : public std::exception
         {

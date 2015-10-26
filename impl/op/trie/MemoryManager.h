@@ -13,11 +13,6 @@ namespace OP
     {
         struct MemoryManager : public Slot
         {
-            enum
-            {
-                /**set if memory management allows merging of free adjacent blocks*/
-                merge_free_blocks_c = false
-            };
             MemoryManager()
             {
             }
@@ -68,6 +63,11 @@ namespace OP
                 }
                 get_available_bytes(segment_idx) -= deposited_size;
                 return new_block->memory();
+            }
+            /** @return true if merge two adjacent block during deallocation is allowed */
+            virtual bool has_block_merging() const
+            {
+                return false;
             }
             /**\return number of bytes available for specific segment*/
             segment_pos_t available(segment_idx_t segment_idx) const

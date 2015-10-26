@@ -36,7 +36,7 @@ void test_Range()
     //create many ranges
     for (auto i = 0; i < 10; ++i)
     {
-        cont.insert(ranges_t::value_type(range_t(i * 100, 10), i));
+        cont.emplace(range_t(i * 100, 10), i);
     }
     //check findability
     for (auto i = 0; i < 10; ++i)
@@ -48,4 +48,35 @@ void test_Range()
         f = cont.find(range_t(i * 100+11, 1));
         assert(cont.end() == f);
     }
+    //test overlapping
+    range_t r1 = { 10, 5 }, r2 = { 9, 5 }, r3 = { 14, 1 }, r4 = { 0, 11 };
+    assert(r1.is_overlapped(r1)); //self test
+    assert(r1.is_included(r1)); //self test
+
+    assert(r1.is_overlapped(r2) && r2.is_overlapped(r1));
+    assert(!r1.is_included(r2) && !r2.is_included(r1));
+
+    assert(r1.is_overlapped(r3) && r3.is_overlapped(r1));
+    assert(r1.is_included(r3) && !r3.is_included(r1));
+
+    assert(r1.is_overlapped(r4) && r4.is_overlapped(r1));
+    assert(!r1.is_included(r4) && !r4.is_included(r1));
+
+    range_t nr1 = { 9, 6 }/*no overlaps, but inclusion*/, nr2 = { 0, 10 }/*just adjacence*/,
+        nr3 = { 1, 1 }, nr4 = { 15, 2 }/*adjacent*/, nr5 = { 20, 2 };
+    assert(r1.is_overlapped(nr1) && nr1.is_overlapped(r1));
+    assert(!r1.is_included(nr1) && nr1.is_included(r1));
+
+    assert(!r1.is_overlapped(nr2) && !nr2.is_overlapped(r1));
+    assert(!r1.is_included(nr2) && !nr2.is_included(r1));
+
+    assert(!r1.is_overlapped(nr3) && !nr3.is_overlapped(r1));
+    assert(!r1.is_included(nr3) && !nr3.is_included(r1));
+
+    assert(!r1.is_overlapped(nr4) && !nr4.is_overlapped(r1));
+    assert(!r1.is_included(nr4) && !nr4.is_included(r1));
+
+    assert(!r1.is_overlapped(nr5) && !nr5.is_overlapped(r1));
+    assert(!r1.is_included(nr5) && !nr5.is_included(r1));
+
 }
