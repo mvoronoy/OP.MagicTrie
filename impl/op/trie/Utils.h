@@ -3,6 +3,8 @@
 
 #include <type_traits>
 #include <tuple>
+#include <atomic>
+
 #define OP_EMPTY_ARG
 #ifdef _MSC_VER
     #if _MSC_VER <= 1800
