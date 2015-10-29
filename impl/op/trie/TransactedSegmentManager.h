@@ -39,7 +39,7 @@ namespace OP
                 return insres.first->second;
             }
             
-            ReadonlyMemoryRange readonly_block(FarPosHolder pos, segment_pos_t size) override
+            ReadonlyMemoryRange readonly_block(FarAddress pos, segment_pos_t size) override
             {
                 RWR search_range(pos, size);
                 guard_t g2(&_map_lock); //trick - capture ownership in this thread, but delegate find in other one
@@ -110,7 +110,7 @@ namespace OP
                 return ReadonlyMemoryRange(found_res->second.shadow_buffer(), //use shadow
                     size, std::move(pos), std::move(SegmentManager::get_segment(pos.segment)));
             }
-            MemoryRange writable_block(FarPosHolder pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
+            MemoryRange writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
             {
                 RWR search_range(pos, size);
                 guard_t g2(&_map_lock); //trick - capture ownership in this thread, but delegate find in other one
@@ -202,12 +202,12 @@ namespace OP
             }
         private:
             /**Write explictly to segment manager*/
-            void raw_write(const FarPosHolder& fp, const std::uint8_t *buffer, std::uint32_t size)
+            void raw_write(const FarAddress& fp, const std::uint8_t *buffer, std::uint32_t size)
             {
                 auto s = get_segment(fp.segment);
                 memcpy(s->at<std::uint8_t>(fp.offset), buffer, size);
             }
-            typedef OP::Range<FarPosHolder, segment_pos_t> RWR;
+            typedef OP::Range<FarAddress, segment_pos_t> RWR;
             enum flag_t : segment_pos_t
             {
                 ro_c    = 0x0,

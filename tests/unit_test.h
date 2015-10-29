@@ -1,0 +1,458 @@
+#ifndef _UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
+#define _UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
+
+#include <vector>
+#include <deque>
+#include <iostream>
+#include <memory>
+#include <chrono>
+#include <ctime>
+#include <sstream>
+#include <string>
+#include <typeinfo>
+#include <functional>
+#include <map>
+
+/** Allows place usefull information to detail output.
+* Usage:
+* \code
+* ...
+* OP_CODE_DETAILS( << "Dtail of exception with number " << 57 );
+  
+* \endcode
+*/  
+#define OP_CODE_DETAILS(message_flow) OP::utest::detail() << "{File:" << __FILE__ << " at:" << __LINE__  << "}\n" message_flow
+#define OP_TEST_STRINGIFY(a) #a
+
+/** Exposes assert functionality if for some reason function have no access to TestResult instance.
+* Usage:
+* \code
+* ...
+*   OP_UTEST_ASSERT(1==0, << "Logic is a power! Following number:" << 57);
+*/
+#define OP_UTEST_ASSERT(condition, ...) (void)((condition) || OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
+/**The same as OP_UTEST_ASSERT but unconditionally failed*/
+#define OP_UTEST_FAIL(...) (void)(OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
+namespace OP
+{
+namespace utest{
+    namespace _inner {
+        template <class X>
+        inline bool _uncondition_exception_raise(X&&x)
+        {
+            throw OP::utest::TestFail(std::forward<X>(x));
+        }
+    }
+struct Identifiable 
+{
+    typedef std::string id_t;
+    template <class Name>
+    Identifiable(Name && name):
+        _id(std::forward<Name>(name))
+    {}
+
+    Identifiable() = delete;
+    Identifiable(const Identifiable &) = delete;
+
+    virtual ~Identifiable() = default;
+    const id_t& id() const
+    {
+        return _id;
+    }
+private:
+    id_t _id;
+};
+
+struct detail
+{
+    template <class T>
+    friend detail& operator << (detail& os, const T& t);
+    
+    detail() = default;
+    detail(const detail&) = delete;
+    detail(detail&& other):
+        _result(std::move(other._result))
+    {
+    }
+    //detail& operator = (detail&&) = default;
+    
+    std::string result() const
+    {
+        return _result.str();
+    }
+    bool is_empty() const
+    {
+        return _result.rdbuf()->in_avail() == 0;
+    }
+private:
+    std::ostringstream _result;
+};
+
+template <class T>
+inline detail& operator << (detail& det, const T& t)
+{
+    det._result << t;
+    return det;
+}
+inline std::ostream& operator << (std::ostream& os, const detail& det)
+{
+    os << det.result().c_str();
+    return os;
+}
+
+/**Specialization of exception to distinguish fail from aborted state*/
+struct TestFail : std::logic_error
+{
+    TestFail():
+        std::logic_error(nullptr)
+    {
+    }
+    TestFail(const std::string& text):
+        std::logic_error(text)
+    {
+    }
+};
+
+
+struct TestCase;
+struct TestSuite;
+/** Result of test execution */
+struct TestResult
+{
+    friend struct TestCase;
+    typedef std::chrono::high_resolution_clock::time_point time_point_t;
+    TestResult(std::shared_ptr<TestSuite>& suite):
+         _suite(suite),
+        _status(not_started),
+        _run_number(0)
+    {
+    }
+    TestResult(const TestResult&) = delete;
+    TestResult(TestResult&& other) :
+        _suite(other._suite),
+        _status(other._status),
+        _run_number(other._run_number),
+        _status_details(std::move(other._status_details)),
+        _start_time(other._start_time), 
+        _end_time(other._end_time)
+    {
+
+    }
+    enum Status
+    {
+        not_started,
+        /*some test condition was not met, see #status_details for details*/
+        failed,
+        /*test raised unhandled exception*/
+        aborted,
+        /*Test succeeded*/
+        ok
+    };
+    bool operator !() const
+    {
+        return _status != ok;
+    }
+    double ms_duration() const
+    {
+        return std::chrono::duration<double, std::milli>(_end_time - _start_time).count();
+    }
+    inline std::ostream& info();
+    inline std::ostream& error();
+    
+    detail& status_details()
+    {
+        return _status_details;
+    }
+    unsigned run_number() const
+    {
+        return _run_number;
+    }
+    time_point_t start_time() const
+    {
+        return _start_time;
+    }
+    time_point_t end_time() const
+    {
+        return _end_time;
+    }
+
+    void assert_true(bool condition)
+    {
+        assert_true(condition, "assert_true(false)");
+    }
+
+    template <class Xetails>
+    void assert_true(bool condition, Xetails&& details)
+    {
+        if( !condition )
+        {
+            fail(std::forward<Xetails>(details));
+        }
+    }
+    /**Unconditional fail*/
+    template <class Xetails>
+    void fail(Xetails&& details)
+    {
+        _status_details << details;
+        error() << details;
+        throw TestFail();
+    }
+private:
+    detail _status_details;
+    Status _status;
+    unsigned _run_number;
+    time_point_t _start_time, _end_time;
+    std::shared_ptr<TestSuite> _suite;
+};
+
+/**Abstract definition of test invokation*/
+struct TestCase : public Identifiable
+{
+    template <class Name>
+    TestCase(Name && name):
+        Identifiable(std::forward<Name>(name))
+    {
+    }
+    virtual ~TestCase(){}
+    /**Invoke test single times*/
+    TestResult& execute(TestResult& retval)
+    {
+        retval._start_time = std::chrono::high_resolution_clock::now();
+        do_run(retval);
+        retval._run_number = 1;
+        return retval;
+    }
+    TestResult& load_execute(TestResult& result, unsigned run_number, unsigned warm_up = 10)
+    {
+        while(warm_up--)
+        {
+            auto& tr = execute(result);
+            if( !result ) //warm-up failed
+                return result;
+        }
+        result._start_time = std::chrono::high_resolution_clock::now();
+        result._run_number = 0;
+        for(; run_number; --run_number, ++result._run_number)
+        {
+            do_run(result);
+        }
+        result._end_time = std::chrono::high_resolution_clock::now();
+        result._status = TestResult::ok;
+        return result;
+    }
+protected:    
+    virtual void run(TestResult& retval) = 0;
+private:
+    void do_run(TestResult& retval)
+    {
+        try
+        {
+            this->run(retval);
+        }
+        catch(TestFail const &e)
+        {
+            retval._end_time = std::chrono::high_resolution_clock::now();
+            retval._status = TestResult::failed;
+            if( e.what() && *e.what() )
+            {
+                if( !retval._status_details.is_empty() )
+                    retval._status_details << "\n";
+                retval._status_details << e.what();
+            }
+        }
+        catch(std::exception const &e)
+        {
+            retval._end_time = std::chrono::high_resolution_clock::now();
+            retval._status = TestResult::aborted;
+            if( e.what() && *e.what() )
+            {
+                if( !retval._status_details.is_empty() )
+                    retval._status_details << "\n";
+                retval._status_details << e.what();
+            }
+        }
+        catch(...)
+        { //hide any other exception
+            retval._end_time = std::chrono::high_resolution_clock::now();
+            retval._status = TestResult::aborted;
+        }
+    }
+    
+};
+
+struct TestRun;
+/**Represent set of test executors*/
+struct TestSuite : public Identifiable, public std::enable_shared_from_this<TestSuite> 
+{
+    template <class Name>
+    TestSuite(Name&& name, std::ostream& info_stream, std::ostream& error_stream):
+        Identifiable(std::forward<Name>(name)),
+        _info_stream(info_stream),
+        _error_stream(error_stream)
+    {
+    }
+
+    
+
+    template <class F, class Name = const char*>
+    TestSuite* declare(F && f, Name && n = Name())
+    {
+        std::string name = (n == Name()) ? typeid(n).name() : std::string(std::move(n));
+        
+        return this->declare(
+            std::make_shared<FunctionalTestCase<decltype(f)> >(
+                name,
+                std::forward<F>(f)
+            )
+        );
+    }
+    TestSuite* declare(std::shared_ptr<TestCase>& exec)
+    {
+        _tests.push_back(exec);
+        return this;
+    }
+    template <class Predicate, class Function>
+    void for_each_case_if( Predicate && p, Function && f )
+    {
+        for( auto& t: _tests )
+        {
+            if( p(*t) )
+            {
+                TestResult result(shared_from_this());
+                t->execute( result );
+                f( std::move( result ) );
+            }
+        }
+    }
+    std::ostream& info()
+    {
+        return _info_stream;
+    }
+    std::ostream& error()
+    {
+        return _error_stream;
+    }
+private:
+    std::string _name;
+    typedef std::shared_ptr<TestCase> test_executor_ptr;
+    typedef std::deque<test_executor_ptr> test_container_t;
+    test_container_t _tests;
+    std::ostream& _info_stream;
+    std::ostream& _error_stream;
+    
+    template <class F>
+    struct FunctionalTestCase : public TestCase
+    {
+        template <class Name>
+        FunctionalTestCase(Name && name, F&& f):
+            TestCase(std::forward<Name>(name)),
+            _function(std::forward<F>(f))
+        {
+        }
+    protected:
+        void run(TestResult& retval)
+        {
+            _function(retval);
+        }
+    private:
+        F _function;
+    };
+};
+/** Specialization for functions without arguments, it can use OP_UTEST_ASSERT 
+* instead of access to TestResult methods
+*/
+template <>
+void TestSuite::FunctionalTestCase< std::function<void()> >::run(TestResult& retval) 
+{
+    _function();
+}
+
+inline std::ostream& TestResult::info()
+{
+    return _suite->info();
+}
+inline std::ostream& TestResult::error()
+{
+    return _suite->error();
+}
+
+template <class Name>
+inline std::shared_ptr<TestSuite> default_test_suite(Name && name)
+{
+    auto r = make_shared<TestSuite>(std::forward<Name>(name), std::cout, std::cerr);
+    TestRun::default_instance().declare(r);
+    return r;
+};
+
+struct TestReport
+{
+    
+};
+
+struct TestRun
+{
+    typedef std::shared_ptr<TestSuite> test_suite_ptr;
+    TestRun()
+    {
+    }
+    static TestRun& default_instance()
+    {
+        static TestRun instance;
+        return instance;
+    }
+    void declare(test_suite_ptr& suite)
+    {
+        _suites.emplace(/*std::piecewise_construct, */suite->id(), suite);
+    }
+    std::vector<TestResult> run_all()
+    {
+        std::vector<TestResult> result;
+        for( auto& p : _suites )
+        {
+            p.second->info() << "Suite:" << p.first << std::endl;
+            p.second->for_each_case_if(
+                [](TestCase&){return true;}, 
+                [&result](TestResult & res){
+                    result.emplace_back(std::move(res));
+                }
+            );
+        }
+        return result;
+    }
+private:
+    typedef std::multimap<Identifiable::id_t, std::shared_ptr<TestSuite> > suites_t;
+    suites_t _suites;
+};
+namespace tools
+{
+    template<class T>
+    T random_value()
+    {
+        return static_cast<T>(std::rand());
+    }
+    template<>
+    std::uint64_t random_value<std::uint64_t>()
+    {
+        return (static_cast<std::uint32_t>(std::rand()) << 32 )
+            | static_cast<std::uint32_t>(std::rand());
+    }
+    std::string random_value(size_t max_size, size_t min_size = 0)
+    {
+        std::string s;
+        if (!max_size || min_size > max_size)
+            return s;
+        auto l = (min_size == max_size) ? min_size : (
+            (std::rand() % (max_size-min_size))+min_size);
+        while (l--)
+            s+=(static_cast<char>(std::rand() % ('_' - '0')) + '0');
+        return s;
+    }
+    template<>
+    std::string random_value<std::string>()
+    {
+        return random_value;
+    }
+}
+} //utest
+}//OP
+#endif //_UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1

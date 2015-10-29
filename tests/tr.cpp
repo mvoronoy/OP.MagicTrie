@@ -18,41 +18,11 @@
 
 #include <ctime>
 #include <chrono>
+#include "unit_test.h"
 
 using namespace OP::trie;
 
-template <node_size_t capacity_c>
-struct TestHashTable : public NodeHashTable< EmptyPayload, capacity_c >
-{
-    typedef NodeHashTable < EmptyPayload, capacity_c > base_t;
-    TestHashTable() 
-    {}
-    ~TestHashTable()
-    {
-    }
-    
-};
 
-void test_NodeHash_insert(bool)
-{
-    std::cout << "test insert..." << std::endl;
-    for (unsigned i = 0; i < 8; ++i)
-    {
-        TestHashTable<8> tbl;
-        assert(i == tbl.insert(i)._debug());
-        unsigned x = 0;
-        for (unsigned j = 8; j < 16; ++j, ++x)
-        {
-            if (x == i)
-                x += 1;
-            if (j==15)
-                assert(tbl.end() == tbl.insert(j));
-            else
-                assert(x == tbl.insert(j)._debug());
-        }
-    }
-    std::cout << "\tpassed" << std::endl;
-}
 template <class Tbl>
 std::set<std::uint8_t> _randomize(Tbl& tbl)
 {
@@ -105,144 +75,6 @@ bool _my_equal(It1 first1, It1 last1, It2 first2, It2 last2)
             return false;
     return first1 == last1 && first2 == last2;
 }
-template <class T>
-void _random_test(T &tbl)
-{
-    
-    std::cout << "\nRandom erase with page=[" << tbl.capacity() << "]\n";
-    const unsigned limit = 2u << 16;
-    for (unsigned i = 0; i < limit; ++i)
-    {
-        if (!(i & (i - 1)))
-            std::cout << '.';
-        tbl.clear();
-        auto sample = _randomize(tbl);
-        while (!tbl.empty())
-        {
-            auto p = sample.begin();
-            std::advance(p, rand() % sample.size());
-            tbl.erase(*p);
-            sample.erase(p);
-            if (!_compare(sample, tbl))
-            {
-                std::cout << "Sample:\n";
-                std::copy(sample.begin(), sample.end(),
-                    std::ostream_iterator<int>(std::cout, ", "));
-                std::cout << "\nTested:\n";
-                std::copy(tbl.begin(), tbl.end(),
-                    std::ostream_iterator<int>(std::cout, ", "));
-                assert(false);
-            }
-        }
-    }
-
-}
-void test_NodeHash_erase(bool allow_long_test)
-{
-    std::cout << "test erase..." << std::endl;
-    TestHashTable<16> tbl;
-    tbl.insert(0);
-    assert(0 == tbl.erase(1));
-    assert(1 == tbl.size());
-    assert(1 == tbl.erase(0));
-    assert(0 == tbl.size());
-    assert(0 == tbl.insert(0)._debug());
-    //render items with the same hashcode
-    assert(1 == tbl.insert(16)._debug());
-    assert(2 == tbl.insert(32)._debug());
-    assert(tbl.end() == tbl.insert(48));
-    assert(1 == tbl.erase(32));
-    assert(2 == tbl.insert(48)._debug());
-    assert(1 == tbl.erase(16));
-    assert(1 == tbl.find(48)._debug());
-    assert(2 == tbl.insert(64)._debug());
-
-    assert(1 == tbl.erase(0));
-    assert(tbl.end() == tbl.find(0));
-    assert(0 == tbl.find(48)._debug());
-    assert(1 == tbl.find(64)._debug());//shift must affect last one
-    assert(2 == tbl.insert(0)._debug());
-    //test erase overflow
-    assert(15 == tbl.insert(15)._debug());
-    assert(tbl.end() == tbl.insert(31)); //since items at 0, 1 already populated
-    assert(1 == tbl.erase(64));
-    assert(1 == tbl.erase(48));
-    assert(1 == tbl.erase(0));
-    assert(0 == tbl.insert(31)._debug()); //since items just released, so insert is success
-    assert(1 == tbl.erase(15));
-    assert(15 == tbl.find(31)._debug());//shift must affect last one
-    assert(0 == tbl.insert(0)._debug());
-    if (1 == 1)
-    {
-        TestHashTable<16> tbl;
-        tbl.insert(0);
-        assert(1 == tbl.insert(16)._debug()); //force place
-        assert(2 == tbl.insert(1)._debug()); //force place
-        assert(3 == tbl.insert(17)._debug()); //force place
-        assert(1 == tbl.erase(0));
-        assert(tbl.size() == 3);
-        auto p = tbl.begin();
-        assert(16 == *p++);
-        assert(1 == *p++);
-        assert(17 == *p++);
-    }
-    if (1 == 1)
-    {
-        TestHashTable<16> tbl;
-        tbl.insert(0);
-        assert(0 == tbl.insert(0)._debug()); //force place
-        assert(1 == tbl.insert(1)._debug()); //force place
-        assert(2 == tbl.insert(16)._debug()); //force place
-        assert(1 == tbl.erase(1));
-        assert(tbl.size() == 2);
-        auto p = tbl.begin();
-        assert(0 == *p++);
-        assert(16 == *p++);
-        tbl.erase(0);
-        tbl.erase(16);
-        //erase test on range cases
-        assert(14 == tbl.insert(0xe)._debug()); 
-        assert(15 == tbl.insert(0xf)._debug()); 
-        assert(0 == tbl.insert(0x1e)._debug()); 
-        assert(1 == tbl.erase(0xf));
-        assert(tbl.size() == 2);
-        p = tbl.begin();
-        assert(14 == *p++);
-        assert(0x1e == *p++);
-        tbl.erase(14);
-        tbl.erase(0x1e);
-        //
-        assert(14 == tbl.insert(0xe)._debug()); 
-        assert(15 == tbl.insert(0xf)._debug()); 
-        assert(0 == tbl.insert(0x1e)._debug()); 
-        assert(1 == tbl.insert(0)._debug()); 
-        assert(1 == tbl.erase(0xe));
-        assert(tbl.size() == 3);
-        p = tbl.begin();
-        assert(0 == *p++);
-        assert(0x1e == *p++);
-        assert(0xf == *p++);
-
-    }
-    if (allow_long_test)
-    {
-         TestHashTable<8> tbl8;
-        _random_test(tbl8);
-        TestHashTable<16> tbl16;
-        _random_test(tbl16);
-        TestHashTable<32> tbl32;
-        _random_test(tbl32);
-        TestHashTable<64> tbl64;
-        _random_test(tbl64);
-        TestHashTable<128> tbl128;
-        _random_test(tbl128);
-        TestHashTable<256> tbl256;
-        _random_test(tbl256);
-    }
-    std::cout << "\tpassed" << std::endl;
-}
-
-
 struct TestSortedArray : public NodeSortedArray < EmptyPayload, 16 >
 {
     typedef NodeSortedArray < EmptyPayload, 16 > base_t;
@@ -333,8 +165,8 @@ void test_NodeArray_insert(bool allow_long_test)
     //------
     if (allow_long_test)
     {
-        TestHashTable<64> tbl64;
-        _random_test(tbl64);
+        TestSortedArray tbl64;
+        //_random_test(tbl64);
     }
 }
 void test_align()
@@ -637,8 +469,9 @@ int main(int argc, char* argv[])
     bool allow_long_test = false;
 
     test_align();
-    test_NodeHash_insert(allow_long_test);
-    test_NodeHash_erase(allow_long_test);
+    OP::utest::TestRun::default_instance().run_all();
+    /*test_NodeHash_insert(allow_long_test);
+    test_NodeHash_erase(allow_long_test);*/
     test_NodeArray_insert(allow_long_test);
     test_RangeContainer();
     test_Range();

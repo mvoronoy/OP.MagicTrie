@@ -117,7 +117,7 @@ namespace OP
                 {//use entire this 
                     //extend transaction region
                     segment_manager
-                        .writable_block(FarPosHolder(this_pos + mbh_size_align), byte_size);
+                        .writable_block(FarAddress(this_pos + mbh_size_align), byte_size);
                     _free = 0;
                     return this;
                 }
@@ -126,7 +126,7 @@ namespace OP
                 segment_pos_t offset = size() - byte_size;
                 //allocate new block inside this memory but mark this free
                 auto access = segment_manager
-                    .writable_block(FarPosHolder((this_pos+mbh_size_align) + offset), byte_size);
+                    .writable_block(FarAddress((this_pos+mbh_size_align) + offset), byte_size);
                     
                 MemoryBlockHeader * result = new (access.pos()) MemoryBlockHeader(emplaced_t());
                 result
@@ -138,7 +138,7 @@ namespace OP
                     ;
                 if (this->has_next())
                 {
-                    MemoryBlockHeader *next = segment_manager.wr_at<MemoryBlockHeader>(FarPosHolder(this_pos + real_size()));
+                    MemoryBlockHeader *next = segment_manager.wr_at<MemoryBlockHeader>(FarAddress(this_pos + real_size()));
                     next->set_prev(result);
                 }
                 this
@@ -295,11 +295,11 @@ namespace OP
             
             reference_t deref(pos_t n)
             {
-                return *_segment_manager->wr_at<FreeMemoryBlock>(FarPosHolder(n));
+                return *_segment_manager->wr_at<FreeMemoryBlock>(FarAddress(n));
             }
             const_reference_t const_deref(pos_t n) const
             {
-                return *_segment_manager->ro_at<FreeMemoryBlock>(FarPosHolder(n));
+                return *_segment_manager->ro_at<FreeMemoryBlock>(FarAddress(n));
             }
         private:
             OP_CONSTEXPR(static const) size_t slots_c = sizeof(std::uint32_t) << 3;

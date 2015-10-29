@@ -95,7 +95,7 @@ namespace OP
             */
             static std::unique_ptr<this_t> create_new(SegmentManager& manager, OP::trie::far_pos_t start)
             {
-                auto wr = manager.writable_block(FarPosHolder(start), byte_size(), WritableBlockHint::new_c);
+                auto wr = manager.writable_block(FarAddress(start), byte_size(), WritableBlockHint::new_c);
                 
                 //make formatting for all bunches
                 new (wr.pos())ForwardListBase[bitmask_size_c];
@@ -127,12 +127,12 @@ namespace OP
                 
                 for (; index < bitmask_size_c; ++index)
                 {
-                    FarPosHolder prev_pos = entry_offset_by_idx(index);
+                    FarAddress prev_pos = entry_offset_by_idx(index);
                     auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));
                     const ForwardListBase* prev_ent = prev_block.at<ForwardListBase>(0);
                     for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos); )
                     {
-                        traits_t::const_ptr_t curr = _segment_manager.ro_at<traits_t::target_t>(FarPosHolder(pos));
+                        traits_t::const_ptr_t curr = _segment_manager.ro_at<traits_t::target_t>(FarAddress(pos));
                         try
                         {
                             if (traits.less(key, traits.key(*curr)))
@@ -157,7 +157,7 @@ namespace OP
                 auto key = traits.key(*ref);
                 auto index = traits.entry_index(key);
                 
-                FarPosHolder prev_pos = entry_offset_by_idx(index);
+                FarAddress prev_pos = entry_offset_by_idx(index);
                 auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));
                 const ForwardListBase* prev_ent = prev_block.at<ForwardListBase>(0);
                 auto list_insert = [&](){
@@ -168,7 +168,7 @@ namespace OP
                 };
                 for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos);)
                 {
-                    auto curr_block = _segment_manager.readonly_block(FarPosHolder(pos), sizeof(traits_t::target_t));
+                    auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(traits_t::target_t));
                     traits_t::const_ptr_t curr = curr_block.at<traits_t::target_t>(0);
 
                     if (!traits.less(traits.key(*curr), key))
@@ -213,9 +213,9 @@ namespace OP
             //}
         private:
 
-            FarPosHolder entry_offset_by_idx(size_t index) const
+            FarAddress entry_offset_by_idx(size_t index) const
             {
-                FarPosHolder r(_list_pos);
+                FarAddress r(_list_pos);
                 return r+=static_cast<segment_pos_t>(index * sizeof(ForwardListBase));
             }
         };

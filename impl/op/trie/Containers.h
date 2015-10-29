@@ -508,10 +508,14 @@ namespace OP
             {
                 return capacity_c;
             }
+            bool empty() const
+            {
+                return _count == 0;
+            }
             template <class Str>
             iterator insert(Str&& string)
             {
-                return this->insert(string.begin(), string.end());
+                return this->insert(std::begin(string), std::end(string));
             }
             /**
             *   @param begin (in/out) - starting pointer of data chunk to store inside container. At exit contains
@@ -562,6 +566,11 @@ namespace OP
             {
                 return static_cast<unsigned>(insert(begin, end)._offset);
             }
+            unsigned erase(iterator i)
+            {
+               //@! TBD
+                return 0;
+            }
             void clear()
             {
                 for (size_t i = 0; i < size(); ++i)
@@ -590,7 +599,7 @@ namespace OP
             template <class Str>
             iterator find(const Str& str) const
             {
-                return find(str.begin(), str.end());
+                return find(std::begin(str), std::end(str));
             }
             /**
             * Find entry with max approximation to specified prefix.

@@ -47,7 +47,7 @@ namespace OP
                 align_c = 16
             };
         };
-        union FarPosHolder
+        union FarAddress
         {
             far_pos_t address;
             struct
@@ -55,40 +55,40 @@ namespace OP
                 segment_pos_t offset;
                 segment_idx_t segment;
             };
-            FarPosHolder():
+            FarAddress():
                 address(SegmentDef::eos_c){}
-            explicit FarPosHolder(far_pos_t a_address) :
+            explicit FarAddress(far_pos_t a_address) :
                 address(a_address){}
-            FarPosHolder(segment_idx_t a_segment, segment_pos_t a_offset) :
+            FarAddress(segment_idx_t a_segment, segment_pos_t a_offset) :
                 segment(a_segment),
                 offset(a_offset){}
             operator far_pos_t() const
             {
                 return address;
             }
-            FarPosHolder operator + (segment_pos_t pos) const
+            FarAddress operator + (segment_pos_t pos) const
             {
                 assert(offset <= (~0u - pos)); //test overflow
-                return FarPosHolder(segment, offset + pos);
+                return FarAddress(segment, offset + pos);
             }
             /**Signed operation*/
-            FarPosHolder operator + (segment_off_t a_offset) const
+            FarAddress operator + (segment_off_t a_offset) const
             {
                 assert(
                     ( (a_offset < 0)&&(static_cast<segment_pos_t>(-a_offset) < offset) )
                     || ( (a_offset >= 0)&&(offset <= (~0u - a_offset) ) )
                     );
 
-                return FarPosHolder(segment, offset + a_offset);
+                return FarAddress(segment, offset + a_offset);
             }
-            FarPosHolder& operator += (segment_pos_t pos)
+            FarAddress& operator += (segment_pos_t pos)
             {
                 assert(offset <= (~0u - pos)); //test overflow
                 offset += pos;
                 return *this;
             }
             /**Find signable distance between to holders on condition they belong to the same segment*/
-            segment_off_t diff(const FarPosHolder& other) const
+            segment_off_t diff(const FarAddress& other) const
             {
                 assert(segment == other.segment);
                 return offset - other.offset;
@@ -493,19 +493,19 @@ namespace OP
         {
             typedef OP::Range<std::uint8_t *> base_t;
             MemoryRangeBase(){}
-            MemoryRangeBase(std::uint8_t * pos, segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+            MemoryRangeBase(std::uint8_t * pos, segment_pos_t count, FarAddress && address, segment_helper_p && segment ) :
                 base_t(pos, count),
                 _address(std::move(address)),
                 _segment(std::move(segment))
                 {
                 }
-            MemoryRangeBase(segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+            MemoryRangeBase(segment_pos_t count, FarAddress && address, segment_helper_p && segment ) :
                 base_t(segment->at<std::uint8_t>(address.offset), count),
                 _address(std::move(address)),
                 _segment(std::move(segment))
                 {
                 }
-            const FarPosHolder& address() const
+            const FarAddress& address() const
             {
                 return _address;
             }
@@ -515,7 +515,7 @@ namespace OP
             }
 
         private:
-            FarPosHolder _address;
+            FarAddress _address;
             segment_helper_p _segment;
         };
         /**
@@ -523,10 +523,10 @@ namespace OP
         */
         struct MemoryRange : public MemoryRangeBase
         {
-            MemoryRange(segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+            MemoryRange(segment_pos_t count, FarAddress && address, segment_helper_p && segment ) :
                 MemoryRangeBase(count, std::move(address), std::move(segment)){}
 
-            MemoryRange(std::uint8_t * pos, segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+            MemoryRange(std::uint8_t * pos, segment_pos_t count, FarAddress && address, segment_helper_p && segment ) :
                 MemoryRangeBase(pos, count, std::move(address), std::move(segment) )
                 {
                 }
@@ -541,9 +541,9 @@ namespace OP
         };
         struct ReadonlyMemoryRange : MemoryRangeBase
         {
-            ReadonlyMemoryRange(segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+            ReadonlyMemoryRange(segment_pos_t count, FarAddress && address, segment_helper_p && segment ) :
                 MemoryRangeBase(count, std::move(address), std::move(segment)){}
-            ReadonlyMemoryRange(std::uint8_t * pos, segment_pos_t count, FarPosHolder && address, segment_helper_p && segment ) :
+            ReadonlyMemoryRange(std::uint8_t * pos, segment_pos_t count, FarAddress && address, segment_helper_p && segment ) :
                 MemoryRangeBase(pos, count, std::move(address), std::move(segment) )
                 {
                 }
@@ -643,7 +643,7 @@ namespace OP
             /**
             * @throws ConcurentLockException if block is already locked for write
             */
-            virtual ReadonlyMemoryRange readonly_block(FarPosHolder pos, segment_pos_t size) 
+            virtual ReadonlyMemoryRange readonly_block(FarAddress pos, segment_pos_t size) 
             {
                 assert((pos.offset + size) < this->segment_size());
                 return ReadonlyMemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
@@ -651,7 +651,7 @@ namespace OP
             /**
             * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
             */
-            virtual MemoryRange writable_block(FarPosHolder pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
+            virtual MemoryRange writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
             {
                 assert((pos.offset + size) <= this->segment_size());
                 return MemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
@@ -669,7 +669,7 @@ namespace OP
             \endcode
             */
             template <class T>
-            const T* ro_at(const FarPosHolder& pos)
+            const T* ro_at(const FarAddress& pos)
             {
                 return this->readonly_block(pos, sizeof(T)).at<T>(0);
             }
@@ -678,7 +678,7 @@ namespace OP
             \endcode
             */
             template <class T>
-            T* wr_at(const FarPosHolder& pos)
+            T* wr_at(const FarAddress& pos)
             {
                 return this->writable_block(pos, sizeof(T)).at<T>(0);
             }
@@ -958,7 +958,7 @@ namespace OP
                 static_assert(sizeof...(TSlot) > 0, "Specify at least 1 TSlot to leverage topology");
                 _segments->subscribe_event_listener(this);
                 _segments->ensure_segment(0);
-                _segments->readonly_block(FarPosHolder(0), 1);
+                _segments->readonly_block(FarAddress(0), 1);
             }
             template <class T>
             T& slot()
@@ -971,7 +971,7 @@ namespace OP
                 _segments->foreach_segment([this](segment_idx_t idx, SegmentManager& segments){
                     segment_pos_t current_offset = segments.header_size();
                     //start write toplogy right after header
-                    ReadonlyMemoryRange topology_address = segments.readonly_block(FarPosHolder(idx, current_offset), 
+                    ReadonlyMemoryRange topology_address = segments.readonly_block(FarAddress(idx, current_offset), 
                         addres_table_size_c);
                     current_offset += addres_table_size_c;
                     for (auto i : _slots)
@@ -994,7 +994,7 @@ namespace OP
                 segment_operations_guard_t g(&manager);
                 segment_pos_t current_offset = manager.header_size();
                 //start write toplogy right after header
-                TopologyHeader* header = manager.wr_at<TopologyHeader>(FarPosHolder(new_segment, current_offset));
+                TopologyHeader* header = manager.wr_at<TopologyHeader>(FarAddress(new_segment, current_offset));
                 current_offset += addres_table_size_c;
                 header->_slots_count = 0;
 
@@ -1018,7 +1018,7 @@ namespace OP
                 
                 segment_pos_t processing_size =addres_table_size_c;
                 ReadonlyMemoryRange topology_address = manager.readonly_block(
-                    FarPosHolder(opening_segment, current_offset), processing_size);
+                    FarAddress(opening_segment, current_offset), processing_size);
                 const TopologyHeader* header = topology_address.at<TopologyHeader>(0);
                 assert(header->_slots_count == slots_count_c);
 

@@ -45,7 +45,7 @@ namespace OP
                 }
                 segment_idx_t segment_idx = segment_of_far(free_block_pos); 
                 //auto current_free = _segment_manager->writable_block(free_block_pos, sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
-                auto current_mem_ptr = FarPosHolder(FreeMemoryBlock::get_header_addr(free_block_pos));
+                auto current_mem_ptr = FarAddress(FreeMemoryBlock::get_header_addr(free_block_pos));
                 auto current_mem =
                     _segment_manager->wr_at<MemoryBlockHeader>(current_mem_ptr);
 
@@ -53,7 +53,7 @@ namespace OP
                 segment_pos_t deposited_size = 0;
                 if (new_block != current_mem) //new block was allocated
                 {  //old block was splitted, so place the rest back to free list
-                    FreeMemoryBlock *free_block = _segment_manager->wr_at< FreeMemoryBlock >(FarPosHolder(free_block_pos));
+                    FreeMemoryBlock *free_block = _segment_manager->wr_at< FreeMemoryBlock >(FarAddress(free_block_pos));
                     deposited_size = new_block->real_size();
                     _free_blocks->insert(free_traits, free_block_pos, free_block);
                 }
@@ -75,7 +75,7 @@ namespace OP
                 guard_t l(_segments_map_lock);
                 auto found = _opened_segments.find(segment_idx);
                 assert(found != _opened_segments.end()); //should already exists
-                FarPosHolder pos(segment_idx, (*found).second.avail_bytes_offset());
+                FarAddress pos(segment_idx, (*found).second.avail_bytes_offset());
                 //no need in lock anymore
                 l.unlock();
                 return *_segment_manager->ro_at<segment_pos_t>(pos);
@@ -93,7 +93,7 @@ namespace OP
                     throw trie::Exception(trie::er_invalid_block);
                 //retrieve file pos
                 auto segment_idx = header->nav._my_segment;
-                FarPosHolder header_far (_segment_manager->to_far(segment_idx, header));
+                FarAddress header_far (_segment_manager->to_far(segment_idx, header));
                 OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
 
                 auto free_block_pos = header_far+mbh;
@@ -132,7 +132,7 @@ namespace OP
             }
             void _check_integrity(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset)
             {
-                FarPosHolder first_block_pos (segment_idx, offset);
+                FarAddress first_block_pos (segment_idx, offset);
                 if (segment_idx == 0)
                 {//only single instance of free-space list
                     first_block_pos += free_blocks_t::byte_size();
@@ -141,7 +141,7 @@ namespace OP
                 }
                 first_block_pos.offset = align_on(first_block_pos.offset, SegmentDef::align_c);
                 //skip reserved 4bytes for segment size
-                FarPosHolder avail_bytes_offset = first_block_pos;
+                FarAddress avail_bytes_offset = first_block_pos;
 
                 auto avail_space_mem = manager.readonly_block(avail_bytes_offset, sizeof(segment_pos_t));
                 first_block_pos.offset = align_on(first_block_pos.offset +static_cast<segment_pos_t>(sizeof(segment_pos_t)), SegmentHeader::align_c);
@@ -209,7 +209,7 @@ namespace OP
             {
                 segment_operations_guard_t op_g(&manager); //invoke begin/end write-op
                 _segment_manager = &manager;
-                FarPosHolder first_block_pos (segment_idx, offset);
+                FarAddress first_block_pos (segment_idx, offset);
                 if (segment_idx == 0)
                 {//only single instance of free-space list
                     _free_blocks = free_blocks_t::create_new(manager, first_block_pos);
@@ -217,7 +217,7 @@ namespace OP
                 }
                 first_block_pos.offset = align_on(first_block_pos.offset, SegmentDef::align_c);
                 //reserve 4bytes for segment size
-                FarPosHolder avail_bytes_offset = first_block_pos;
+                FarAddress avail_bytes_offset = first_block_pos;
                 MemoryRange avail_space_mem = _segment_manager->writable_block(avail_bytes_offset, sizeof(segment_pos_t), WritableBlockHint::new_c);
                 first_block_pos.offset = align_on(first_block_pos.offset +static_cast<segment_pos_t>(sizeof(segment_pos_t)), SegmentHeader::align_c);
 
@@ -260,7 +260,7 @@ namespace OP
                 
                 if (segment_idx == 0)
                 {//only single instance of free-space list
-                    auto free_blocks_pos = FarPosHolder(segment_idx, offset);
+                    auto free_blocks_pos = FarAddress(segment_idx, offset);
                     //auto first_block_pos = offset + aligned_sizeof<free_blocks_t>(SegmentHeader::align_c);
                     _free_blocks = free_blocks_t::open(manager, free_blocks_pos);
                     avail_bytes_offset += free_blocks_t::byte_size();
@@ -319,7 +319,7 @@ namespace OP
                 guard_t l(_segments_map_lock);
                 auto found = _opened_segments.find( segment );
                 assert(found != _opened_segments.end()); //should already exists
-                FarPosHolder pos(segment, (*found).second.avail_bytes_offset());
+                FarAddress pos(segment, (*found).second.avail_bytes_offset());
                 //no need in lock anymore
                 l.unlock();
                 return *_segment_manager->wr_at<segment_pos_t>(pos);

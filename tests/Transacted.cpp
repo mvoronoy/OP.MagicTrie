@@ -54,7 +54,7 @@ template <class Sm>
 void test_overlappedException(Sm& tmanager)
 {
     try{
-        tmanager->readonly_block(FarPosHolder(read_only_data_fpos), sizeof(tst_seq)+10);
+        tmanager->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq)+10);
         assert(false);//exception must be raised
     }
     catch (Exception const& e){
@@ -62,7 +62,7 @@ void test_overlappedException(Sm& tmanager)
     }
     //check overlapping exception #2
     try{
-        tmanager->readonly_block(FarPosHolder(read_only_data_fpos-1), sizeof(tst_seq));
+        tmanager->readonly_block(FarAddress(read_only_data_fpos-1), sizeof(tst_seq));
         assert(false);//exception must be raised
     }
     catch (Exception const& e){
@@ -73,12 +73,12 @@ void test_overlappedException(Sm& tmanager)
 template <class Sm>
 void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t block_size, const std::uint8_t *written)
 {
-    auto ro_block = tmanager->readonly_block(FarPosHolder(pos), block_size);
+    auto ro_block = tmanager->readonly_block(FarAddress(pos), block_size);
     //ro must see changes
     assert(0 == memcmp(written, ro_block.pos(), block_size));
     std::future<bool> future_block1_t2 = std::async(std::launch::async, [&](){
         try{
-            auto ro_block2 = tmanager->readonly_block(FarPosHolder(pos), sizeof(block_size));
+            auto ro_block2 = tmanager->readonly_block(FarAddress(pos), sizeof(block_size));
         }
         catch (const ConcurentLockException&)
         {
@@ -90,7 +90,7 @@ void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t bl
     std::future<bool> future_block2_t2 = std::async(std::launch::async, [&](){
         TransactionGuard g(tmanager->begin_transaction());
         try{
-            auto ro_block2 = tmanager->readonly_block(FarPosHolder(pos), sizeof(block_size));
+            auto ro_block2 = tmanager->readonly_block(FarAddress(pos), sizeof(block_size));
         }
         catch (const ConcurentLockException&)
         {
@@ -114,10 +114,10 @@ void test_TransactedSegmentManager()
     std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
     assert(fdata_acc.good());
     //read out of tran must be permitted
-    ReadonlyMemoryRange ro_block1 = tmngr1->readonly_block(FarPosHolder(read_only_data_fpos), sizeof(tst_seq));
+    ReadonlyMemoryRange ro_block1 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     //the same should be returned for another thread
     std::future<ReadonlyMemoryRange> future_block1_t1 = std::async(std::launch::async, [ tmngr1](){
-        return tmngr1->readonly_block(FarPosHolder(read_only_data_fpos), sizeof(tst_seq));
+        return tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     });
     auto ro_block1_t1 = future_block1_t1.get();
     assert(0 == memcmp(&ro_block1, &ro_block1_t1, sizeof(ReadonlyMemoryRange)));
@@ -131,7 +131,7 @@ void test_TransactedSegmentManager()
     assert(0 == memcmp(tst_seq, ro_block1.pos(), sizeof(tst_seq)));
     //do the same check from transactions
     auto tr1 = tmngr1->begin_transaction();
-    ReadonlyMemoryRange ro_block2 = tmngr1->readonly_block(FarPosHolder(read_only_data_fpos), sizeof(tst_seq));
+    ReadonlyMemoryRange ro_block2 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     assert(0 == memcmp(&ro_block1, &ro_block2, sizeof(ReadonlyMemoryRange)));
     assert(0 == memcmp(tst_seq, ro_block2.pos(), sizeof(tst_seq)));
 
@@ -139,33 +139,33 @@ void test_TransactedSegmentManager()
         OP::vtm::TransactionGuard transaction2 (tmngr1->begin_transaction());
         //check overlapping exception
         test_overlappedException(tmngr1);
-        auto tx_ro = tmngr1->readonly_block(FarPosHolder(read_only_data_fpos), sizeof(tst_seq));
+        auto tx_ro = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
         return (0 == memcmp(tst_seq, tx_ro.pos(), sizeof(tst_seq)));
     });
     //while there is another tran
     test_overlappedException(tmngr1); 
     assert( future_t2.get() );
     //test brand new region write
-    auto wr_range1 = tmngr1->writable_block(FarPosHolder(writable_data_fpos), sizeof(write_fill_seq2));
+    auto wr_range1 = tmngr1->writable_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq2));
     memcpy(wr_range1.pos(), write_fill_seq2, sizeof(write_fill_seq2));
     test_TransactionIsolation(tmngr1, writable_data_fpos, sizeof(write_fill_seq1), write_fill_seq2);
     tr1->commit();
     //test all threads can see new data
     std::future<bool> future_read_committed_block1_t2 = std::async(std::launch::async, [&](){
-        auto ro_block2 = tmngr1->readonly_block(FarPosHolder(writable_data_fpos), sizeof(write_fill_seq2));
+        auto ro_block2 = tmngr1->readonly_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq2));
         return (0 == memcmp(write_fill_seq2, ro_block2.pos(), sizeof(write_fill_seq2)));        
     });
     assert(future_read_committed_block1_t2.get());
     //without transaction check that write not allowed
     try{
-        tmngr1->writable_block(FarPosHolder(read_only_data_fpos), 1);
+        tmngr1->writable_block(FarAddress(read_only_data_fpos), 1);
         assert(false);//exception must be raised
     }
     catch (Exception const &e){
         assert(e.code() == er_transaction_not_started);
     }
     //when all transaction closed, no overlapped exception anymore
-    tmngr1->readonly_block(FarPosHolder(read_only_data_fpos), sizeof(tst_seq)+10);
+    tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq)+10);
 }
 
 
