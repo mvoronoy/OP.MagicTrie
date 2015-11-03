@@ -4,6 +4,7 @@
 #include <vector>
 #include <deque>
 #include <iostream>
+#include <iomanip>
 #include <memory>
 #include <chrono>
 #include <ctime>
@@ -12,6 +13,8 @@
 #include <typeinfo>
 #include <functional>
 #include <map>
+#include <set>
+#include <cstdint>
 
 /** Allows place usefull information to detail output.
 * Usage:
@@ -21,7 +24,7 @@
   
 * \endcode
 */  
-#define OP_CODE_DETAILS(message_flow) OP::utest::detail() << "{File:" << __FILE__ << " at:" << __LINE__  << "}\n" message_flow
+#define OP_CODE_DETAILS(...) OP::utest::detail() << "{File:" << __FILE__ << " at:" << __LINE__  << "}\n" ## __VA_ARGS__ 
 #define OP_TEST_STRINGIFY(a) #a
 
 /** Exposes assert functionality if for some reason function have no access to TestResult instance.
@@ -30,7 +33,7 @@
 * ...
 *   OP_UTEST_ASSERT(1==0, << "Logic is a power! Following number:" << 57);
 */
-#define OP_UTEST_ASSERT(condition, ...) (void)((condition) || OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
+#define OP_UTEST_ASSERT(condition, ...) (void)((!!(condition)) || OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
 /**The same as OP_UTEST_ASSERT but unconditionally failed*/
 #define OP_UTEST_FAIL(...) (void)(OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
 namespace OP
@@ -42,7 +45,17 @@ namespace utest{
         {
             throw OP::utest::TestFail(std::forward<X>(x));
         }
-    }
+        template <class F, class ... Args >
+        inline std::function< std::result_of_t< F&(Args...) > > make_function( F&& f ) 
+        {
+            return std::forward<F>(f);
+        }
+        
+        inline std::function< void() > make_function( void f()  ) 
+        {
+            return std::function< void() >(f);
+        }
+    } //inner namespace
 struct Identifiable 
 {
     typedef std::string id_t;
@@ -80,9 +93,11 @@ struct detail
     {
         return _result.str();
     }
-    bool is_empty() const
+    bool is_empty()
     {
-        return _result.rdbuf()->in_avail() == 0;
+        _result.seekp(0, std::ios_base::end);
+        auto offset = _result.tellp();
+        return offset == (std::streamoff)0;
     }
 private:
     std::ostringstream _result;
@@ -140,13 +155,15 @@ struct TestResult
     }
     enum Status
     {
-        not_started,
+        _first_ = 0,
+        not_started = _first_,
         /*some test condition was not met, see #status_details for details*/
         failed,
         /*test raised unhandled exception*/
         aborted,
         /*Test succeeded*/
-        ok
+        ok,
+        _last_
     };
     bool operator !() const
     {
@@ -155,6 +172,13 @@ struct TestResult
     double ms_duration() const
     {
         return std::chrono::duration<double, std::milli>(_end_time - _start_time).count();
+    }
+    const std::string& status_to_str() const
+    {
+        static const std::string values[] = {
+            "not started", "failed", "aborted", "ok"
+        };
+        return values[(_status - _first_) % (_last_ - _first_)];
     }
     inline std::ostream& info();
     inline std::ostream& error();
@@ -219,6 +243,7 @@ struct TestCase : public Identifiable
     {
         retval._start_time = std::chrono::high_resolution_clock::now();
         do_run(retval);
+        retval._end_time = std::chrono::high_resolution_clock::now();
         retval._run_number = 1;
         return retval;
     }
@@ -248,6 +273,7 @@ private:
         try
         {
             this->run(retval);
+            retval._status = TestResult::ok;
         }
         catch(TestFail const &e)
         {
@@ -293,20 +319,48 @@ struct TestSuite : public Identifiable, public std::enable_shared_from_this<Test
     }
 
     
-
-    template <class F, class Name = const char*>
-    TestSuite* declare(F && f, Name && n = Name())
+    TestSuite* declare(std::function<void(TestResult&)> f, std::string n = std::string())
     {
-        std::string name = (n == Name()) ? typeid(n).name() : std::string(std::move(n));
-        
-        return this->declare(
+        std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
+        return this->declare_case(
             std::make_shared<FunctionalTestCase<decltype(f)> >(
                 name,
-                std::forward<F>(f)
+                std::move(f)
             )
         );
     }
-    TestSuite* declare(std::shared_ptr<TestCase>& exec)
+    template < class Name = const char*>
+    TestSuite* declare(std::function<void(void)> f, std::string n = std::string())
+    {
+        std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
+        std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(f)>(
+                name,
+                std::move(f)
+                ));
+        return this->declare_case(pt);
+    }
+    TestSuite* declare(void (f)(), std::string n = std::string())
+    {
+        auto fwrap = std::function< void() >(f);
+        std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
+        std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(fwrap)>(
+                name,
+                std::move(fwrap)
+                ));
+        return this->declare_case(pt);
+        
+    }
+    TestSuite* declare(void (f)(TestResult&), std::string n = std::string())
+    {
+        auto fwrap = std::function< void(TestResult&) >(f);
+        std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
+        std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(fwrap)>(
+                name,
+                std::move(fwrap)
+                ));
+        return this->declare_case(pt);
+    }
+    TestSuite* declare_case(std::shared_ptr<TestCase> exec)
     {
         _tests.push_back(exec);
         return this;
@@ -316,10 +370,14 @@ struct TestSuite : public Identifiable, public std::enable_shared_from_this<Test
     {
         for( auto& t: _tests )
         {
-            if( p(*t) )
+            if( p(*this, *t) )
             {
                 TestResult result(shared_from_this());
+                info() << "\t[" << t->id() << "]...\n";
                 t->execute( result );
+                info() << "\t[" << t->id() << "] done with status:"<<result.status_to_str()<<" in:"<< std::fixed <<result.ms_duration() <<"ms\n";
+                if (!result.status_details().is_empty())
+                    error() << result.status_details() << std::endl;
                 f( std::move( result ) );
             }
         }
@@ -379,7 +437,7 @@ inline std::ostream& TestResult::error()
 template <class Name>
 inline std::shared_ptr<TestSuite> default_test_suite(Name && name)
 {
-    auto r = make_shared<TestSuite>(std::forward<Name>(name), std::cout, std::cerr);
+    auto r = std::make_shared<TestSuite>(std::forward<Name>(name), std::cout, std::cerr);
     TestRun::default_instance().declare(r);
     return r;
 };
@@ -406,12 +464,17 @@ struct TestRun
     }
     std::vector<TestResult> run_all()
     {
+        return run_if([](TestSuite&, TestCase&){return true; });
+    }
+    template <class F>
+    std::vector<TestResult> run_if(F &f)
+    {
         std::vector<TestResult> result;
         for( auto& p : _suites )
         {
             p.second->info() << "Suite:" << p.first << std::endl;
             p.second->for_each_case_if(
-                [](TestCase&){return true;}, 
+                f, 
                 [&result](TestResult & res){
                     result.emplace_back(std::move(res));
                 }
@@ -425,33 +488,74 @@ private:
 };
 namespace tools
 {
+    inline std::string& randomize(std::string& target, size_t max_size, size_t min_size = 0)
+    {
+        target.clear();
+        if (!max_size || min_size > max_size)
+            return target;
+        auto l = (min_size == max_size) ? min_size : (
+            (std::rand() % (max_size-min_size))+min_size);
+        target.reserve(l);
+        while (l--)
+            target+=(static_cast<char>(std::rand() % ('_' - '0')) + '0');
+        return target;
+    }
+    template <class V, class T, class F >
+    inline V& randomize(V& target, size_t max_size, size_t min_size = 0, F & value_factory = random_value<T>)
+    {
+        target.clear();
+        if (!max_size || min_size > max_size)
+            return target;
+        auto l = (min_size == max_size) ? min_size : (
+            (std::rand() % (max_size-min_size))+min_size);
+        for (std::insert_iterator a(target, std::begin(target)); l--; ++a)
+            *a = value_factory();
+        return target;
+    }
+
     template<class T>
-    T random_value()
+    inline T random_value()
     {
         return static_cast<T>(std::rand());
     }
     template<>
-    std::uint64_t random_value<std::uint64_t>()
+    inline std::uint64_t random_value<std::uint64_t>()
     {
-        return (static_cast<std::uint32_t>(std::rand()) << 32 )
-            | static_cast<std::uint32_t>(std::rand());
+        return (static_cast<std::uint64_t>(std::rand()) << 32 )
+            | static_cast<std::uint64_t>(std::rand());
     }
-    std::string random_value(size_t max_size, size_t min_size = 0)
-    {
-        std::string s;
-        if (!max_size || min_size > max_size)
-            return s;
-        auto l = (min_size == max_size) ? min_size : (
-            (std::rand() % (max_size-min_size))+min_size);
-        while (l--)
-            s+=(static_cast<char>(std::rand() % ('_' - '0')) + '0');
-        return s;
-    }
+
     template<>
-    std::string random_value<std::string>()
+    inline std::string random_value<std::string>()
     {
-        return random_value;
+        std::string r;
+        return randomize(r, 256);
     }
+    template <class Container1, class Container2, class ErrorHandler>
+    inline bool compare(const Container1& co1, const Container2& co2, ErrorHandler& on_error = [](const Container2::value_type& v){})
+    {
+        std::multiset<Container1::value_type> s1(std::begin(co1), std::end(co1));
+        for (auto x : co2)
+        {
+            auto found = s1.find(x);
+            if (found == s1.end())
+            {
+                on_error(x);
+                return false;
+            }
+            s1.erase(found);
+        }
+        return s1.empty();
+    }
+    template <class It1, class It2>
+    bool range_equal(It1 first1, It1 last1, It2 first2, It2 last2)
+    {
+        for (; first1 != last1 && first2 != last2; ++first1, ++first2)
+            if (*first1 != *first2)
+                return false;
+        return first1 == last1 && first2 == last2;
+    }
+    
 }
 } //utest
 }//OP

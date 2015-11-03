@@ -87,6 +87,7 @@ namespace OP
                     )
                     throw trie::Exception(trie::er_invalid_block);
                 std::uint8_t* pointer = reinterpret_cast<std::uint8_t*>(addr);
+                
                 MemoryBlockHeader* header = reinterpret_cast<MemoryBlockHeader*>(
                     pointer - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c));
                 if (!header->check_signature() || header->is_free())
@@ -207,7 +208,7 @@ namespace OP
             */
             void emplace_slot_to_segment(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset) override
             {
-                segment_operations_guard_t op_g(&manager); //invoke begin/end write-op
+                OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
                 _segment_manager = &manager;
                 FarAddress first_block_pos (segment_idx, offset);
                 if (segment_idx == 0)
@@ -233,10 +234,10 @@ namespace OP
                     ;
                 //just created block is free, so place FreeMemoryBlock info inside it
                 FreeMemoryBlock *span_of_free = new (block->memory()) FreeMemoryBlock(emplaced_t());
-                
+                FarAddress user_memory_pos = zero_header.address() + mbh_size_align;
                 _free_blocks->insert(
                     FreeMemoryBlockTraits(_segment_manager), 
-                    _segment_manager->to_far(segment_idx, span_of_free),
+                    user_memory_pos,
                     span_of_free);
                 *avail_space_mem.at<segment_pos_t>(0) = block->size();
                 
@@ -251,10 +252,11 @@ namespace OP
                  
                 //
                 //MemoryBlockHeader
+                op_g.commit();
             }
             void open(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset) override
             {
-                segment_operations_guard_t op_g(&manager); //invoke begin/end write-op
+                OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
                 _segment_manager = &manager;
                 segment_pos_t avail_bytes_offset = offset;
                 
@@ -273,7 +275,7 @@ namespace OP
                 );
                 assert(insres.second); //should not exists such segment yet
                 (*insres.first).second.avail_bytes_offset(avail_bytes_offset);
-                
+                op_g.commit();
             }
             void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
             {

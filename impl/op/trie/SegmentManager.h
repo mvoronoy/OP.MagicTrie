@@ -127,10 +127,7 @@ namespace OP
         {
             return static_cast<segment_pos_t>(pos);
         }
-        namespace _internal
-        {
-            typedef NodeSortedArray<far_pos_t, 16> named_map_t;
-        }
+        
         /**Special marker to construct objects inplace*/
         struct emplaced_t{};
 
@@ -578,6 +575,7 @@ namespace OP
         struct SegmentManager 
         {
             friend struct SegmentOptions;
+            typedef std::shared_ptr<OP::vtm::Transaction> transaction_ptr_t;
 
             template <class Manager = SegmentManager>
             static std::shared_ptr<Manager> create_new(const char * file_name,
@@ -633,13 +631,12 @@ namespace OP
                 MyFileBuf::pos_type pos = _fbuf.tellp();
                 return static_cast<segment_idx_t>(pos / segment_size());
             }
+            /**This operation does nothing, returns just null referenced wrapper*/
+            virtual transaction_ptr_t begin_transaction() 
+            {
+                return transaction_ptr_t();
+            }
             
-            virtual void begin_write_operation()
-            {
-            }
-            virtual void end_write_operation()
-            {
-            }
             /**
             * @throws ConcurentLockException if block is already locked for write
             */
@@ -693,9 +690,13 @@ namespace OP
                 return _far(pair.second, static_cast<segment_pos_t>(diff));
             }
             /**
-            *   
+            *  By the given memory pointer tries to restore origin far-pos.
+            *   @param segment - where pointer should reside
+            *   @param address - memory to lookup in 'segment'
+            *   @return far-position resided inside specified segment
+            *   @throws trie::Exception(trie::er_invalid_block) if `address` doesn't belong to `segment`
             */
-            far_pos_t to_far(segment_idx_t segment, const void * address) 
+            virtual far_pos_t to_far(segment_idx_t segment, const void * address) 
             {
                 auto h = get_segment(segment);
                 return _far(segment, h->to_offset(address));
@@ -842,7 +843,6 @@ namespace OP
             mutable file_mapping _mapping;
 
             typedef SparseCache<SegmentHelper, segment_idx_t> cache_region_t;
-            typedef _internal::named_map_t named_map_t;
             typedef Range<const std::uint8_t*, segment_pos_t> slot_address_range_t;
             typedef std::map<slot_address_range_t, segment_idx_t> slot_address_container_t;
             typedef boost::shared_mutex shared_mutex_t;
@@ -892,7 +892,7 @@ namespace OP
                 return *found;
             }
         };
-        typedef operation_guard_t< SegmentManager, &SegmentManager::begin_write_operation, &SegmentManager::end_write_operation > segment_operations_guard_t;
+        
         struct Slot
         {
             virtual ~Slot() = default;
@@ -960,6 +960,8 @@ namespace OP
                 _segments->ensure_segment(0);
                 _segments->readonly_block(FarAddress(0), 1);
             }
+            SegmentTopology(const SegmentTopology&) = delete;
+
             template <class T>
             T& slot()
             {
@@ -991,7 +993,7 @@ namespace OP
         protected:
             void on_segment_allocated(segment_idx_t new_segment, segment_manager_t& manager)
             {
-                segment_operations_guard_t g(&manager);
+                OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
                 segment_pos_t current_offset = manager.header_size();
                 //start write toplogy right after header
                 TopologyHeader* header = manager.wr_at<TopologyHeader>(FarAddress(new_segment, current_offset));
@@ -1010,10 +1012,11 @@ namespace OP
                     slot->emplace_slot_to_segment(new_segment, manager, current_offset);
                     current_offset += slot->byte_size(new_segment, manager, current_offset);
                 }
+                op_g.commit();
             }
             void on_segment_opening(segment_idx_t opening_segment, segment_manager_t& manager)
             {
-                segment_operations_guard_t g(&manager);
+                OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
                 segment_pos_t current_offset = manager.header_size();
                 
                 segment_pos_t processing_size =addres_table_size_c;
@@ -1029,6 +1032,7 @@ namespace OP
                     auto p = _slots[i];
                     p->open(opening_segment, manager, header->_address[i]);
                 }
+                op_g.commit();
             }
             slots_arr_t _slots;
             segments_ptr_t _segments;

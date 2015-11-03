@@ -480,12 +480,13 @@ namespace OP
         {
             typedef NodeSortedArray<Payload, capacity> this_t;
             typedef NodeTableIterator<typename this_t> iterator;
-            typedef std::pair<const atom_t*, const atom_t*> key_t;
             enum
             {
                 capacity_c = capacity,
                 chunk_limit_c = 8
             };
+            typedef std::pair<const atom_t*, const atom_t*> key_t;
+
             static size_t allocation_size(size_t capacity)
             {
                 return sizeof(chunk_t) * capacity;

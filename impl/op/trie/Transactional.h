@@ -60,18 +60,25 @@ namespace OP
             template <class Sh>
             TransactionGuard(Sh && instance) :
                 _instance(std::forward<Sh>(instance)),
-                _is_closed(false){}
+                _is_closed(!_instance)//be polite to null transactions
+            {}
             void commit()
             {
-                assert(!_is_closed);
-                _instance->commit();
-                _is_closed = true;
+                if (!!_instance)
+                {
+                    assert(!_is_closed);//be polite to null transactions
+                    _instance->commit();
+                    _is_closed = true;
+                }
             }
             void rollback()
             {
-                assert(!_is_closed);
-                _instance->rollback();
-                _is_closed = true;
+                if (!!_instance)
+                {
+                    assert(!_is_closed);//be polite to null transactions
+                    _instance->rollback();
+                    _is_closed = true;
+                }
             }
             ~TransactionGuard()
             {

@@ -201,7 +201,6 @@ namespace OP
             }
         private:
             typedef RangeContainer<NodeAddress> free_ranges_t;
-            typedef segment_operations_guard_t guard_t;
             typedef std::shared_ptr<SegmentManager> segments_ptr_t;
             segments_ptr_t _segment_manager;
             /**number of nodes per 1 segment*/
@@ -214,7 +213,6 @@ namespace OP
             */
             void on_new_segment_allocated(segment_idx_t new_segment)
             {
-                guard_t l(_segment_manager.get());
                 //auto node_array_off = _segment_manager->make_array<node_head_t>(new_segment, _node_capacity);
                 //auto node_array = _segment_manager->from_far<node_head_t>(node_array_off);
                 ////make all new free block reference in linear list

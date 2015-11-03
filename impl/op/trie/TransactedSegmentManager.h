@@ -1,4 +1,10 @@
+#ifndef _OP_VTM_TRANSACTEDSEGMENTMANAGER__H_
+#define _OP_VTM_TRANSACTEDSEGMENTMANAGER__H_
+
+#ifdef _MSC_VER
 #pragma once
+#endif //_MSC_VER
+
 #include <op/trie/SegmentManager.h>
 #include <op/trie/Transactional.h>
 #include <op/trie/Exceptions.h>
@@ -11,19 +17,16 @@ namespace OP
 {
     using namespace vtm;
     namespace trie{
-        class TransactedSegmentManager;
         
         class TransactedSegmentManager :
             public SegmentManager
         {
             friend struct SegmentManager;
-            friend struct Transaction;
         public:
-            typedef std::shared_ptr<Transaction> transaction_ptr_t;
             ~TransactedSegmentManager()
             {
             }
-            transaction_ptr_t begin_transaction()
+            transaction_ptr_t begin_transaction() override
             {
                 guard_t g(&_opened_transactions_lock);
                 auto insres = _opened_transactions.emplace(
@@ -33,9 +36,11 @@ namespace OP
                 if (insres.second) //just insert
                 {
                     insres.first->second = transaction_impl_ptr_t(
-                        new TransactionImpl(_transaction_uid_gen.fetch_add(1), this), 
+                        new TransactionImpl(_transaction_uid_gen.fetch_add(1), this),
                         _transaction_deleter);
                 }
+                else
+                    insres.first->second->recursive();
                 return insres.first->second;
             }
             
@@ -92,7 +97,7 @@ namespace OP
                     //add hashcode to scope of transactions, may rise ConcurentLockException
                     if (found_res->second.permit_read(current->transaction_id()))
                     {//new lock was obtained, need persist to the transaction scope
-                    // do nothing   current->store(found_res);
+                        current->store(found_res);
                     }
                 }
                 else//new entry, so no conflicts, place entry & return result
@@ -103,9 +108,13 @@ namespace OP
                         std::forward_as_tuple(search_range),
                         std::forward_as_tuple(ro_c, current->transaction_id())
                     );
-                    //don't store ro to transaction current->store(found_res);
+                    current->store(found_res);
                 }
-                if ( found_res->second.shadow_buffer() == nullptr )//no shadow buffer for this region, just get RO memory
+                //Following 'if' checks only shadow-buffer without transaction_code().flag & optimistic_write_c
+                //because if write=access accured the same transaction must always see changes
+                //other transaction should fail on obtaining lock, so shadow-buffer is enough to check
+                if ( found_res->second.shadow_buffer() == nullptr //no shadow buffer for this region, just get RO memory
+                    )
                     return SegmentManager::readonly_block(pos, size);
                 return ReadonlyMemoryRange(found_res->second.shadow_buffer(), //use shadow
                     size, std::move(pos), std::move(SegmentManager::get_segment(pos.segment)));
@@ -149,7 +158,9 @@ namespace OP
                             super_res.count(),
                             hint
                             );
-                        current->store(found_res);
+                        //Don't need to current->store, because read-transaction already in stock
+                        //current->store(found_res);
+                        current->on_shadow_buffer_created(found_res->second.shadow_buffer(), found_res->first.pos());
                     }
                 }
                 else
@@ -178,6 +189,26 @@ namespace OP
             {
                 return this->writable_block(ro.address(), ro.count());
             }
+            far_pos_t to_far(segment_idx_t segment, const void * address) override
+            {
+                transaction_impl_ptr_t current;
+                if (true)
+                {  //extract current transaction in safe way
+                    guard_t g1(&_opened_transactions_lock);
+                    auto found = _opened_transactions.find(std::this_thread::get_id());
+                    if (found == _opened_transactions.end()) 
+                    {//no current transaction at all
+                        return SegmentManager::to_far(segment, address);
+                    }
+                    current = found->second;
+                }
+                //from current transaction take address
+                far_pos_t result;
+                if (current->get_address_by_shadow(reinterpret_cast<const std::uint8_t*>(address), result)) //yes, there is a shadow
+                    return result;
+                //no shaddow buffer, return the origin
+                return SegmentManager::to_far(segment, address);
+            }
 
         protected:
             TransactedSegmentManager(const char * file_name, bool create_new, bool readonly) :
@@ -185,13 +216,6 @@ namespace OP
                 _transaction_deleter(this)
             {
                 _transaction_nesting = 0;
-            }
-            void begin_write_operation() override
-            {
-                begin_transaction();
-            }
-            void end_write_operation() override
-            {
             }
             virtual std::shared_ptr<Transaction> get_current_transaction()
             {
@@ -278,6 +302,10 @@ namespace OP
                     //use Bloom filter
                     //auto c = TransactionCode::transaction_id_to_hash(current);
                     TransactionCode test(wr_c, current);
+                    if (_transaction_code.align == test.align)
+                        return true;
+                    //check if ro-access for 1 thread only
+                    test.flag = ro_c;
                     return _transaction_code.align == test.align;
                 }
                 /**Mark this block as available for multiple read operations. 
@@ -293,8 +321,8 @@ namespace OP
                     auto current_hash = TransactionCode::transaction_id_to_hash(current);
                     TransactionCode test;
                     test.align = origin;
-                    if ((test.hash & current_hash) == current_hash) //Bloom filter shows it is already there
-                    {
+                    if ((test.hash & current_hash) == current_hash) 
+                    {//Bloom filter shows it is already there
                         return false; 
                     }
 
@@ -357,40 +385,84 @@ namespace OP
 
             };
             typedef std::map<RWR, BlockUse> captured_blocks_t;
-            struct TransactionImpl : public Transaction
+            struct TransactionImpl : public Transaction, std::enable_shared_from_this<TransactionImpl>
             {
                 TransactionImpl(transaction_id_t id, TransactedSegmentManager *owner) :
                     Transaction(id),
-                    _owner(owner)
+                    _owner(owner),
+                    _recursion_count(1)
                 {
 
                 }
+                void recursive()
+                {
+                    ++_recursion_count;
+                }
                 void rollback() override
                 {
-                    _owner->do_rollback(this);
-                    _transaction_log.clear();
+                    if (!(--_recursion_count))
+                    {
+                        _owner->finalize_transaction(this->shared_from_this(), false);
+                        _transaction_log.clear();
+                    }
                 }
                 void commit() override
                 {
-                    _owner->do_commit(this);
-                    _transaction_log.clear();
+                    if (!(--_recursion_count))
+                    {
+                        _owner->finalize_transaction(this->shared_from_this(), true);
+                        _transaction_log.clear();
+                    }
                 }
-                void store(captured_blocks_t::iterator entry)
+                void store(captured_blocks_t::iterator& entry)
                 {
-                    _transaction_log.push_back(entry);
+                    if (entry->second.shadow_buffer())
+                        on_shadow_buffer_created(entry->second.shadow_buffer(), entry->first.pos());
+                    _transaction_log.emplace_back(entry);
                 }
-                
+                /**Create mapping between pointer of shaddow buffer and real far-address*/
+                void on_shadow_buffer_created(std::uint8_t*addr, far_pos_t pos)
+                {
+                    _address_lookup.emplace(addr, pos);
+                }
+                /**Lookup if far-pos exists for specified memory address of shadow buffer
+                *@return true if address was found
+                */
+                bool get_address_by_shadow(const std::uint8_t*addr, far_pos_t& pos) const
+                {
+                    address_lookup_t::const_iterator found = _address_lookup.find(addr);
+                    if (found == _address_lookup.end())
+                    {
+                        pos = found->second;
+                        return true;
+                    }
+                    return false;
+                }
                 /**Since std::map::iterator is stable can store it*/
                 typedef std::deque<captured_blocks_t::iterator> log_t;
                 TransactedSegmentManager *_owner;
                 log_t _transaction_log;
+                typedef std::unordered_map<const std::uint8_t*, far_pos_t> address_lookup_t;
+                address_lookup_t _address_lookup;
+                std::atomic<int> _recursion_count;
             };
+            typedef std::shared_ptr<TransactionImpl> transaction_impl_ptr_t;
 
-            void do_commit(TransactionImpl * tr)
+            /**
+            *   @param tr - transaction to process, the reason to use shared_ptr is allow erase from global transaction map
+            *       without doubt about instance consistency
+            */
+            void finalize_transaction(transaction_impl_ptr_t& tr, bool is_commit)
             {
+                //wipe this transaction on background
+                auto erase_promise = std::async(std::launch::async, [this](std::thread::id id){
+                    guard_t g1(&_opened_transactions_lock);
+                    _opened_transactions.erase(id);
+                }, std::this_thread::get_id());
+
                 if (true)
                 {
-                    guard_t g2(&_map_lock); //shame!
+                    guard_t g2(&_map_lock); //shame! to improve need some lock-less approach
                     for (auto& i : tr->_transaction_log)
                     {
                         auto& block_pair = *i;
@@ -398,10 +470,15 @@ namespace OP
                         bool to_erase = false;
                         if ((flag & wr_c))
                         { //have to be exclusive 
-                            if (!(flag & optimistic_write_c))
+                            if ( is_commit && !(flag & optimistic_write_c) ) //commit only non-optimistic write blocks
                             {
                                 raw_write(block_pair.first.pos(), block_pair.second.shadow_buffer(), block_pair.first.count());
                             }
+                            else if (!is_commit && (flag & optimistic_write_c))
+                            { //rollback only optimistic-write blocks
+                                raw_write(block_pair.first.pos(), block_pair.second.shadow_buffer(), block_pair.first.count());
+                            }
+                            // write-blocks uses exclusive access, must be removed from global 
                             to_erase = true;
                         }
                         else //only read permission
@@ -412,46 +489,8 @@ namespace OP
                             _captured_blocks.erase(i);
                     }
                 }
-                //wipe this transaction on background
-                std::async(std::launch::async, [this](std::thread::id id){
-                    guard_t g1(&_opened_transactions_lock);
-                    _opened_transactions.erase(id);
-                }, std::this_thread::get_id());
+                erase_promise.wait();
             }
-            void do_rollback(TransactionImpl * tr)
-            {
-                if (true)
-                {
-                    guard_t g2(&_map_lock); //shame!
-                    for (auto& i : tr->_transaction_log)
-                    {
-                        auto& block_pair = *i;
-                        auto flag = block_pair.second.transaction_code().flag;
-                        bool to_erase = false;
-                        if ((flag & wr_c))
-                        { //have to be exclusive 
-                            /*Shaddow for optimistic write must be applied for rollback*/
-                            if ((flag & optimistic_write_c))
-                            {
-                                raw_write(block_pair.first.pos(), block_pair.second.shadow_buffer(), block_pair.first.count());
-                            }
-                            to_erase = true;
-                        }
-                        else //only read permission
-                        {
-                            to_erase = 0 == block_pair.second.leave(tr->transaction_id());
-                        }
-                        if (to_erase) //erase only blocks that has no other owners
-                            _captured_blocks.erase(i);
-                    }
-                }
-                //wipe this transaction on background
-                std::async(std::launch::async, [this](std::thread::id id){
-                    guard_t g1(&_opened_transactions_lock);
-                    _opened_transactions.erase(id);
-                }, std::this_thread::get_id());
-            }
-
             /**Handles delete of transaction. This functor intended for: 
             \li allow place *noexcept* to destructor of Transaction,
             \li to centralize handle of delete with access to this manager
@@ -467,7 +506,6 @@ namespace OP
                 }
                 TransactedSegmentManager *_owner;
             };
-            typedef std::shared_ptr<TransactionImpl> transaction_impl_ptr_t;
             typedef std::unordered_map<std::thread::id, transaction_impl_ptr_t> opened_transactions_t;
             typedef FetchTicket<size_t> lock_t;
             typedef operation_guard_t< lock_t, &lock_t::lock, &lock_t::unlock> guard_t;
@@ -485,3 +523,5 @@ namespace OP
         };
     }
 } //end of namespace OP
+
+#endif //_OP_VTM_TRANSACTEDSEGMENTMANAGER__H_

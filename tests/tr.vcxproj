@@ -167,12 +167,11 @@
     <ClInclude Include="GenericMemoryTest.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ContainersTest.cpp">
-      <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
-      <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</PreprocessToFile>
-    </ClCompile>
+    <ClCompile Include="ContainersTest.cpp" />
     <ClCompile Include="NodeTest.cpp" />
     <ClCompile Include="RangeTest.cpp" />
+    <ClCompile Include="SegmentManagerTest.cpp" />
+    <ClCompile Include="SegmentToplogyTest.cpp" />
     <ClCompile Include="skplst.cpp" />
     <ClCompile Include="tr.cpp">
       <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
