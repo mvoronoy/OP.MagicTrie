@@ -16,5 +16,5 @@ void test_SegmentManager(OP::utest::TestResult& result)
 
 //using std::placeholders;
 static auto module_suite = OP::utest::default_test_suite("SegmentManager")
-->declare(test_SegmentManager, "base")
+->declare(test_SegmentManager, "memoryManager")
 ;

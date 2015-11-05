@@ -18,6 +18,8 @@
 
 #include <ctime>
 #include <chrono>
+#include <regex>
+
 #include "unit_test.h"
 
 using namespace OP::trie;
@@ -145,22 +147,91 @@ extern void test_NodeManager();
 extern void test_RangeContainer();
 extern void test_Range();
 
+static auto module_suite = OP::utest::default_test_suite("Arbitrary")
+->declare(test_align, "align")
+->declare(test_RangeContainer, "rangeConatiner")
+->declare(test_Range, "range")
+->declare(test_CacheManager, "cacheManager")
+->declare(test_NodeManager, "nodeManager")
+;
+
 int main(int argc, char* argv[])
 {
     bool allow_long_test = false;
+    //default is run all
+    std::function<bool(OP::utest::TestSuite&, OP::utest::TestCase&)> test_case_filter 
+        = [](OP::utest::TestSuite& , OP::utest::TestCase& ){ return true; };
+    enum exec_command_t
+    {
+        command_run_c = 0,
+        command_list_c,
+        command_usage_c,
+    };
+    exec_command_t command = command_run_c;
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strcmp("-r", argv[i]) == 0)
+        {
+            if ((i + 1) < argc)
+            {
+                try{
+                    std::regex expression(argv[++i]);
+                    test_case_filter = [=](OP::utest::TestSuite& suite, OP::utest::TestCase& cs) {
+                        std::string key = suite.id() + "/" + cs.id();
+                        return std::regex_match(key, expression);
+                    };
+                }
+                catch (std::regex_error& e)
+                {
+                    std::cerr << "Invalid -r argument:" << e.what() << "\n";
+                    command = command_usage_c;
+                    break;
+                }
 
-    test_align();
+            }
+            else
+            {
+                command = command_usage_c;
+                std::cerr << "Invalid -r argument\n";
+                break;
+            }
+        }
+        else if (strcmp("-l", argv[i]) == 0)
+        {
+            command = command_list_c;
+        }
+    }
+    switch (command)
+    {
+    case command_run_c:
+        OP::utest::TestRun::default_instance().run_if(test_case_filter);
+        break;
+    case command_list_c:
+    {
+        auto case_callback = [](OP::utest::TestCase& cs)-> bool{
+                std::cout << "\t>" << cs.id() << "\n";
+                return true;
+            };
+        auto suite_callback = [&](OP::utest::TestSuite& sui){
+            std::cout << sui.id() << "\n";
+            sui.list_cases(case_callback);
+            return true;
+        };
+        OP::utest::TestRun::default_instance().list_suites(suite_callback);
+        break;
+    }
+    case command_usage_c:
+        std::cout << "Usage:\n"
+            << "\t[-r] <regexp> - regular expression to filter test cases. Regex is matched agains pattern <Test SuiteName>/<Test Case Name>\n"
+            << "\t[-l] list test cases instead of run (may be combined with -r to list matched tests only)\n"
+            ;
+        break;
+    }
 
-    OP::utest::TestRun::default_instance().run_if([](OP::utest::TestSuite& suite, OP::utest::TestCase& cs){
+    //OP::utest::TestRun::default_instance().run_if([](OP::utest::TestSuite& suite, OP::utest::TestCase& cs){
         //return true;
-        return suite.id() == "TransactedSegmentManager" && cs.id() == "multithread";
+        //return suite.id() == "TransactedSegmentManager" && cs.id() == "multithread";
         //return suite.id() == "SegmentManager" && cs.id() == "base";
-    });
-    /*test_NodeHash_insert(allow_long_test);
-    test_NodeHash_erase(allow_long_test);*/
-    test_RangeContainer();
-    test_Range();
-    test_CacheManager();
-    test_NodeManager();
+    //});
     return 0;
 }

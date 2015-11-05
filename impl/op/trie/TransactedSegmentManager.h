@@ -116,6 +116,12 @@ namespace OP
                 if ( found_res->second.shadow_buffer() == nullptr //no shadow buffer for this region, just get RO memory
                     )
                     return SegmentManager::readonly_block(pos, size);
+                //there since shadow presented. This possible only for already captured
+                //write-lock, hence this read-only query belong to the same transaction
+                //so need analyze what to return - either real buffer (optimistic write)
+                //or backed shadow buffer (pessimistic write)
+                if (found_res->second.transaction_code().flag & optimistic_write_c)
+                    return SegmentManager::readonly_block(pos, size);
                 return ReadonlyMemoryRange(found_res->second.shadow_buffer(), //use shadow
                     size, std::move(pos), std::move(SegmentManager::get_segment(pos.segment)));
             }
@@ -139,6 +145,7 @@ namespace OP
                 }
                 if (!current)//no current transaction at all
                     throw Exception(er_transaction_not_started, "write allowed only inside transaction");
+                auto super_res = SegmentManager::writable_block(pos, size, hint);
                 auto found_res = real_mem_future.get();
                 if (found_res != _captured_blocks.end() && !(_captured_blocks.key_comp()(search_range, found_res->first)))
                 {//block already have associated transaction(s)
@@ -151,7 +158,7 @@ namespace OP
                     //may be block just for read
                     if (!(found_res->second.transaction_code().flag & wr_c))
                     {//obtain write lock over already existing read-lock
-                         auto super_res = SegmentManager::writable_block(pos, size, hint);
+                         
                         //clone memory block, so other could see old result
                         found_res->second.create_shaddow(true, //this mean create buffer for read (optimistic write)
                             super_res.pos(),
@@ -172,7 +179,7 @@ namespace OP
                             std::forward_as_tuple(search_range),
                             std::forward_as_tuple(wr_c, current->transaction_id())
                     );
-                    auto super_res = SegmentManager::writable_block(pos, size, hint);
+                    
                     //clone memory block, so other could see old result
                     found_res->second.create_shaddow(false, //this mean create buffer for write (instead of buffer for read)
                         super_res.pos(),
@@ -181,13 +188,35 @@ namespace OP
                         );
                     current->store(found_res);
                 }
-                
+                //shadow buffer is returned only for pessimistic write, otherwise origin memory have to be used
+                if (found_res->second.transaction_code().flag & optimistic_write_c)
+                    return super_res;
                 return MemoryRange( found_res->second.shadow_buffer(), size,
                         std::move(pos), std::move(SegmentManager::get_segment(pos.segment)) );
             }
             MemoryRange upgrade_to_writable_block(ReadonlyMemoryRange& ro)  override
             {
                 return this->writable_block(ro.address(), ro.count());
+            }
+            far_pos_t to_far(const void * address) const override 
+            {
+                transaction_impl_ptr_t current;
+                if (true)
+                {  //extract current transaction in safe way
+                    guard_t g1(&_opened_transactions_lock);
+                    auto found = _opened_transactions.find(std::this_thread::get_id());
+                    if (found == _opened_transactions.end()) 
+                    {//no current transaction at all
+                        return SegmentManager::to_far(address);
+                    }
+                    current = found->second;
+                }
+                //from current transaction take address
+                far_pos_t result;
+                if (current->get_address_by_shadow(reinterpret_cast<const std::uint8_t*>(address), result)) //yes, there is a shadow
+                    return result;
+                //no shaddow buffer, return the origin
+                return SegmentManager::to_far(address);
             }
             far_pos_t to_far(segment_idx_t segment, const void * address) override
             {
@@ -296,17 +325,20 @@ namespace OP
                         _transaction_code.flag |= optimistic_write_c;
                     else
                         _transaction_code.flag &= ~optimistic_write_c;
+                    _transaction_code.flag |= wr_c;
                 }
                 bool is_exclusive_access(Transaction::transaction_id_t current) const
                 {
                     //use Bloom filter
                     //auto c = TransactionCode::transaction_id_to_hash(current);
                     TransactionCode test(wr_c, current);
-                    if (_transaction_code.align == test.align)
+                    TransactionCode origin(_transaction_code);
+                    origin.flag &= ~optimistic_write_c; //ignore optimistic_write_c
+                    if (origin.align == test.align)
                         return true;
                     //check if ro-access for 1 thread only
                     test.flag = ro_c;
-                    return _transaction_code.align == test.align;
+                    return origin.align == test.align;
                 }
                 /**Mark this block as available for multiple read operations. 
                 * If current transaction already has write 
@@ -431,7 +463,7 @@ namespace OP
                 bool get_address_by_shadow(const std::uint8_t*addr, far_pos_t& pos) const
                 {
                     address_lookup_t::const_iterator found = _address_lookup.find(addr);
-                    if (found == _address_lookup.end())
+                    if (found != _address_lookup.end())
                     {
                         pos = found->second;
                         return true;
@@ -514,7 +546,7 @@ namespace OP
             captured_blocks_t _captured_blocks;
             std::atomic<Transaction::transaction_id_t> _transaction_uid_gen;
             
-            lock_t _opened_transactions_lock;
+            mutable lock_t _opened_transactions_lock;
             opened_transactions_t _opened_transactions;
             TransactionDeleter _transaction_deleter;
             unsigned _transaction_nesting;

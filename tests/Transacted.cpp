@@ -253,7 +253,7 @@ void test_TransactedSegmentManagerMemoryAllocator(OP::utest::TestResult &tresult
         }
         else
             synchro_start.notify_all();
-        std::array<std::uint8_t*, std::extent<decltype(consumes)>::value> managed_ptr{};
+        std::array<MemoryRange, std::extent<decltype(consumes)>::value> managed_ptr{};
         OP::vtm::TransactionGuard transaction1(tmngr1->begin_transaction());
         for (auto i = 0; i < managed_ptr.max_size(); ++i)
             managed_ptr[i] = mm.allocate(consumes[i]);
@@ -261,12 +261,12 @@ void test_TransactedSegmentManagerMemoryAllocator(OP::utest::TestResult &tresult
         OP::vtm::TransactionGuard transaction2(tmngr1->begin_transaction());
         //dealloc even
         for (auto i = 0; i < managed_ptr.max_size(); i += 2)
-            mm.deallocate(managed_ptr[i]);
+            mm.deallocate(managed_ptr[i].address());
         transaction2.commit();
         OP::vtm::TransactionGuard transaction3(tmngr1->begin_transaction());
         //dealloc odd
         for (auto i = 1; i < managed_ptr.max_size(); i += 2)
-            mm.deallocate(managed_ptr[i]);
+            mm.deallocate(managed_ptr[i].address());
         transaction3.commit();
     };
     //ensure that thread-scenario works in single thread

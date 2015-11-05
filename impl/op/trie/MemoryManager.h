@@ -22,9 +22,12 @@ namespace OP
             * \li er_memory_need_compression - manager owns by too small chunks, that can be optimized by block movement
             * \li er_no_memory - there is no enough memory, so new segment must be allocated
             * @param size - byte size to allocate
+            * @return memory description ready to write
             */
-            virtual std::uint8_t* allocate(segment_pos_t size)
+            virtual MemoryRange allocate(segment_pos_t size)
             {
+                size = align_on(size, SegmentHeader::align_c);
+
                 FreeMemoryBlockTraits free_traits(_segment_manager);
                 //try do without locking
                 
@@ -45,24 +48,25 @@ namespace OP
                 }
                 segment_idx_t segment_idx = segment_of_far(free_block_pos); 
                 //auto current_free = _segment_manager->writable_block(free_block_pos, sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
-                auto current_mem_ptr = FarAddress(FreeMemoryBlock::get_header_addr(free_block_pos));
+                auto current_mem_pos = FarAddress(FreeMemoryBlock::get_header_addr(free_block_pos));
                 auto current_mem =
-                    _segment_manager->wr_at<MemoryBlockHeader>(current_mem_ptr);
+                    _segment_manager->wr_at<MemoryBlockHeader>(current_mem_pos);
 
-                auto new_block = current_mem->split_this(*_segment_manager, current_mem_ptr, size);
-                segment_pos_t deposited_size = 0;
-                if (new_block != current_mem) //new block was allocated
+                segment_pos_t deposited_size = current_mem->real_size();
+                auto split_pair = current_mem->split_this(*_segment_manager, current_mem_pos, size);
+                if (split_pair.second) //new block was allocated
                 {  //old block was splitted, so place the rest back to free list
                     FreeMemoryBlock *free_block = _segment_manager->wr_at< FreeMemoryBlock >(FarAddress(free_block_pos));
-                    deposited_size = new_block->real_size();
                     _free_blocks->insert(free_traits, free_block_pos, free_block);
+                    deposited_size -= current_mem->real_size();
                 }
                 else //when existing block is used it is not needed to use 'real_size' - because header alredy counted
                 {
-                    deposited_size = new_block->size();
+                    deposited_size -= aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 }
+                
                 get_available_bytes(segment_idx) -= deposited_size;
-                return new_block->memory();
+                return split_pair.first;
             }
             /** @return true if merge two adjacent block during deallocation is allowed */
             virtual bool has_block_merging() const
@@ -80,34 +84,32 @@ namespace OP
                 l.unlock();
                 return *_segment_manager->ro_at<segment_pos_t>(pos);
             }
-            virtual void deallocate(std::uint8_t* addr)
+            void deallocate(std::uint8_t* addr)
             {
-                if (!is_aligned(addr, SegmentHeader::align_c)
+                auto dar = _segment_manager->to_far(addr);
+                deallocate(FarAddress(dar));
+            }
+            virtual void deallocate(FarAddress address)
+            {
+                if (!is_aligned(address.offset, SegmentHeader::align_c)
                     //|| !check_pointer(memblock)
                     )
                     throw trie::Exception(trie::er_invalid_block);
-                std::uint8_t* pointer = reinterpret_cast<std::uint8_t*>(addr);
-                
-                MemoryBlockHeader* header = reinterpret_cast<MemoryBlockHeader*>(
-                    pointer - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c));
+                OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                FarAddress header_far = address + (-static_cast<segment_off_t>(mbh));
+                //need separate 2 wr_at to avoid overlapped block exception
+                MemoryBlockHeader* header = _segment_manager->wr_at<MemoryBlockHeader>(header_far);
                 if (!header->check_signature() || header->is_free())
                     throw trie::Exception(trie::er_invalid_block);
-                //retrieve file pos
-                auto segment_idx = header->nav._my_segment;
-                FarAddress header_far (_segment_manager->to_far(segment_idx, header));
-                OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-
-                auto free_block_pos = header_far+mbh;
 
                 //Mark segment and memory for FreeMemoryBlock as available for write
-                auto block = _segment_manager->writable_block(std::move(header_far), mbh + sizeof(FreeMemoryBlock));
-                header = block.at<MemoryBlockHeader>(0);
                 header->set_free(true);
-                auto free_marker = block.at<void>(mbh);
+                auto free_marker = _segment_manager->wr_at<FreeMemoryBlock>(address, WritableBlockHint::new_c);
+
                 FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(emplaced_t());
                 auto deposited = header->size();
-                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), free_block_pos, span_of_free);
-                get_available_bytes(segment_idx) += deposited;
+                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), address, span_of_free);
+                get_available_bytes(address.segment) += deposited;
             }
 
             /**Allocate memory and create object of specified type
@@ -117,7 +119,7 @@ namespace OP
             T* make_new(Types&&... args)
             {
                 auto result = allocate(sizeof(T));
-                return new (result)T(std::forward<Types>(args)...);
+                return new (result.pos())T(std::forward<Types>(args)...);
             }
             /**Combines together allocate+construct for array*/
             template<class T, class... Types>

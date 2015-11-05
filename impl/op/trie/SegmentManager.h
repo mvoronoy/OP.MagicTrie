@@ -528,6 +528,15 @@ namespace OP
                 {
                 }
             MemoryRange() = default;
+            /**
+            * @return new instance that is subset of this where beginning is shifeted on `offset` bytes
+            *   @param offset - how many bytes to offset from beggining, must be less than #count()
+            */
+            MemoryRange subset(segment_pos_t offset) const
+            {
+                assert(offset < count());
+                return MemoryRange(this->pos() + offset, count() - offset, address() + offset, this->segment());
+            }
             template <class T>
             T* at(segment_pos_t idx)
             {
@@ -675,15 +684,15 @@ namespace OP
             \endcode
             */
             template <class T>
-            T* wr_at(const FarAddress& pos)
+            T* wr_at(const FarAddress& pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
-                return this->writable_block(pos, sizeof(T)).at<T>(0);
+                return this->writable_block(pos, sizeof(T), hint).at<T>(0);
             }
             /**
             *   It is very slow (!)  method. Prefer to use #to_far(segment_idx_t, const void *address) instead
             *   @throws std::invalid_argument if address is not in the scope of existing mapped segments
             */
-            far_pos_t to_far(const void * address) const
+            virtual far_pos_t to_far(const void * address) const
             {
                 auto pair = this->get_index_by_address(address);
                 auto diff = reinterpret_cast<const std::uint8_t*>(address)-pair.first.pos();

@@ -15,7 +15,7 @@
 #include <map>
 #include <set>
 #include <cstdint>
-
+#include <signal.h> 
 /** Allows place usefull information to detail output.
 * Usage:
 * \code
@@ -119,15 +119,35 @@ inline std::ostream& operator << (std::ostream& os, const detail& det)
 struct TestFail : std::logic_error
 {
     TestFail():
-        std::logic_error(nullptr)
+        std::logic_error(nullptr),
+        _is_abort(false)
     {
     }
     TestFail(const std::string& text):
-        std::logic_error(text)
+        std::logic_error(text),
+        _is_abort(false)
     {
     }
+    bool is_abort() const
+    {
+        return _is_abort;
+    }
+protected:
+    void set_abort(bool is_abort)
+    {
+        _is_abort = is_abort;
+    }
+private:    
+    bool _is_abort;
 };
 
+struct TestAbort : public TestFail
+{
+    TestAbort()
+    {
+        set_abort (true);
+    }
+};
 
 struct TestCase;
 struct TestSuite;
@@ -157,9 +177,11 @@ struct TestResult
     {
         _first_ = 0,
         not_started = _first_,
-        /*some test condition was not met, see #status_details for details*/
+        /**some test condition was not met, see #status_details for details*/
         failed,
-        /*test raised unhandled exception*/
+        /**test raised unhandled exception*/
+        exception,
+        /*test signaled abort (for example using CLR assert())*/
         aborted,
         /*Test succeeded*/
         ok,
@@ -176,7 +198,7 @@ struct TestResult
     const std::string& status_to_str() const
     {
         static const std::string values[] = {
-            "not started", "failed", "aborted", "ok"
+            "not started", "failed", "exception", "aborted", "ok"
         };
         return values[(_status - _first_) % (_last_ - _first_)];
     }
@@ -247,6 +269,13 @@ struct TestCase : public Identifiable
         retval._run_number = 1;
         return retval;
     }
+    /**
+    *   Start same test multiple times
+    *   @param result - acummulate results of all execution into single one. At exit this paramter 
+    *           contains summary time execution (without warm-up) and status of last executed test
+    *   @param run_number - number of times to execue test-case
+    *   @param warm_up - some number of executions before measure time begins. Allows warm-up CPU, internal cache and so on...
+    */
     TestResult& load_execute(TestResult& result, unsigned run_number, unsigned warm_up = 10)
     {
         while(warm_up--)
@@ -278,7 +307,7 @@ private:
         catch(TestFail const &e)
         {
             retval._end_time = std::chrono::high_resolution_clock::now();
-            retval._status = TestResult::failed;
+            retval._status = e.is_abort()?TestResult::aborted : TestResult::failed;
             if( e.what() && *e.what() )
             {
                 if( !retval._status_details.is_empty() )
@@ -289,7 +318,7 @@ private:
         catch(std::exception const &e)
         {
             retval._end_time = std::chrono::high_resolution_clock::now();
-            retval._status = TestResult::aborted;
+            retval._status = TestResult::exception;
             if( e.what() && *e.what() )
             {
                 if( !retval._status_details.is_empty() )
@@ -300,7 +329,7 @@ private:
         catch(...)
         { //hide any other exception
             retval._end_time = std::chrono::high_resolution_clock::now();
-            retval._status = TestResult::aborted;
+            retval._status = TestResult::exception;
         }
     }
     
@@ -365,21 +394,17 @@ struct TestSuite : public Identifiable, public std::enable_shared_from_this<Test
         _tests.push_back(exec);
         return this;
     }
-    template <class Predicate, class Function>
-    void for_each_case_if( Predicate && p, Function && f )
+    /**Enumerate all test cases without run
+    * @tparam F callback for enumerate cases, it should match to signature `bool F(TestCase&)`. Method 
+    *   continues iteration if predicate returns true and stops right after false
+    */
+    template <class F>
+    void list_cases( F && f )
     {
         for( auto& t: _tests )
         {
-            if( p(*this, *t) )
-            {
-                TestResult result(shared_from_this());
-                info() << "\t[" << t->id() << "]...\n";
-                t->execute( result );
-                info() << "\t[" << t->id() << "] done with status:"<<result.status_to_str()<<" in:"<< std::fixed <<result.ms_duration() <<"ms\n";
-                if (!result.status_details().is_empty())
-                    error() << result.status_details() << std::endl;
-                f( std::move( result ) );
-            }
+            if (!f(*t))
+                return;
         }
     }
     std::ostream& info()
@@ -446,7 +471,25 @@ struct TestReport
 {
     
 };
-
+struct TestRunOptions
+{
+    TestRunOptions()
+    {
+        _intercept_sig_abort = true;
+    }
+    /**Modifies permission to intercept 'abort' from test code. Set true if C-style assert shouldn't break test execution*/
+    TestRunOptions& intercept_sig_abort(bool new_value)
+    {
+        _intercept_sig_abort = new_value;
+        return *this;
+    }
+    bool intercept_sig_abort() const
+    {
+        return _intercept_sig_abort;
+    }
+private:
+    bool _intercept_sig_abort;
+};
 struct TestRun
 {
     typedef std::shared_ptr<TestSuite> test_suite_ptr;
@@ -460,12 +503,30 @@ struct TestRun
     }
     void declare(test_suite_ptr& suite)
     {
-        _suites.emplace(/*std::piecewise_construct, */suite->id(), suite);
+        _suites.emplace(suite->id(), suite);
+    }
+    /**
+    *   Just enumerate all test-suites without run
+    * @tparam F predicate that matches to signature `bool F(TestSuite&)`
+    */
+    template <class F>
+    void list_suites(F& f)
+    {
+        for( auto& p : _suites )
+        {
+            //std::function<bool(TestCase&)> curying = std::bind(f, *(p.second), _1);
+            if (!f(*p.second))
+                return;
+        }
     }
     std::vector<TestResult> run_all()
     {
         return run_if([](TestSuite&, TestCase&){return true; });
     }
+    /**
+    * Run all tests that match to predicate specified
+    * @tparam F predicate that matches to signature `bool F(TestSuite&, TestCase&)`
+    */
     template <class F>
     std::vector<TestResult> run_if(F &f)
     {
@@ -473,7 +534,7 @@ struct TestRun
         for( auto& p : _suites )
         {
             p.second->info() << "Suite:" << p.first << std::endl;
-            p.second->for_each_case_if(
+            for_each_case_if(*p.second,
                 f, 
                 [&result](TestResult & res){
                     result.emplace_back(std::move(res));
@@ -483,6 +544,40 @@ struct TestRun
         return result;
     }
 private:
+    struct sig_abort_guard
+    {
+        sig_abort_guard()
+        {
+            _prev_handler = signal (SIGABRT, my_handler);
+        }
+        ~sig_abort_guard()
+        {
+            signal (SIGABRT, _prev_handler);
+        }
+        static void my_handler(int param)
+        {
+            throw TestAbort();
+        }
+        void (*_prev_handler)(int);
+    };
+    template <class Predicate, class Function>
+    void for_each_case_if(TestSuite &suite, Predicate && p, Function && f )
+    {
+        suite.list_cases([&](TestCase& test){
+            if (p(suite, test))
+            {
+                TestResult result(suite.shared_from_this());
+                suite.info() << "\t[" << test.id() << "]...\n";
+                test.execute( result );
+                suite.info() << "\t[" << test.id() << "] done with status:"<<result.status_to_str()<<" in:"<< std::fixed <<result.ms_duration() <<"ms\n";
+                if (!result.status_details().is_empty())
+                    suite.error() << result.status_details() << std::endl;
+                f( std::move( result ) );
+            }
+            return true;//always continue
+        });
+    }
+
     typedef std::multimap<Identifiable::id_t, std::shared_ptr<TestSuite> > suites_t;
     suites_t _suites;
 };
