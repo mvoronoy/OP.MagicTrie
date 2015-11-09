@@ -3,6 +3,8 @@
 
 
 #include "unit_test.h"
+#include "unit_test_is.h"
+using namespace OP::utest;
 
 template <class Sm>
 void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& result)
@@ -32,7 +34,8 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     typedef NodeHashTable<EmptyPayload, 8> htbl64_t;
     typedef NodeSortedArray<EmptyPayload, 32> sarr32_t;
     
-    std::uint8_t* one_byte_block = nullptr;
+    const std::uint8_t* one_byte_block = nullptr;
+    FarAddress one_byte_pos;
     if (1 == 1)
     {       
         result.info() << "Test create new...\n";
@@ -40,7 +43,8 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
         auto mngr1 = Sm::create_new(seg_file_name, options);
         tst_size = mngr1->segment_size();
         SegmentTopology<MemoryManager> mngrTopology = SegmentTopology<MemoryManager>(mngr1);
-        one_byte_block = mngrTopology.slot<MemoryManager>().allocate(1).pos();
+        one_byte_pos = mngrTopology.slot<MemoryManager>().allocate(1);
+        one_byte_block = mngr1->readonly_block(one_byte_pos, 1).at<std::uint8_t>(0);
         mngr1->_check_integrity();
     }
     result.info() << "Test reopen existing...\n";
@@ -63,11 +67,11 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     //}
     mngr2._check_integrity();
     //consume allmost all
-    auto rest = mngr2.slot<MemoryManager>().allocate( mngr2.slot<MemoryManager>().available(0) - 16);
+    auto rest = mngr2.slot<MemoryManager>().allocate( mngr2.slot<MemoryManager>().available(0) - SegmentDef::align_c );
     mngr2._check_integrity();
     try
     {
-        mngr2.slot<MemoryManager>().deallocate(rest.pos() + 1);
+        mngr2.slot<MemoryManager>().deallocate(rest + 1);
         result.assert_true(false, OP_CODE_DETAILS(<<"exception must be raised"));
     }
     catch (const OP::trie::Exception& e)
@@ -86,11 +90,11 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     //{
     //    result.assert_true(e.code() == OP::trie::er_invalid_block);
     //}
-    mngr2.slot<MemoryManager>().deallocate(one_byte_block);
+    mngr2.slot<MemoryManager>().deallocate(one_byte_pos);
     mngr2._check_integrity();
-    mngr2.slot<MemoryManager>().deallocate(rest.pos());
+    mngr2.slot<MemoryManager>().deallocate(rest);
     mngr2._check_integrity();
-    mngr2.slot<MemoryManager>().deallocate(half_block.pos());
+    mngr2.slot<MemoryManager>().deallocate(half_block);
     mngr2._check_integrity();
     auto bl_control = mngr2.slot<MemoryManager>().allocate(100);
     auto test_size = mngr2.slot<MemoryManager>().available(0);
@@ -122,9 +126,10 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     FarAddress stripes[7];
     for (size_t i = 0; i < 7; ++i)
     {
-        auto b = mngr2.slot<MemoryManager>().allocate(sizeof(seq));
-        memcpy(b.pos(), seq, sizeof(seq));
-        stripes[i] = b.address();
+        auto b_pos = mngr2.slot<MemoryManager>().allocate(sizeof(seq));
+        auto b = segmentMngr2->writable_block(b_pos, sizeof(seq)).at<std::uint8_t>(0);
+        memcpy(b, seq, sizeof(seq));
+        stripes[i] = b_pos;
     }
     mngr2._check_integrity();
     //check closing and reopenning
@@ -149,6 +154,10 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     //now test merging of adjacency blocks
     for (size_t i = 0; i < 7; i += 2)
     {
+        auto ro_ptr = segmentMngr3->readonly_block(stripes[i], sizeof(seq)).at<std::uint8_t>(0);
+            
+        result.assert_that(is::equals(seq, ro_ptr, sizeof(seq)), "striped block corrupted");
+
         if (!has_block_compression)
             test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);
         mm.deallocate(stripes[i]);
@@ -157,7 +166,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
     //repeat prev test on condition of releasing even blocks
     for (size_t i = 0; i < 7; ++i)
-        stripes[i] = mm.allocate(sizeof(seq)).address();
+        stripes[i] = mm.allocate(sizeof(seq));
     for (size_t i = 0; i < 7; i+=2)
         mm.deallocate(stripes[i]);
     mngr3->_check_integrity();
@@ -169,7 +178,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
     
     //make random test
-    void* rand_buf[1000];
+    FarAddress rand_buf[1000];
     size_t rnd_indexes[1000];//make unique vector and randomize access over it
     for (size_t i = 0; i < 1000; ++i)
     {
@@ -186,7 +195,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     for (size_t i = 0; i < 1000; ++i)
     {
         auto p = rand_buf[rnd_indexes[i]];
-        mm.deallocate((std::uint8_t*) p );
+        mm.deallocate( p );
         mngr3->_check_integrity();
     }
     std::cout << "\tTook:" 

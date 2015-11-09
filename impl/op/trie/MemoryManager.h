@@ -22,16 +22,20 @@ namespace OP
             * \li er_memory_need_compression - manager owns by too small chunks, that can be optimized by block movement
             * \li er_no_memory - there is no enough memory, so new segment must be allocated
             * @param size - byte size to allocate
-            * @return memory description ready to write
+            * @return memory position
             */
-            virtual MemoryRange allocate(segment_pos_t size)
+            virtual FarAddress allocate(segment_pos_t size)
             {
                 size = align_on(size, SegmentHeader::align_c);
 
                 FreeMemoryBlockTraits free_traits(_segment_manager);
+                OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
                 //try do without locking
                 
-                far_pos_t free_block_pos = _free_blocks->pull_not_less(free_traits, size);
+                far_pos_t free_block_pos = OP::vtm::transactional_retry_n<10>([this](
+                    FreeMemoryBlockTraits& free_traits, segment_pos_t size){
+                        return _free_blocks->pull_not_less(free_traits, size);
+                    }, free_traits, size);
                 if (free_traits.is_eos(free_block_pos))
                 { //need lock - because may need allocate new segment
                     guard_t l(_segments_map_lock);
@@ -47,26 +51,39 @@ namespace OP
                     }
                 }
                 segment_idx_t segment_idx = segment_of_far(free_block_pos); 
-                //auto current_free = _segment_manager->writable_block(free_block_pos, sizeof(FreeMemoryBlock)).at<FreeMemoryBlock>(0);
+                
                 auto current_mem_pos = FarAddress(FreeMemoryBlock::get_header_addr(free_block_pos));
-                auto current_mem =
-                    _segment_manager->wr_at<MemoryBlockHeader>(current_mem_pos);
-
+                auto current_mem_block = _segment_manager->writable_block(current_mem_pos, sizeof(MemoryBlockHeader));
+                auto current_mem = current_mem_block.at<MemoryBlockHeader>(0);
+                
+                OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                auto free_addr = FarAddress(free_block_pos);
                 segment_pos_t deposited_size = current_mem->real_size();
-                auto split_pair = current_mem->split_this(*_segment_manager, current_mem_pos, size);
-                if (split_pair.second) //new block was allocated
-                {  //old block was splitted, so place the rest back to free list
-                    FreeMemoryBlock *free_block = _segment_manager->wr_at< FreeMemoryBlock >(FarAddress(free_block_pos));
+                FarAddress retval;
+                if (current_mem->size() <= (size + mbh + SegmentHeader::align_c)) //existing block can fit only queried bytes
+                {
+                    current_mem->set_free(false);
+                    //when existing block is used it is not needed to use 'real_size' - because header alredy counted
+                    deposited_size -= aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                    MemoryRange result = 
+                        _segment_manager->writable_block(free_addr, size, WritableBlockHint::new_c);
+                    retval = result.address();
+                }
+                else
+                { //existing block too big, so place some memory back
+                    retval = current_mem->split_this(*_segment_manager, current_mem_pos, size);
+                
+                    //old block was splitted, so place the rest back to free list
+                    FreeMemoryBlock *free_block = _segment_manager->wr_at< FreeMemoryBlock >(free_addr);
                     _free_blocks->insert(free_traits, free_block_pos, free_block);
                     deposited_size -= current_mem->real_size();
                 }
-                else //when existing block is used it is not needed to use 'real_size' - because header alredy counted
-                {
-                    deposited_size -= aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                }
                 
                 get_available_bytes(segment_idx) -= deposited_size;
-                return split_pair.first;
+                /*If transaction started inside this method then after commit 
+                memory will be changed. */
+                g.commit();
+                return retval;
             }
             /** @return true if merge two adjacent block during deallocation is allowed */
             virtual bool has_block_merging() const
@@ -97,6 +114,8 @@ namespace OP
                     throw trie::Exception(trie::er_invalid_block);
                 OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 FarAddress header_far = address + (-static_cast<segment_off_t>(mbh));
+                OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
+
                 //need separate 2 wr_at to avoid overlapped block exception
                 MemoryBlockHeader* header = _segment_manager->wr_at<MemoryBlockHeader>(header_far);
                 if (!header->check_signature() || header->is_free())
@@ -110,27 +129,34 @@ namespace OP
                 auto deposited = header->size();
                 _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), address, span_of_free);
                 get_available_bytes(address.segment) += deposited;
+                g.commit();
             }
 
             /**Allocate memory and create object of specified type
             *@return far-offset, to get real pointer use #from_far<T>()
             */
             template<class T, class... Types>
-            T* make_new(Types&&... args)
+            FarAddress make_new(Types&&... args)
             {
+                OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
                 auto result = allocate(sizeof(T));
-                return new (result.pos())T(std::forward<Types>(args)...);
+                auto mem = this->_segment_manager->writable_block(result, sizeof(T), WritableBlockHint::new_c);
+                new (mem.pos()) T(std::forward<Types>(args)...);
+                g.commit();
+                return result;
             }
             /**Combines together allocate+construct for array*/
             template<class T, class... Types>
-            far_pos_t make_array(segment_pos_t items_count, Types&&... args)
+            FarAddress make_array(segment_pos_t items_count, Types&&... args)
             {
+                OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
                 auto result = allocate(sizeof(T)*items_count);
-                auto p = from_far<T>(result);
+                auto p = this->_segment_manager->writable_block(result, sizeof(T)*items_count, WritableBlockHint::new_c);
                 auto retval = p;
                 //use placement constructor for each item
                 for (; items_count; --items_count, ++p)
                     new (p)T(std::forward<Types>(args)...);
+                g.commit();
                 return result;
             }
             void _check_integrity(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset)

@@ -56,7 +56,7 @@ namespace OP
                 segment_idx_t segment;
             };
             FarAddress():
-                address(SegmentDef::eos_c){}
+                offset(SegmentDef::eos_c), segment(SegmentDef::eos_c){}
             explicit FarAddress(far_pos_t a_address) :
                 address(a_address){}
             FarAddress(segment_idx_t a_segment, segment_pos_t a_offset) :
@@ -571,12 +571,6 @@ namespace OP
             update_c = block_for_read_c | block_for_write_c,
             /**Block is used only for write purpose and doesn't contain usefull information yet*/
             new_c = block_for_write_c
-        };
-        /**Exception is raised when imposible to obtain lock over memory block*/
-        struct ConcurentLockException : public OP::trie::Exception
-        {
-            ConcurentLockException() :
-                Exception(OP::trie::er_transaction_concurent_lock){}
         };
         /**
         * Wrap together boost's class to manage segments

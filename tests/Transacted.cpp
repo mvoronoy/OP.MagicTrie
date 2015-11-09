@@ -3,6 +3,7 @@
 #endif //_MSC_VER
 
 #include "unit_test.h"
+#include "unit_test_is.h"
 #include <iostream>
 #include <fstream>
 #include <iomanip>
@@ -15,6 +16,7 @@
 
 using namespace OP::trie;
 using namespace OP::vtm;
+using namespace OP::utest;
 
 static const char tst_seq[] = { 0, 1, 2, 3, 4, 5, 4, 3, 2, 1 };
 static const char override_tst_seq[] = { 65, 64, 63, 62, 61 };
@@ -223,8 +225,11 @@ void test_TransactedSegmentManagerMemoryAllocator(OP::utest::TestResult &tresult
     };
     auto & mm = mngrToplogy.slot<MemoryManager>();
     auto test_avail = mm.available(0);
+    auto abc1_off = mm.make_new<TestAbc>(1, 1.01, "abc");
+    auto abc1_ptr = tmngr1->ro_at<TestAbc>(abc1_off);
+    tresult.assert_that(is::equals(abc1_ptr->c, "abc"), "wrong assign");
     try{
-        auto abc1_off = mm.make_new<TestAbc>(1, 1.01, "abc");
+        tmngr1->wr_at<TestAbc>(abc1_off);
         OP_UTEST_FAIL(<< "Exception OP::trie::er_transaction_not_started must be raised");
     }
     catch (OP::trie::Exception& e)
@@ -234,7 +239,7 @@ void test_TransactedSegmentManagerMemoryAllocator(OP::utest::TestResult &tresult
     mngrToplogy._check_integrity();
     
     OP::vtm::TransactionGuard transaction1(tmngr1->begin_transaction());
-    auto abc1_off = mm.make_new<TestAbc>(1, 1.01, "abc");
+    auto abc2_off = mm.make_new<TestAbc>(1, 1.01, "abc");
     transaction1.commit();
 
     static const unsigned consumes[] = { 16, 16, 32, 113, 57, 320, 1025, 23157 };
@@ -253,7 +258,7 @@ void test_TransactedSegmentManagerMemoryAllocator(OP::utest::TestResult &tresult
         }
         else
             synchro_start.notify_all();
-        std::array<MemoryRange, std::extent<decltype(consumes)>::value> managed_ptr{};
+        std::array<FarAddress, std::extent<decltype(consumes)>::value> managed_ptr{};
         OP::vtm::TransactionGuard transaction1(tmngr1->begin_transaction());
         for (auto i = 0; i < managed_ptr.max_size(); ++i)
             managed_ptr[i] = mm.allocate(consumes[i]);
@@ -261,12 +266,12 @@ void test_TransactedSegmentManagerMemoryAllocator(OP::utest::TestResult &tresult
         OP::vtm::TransactionGuard transaction2(tmngr1->begin_transaction());
         //dealloc even
         for (auto i = 0; i < managed_ptr.max_size(); i += 2)
-            mm.deallocate(managed_ptr[i].address());
+            mm.deallocate(managed_ptr[i]);
         transaction2.commit();
         OP::vtm::TransactionGuard transaction3(tmngr1->begin_transaction());
         //dealloc odd
         for (auto i = 1; i < managed_ptr.max_size(); i += 2)
-            mm.deallocate(managed_ptr[i].address());
+            mm.deallocate(managed_ptr[i]);
         transaction3.commit();
     };
     //ensure that thread-scenario works in single thread

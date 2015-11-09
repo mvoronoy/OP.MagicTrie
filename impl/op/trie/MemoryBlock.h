@@ -108,35 +108,24 @@ namespace OP
             * this operation makes 2 adjacent blocks  - one for queried bytes and another with rest of memory.
             * If current block is to small to fit queried `byte_size+ sizeof(MemoryBlockHeader)` then entire this
             * should be used
-            * @param byte_size - user needs byte size (not real_size - without sizeof(MemoryBlockHeader))
-            * @return pair, where first member is a writable memory range for user purpose (not memory of MemoryBlockHeader), 
-            *   the second is true only if block was splitted
+            * @param byte_size - user needs byte size (not real_size - without sizeof(MemoryBlockHeader)) Must be alligned on SegmentDef::align_c
+            * @return  a writable memory range for user purpose (it is what about of MemoryBlockHeader)
             */
-            std::pair<MemoryRange, bool> split_this(SegmentManager& segment_manager, far_pos_t this_pos, segment_pos_t byte_size)
+            FarAddress split_this(SegmentManager& segment_manager, far_pos_t this_pos, segment_pos_t byte_size)
             {
                 assert(_free);
                 OP_CONSTEXPR(const) segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 assert(size() >= byte_size);
-                if ((nav._size - byte_size) < (mbh_size_align + SegmentHeader::align_c))
-                {//use entire this 
-                    _free = 0;
-                    //extend transaction region
-                    return std::make_pair(
-                        segment_manager
-                            .writable_block(FarAddress(this_pos + mbh_size_align), byte_size), 
-                        false/*not splitted*/);
-                }
-                byte_size += mbh_size_align;
                 //alloc new segment at the end of current
                 segment_pos_t offset = size() - byte_size;
                 //allocate new block inside this memory but mark this as a free
-                FarAddress access_pos((this_pos + mbh_size_align) + offset);
+                FarAddress access_pos(this_pos + (/*mbh_size_align + */offset));
                 auto access = segment_manager
-                    .writable_block(access_pos, byte_size, WritableBlockHint::new_c);
+                    .writable_block(access_pos, mbh_size_align/*byte_size - don't need write entire block*/, WritableBlockHint::new_c);
                     
                 MemoryBlockHeader * result = new (access.pos()) MemoryBlockHeader(emplaced_t());
                 result
-                    ->size(byte_size - mbh_size_align)
+                    ->size(byte_size)
                     ->prev_block_offset(FarAddress(this_pos).diff(access_pos))
                     ->set_free(false)
                     ->set_has_next(this->has_next())
@@ -149,11 +138,11 @@ namespace OP
                     next->prev_block_offset(access_pos.diff(next_pos));
                 }
                 this
-                    ->size(offset)
+                    ->size(offset - mbh_size_align)
                     ->set_has_next(true)
                     ;
                 //user memory block starts after access_pos + mbh
-                return std::make_pair(access.subset(mbh_size_align), true/*splitted*/);
+                return access_pos+mbh_size_align;
             }
             /**Glues this with previous block*/
             /*!@:To delete MemoryBlockHeader *glue_prev()

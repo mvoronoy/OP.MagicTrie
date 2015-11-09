@@ -14,6 +14,12 @@
 namespace OP
 {
     namespace vtm{
+        /**Exception is raised when imposible to obtain lock over memory block*/
+        struct ConcurentLockException : public OP::trie::Exception
+        {
+            ConcurentLockException() :
+                Exception(OP::trie::er_transaction_concurent_lock){}
+        };
         /**
         *   Declare general definition of transaction as identifiable object with pair of operations commit/rollback
         */
@@ -39,6 +45,7 @@ namespace OP
             {
                 return _transaction_id;
             }
+            
             virtual void rollback() = 0;
             virtual void commit() = 0;
         protected:
@@ -80,6 +87,7 @@ namespace OP
                     _is_closed = true;
                 }
             }
+            
             ~TransactionGuard()
             {
                 if (!_is_closed)
@@ -89,7 +97,28 @@ namespace OP
             std::shared_ptr<Transaction> _instance;
             bool _is_closed;
         };
-        
+        /**
+        *   Utility to repeat some operation after ConcurentLockException has been raised.
+        *   Number of repeating peformed by N template parameter, after this number 
+        *   exceeding ConcurentLockException exception just propagated to caller
+        */
+        template <std::uint16_t N, typename  F, typename  ... Args>
+        inline typename std::result_of<F && (Args &&...)>::type transactional_retry_n(F && f, Args&& ... ax)
+        {
+            for (auto i = 0; true; ++i)
+            {
+                try
+                {
+                    return std::forward<F>(f)(std::forward<Args>(ax)...);
+                }
+                catch (const ConcurentLockException&)
+                {
+                    if ((i + 1) == N)
+                        throw;
+                }
+            }
+        }
+
     } //namespace vtm
 } //end of namespace OP
 #endif //_OP_TR_TRANSACTIONAL__H_

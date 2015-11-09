@@ -6,6 +6,7 @@
 #include <numeric>
 #include <memory>
 #include <op/trie/Utils.h>
+#include <op/trie/Transactional.h>
 #include <op/trie/SegmentManager.h>
 
 
@@ -135,7 +136,7 @@ namespace OP
                         traits_t::const_ptr_t curr = _segment_manager.ro_at<traits_t::target_t>(FarAddress(pos));
                         try
                         {
-                            if (traits.less(key, traits.key(*curr)))
+                            if (!traits.less(traits.key(*curr), key))
                             {
                                 auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
                                 auto ent = wr_prev_block.at< ForwardListBase >(0);
@@ -143,7 +144,7 @@ namespace OP
                                 return pos;
                             }
                         }
-                        catch (const ConcurentLockException&)
+                        catch (const OP::vtm::ConcurentLockException&)
                         {
                             //just continue to explore available blocks
                         }
