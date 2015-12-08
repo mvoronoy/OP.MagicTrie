@@ -42,8 +42,10 @@ namespace OP
             er_transaction_not_started = 40,
             /**Cannot obtain lock over already existing*/
             er_transaction_concurent_lock = 41,
-            /**Transactional memory blocks cannot be overlapped. Blocks must be nested or overlapped */
-            er_overlapping_block = 42
+            /** Using already closed transaction (transaction in ghost-state)*/
+            er_transaction_ghost_state = 42,
+            /**Transactional memory blocks cannot be overlapped. Blocks may be nested, adjasted or separated. */
+            er_overlapping_block = 43
         };
         struct Exception : public std::exception
         {

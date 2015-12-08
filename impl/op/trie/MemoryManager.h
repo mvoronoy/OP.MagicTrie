@@ -32,7 +32,7 @@ namespace OP
                 OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
                 //try do without locking
                 
-                far_pos_t free_block_pos = OP::vtm::transactional_retry_n<10>([this](
+                far_pos_t free_block_pos = OP::vtm::transactional_yield_retry_n<10>([this](
                     FreeMemoryBlockTraits& free_traits, segment_pos_t size){
                         return _free_blocks->pull_not_less(free_traits, size);
                     }, free_traits, size);
@@ -72,10 +72,11 @@ namespace OP
                 else
                 { //existing block too big, so place some memory back
                     retval = current_mem->split_this(*_segment_manager, current_mem_pos, size);
-                
+                    
                     //old block was splitted, so place the rest back to free list
                     FreeMemoryBlock *free_block = _segment_manager->wr_at< FreeMemoryBlock >(free_addr);
-                    _free_blocks->insert(free_traits, free_block_pos, free_block);
+                    
+                    _free_blocks->insert(free_traits, free_block_pos, free_block, current_mem);
                     deposited_size -= current_mem->real_size();
                 }
                 
@@ -99,13 +100,14 @@ namespace OP
                 FarAddress pos(segment_idx, (*found).second.avail_bytes_offset());
                 //no need in lock anymore
                 l.unlock();
-                return *_segment_manager->ro_at<segment_pos_t>(pos);
+                auto ro_block = _segment_manager->readonly_block(pos, sizeof(segment_pos_t));
+                return *ro_block.at<segment_pos_t>(0);
             }
-            void deallocate(std::uint8_t* addr)
+            /*void deallocate(std::uint8_t* addr)
             {
                 auto dar = _segment_manager->to_far(addr);
                 deallocate(FarAddress(dar));
-            }
+            }*/
             virtual void deallocate(FarAddress address)
             {
                 if (!is_aligned(address.offset, SegmentHeader::align_c)
@@ -113,7 +115,7 @@ namespace OP
                     )
                     throw trie::Exception(trie::er_invalid_block);
                 OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                FarAddress header_far = address + (-static_cast<segment_off_t>(mbh));
+                FarAddress header_far (FreeMemoryBlock::get_header_addr(address));
                 OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
 
                 //need separate 2 wr_at to avoid overlapped block exception
@@ -127,7 +129,8 @@ namespace OP
 
                 FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(emplaced_t());
                 auto deposited = header->size();
-                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), address, span_of_free);
+                
+                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), address, span_of_free, header);
                 get_available_bytes(address.segment) += deposited;
                 g.commit();
             }
@@ -174,8 +177,8 @@ namespace OP
 
                 auto avail_space_mem = manager.readonly_block(avail_bytes_offset, sizeof(segment_pos_t));
                 first_block_pos.offset = align_on(first_block_pos.offset +static_cast<segment_pos_t>(sizeof(segment_pos_t)), SegmentHeader::align_c);
-
-                auto first = manager.ro_at<MemoryBlockHeader>(first_block_pos);
+                auto first_ro_block = manager.readonly_block(first_block_pos, sizeof(MemoryBlockHeader));
+                const MemoryBlockHeader* first = first_ro_block.at<MemoryBlockHeader>(0);
                 size_t avail = 0, occupied = 0;
                 size_t free_block_count = 0;
                 
@@ -186,7 +189,8 @@ namespace OP
                     if (SegmentDef::eos_c != first->prev_block_offset())
                     {
                         auto prev_pos = first_block_pos + first->prev_block_offset();
-                        auto check_prev = manager.ro_at<MemoryBlockHeader>(prev_pos);
+                        auto check_prev_block = manager.readonly_block(prev_pos, sizeof(MemoryBlockHeader));
+                        auto check_prev = check_prev_block.at<MemoryBlockHeader>(0);
                         assert(prev == check_prev);
                         assert(prev->my_segement() == first->my_segement());
                     }
@@ -207,7 +211,8 @@ namespace OP
                     if (first->has_next())
                     {
                         first_block_pos += first->real_size();
-                        first = manager.ro_at<MemoryBlockHeader>(first_block_pos);
+                        first_ro_block = manager.readonly_block(first_block_pos, sizeof(MemoryBlockHeader));
+                        first = first_ro_block.at<MemoryBlockHeader>(0);
                     }
                     else break;
                 }
@@ -263,10 +268,11 @@ namespace OP
                 //just created block is free, so place FreeMemoryBlock info inside it
                 FreeMemoryBlock *span_of_free = new (block->memory()) FreeMemoryBlock(emplaced_t());
                 FarAddress user_memory_pos = zero_header.address() + mbh_size_align;
+                
                 _free_blocks->insert(
                     FreeMemoryBlockTraits(_segment_manager), 
                     user_memory_pos,
-                    span_of_free);
+                    span_of_free, block);
                 *avail_space_mem.at<segment_pos_t>(0) = block->size();
                 
                 Description desc;
@@ -278,8 +284,6 @@ namespace OP
                 assert(insres.second); //should not exists such segment yet
                 (*insres.first).second.avail_bytes_offset(avail_bytes_offset.offset);
                  
-                //
-                //MemoryBlockHeader
                 op_g.commit();
             }
             void open(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset) override

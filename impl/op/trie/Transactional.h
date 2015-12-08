@@ -1,10 +1,6 @@
 #ifndef _OP_TR_TRANSACTIONAL__H_
 #define _OP_TR_TRANSACTIONAL__H_
 
-#ifdef _MSC_VER
-#pragma once
-#endif //_MSC_VER
-
 #include <type_traits>
 #include <iostream>
 #include <unordered_map>
@@ -19,6 +15,8 @@ namespace OP
         {
             ConcurentLockException() :
                 Exception(OP::trie::er_transaction_concurent_lock){}
+            ConcurentLockException(const char* debug) :
+                Exception(OP::trie::er_transaction_concurent_lock, debug){}
         };
         /**
         *   Declare general definition of transaction as identifiable object with pair of operations commit/rollback
@@ -41,7 +39,7 @@ namespace OP
             {
 
             }
-            transaction_id_t transaction_id() const
+            virtual transaction_id_t transaction_id() const
             {
                 return _transaction_id;
             }
@@ -97,6 +95,7 @@ namespace OP
             std::shared_ptr<Transaction> _instance;
             bool _is_closed;
         };
+
         /**
         *   Utility to repeat some operation after ConcurentLockException has been raised.
         *   Number of repeating peformed by N template parameter, after this number 
@@ -105,18 +104,36 @@ namespace OP
         template <std::uint16_t N, typename  F, typename  ... Args>
         inline typename std::result_of<F && (Args &&...)>::type transactional_retry_n(F && f, Args&& ... ax)
         {
-            for (auto i = 0; true; ++i)
+            for (auto i = 0; i < N; ++i)
             {
                 try
                 {
                     return std::forward<F>(f)(std::forward<Args>(ax)...);
                 }
-                catch (const ConcurentLockException&)
+                catch (const OP::vtm::ConcurentLockException &e)
                 {
-                    if ((i + 1) == N)
-                        throw;
+                    /*ignore exception for a while*/
+                    e.what();
                 }
             }
+            throw OP::vtm::ConcurentLockException("10");
+        }
+        template <std::uint16_t N, typename  F, typename  ... Args>
+        inline typename std::result_of<F && (Args &&...)>::type transactional_yield_retry_n(F && f, Args&& ... ax)
+        {
+            for (auto i = 0; i < N; ++i)
+            {
+                try
+                {
+                    return std::forward<F>(f)(std::forward<Args>(ax)...);
+                }
+                catch (const OP::vtm::ConcurentLockException &)
+                {
+                    /*ignore exception for a while*/
+                    std::this_thread::yield();
+                }
+            }
+            throw OP::vtm::ConcurentLockException("10");
         }
 
     } //namespace vtm

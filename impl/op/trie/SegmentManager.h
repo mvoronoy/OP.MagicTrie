@@ -485,23 +485,57 @@ namespace OP
                     && byte_ptr < (base + _mapped_region.get_size());
             }
         };
-        typedef std::shared_ptr<SegmentHelper> segment_helper_p; 
+        typedef std::shared_ptr<SegmentHelper> segment_helper_p;
+        
+        struct MemoryRangeBase;
+
+        struct BlockDisposer
+        {
+            virtual ~BlockDisposer() OP_NOEXCEPT = default;
+            virtual void on_leave_scope(MemoryRangeBase& closing) OP_NOEXCEPT = 0;
+        };
         struct MemoryRangeBase : public OP::Range<std::uint8_t *, segment_pos_t>
         {
             typedef OP::Range<std::uint8_t *> base_t;
             MemoryRangeBase(){}
-            MemoryRangeBase(std::uint8_t * pos, segment_pos_t count, FarAddress && address, segment_helper_p && segment ) :
-                base_t(pos, count),
+            MemoryRangeBase(std::uint8_t * pos, segment_pos_t count, FarAddress && address, segment_helper_p && segment ) OP_NOEXCEPT
+                : base_t(pos, count)
+                , _address(std::move(address))
+                ,_segment(std::move(segment))
+                {
+                }
+            MemoryRangeBase(segment_pos_t count, FarAddress && address, segment_helper_p && segment ) OP_NOEXCEPT
+                :base_t(segment->at<std::uint8_t>(address.offset), count),
                 _address(std::move(address)),
                 _segment(std::move(segment))
                 {
                 }
-            MemoryRangeBase(segment_pos_t count, FarAddress && address, segment_helper_p && segment ) :
-                base_t(segment->at<std::uint8_t>(address.offset), count),
-                _address(std::move(address)),
-                _segment(std::move(segment))
-                {
-                }
+            MemoryRangeBase(MemoryRangeBase&& right)  OP_NOEXCEPT
+                : base_t(right.pos(), right.count())
+                , _address(std::move(right._address))
+                , _segment(std::move(right._segment))
+                , _disposer(std::move(right._disposer))
+            {
+
+            }
+            MemoryRangeBase& operator = (MemoryRangeBase&& right)  OP_NOEXCEPT
+            {
+                _address = std::move(right._address);
+                _segment = std::move(right._segment);
+                _disposer = std::move(right._disposer);
+                base_t::operator=(std::move(right));
+                return *this;
+            }
+
+            MemoryRangeBase(const MemoryRangeBase&) = delete;
+            MemoryRangeBase& operator = (const MemoryRangeBase&) = delete;
+            
+            ~MemoryRangeBase() OP_NOEXCEPT
+            {
+                if(_disposer)
+                    _disposer->on_leave_scope(*this);
+            }
+
             const FarAddress& address() const
             {
                 return _address;
@@ -511,7 +545,13 @@ namespace OP
                 return _segment;
             }
 
+            typedef std::unique_ptr<BlockDisposer> disposable_ptr_t;
+            void emplace_disposable(disposable_ptr_t d)
+            {
+                _disposer = std::move(d);
+            }
         private:
+            disposable_ptr_t _disposer;
             FarAddress _address;
             segment_helper_p _segment;
         };
@@ -528,6 +568,13 @@ namespace OP
                 {
                 }
             MemoryRange() = default;
+            MemoryRange(MemoryRange&& right)
+                :MemoryRangeBase(std::move(right))
+            {
+            }
+            
+            MemoryRange(const MemoryRange&) = delete;
+            MemoryRange& operator = (const MemoryRange&) = delete;
             /**
             * @return new instance that is subset of this where beginning is shifeted on `offset` bytes
             *   @param offset - how many bytes to offset from beggining, must be less than #count()
@@ -554,6 +601,19 @@ namespace OP
                 {
                 }
             ReadonlyMemoryRange() = default;
+            ReadonlyMemoryRange(ReadonlyMemoryRange&& right)  OP_NOEXCEPT
+            {
+                MemoryRangeBase::operator=(std::move(right));
+            }
+            ReadonlyMemoryRange& operator = (ReadonlyMemoryRange&& right)  OP_NOEXCEPT
+            {
+                MemoryRangeBase::operator=(std::move(right));
+                return *this;
+            }
+
+            ReadonlyMemoryRange(const ReadonlyMemoryRange&) = delete;
+            ReadonlyMemoryRange& operator = (const ReadonlyMemoryRange&) = delete;
+
             template <class T>
             const T* at(segment_pos_t idx) const
             {
@@ -567,10 +627,22 @@ namespace OP
             block_no_hint_c = 0,
             block_for_read_c = 0x1,
             block_for_write_c = 0x2,
+            force_optimistic_write_c=0x4,
             /**Block contains some information and will be used for r/w operations*/
             update_c = block_for_read_c | block_for_write_c,
+
             /**Block is used only for write purpose and doesn't contain usefull information yet*/
             new_c = block_for_write_c
+        };
+        /**Hint allows specify how readonly blocks will be used*/
+        struct ReadonlyBlockHint 
+        {
+            enum type : std::uint8_t
+            {
+                ro_no_hint_c = 0,
+                /**Forces keep lock even after ReadonlyMemoryRange is released. The default behaviour releases lock */
+                ro_keep_lock = 0x1
+            };
         };
         /**
         * Wrap together boost's class to manage segments
@@ -641,11 +713,12 @@ namespace OP
             }
             
             /**
+            *   @param hint - default behaviour is to release lock after ReadonlyMemoryRange destroyed.
             * @throws ConcurentLockException if block is already locked for write
             */
-            virtual ReadonlyMemoryRange readonly_block(FarAddress pos, segment_pos_t size) 
+            virtual ReadonlyMemoryRange readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c) 
             {
-                assert((pos.offset + size) < this->segment_size());
+                assert((pos.offset + size) <= this->segment_size());
                 return ReadonlyMemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
             }
             /**
@@ -668,11 +741,11 @@ namespace OP
                 readonly_block(pos, sizeof(T)).at<T>(0)
             \endcode
             */
-            template <class T>
+            /*template <class T>
             const T* ro_at(const FarAddress& pos)
             {
                 return this->readonly_block(pos, sizeof(T)).at<T>(0);
-            }
+            } */
             /** Shorthand for \code
                 readonly_block(pos, sizeof(T)).at<T>(0)
             \endcode
@@ -686,12 +759,12 @@ namespace OP
             *   It is very slow (!)  method. Prefer to use #to_far(segment_idx_t, const void *address) instead
             *   @throws std::invalid_argument if address is not in the scope of existing mapped segments
             */
-            virtual far_pos_t to_far(const void * address) const
+            /*virtual far_pos_t to_far(const void * address) const
             {
                 auto pair = this->get_index_by_address(address);
                 auto diff = reinterpret_cast<const std::uint8_t*>(address)-pair.first.pos();
                 return _far(pair.second, static_cast<segment_pos_t>(diff));
-            }
+            }*/
             /**
             *  By the given memory pointer tries to restore origin far-pos.
             *   @param segment - where pointer should reside
@@ -821,11 +894,10 @@ namespace OP
                 if (render_new)
                 {
                     //notify listeners that some segment was opened
-                    _listener->on_segment_opening(index, *this);
-                    //place mapping of address space to indexes 
-                    slot_address_range_t range(region->at<std::uint8_t>(0), this->_segment_size);
-                    wo_guard_t lock(_slot_address_lock);
-                    _slot_addresses[range] = index;  //uncondition place
+                    if (_listener)
+                    {
+                        _listener->on_segment_opening(index, *this);
+                    }
                 }
                 return region;
             }
@@ -847,7 +919,6 @@ namespace OP
 
             typedef SparseCache<SegmentHelper, segment_idx_t> cache_region_t;
             typedef Range<const std::uint8_t*, segment_pos_t> slot_address_range_t;
-            typedef std::map<slot_address_range_t, segment_idx_t> slot_address_container_t;
             typedef boost::shared_mutex shared_mutex_t;
             typedef boost::shared_lock< shared_mutex_t > ro_guard_t;
             typedef boost::upgrade_lock< shared_mutex_t > upgradable_guard_t;
@@ -855,8 +926,6 @@ namespace OP
             typedef boost::unique_lock< shared_mutex_t > wo_guard_t;
 
             mutable cache_region_t _cached_segments;
-            mutable slot_address_container_t _slot_addresses;
-            mutable shared_mutex_t _slot_address_lock;
 
 
             segment_idx_t allocate_segment()
@@ -884,16 +953,6 @@ namespace OP
                 return result;
             }
             
-            /**Tries to locate segment index by memory address*/
-            std::pair<slot_address_range_t, segment_idx_t> get_index_by_address(const void *addr) const
-            {
-                ro_guard_t lock(_slot_address_lock);
-                slot_address_range_t range(reinterpret_cast<const std::uint8_t*>(addr), 1);
-                auto found = _slot_addresses.find(range);
-                if (found == _slot_addresses.end())
-                    throw std::invalid_argument("no address space");
-                return *found;
-            }
         };
         
         struct Slot

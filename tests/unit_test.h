@@ -352,7 +352,7 @@ namespace OP
             template<class Comparator, class Xetails>
             void assert_that(Comparator && cmp, Xetails &&details)
             {
-                if (std::forward<Comparator>(cmp)())
+                if (!std::forward<Comparator>(cmp)())
                 {
                     fail(std::forward<Xetails>(details));
                 }
@@ -626,6 +626,7 @@ namespace OP
             TestRunOptions()
             {
                 _intercept_sig_abort = true;
+                _output_width = 40;
             }
             /**Modifies permission to intercept 'abort' from test code. Set true if C-style assert shouldn't break test execution*/
             TestRunOptions& intercept_sig_abort(bool new_value)
@@ -637,13 +638,23 @@ namespace OP
             {
                 return _intercept_sig_abort;
             }
+            std::uint16_t output_width() const
+            {
+                return _output_width;
+            }
+            TestRunOptions& output_width(std::uint16_t output_width) 
+            {
+                _output_width = output_width;
+                return *this;
+            }
         private:
             bool _intercept_sig_abort;
+            std::uint16_t _output_width;
         };
         struct TestRun
         {
             typedef std::shared_ptr<TestSuite> test_suite_ptr;
-            TestRun()
+            TestRun(TestRunOptions options = TestRunOptions())
             {
             }
             static TestRun& default_instance()
@@ -654,6 +665,10 @@ namespace OP
             void declare(test_suite_ptr& suite)
             {
                 _suites.emplace(suite->id(), suite);
+            }
+            TestRunOptions& options()
+            {
+                return _options;
             }
             /**
             *   Just enumerate all test-suites without run
@@ -683,7 +698,7 @@ namespace OP
                 std::vector<std::shared_ptr<TestResult> > result;
                 for (auto& p : _suites)
                 {
-                    p.second->info() << "Suite:" << p.first << std::endl;
+                    p.second->info() << "==["<< p.first <<"]"<< std::setfill ('=') << std::setw(_options.output_width() - p.first.length()) << ""<< std::endl;
                     for_each_case_if(*p.second,
                         f,
                         [&result](std::shared_ptr<TestResult> res){
@@ -735,6 +750,7 @@ namespace OP
 
             typedef std::multimap<Identifiable::id_t, std::shared_ptr<TestSuite> > suites_t;
             suites_t _suites;
+            TestRunOptions _options;
         };
         namespace tools
         {

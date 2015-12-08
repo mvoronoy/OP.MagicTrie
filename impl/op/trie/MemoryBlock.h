@@ -205,12 +205,12 @@ namespace OP
             FreeMemoryBlock(emplaced_t)
             {
             }
-            const MemoryBlockHeader* get_header() const
+            /*const MemoryBlockHeader* get_header() const
             {
                 return reinterpret_cast<const MemoryBlockHeader*>(
                     reinterpret_cast<const std::uint8_t*>(this) - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c)
                     );
-            }
+            }*/
             /**
             *   Taking this far address convert it to far address of associated MemoryBlockHeader
             */
@@ -271,10 +271,10 @@ namespace OP
                     return slots_c - 1;
                 return result;
             }
-            key_t key(const_reference_t fb) const
+            /*key_t key(const_reference_t fb) const
             {
                 return fb.get_header()->nav._size;
-            }
+            }  */
     
             static const pos_t& next(const_reference_t ref)
             {
@@ -293,10 +293,6 @@ namespace OP
             {
                 return *_segment_manager->wr_at<FreeMemoryBlock>(FarAddress(n));
             }
-            const_reference_t const_deref(pos_t n) const
-            {
-                return *_segment_manager->ro_at<FreeMemoryBlock>(FarAddress(n));
-            }
         private:
             OP_CONSTEXPR(static const) size_t slots_c = sizeof(std::uint32_t) << 3;
             SegmentManager *_segment_manager;
@@ -305,13 +301,6 @@ namespace OP
             const size_t _high;
         };
 
-        struct FreeMemoryBlockPtrLess
-        {
-            bool operator()(const FreeMemoryBlock*left, const FreeMemoryBlock*right)const
-            {
-                return left->get_header()->real_size() < right->get_header()->real_size();
-            }
-        };
     } //endof trie
 } //endof OP
 #endif //_OP_TRIE_MEMORYBLOCK__H_

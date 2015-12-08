@@ -1,5 +1,5 @@
-#include <iostream>
-#include <iomanip>
+#include "unit_test.h"
+#include "unit_test_is.h"
 #include <op/trie/Trie.h>
 #include <op/trie/SegmentManager.h>
 #include <op/trie/CacheManager.h>
@@ -17,3 +17,7 @@ void test_NodeManager()
         .node_count(3)
     );
 }
+
+static auto module_suite = OP::utest::default_test_suite("NodeManager")
+->declare(test_NodeManager, "general")
+;

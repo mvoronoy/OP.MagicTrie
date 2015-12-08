@@ -9,6 +9,7 @@
 #include <op/trie/Containers.h>
 #include <op/trie/Node.h>
 #include <op/trie/SegmentManager.h>
+#include <op/trie/Bitset.h>
 
 namespace OP
 {
@@ -23,15 +24,45 @@ namespace OP
         private:
             std::atomic<unsigned> _version;
         };
-        template<class NodeManager>
+
+        template <class T>
+        struct PersistedReference
+        {
+            typedef T type;
+            FarAddress address;
+        };
+
+        template <class Payload>
+        struct TrieNode
+        {
+            typedef Bitset<4, std::uint64_t> presence_t;
+            //typedef PersistedReference<> stems_t;
+            typedef std::tuple<presence_t> node_def_t;
+        };
+        template <class Payload>
+        struct SubTrie
+        {
+            typedef TrieIterator iterator;
+            /**start lexicographical ascending iteration over trie content. Following is a sequence of iteration:
+            *   - a
+            *   - aaaaaaaaaa
+            *   - abcdef
+            *   - b
+            *   - ...
+            */
+            virtual iterator begin() = 0;
+            virtual iterator end() = 0;
+            
+            
+            virtual std::unique_ptr<SubTrie<Payload> > subtree(const atom_t*& begin, const atom_t* end) const = 0;
+            
+        };
+        template <class SegmentTopology>
         struct Trie
         {
         public:
             typedef TrieIterator iterator;
             typedef size_t idx_t;
-            typedef NodeManager node_manager_t;
-            typedef typename NodeManager::node_t node_t;
-            typedef typename NodeManager::node_ptr_t node_ptr_t;
 
             virtual ~Trie()
             {
@@ -70,16 +101,10 @@ namespace OP
             }
         private:
             //typedef NodeManager<atom_t> node_manager_t;
-            node_ptr_t _root;
             //node_manager_t& _node_manager;
         private:
             Trie()
             {
-            }
-            /** create new node from existing one by extending or even changing container type*/
-            node_ptr_t extend(node_ptr_t node)
-            {
-
             }
         };
     }

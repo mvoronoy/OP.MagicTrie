@@ -20,7 +20,7 @@ namespace OP
             ForwardListBase() :next(SegmentDef::far_null_c){}
             entry_pos_t next;
         };
-
+        struct MemoryBlockHeader;
         //template <class Traits>
         //struct ListEntry : public ForwardListBase<Traits>
         //{
@@ -124,38 +124,70 @@ namespace OP
 
             far_pos_t pull_not_less(traits_t& traits, typename Traits::key_t key)
             {
-                auto index = traits.entry_index(key);
-                
-                for (; index < bitmask_size_c; ++index)
-                {
+                OP_CONSTEXPR(const static) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                auto pull_op = [this, &traits, key](size_t index){
                     FarAddress prev_pos = entry_offset_by_idx(index);
                     auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));
+
                     const ForwardListBase* prev_ent = prev_block.at<ForwardListBase>(0);
                     for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos); )
                     {
-                        traits_t::const_ptr_t curr = _segment_manager.ro_at<traits_t::target_t>(FarAddress(pos));
-                        try
+                        //make 2 reads to avoid overlapped-block exception
+                        auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
+                        const MemoryBlockHeader * mem_header = mem_header_block.at<MemoryBlockHeader>(0);
+                        auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(ForwardListBase));
+                        const ForwardListBase* curr = curr_block.at<ForwardListBase>(0);
+
+                        if (!traits.less(mem_header->size(), key))
                         {
-                            if (!traits.less(traits.key(*curr), key))
+                            try
                             {
                                 auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
                                 auto ent = wr_prev_block.at< ForwardListBase >(0);
                                 ent->next = curr->next;
                                 return pos;
                             }
-                        }
-                        catch (const OP::vtm::ConcurentLockException&)
-                        {
-                            //just continue to explore available blocks
+                            catch (const OP::vtm::ConcurentLockException&)
+                            {
+                                //just ignore and go further
+                            }
                         }
                         pos = curr->next;
+                    }
+                    return SegmentDef::far_null_c;
+                };
+                auto index = traits.entry_index(key);
+                try{
+                    //try to pull block from origin slot provided
+                    far_pos_t result = OP::vtm::transactional_yield_retry_n<3>(pull_op, index);
+                    if (result != SegmentDef::far_null_c)
+                        return result;
+                }
+                catch (const OP::vtm::ConcurentLockException&)
+                {
+                    //just continue on bigger indexes
+                }
+                //let's start from biggest index
+                for (size_t i = bitmask_size_c-1; i > index; --i)
+                {
+                    try{
+                        //try to pull block from origin slot provided
+                        far_pos_t result = OP::vtm::transactional_yield_retry_n<3>(pull_op, i);
+                        if (result != SegmentDef::far_null_c)
+                            return result;
+                    }
+                    catch (const OP::vtm::ConcurentLockException&)
+                    {
+                        //just continue on smaller indexes
                     }
                 }
                 return SegmentDef::far_null_c;
             }
-            void insert(traits_t& traits, typename traits_t::pos_t t, typename traits_t::ptr_t ref)
+            void insert(traits_t& traits, typename traits_t::pos_t t, ForwardListBase* ref, const MemoryBlockHeader* ref_memory_block)
             {
-                auto key = traits.key(*ref);
+                OP_CONSTEXPR(const static) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+
+                auto key = ref_memory_block->size();
                 auto index = traits.entry_index(key);
                 
                 FarAddress prev_pos = entry_offset_by_idx(index);
@@ -169,16 +201,19 @@ namespace OP
                 };
                 for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos);)
                 {
+                    auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
+                    const MemoryBlockHeader * mem_header = mem_header_block.at<MemoryBlockHeader>(0);
+
                     auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(traits_t::target_t));
                     traits_t::const_ptr_t curr = curr_block.at<traits_t::target_t>(0);
 
-                    if (!traits.less(traits.key(*curr), key))
+                    if (!traits.less(mem_header->size(), key))
                     {
                         list_insert();
                         return;
                     }
                     pos = curr->next;
-                    prev_block = curr_block;
+                    prev_block = std::move(curr_block);
                 }
                 //there since no entries yet
                 list_insert();

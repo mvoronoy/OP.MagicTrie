@@ -28,6 +28,12 @@ namespace OP
             _count(other._count)
         {
         }
+        this_t& operator = (this_t&& right) OP_NOEXCEPT
+        {
+            _pos = right._pos;
+            _count = right._count;
+            return *this;
+        }
 
         ~Range() = default;
 

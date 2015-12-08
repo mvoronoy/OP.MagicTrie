@@ -339,28 +339,32 @@ namespace OP{
             };
             struct Array : public FetchTicket<size_t>
             {
-                typedef FetchTicket<size_t> super_t;
-                Array(index_t capacity):
-                    _capacity(capacity),
-                    _data(new ptr_t[capacity], Dealloc())
+                Array(index_t capacity)
+                    :_capacity(capacity)
+                    ,_data(new ptr_t[capacity], Dealloc())
+                    //,_lock(*this)
                 {
 
                 }
+                /*typedef FetchTicket<size_t> lock_t;
+                typedef operation_guard_t<lock_t, &lock_t::lock, &lock_t::unlock> guard_t;
+                */
+                typedef std::mutex lock_t;
+                typedef std::unique_lock<lock_t> guard_t;
 
-                typedef operation_guard_t<super_t, &super_t::lock, &super_t::unlock> guard_t;
                 typedef std::shared_ptr<ptr_t> container_t;
 
                 container_t _data;
                 index_t _capacity;
                 void put(index_t pos, ptr_t& value)
                 {
-                    guard_t guard(this);
+                    guard_t guard(_lock);
                     ensure(pos + 1);
                     _data.get()[pos] = value;
                 }
                 ptr_t get(index_t pos)
                 {
-                    guard_t guard(this);
+                    guard_t guard(_lock);
                     if (pos >= _capacity)
                         throw std::out_of_range("no such key");
                     return _data.get()[pos];
@@ -368,7 +372,7 @@ namespace OP{
                 template <class F>
                 ptr_t get(index_t pos, F& factory)
                 {
-                    guard_t guard(this);
+                    guard_t guard(_lock);
                     ensure(pos + 1);
                     auto &r = _data.get()[pos];
                     if (!r)
@@ -376,14 +380,19 @@ namespace OP{
                     return r;
                 }
             private:
+                //lock_t& _lock;
+                lock_t _lock;
                 void ensure(index_t new_capacity)
                 {
                     if (_capacity < new_capacity)
                     {
                         container_t p = container_t(new ptr_t[new_capacity], Dealloc());
                         for (size_t i = 0; i < _capacity; ++i)
-                            p.get()[i] = _data.get()[i], 
+                        {
+                            p.get()[i] = _data.get()[i];
+                        }
                         _capacity = new_capacity;
+                        _data = std::move(p);
                     }
                 }
 

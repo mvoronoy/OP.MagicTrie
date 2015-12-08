@@ -150,6 +150,8 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\impl\op\trie\Bitset.h" />
+    <ClInclude Include="..\impl\op\trie\HashTable.h" />
     <ClInclude Include="..\impl\op\trie\MemoryBlock.h" />
     <ClInclude Include="..\impl\op\trie\MemoryManager.h" />
     <ClInclude Include="..\impl\op\trie\NamedObjects.h" />
@@ -160,6 +162,7 @@
     <ClInclude Include="..\impl\op\trie\Exceptions.h" />
     <ClInclude Include="..\impl\op\trie\Node.h" />
     <ClInclude Include="..\impl\op\trie\Skplst.h" />
+    <ClInclude Include="..\impl\op\trie\StemContainer.h" />
     <ClInclude Include="..\impl\op\trie\TransactedSegmentManager.h" />
     <ClInclude Include="..\impl\op\trie\Transactional.h" />
     <ClInclude Include="..\impl\op\trie\Trie.h" />
@@ -173,6 +176,7 @@
     <ClCompile Include="SegmentManagerTest.cpp" />
     <ClCompile Include="SegmentToplogyTest.cpp" />
     <ClCompile Include="skplst.cpp" />
+    <ClCompile Include="StemContainer.cpp" />
     <ClCompile Include="tr.cpp">
       <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
       <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</PreprocessToFile>

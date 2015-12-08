@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <type_traits>
 #include <algorithm>
-
+#include <array>
 namespace OP
 {
     namespace trie
@@ -97,7 +97,7 @@ namespace OP
             virtual unsigned accommodate(const atom_t*& begin, const atom_t* end) = 0;
             /**
             * Find entry with max approximation to specified prefix.
-            * Assume container owns by {"abc", "ac"}, then:
+            * Assume container owns by {"abc", "cd"}, then:
             * \li find_refix('a') == "abc" (lowest is taken)
             * \li find_prefix("b") == end()
             * \li find_prefix("abcde") == "abc"
@@ -228,9 +228,9 @@ namespace OP
             {
                 return sizeof(Content) * capacity_c;
             }
-            static const std::vector<node_size_t >& known_capacity()
+            static const std::array<node_size_t, 5>& known_capacity()
             {
-                static const std::vector<node_size_t > rv = { 8, 16, 32, 64, 128 };
+                static const std::array<node_size_t, 5> rv = { 8, 16, 32, 64, 128 };
                 return rv;
             }
 
@@ -239,16 +239,6 @@ namespace OP
                 _memory_block{}
             {
 
-                /*
-                memset(allocation, 0, allocation_size(head._capacity));
-                assert(head._capacity == 8
-                || head._capacity == 16
-                || head._capacity == 32
-                || head._capacity == 64
-                || head._capacity == 128)
-                //"Allowed hashtables only with page size 8,16,32,64,128")
-                ;
-                */
                 static_assert(_internal::max_hash_neighbors<capacity_c>::value_c != 0, "Allowed hashtables only with page size 8,16,32,64,128");
             }
             node_size_t size() const
@@ -263,8 +253,10 @@ namespace OP
             {
                 return capacity_c;
             }
-
-            iterator insert(atom_t key)
+            /**
+            *   @return insert position or #end() if no more capacity
+            */
+            std::pair<iterator, bool> insert(atom_t key)
             {
                 unsigned hash = static_cast<unsigned>(key)& bitmask_c;
                 for (unsigned i = 0; i < neighbor_width_c; ++i)
@@ -274,13 +266,13 @@ namespace OP
                         container()[hash]._flag |= fpresence_c;
                         container()[hash]._key = key;
                         _count++;
-                        return iterator(this, hash);
+                        return std::make_pair(iterator(this, hash), true);
                     }
                     if (container()[hash]._key == key)
-                        return iterator(this, hash);
+                        return std::make_pair(iterator(this, hash), false); //already exists
                     ++hash %= capacity(); //keep in boundary
                 }
-                return end();
+                return std::make_pair(end(), false); //no capacity
             }
             /**@return number of erased - 0 or 1*/
             unsigned erase(atom_t key)
