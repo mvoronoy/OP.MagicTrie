@@ -1,10 +1,6 @@
 #ifndef _OP_TR_TRANSACTIONAL__H_
 #define _OP_TR_TRANSACTIONAL__H_
 
-#ifdef _MSC_VER
-#pragma once
-#endif //_MSC_VER
-
 #include <type_traits>
 #include <iostream>
 #include <unordered_map>
@@ -13,115 +9,134 @@
 
 namespace OP
 {
-    struct serialized_t{};
-    struct Compensation;
-    /**Registry for types and them factories*/
-    struct type_registry
-    {
-        typedef Compensation* (*factory_t)(serialized_t s);
-        inline static type_registry& registry_instance()
+    namespace vtm{
+        /**Exception is raised when imposible to obtain lock over memory block*/
+        struct ConcurentLockException : public OP::trie::Exception
         {
-            static type_registry _r;
-            return _r;
-        }
-        void declare(const std::string& key, factory_t f)
+            ConcurentLockException() :
+                Exception(OP::trie::er_transaction_concurent_lock){}
+            ConcurentLockException(const char* debug) :
+                Exception(OP::trie::er_transaction_concurent_lock, debug){}
+        };
+        /**
+        *   Declare general definition of transaction as identifiable object with pair of operations commit/rollback
+        */
+        struct Transaction
         {
-            _map.insert(factory_map_t::value_type(key, f));
-        }
-        Compensation* create_instance(const std::string& key)
-        {
-            return  (*_map[key])(serialized_t());
-        }
-    private:
-        typedef std::unordered_map<std::string, factory_t> factory_map_t;
-        type_registry() = default;
-        factory_map_t _map;
-    };
-    /**Marker that must be declared as static const in each serializable class
-    * \code
-    *   struct MySerial : public Compensation
-    *   {
-    *       ...
-    *       static const serial_declare<MySerial> serial_info;
-    *   }
-    * \endcode
-    */
-    template <class T>
-    struct serial_declare
-    {
-        serial_declare()
-        {
-            type_registry::registry_instance().declare(id, type_factory);
-        }
-        static T* type_factory()
-        {
-            return new T;
-        }
-        static const std::string id;
-    };
+            typedef std::uint64_t transaction_id_t;
 
-    template <class T>
-    const std::string serial_declare<T>::id = typeid(T).name();
-    
-    struct Transactable
-    {
-    
-    };
+            Transaction() = delete;
+            Transaction(const Transaction&) = delete;
+            Transaction& operator = (const Transaction&) = delete;
+            Transaction& operator = (Transaction&& other) = delete;
 
-    
+            Transaction(Transaction && other) OP_NOEXCEPT :
+                _transaction_id(other._transaction_id)
+            {
 
-    struct Compensation
-    {
-        Compensation(){}
-        Compensation(serialized_t){}
-        virtual ~Compensation() = default;
-        virtual void write(std::ostream& os) const = 0;
-        virtual void read(std::istream& os) = 0;
-        virtual void compensate(Transactable &instance) = 0;
-    protected:
-        template<class Scalar>
-        static void _write(std::ostream& os, Scalar obj)
-        {
-            os.write(reinterpret_cast<const char*>(&obj), sizeof(Scalar));
-        }
+            }
+            virtual ~Transaction() OP_NOEXCEPT
+            {
+
+            }
+            virtual transaction_id_t transaction_id() const
+            {
+                return _transaction_id;
+            }
+            
+            virtual void rollback() = 0;
+            virtual void commit() = 0;
+        protected:
+            Transaction(transaction_id_t id) :
+                _transaction_id(id)
+            {
+
+            }
+        private:
+            const transaction_id_t _transaction_id;
+        };
         
-        static void _write(std::ostream& os, const std::string& str)
+        /**
+        *   Guard wrapper that grants transaction accomplishment.
+        *   Destructor is responsible to rollback transaction if user did not commit it explictly before.
+        */
+        struct TransactionGuard
         {
-            _write(os, str.length());
-            os.write(reinterpret_cast<const char*>(str.c_str()), 
-                str.length()*sizeof(std::string::traits_type::char_type));
+            template <class Sh>
+            TransactionGuard(Sh && instance) :
+                _instance(std::forward<Sh>(instance)),
+                _is_closed(!_instance)//be polite to null transactions
+            {}
+            void commit()
+            {
+                if (!!_instance)
+                {
+                    assert(!_is_closed);//be polite to null transactions
+                    _instance->commit();
+                    _is_closed = true;
+                }
+            }
+            void rollback()
+            {
+                if (!!_instance)
+                {
+                    assert(!_is_closed);//be polite to null transactions
+                    _instance->rollback();
+                    _is_closed = true;
+                }
+            }
+            
+            ~TransactionGuard()
+            {
+                if (!_is_closed)
+                    _instance->rollback();
+            }
+        private:
+            std::shared_ptr<Transaction> _instance;
+            bool _is_closed;
+        };
+
+        /**
+        *   Utility to repeat some operation after ConcurentLockException has been raised.
+        *   Number of repeating peformed by N template parameter, after this number 
+        *   exceeding ConcurentLockException exception just propagated to caller
+        */
+        template <std::uint16_t N, typename  F, typename  ... Args>
+        inline typename std::result_of<F && (Args &&...)>::type transactional_retry_n(F && f, Args&& ... ax)
+        {
+            for (auto i = 0; i < N; ++i)
+            {
+                try
+                {
+                    return std::forward<F>(f)(std::forward<Args>(ax)...);
+                }
+                catch (const OP::vtm::ConcurentLockException &e)
+                {
+                    /*ignore exception for a while*/
+                    e.what();
+                }
+            }
+            throw OP::vtm::ConcurentLockException("10");
         }
-        template<class Scalar>
-        static void _read(std::istream& is, Scalar& obj)
+        template <std::uint16_t N, typename  F, typename  ... Args>
+        inline typename std::result_of<F && (Args &&...)>::type transactional_yield_retry_n(F && f, Args&& ... ax)
         {
-            is.read(reinterpret_cast<char*>(&obj), sizeof(Scalar));
-        }
-        static void _read(std::istream& is, std::string& str)
-        {
-            std::string::size_type size;
-            _read(is, size);
-            str.resize(size);
-            is.read(reinterpret_cast<char*>(&str[0]), 
-                size*sizeof(std::string::traits_type::char_type));
+            for (auto i = 0; i < N; ++i)
+            {
+                try
+                {
+                    return std::forward<F>(f)(std::forward<Args>(ax)...);
+                }
+                catch (const OP::vtm::ConcurentLockException &)
+                {
+                    /*ignore exception for a while*/
+                    std::this_thread::yield();
+                }
+            }
+            throw OP::vtm::ConcurentLockException("10");
         }
 
-    };
-
-    struct TrnsactionManager
-    {
-        friend struct Transaction;
-        virtual void log_operation(Compensation &op)
-        {
-            //do nothing
-        }
-        virtual void log_operation()
-        {
-            //do nothing
-        }
-
-    private:
-
-    };
+    } //namespace vtm
 } //end of namespace OP
 #endif //_OP_TR_TRANSACTIONAL__H_
 

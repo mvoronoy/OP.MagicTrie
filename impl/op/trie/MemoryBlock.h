@@ -69,12 +69,12 @@ namespace OP
 
                 return reinterpret_cast<MemoryBlockHeader*>(
                     ((std::uint8_t*)this) + prev_block_offset());
-            } */
+            } 
             MemoryBlockHeader* set_prev(MemoryBlockHeader* prev)
             {
                 prev_block_offset(static_cast<segment_off_t>((std::uint8_t*)prev - (std::uint8_t*)this));
                 return this;
-            }
+            }*/
             segment_off_t prev_block_offset() const
             {
                 return nav._prev_block_offset;
@@ -103,50 +103,46 @@ namespace OP
                 this->_has_next = flag ? 1 : 0;
                 return this;
             }
-            /**Split this block and return new created.
-            * @param byte_size - user needs byte size (not real_size)
-            *@return either this if byte_size consumes entire free-space or new block that is part of this block free space
+            /**
+            *   Optionally split this block. This depends on available size of memory, if block big enough then
+            * this operation makes 2 adjacent blocks  - one for queried bytes and another with rest of memory.
+            * If current block is to small to fit queried `byte_size+ sizeof(MemoryBlockHeader)` then entire this
+            * should be used
+            * @param byte_size - user needs byte size (not real_size - without sizeof(MemoryBlockHeader)) Must be alligned on SegmentDef::align_c
+            * @return  a writable memory range for user purpose (it is what about of MemoryBlockHeader)
             */
-            MemoryBlockHeader *split_this(SegmentManager& segment_manager, far_pos_t this_pos, segment_pos_t byte_size)
+            FarAddress split_this(SegmentManager& segment_manager, far_pos_t this_pos, segment_pos_t byte_size)
             {
                 assert(_free);
                 OP_CONSTEXPR(const) segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                byte_size = align_on(byte_size, SegmentHeader::align_c);
                 assert(size() >= byte_size);
-                if ((nav._size - byte_size) < (mbh_size_align + SegmentHeader::align_c))
-                {//use entire this 
-                    //extend transaction region
-                    segment_manager
-                        .writable_block(FarPosHolder(this_pos + mbh_size_align), byte_size);
-                    _free = 0;
-                    return this;
-                }
-                byte_size += mbh_size_align;
                 //alloc new segment at the end of current
                 segment_pos_t offset = size() - byte_size;
-                //allocate new block inside this memory but mark this free
+                //allocate new block inside this memory but mark this as a free
+                FarAddress access_pos(this_pos + (/*mbh_size_align + */offset));
                 auto access = segment_manager
-                    .writable_block(FarPosHolder((this_pos+mbh_size_align) + offset), byte_size);
+                    .writable_block(access_pos, mbh_size_align/*byte_size - don't need write entire block*/, WritableBlockHint::new_c);
                     
                 MemoryBlockHeader * result = new (access.pos()) MemoryBlockHeader(emplaced_t());
                 result
-                    ->size(byte_size - mbh_size_align)
-                    ->set_prev(this)
+                    ->size(byte_size)
+                    ->prev_block_offset(FarAddress(this_pos).diff(access_pos))
                     ->set_free(false)
                     ->set_has_next(this->has_next())
                     ->my_segement(segment_of_far(this_pos))
                     ;
                 if (this->has_next())
                 {
-                    MemoryBlockHeader *next = segment_manager.wr_at<MemoryBlockHeader>(FarPosHolder(this_pos + real_size()));
-                    next->set_prev(result);
+                    FarAddress next_pos(this_pos + real_size());
+                    MemoryBlockHeader *next = segment_manager.wr_at<MemoryBlockHeader>(next_pos);
+                    next->prev_block_offset(access_pos.diff(next_pos));
                 }
                 this
-                    ->size(offset)
+                    ->size(offset - mbh_size_align)
                     ->set_has_next(true)
                     ;
-
-                return result;
+                //user memory block starts after access_pos + mbh
+                return access_pos+mbh_size_align;
             }
             /**Glues this with previous block*/
             /*!@:To delete MemoryBlockHeader *glue_prev()
@@ -209,12 +205,12 @@ namespace OP
             FreeMemoryBlock(emplaced_t)
             {
             }
-            const MemoryBlockHeader* get_header() const
+            /*const MemoryBlockHeader* get_header() const
             {
                 return reinterpret_cast<const MemoryBlockHeader*>(
                     reinterpret_cast<const std::uint8_t*>(this) - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c)
                     );
-            }
+            }*/
             /**
             *   Taking this far address convert it to far address of associated MemoryBlockHeader
             */
@@ -275,10 +271,10 @@ namespace OP
                     return slots_c - 1;
                 return result;
             }
-            key_t key(const_reference_t fb) const
+            /*key_t key(const_reference_t fb) const
             {
                 return fb.get_header()->nav._size;
-            }
+            }  */
     
             static const pos_t& next(const_reference_t ref)
             {
@@ -295,11 +291,7 @@ namespace OP
             
             reference_t deref(pos_t n)
             {
-                return *_segment_manager->wr_at<FreeMemoryBlock>(FarPosHolder(n));
-            }
-            const_reference_t const_deref(pos_t n) const
-            {
-                return *_segment_manager->ro_at<FreeMemoryBlock>(FarPosHolder(n));
+                return *_segment_manager->wr_at<FreeMemoryBlock>(FarAddress(n));
             }
         private:
 			static OP_CONSTEXPR(const) size_t slots_c = sizeof(std::uint32_t) << 3;
@@ -309,13 +301,6 @@ namespace OP
             const size_t _high;
         };
 
-        struct FreeMemoryBlockPtrLess
-        {
-            bool operator()(const FreeMemoryBlock*left, const FreeMemoryBlock*right)const
-            {
-                return left->get_header()->real_size() < right->get_header()->real_size();
-            }
-        };
     } //endof trie
 } //endof OP
 #endif //_OP_TRIE_MEMORYBLOCK__H_
