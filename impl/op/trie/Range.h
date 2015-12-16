@@ -1,6 +1,7 @@
 #ifndef _OP_RANGE__H_
 #define _OP_RANGE__H_
 #include <set>
+#include <op/trie/Utils.h>
 namespace OP
 {
     template <class T>
@@ -9,14 +10,41 @@ namespace OP
     struct Range
     {
         typedef T pos_t;
+        typedef Range<T, Distance> this_t;
         friend struct RangeContainer<T>;
+
+        Range() :_pos{}, _count(0){}
 
         Range(pos_t pos, Distance count) :
             _pos(pos), _count(count){}
+        
+        Range(this_t && other) OP_NOEXCEPT :
+            _pos(other._pos),
+            _count(other._count)
+        {
+        }
+        Range(const this_t & other) OP_NOEXCEPT :
+            _pos(other._pos),
+            _count(other._count)
+        {
+        }
+        this_t& operator = (this_t&& right) OP_NOEXCEPT
+        {
+            _pos = right._pos;
+            _count = right._count;
+            return *this;
+        }
+
+        ~Range() = default;
 
         bool is_overlapped(const Range& other) const
         {
             return (right() > other._pos) && (_pos < other.right());
+        }
+        /**Check if 'other' fully inside this*/
+        bool is_included(const Range& other) const
+        {
+            return this->_pos <= other._pos && other.right() <= this->right();
         }
         bool is_adjacent(const Range& other) const
         {
@@ -37,6 +65,10 @@ namespace OP
         bool operator <(const Range<T>& right) const
         {
             return (this->_pos < right._pos) && !(right._pos < this->right());
+        }
+        bool operator == (const Range<T>& right) const
+        {
+            return (this->_pos == right._pos) && (this->_count == right._count);
         }
         T pos() const
         {

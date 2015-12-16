@@ -5,9 +5,9 @@ using namespace OP;
 using namespace OP::trie;
 void test_RangeContainer()
 {
-    typedef RangeContainer<NodeAddress> ranges_t;
+    typedef RangeContainer<FarAddress> ranges_t;
     ranges_t r;
-    NodeAddress a1;
+    FarAddress a1;
     try
     {
         a1 = r.pull_range();
@@ -16,12 +16,12 @@ void test_RangeContainer()
     catch (std::out_of_range& )
     {
     }
-    r.add_range(NodeAddress(0, 1)); 
+    r.add_range(FarAddress(0, 1)); 
     a1 = r.pull_range();
     r.add_range(a1);
-    std::vector<NodeAddress> rand_v;
+    std::vector<FarAddress> rand_v;
     for (unsigned i = 0; i < 1000; ++i)
-        rand_v.emplace_back(NodeAddress(0, i));
+        rand_v.emplace_back(FarAddress(0, i));
     std::random_shuffle(rand_v.begin(), rand_v.end());
     for (auto n : rand_v)
         r.add_range(n);
@@ -36,7 +36,7 @@ void test_Range()
     //create many ranges
     for (auto i = 0; i < 10; ++i)
     {
-        cont.insert(ranges_t::value_type(range_t(i * 100, 10), i));
+        cont.emplace(range_t(i * 100, 10), i);
     }
     //check findability
     for (auto i = 0; i < 10; ++i)
@@ -48,4 +48,35 @@ void test_Range()
         f = cont.find(range_t(i * 100+11, 1));
         assert(cont.end() == f);
     }
+    //test overlapping
+    range_t r1 = { 10, 5 }, r2 = { 9, 5 }, r3 = { 14, 1 }, r4 = { 0, 11 };
+    assert(r1.is_overlapped(r1)); //self test
+    assert(r1.is_included(r1)); //self test
+
+    assert(r1.is_overlapped(r2) && r2.is_overlapped(r1));
+    assert(!r1.is_included(r2) && !r2.is_included(r1));
+
+    assert(r1.is_overlapped(r3) && r3.is_overlapped(r1));
+    assert(r1.is_included(r3) && !r3.is_included(r1));
+
+    assert(r1.is_overlapped(r4) && r4.is_overlapped(r1));
+    assert(!r1.is_included(r4) && !r4.is_included(r1));
+
+    range_t nr1 = { 9, 6 }/*no overlaps, but inclusion*/, nr2 = { 0, 10 }/*just adjacence*/,
+        nr3 = { 1, 1 }, nr4 = { 15, 2 }/*adjacent*/, nr5 = { 20, 2 };
+    assert(r1.is_overlapped(nr1) && nr1.is_overlapped(r1));
+    assert(!r1.is_included(nr1) && nr1.is_included(r1));
+
+    assert(!r1.is_overlapped(nr2) && !nr2.is_overlapped(r1));
+    assert(!r1.is_included(nr2) && !nr2.is_included(r1));
+
+    assert(!r1.is_overlapped(nr3) && !nr3.is_overlapped(r1));
+    assert(!r1.is_included(nr3) && !nr3.is_included(r1));
+
+    assert(!r1.is_overlapped(nr4) && !nr4.is_overlapped(r1));
+    assert(!r1.is_included(nr4) && !nr4.is_included(r1));
+
+    assert(!r1.is_overlapped(nr5) && !nr5.is_overlapped(r1));
+    assert(!r1.is_included(nr5) && !nr5.is_included(r1));
+
 }
