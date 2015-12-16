@@ -590,8 +590,11 @@ namespace OP
                 assert(idx < this->count());
                 return reinterpret_cast<T*>(pos() + idx);
             }
-
+            
         };
+        /**
+        *   Specify read-only block in memory. Instances of this type are not copyable, only moveable.
+        */
         struct ReadonlyMemoryRange : MemoryRangeBase
         {
             ReadonlyMemoryRange(segment_pos_t count, FarAddress && address, segment_helper_p && segment ) :
@@ -967,19 +970,19 @@ namespace OP
             /**
             *   @return byte size that should be reserved inside segment. 
             */
-            virtual segment_pos_t byte_size(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset) const = 0;
+            virtual segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const = 0;
             /**
             *   Make initialization of slot in the specified segment as specified offset
             */
-            virtual void emplace_slot_to_segment(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset) = 0;
+            virtual void on_new_segment(FarAddress start_address, SegmentManager& manager) = 0;
             /**
             *   Perform slot openning in the specified segment as specified offset
             */
-            virtual void open(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset) = 0;
+            virtual void open(FarAddress start_address, SegmentManager& manager) = 0;
             /**Notify slot that some segement should release resources. It is not about deletion of segment, but deactivating it*/
             virtual void release_segment(segment_idx_t segment_index, SegmentManager& manager) = 0;
             /**Allows on debug check integrity of particular segement. Default impl does nothing*/
-            virtual void _check_integrity(segment_idx_t segment_index, SegmentManager& manager, segment_pos_t offset)
+            virtual void _check_integrity(FarAddress segment_addr, SegmentManager& manager)
             {
                 /*Do nothing*/
             }
@@ -1042,8 +1045,9 @@ namespace OP
                     {
                         if (i->has_residence(idx, segments))
                         {
-                            i->_check_integrity(idx, segments, current_offset);
-                            current_offset += i->byte_size(idx, segments, current_offset);
+                            FarAddress addr(idx, current_offset);
+                            i->_check_integrity(addr, segments);
+                            current_offset += i->byte_size(addr, segments);
                         }
                     }
                 });
@@ -1071,8 +1075,9 @@ namespace OP
                         continue; //slot is not used for this segment
                     }
                     header->_address[header->_slots_count] = current_offset;
-                    slot->emplace_slot_to_segment(new_segment, manager, current_offset);
-                    current_offset += slot->byte_size(new_segment, manager, current_offset);
+                    FarAddress segment_address(new_segment, current_offset);
+                    slot->on_new_segment(segment_address, manager);
+                    current_offset += slot->byte_size(segment_address, manager);
                 }
                 op_g.commit();
             }
@@ -1092,7 +1097,7 @@ namespace OP
                     if (SegmentDef::eos_c == header->_address[i])
                         continue;
                     auto p = _slots[i];
-                    p->open(opening_segment, manager, header->_address[i]);
+                    p->open(FarAddress(opening_segment, header->_address[i]), manager);
                 }
                 op_g.commit();
             }

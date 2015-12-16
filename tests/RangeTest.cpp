@@ -5,9 +5,9 @@ using namespace OP;
 using namespace OP::trie;
 void test_RangeContainer()
 {
-    typedef RangeContainer<NodeAddress> ranges_t;
+    typedef RangeContainer<FarAddress> ranges_t;
     ranges_t r;
-    NodeAddress a1;
+    FarAddress a1;
     try
     {
         a1 = r.pull_range();
@@ -16,12 +16,12 @@ void test_RangeContainer()
     catch (std::out_of_range& )
     {
     }
-    r.add_range(NodeAddress(0, 1)); 
+    r.add_range(FarAddress(0, 1)); 
     a1 = r.pull_range();
     r.add_range(a1);
-    std::vector<NodeAddress> rand_v;
+    std::vector<FarAddress> rand_v;
     for (unsigned i = 0; i < 1000; ++i)
-        rand_v.emplace_back(NodeAddress(0, i));
+        rand_v.emplace_back(FarAddress(0, i));
     std::random_shuffle(rand_v.begin(), rand_v.end());
     for (auto n : rand_v)
         r.add_range(n);

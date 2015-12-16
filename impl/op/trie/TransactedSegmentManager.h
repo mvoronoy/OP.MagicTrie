@@ -50,7 +50,8 @@ namespace OP
                     return result;
 
                 if ((hint & ReadonlyBlockHint::ro_keep_lock) == 0 //no keep-lock requirements
-                    && !found_res->second.is_exclusive_access(current_transaction->transaction_id()) )  //is not exclusive mode
+                   // && !found_res->second.is_exclusive_access(current_transaction->transaction_id())   //is not exclusive mode
+                    )
                 { //add disposer that releases lock at MemoryRange destroy
                     result.emplace_disposable(std::make_unique<LockDisposer>(current_transaction, found_res));
                 }
@@ -348,13 +349,7 @@ namespace OP
                 }
                 
             private:
-                //bool do_compare_exchange(std::uint64_t& expected, std::uint64_t desired)
-                //{
-                //    //@! review migrate to atomic
-                //    if (_transaction_code.align == expected)
-                //    {
-                //        _transaction_code.align = desired;                //        return true;                //    }                //    expected = _transaction_code.align;                //    return false;
-                //}
+                
                 bool do_compare_exchange(std::uint64_t& expected, std::uint64_t desired)
                 {
                     return _transaction_code.compare_exchange_strong(expected, desired);
@@ -367,9 +362,9 @@ namespace OP
             
             struct SavePoint : public Transaction
             {
-                /**Since std::map::iterator is stable can store it*/
+                /**Since std::map::iterator is stable can store it.*/
                 typedef std::deque<captured_blocks_t::iterator> log_t;
-                typedef log_t::reverse_iterator reverse_iterator;
+                typedef log_t::iterator iterator;
 
                 SavePoint(transaction_id_t id, TransactedSegmentManager *owner)
                     : Transaction(id)
@@ -377,16 +372,16 @@ namespace OP
                     {}
                 void rollback() override
                 {
-                    _owner->apply_transaction_log(transaction_id(), rbegin(), rend(), false);
+                    _owner->apply_transaction_log(transaction_id(), *this, false);
                     _transaction_log.clear();
                 }
-                reverse_iterator rbegin()
+                iterator begin()
                 {
-                    return _transaction_log.rbegin();
+                    return _transaction_log.begin();
                 }
-                reverse_iterator rend()
+                iterator end()
                 {
-                    return _transaction_log.rend();
+                    return _transaction_log.end();
                 }
                 void commit() override
                 {
@@ -394,7 +389,8 @@ namespace OP
                 }
                 void store(captured_blocks_t::iterator& pos)
                 {
-                    _transaction_log.emplace_back(pos);
+                    //Note this queue organized in reverse order - in front goes last
+                    _transaction_log.emplace_front(pos);
                 }
                 /**When RO block no more used it can be released (on condition no ReadonlyBlockHint::ro_keep_lock set) 
                 *   @return true if specific entry was removed from save-point
@@ -403,20 +399,18 @@ namespace OP
                 {
                     auto &key = entry->first;
                     //the probability to meet correct entry in deque raises when scanning in reverse direction
-                    for (auto ri = _transaction_log.rbegin(); ri != _transaction_log.rend(); ++ri)
+
+                    for (auto ri = _transaction_log.begin(); ri != _transaction_log.end(); ++ri)
                     {
-                        auto& current = *ri;
+                        auto& current = (**ri);
                         //to compare use property of map's iterator stability
                         //the pointer to the key is never changed during a time
-                        if (&current->first == &key) //compare pointers only
+                        if (&current.first == &key) //compare pointers only
                         {
-                            log_t::iterator ei = ri.base();
-                            // from http://stackoverflow.com/a/1830240/149818
-                            // ri is unchanged:
-                            _transaction_log.erase(--ei);
+                            _transaction_log.erase(ri);
                             
                             //it mustn't be possible that block owns shadow memory
-                            assert(current->second.shadow_buffer() == nullptr);
+                            assert(current.second.shadow_buffer() == nullptr);
                             return true;
                         }
                     }
@@ -505,7 +499,7 @@ namespace OP
                     for (auto ri = _save_points.rbegin(); ri != _save_points.rend(); ++ri)
                     {
                         auto& slog = *ri;
-                        _owner->apply_transaction_log(transaction_id(), slog->rbegin(), slog->rend(), is_commit);
+                        _owner->apply_transaction_log(transaction_id(), *slog, is_commit);
                     }
                     _save_points.clear();
                     //wait untill transaction is erased
@@ -534,11 +528,12 @@ namespace OP
                 transaction_impl_ptr_t _owner;
                 captured_blocks_t::iterator _entry;
             };
-            template <class InputIt>
-            void apply_transaction_log(Transaction::transaction_id_t tid, InputIt begin, InputIt end, bool is_commit)
+            template <class SavePoint>
+            void apply_transaction_log(Transaction::transaction_id_t tid, SavePoint& save_points, bool is_commit)
             {
                 guard_t g2(_map_lock); //shame @! to improve need some lock-less approach
-                for (; begin != end; ++begin)
+                auto end = save_points.end();
+                for (auto begin = save_points.begin(); begin != end; ++begin)
                 {
                     auto& block_pair = **begin;
                     auto flag = block_pair.second.transaction_code().flag;
@@ -577,7 +572,7 @@ namespace OP
             /**remove RO lock for single block*/
             void release_ro_lock(transaction_impl_ptr_t& tr, captured_blocks_t::iterator& entry)
             {
-                guard_t g2(_map_lock); //trick - capture ownership in this thread, but delegate find in other one
+                guard_t g2(_map_lock); 
                 //some blocks could upgraded to write
                 auto flag = entry->second.transaction_code().flag;
                 if (flag & wr_c)//write lock must not be released

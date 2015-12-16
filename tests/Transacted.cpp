@@ -210,7 +210,7 @@ void test_FarAddress(OP::utest::TestResult &tresult)
     //take reference out of tran
     auto block0 = tmngr1->readonly_block(test_addr_seg0, 1);
     try
-    { //before commit check correctness of invalid segment spec
+    { //check correctness of invalid segment processing
         tmngr1->to_far(1, block0.pos());  
         tresult.fail("Exception must be raised");
     }
@@ -299,8 +299,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
         .segment_size(0x110000));
     auto aa1 = tmngr1->segment_size();
     //tmngr1->ensure_segment(0);
-    SegmentTopology<MemoryManager>& mngrToplogy 
-        = *new SegmentTopology<MemoryManager>(tmngr1);
+    SegmentTopology<MemoryManager> mngrToplogy (tmngr1);
 
     struct TestAbc
     {
@@ -403,7 +402,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
     for (auto i = 0; i < test_threads; ++i)
         parallel_tests[i].join();
     tmngr1->_check_integrity();
-    
+    tmngr1.reset();
 }
 
 void test_ReleaseReadBlock(OP::utest::TestResult &tresult)

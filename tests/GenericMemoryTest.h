@@ -24,11 +24,8 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     };
     struct TestHead
     {
-        TestHead(OP::trie::NodeType ntype) :
-            _ntype(ntype)
-        {
-        }
-        OP::trie::NodeType _ntype;
+        
+        int _ntype;
         OP::trie::far_pos_t table_pos;
     };
     typedef NodeHashTable<EmptyPayload, 8> htbl64_t;

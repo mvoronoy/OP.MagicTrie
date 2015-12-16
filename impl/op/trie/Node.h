@@ -14,223 +14,162 @@ namespace OP
 {
     namespace trie
     {
-        enum  NodeType
+        /**
+        @tparam Capacity number of #Payload entries in this container
+        */
+        template <class Payload, size_t Capacity>
+        struct NodeManager : public Slot
         {
-            unassigned_c = 0,
-            /**Persisted node is NodeHashTable*/
-            hash_c = 0x1,
-            trie_c = 0x2,
-            sorted_arr_c = 0x3
-        };
+            static_assert(Capacity > 0, "Capacity template argument must be greater than 0");
 
-        struct NodeAddress
-        {
-            NodeAddress() :
-                segment(SegmentDef::eos_c),
-                head(0)
-            {
-            }
-            NodeAddress(segment_idx_t a_segment, std::uint32_t a_head) :
-                segment(a_segment),
-                head(a_head)
-            {
-            }
-            segment_idx_t segment;
-            /**It is order number of NodeHead inside segment*/
-            std::uint32_t head;
-            NodeAddress operator + (std::uint32_t off) const
-            {
-                return NodeAddress(segment, head + off);
-            }
-            NodeAddress& operator += (std::uint32_t off)
-            {
-                head += off;
-                return *this;
-            }
-        };
-        inline bool operator < (const NodeAddress& left, const NodeAddress& right)
-        {
-            if (right.segment < left.segment)
-                return false;
-            //there since left <= right
-            return left.head < right.head;
-        }
-        inline bool operator == (const NodeAddress& left, const NodeAddress& right)
-        {
-            return (right.segment == left.segment) && (left.head == right.head);
-        }
+            typedef Payload payload_t;
+            typedef NodeManager<Payload, Capacity> this_t;
 
-        template <class Payload>
-        struct NodeHead
-        {
-            typedef std::fpos_t fpos_t;
-            typedef NavigableByteRangeContainer<atom_t> navigation_container_t;
-            typedef ByteKeyContainer<NodeAddress> address_container_t;
-            typedef ByteKeyContainer<Payload> value_container_t;
-            NodeHead() :
-                node_type(NodeType::unassigned_c),
-                navigation(SegmentDef::null_block_idx_c),
-                references(SegmentDef::null_block_idx_c),
-                values(SegmentDef::null_block_idx_c),
-                parent(SegmentDef::far_null_c)
+            far_pos_t allocate()
             {
+                OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
+                //capture ZeroHeader for write during 10 tries
+                auto header = OP::vtm::transactional_yield_retry_n<10>([this]()
+                {
+                    return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
+                });
+                if (header->_next == SegmentDef::far_null_c)
+                {  //need allocate new segment
+                    auto avail_segments = _segment_manager->available_segments();
+                    _segment_manager->ensure_segment(avail_segments);
+                }
+                far_pos_t result;
+                if (header->_adjacent_count > 1) 
+                {//there are adjacent blocks more then one, so don't care about following list of other
+                    --header->_adjacent_count;
+                    //return last available entry 
+                    result = header->_next + memory_requirement<Payload>::requirement * header->_adjacent_count;
+                }
+                else
+                {//only one entry left, so need rebuild further list
+                    result = header->_next; //points to block with ZeroHeader over it will be erased after allocation
+                    *header =
+                        *_segment_manager->readonly_block(FarAddress(result), sizeof(ZeroHeader)).at<ZeroHeader>(0);
+                }
+                op_g.commit();
+                return result;
             }
-            atom_t node_type;
-            far_pos_t parent;
-            union
+            void deallocate(far_pos_t addr)
             {
-                /**In-segment position of NavigableByteRangeContainer for this node*/
-                segment_pos_t navigation;
-                /**Only if this node-head is unassigned (node_type==unassigned_c) this points to the next free head*/
-                segment_pos_t next_free;
-            };
-            /**In-segment position of address container for this node*/
-            segment_pos_t references;
-            /**In-segment position of values container for this node*/
-            segment_pos_t values;
-        };
-
-        struct NodeManagerOptions
-        {
-            NodeManagerOptions() :
-                _node_capacity(1 << 16)
-            {
-
+                OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
+                //@! todo: validate that addr belong to NodeManager
+                
+                //capture ZeroHeader for write during 10 tries
+                auto header = OP::vtm::transactional_yield_retry_n<10>([this]()
+                {
+                    return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
+                });
+                //following will raise ConcurentLockException immediatly, if 'addr' cannot be locked
+                ZeroHeader* just_freed = _segment_manager->wr_at<ZeroHeader>(FarAddress(addr), WritableBlockHint::new_c);
+                *just_freed = *header;
+                header->_next = addr;
+                header->_adjacent_count = 1;
+                op_g.commit();
             }
-            segment_pos_t node_count() const
+            void _check_integrity(FarAddress segment_addr, SegmentManager& manager)
             {
-                return _node_capacity;
+                if (segment_addr.segment != 0)
+                    return;
+                //check from _zero_header_address
+                auto header = 
+                    manager.readonly_block(_zero_header_address, sizeof(ZeroHeader)).at<ZeroHeader>(0);
+                size_t n_free_blocks = 0;
+                //count all free blocks
+                while( header->_next != SegmentDef::far_null_c )
+                {
+                    assert(header->_adjacent_count > 0);
+                    n_free_blocks += header->_adjacent_count;
+                    header = manager.readonly_block(
+                        FarAddress(header->_next), sizeof(ZeroHeader)).at<ZeroHeader>(0);
+                }
+                assert(manager.available_segments() * Capacity >= n_free_blocks);
             }
-            NodeManagerOptions& node_count(segment_pos_t count)
-            {
-                this->_node_capacity = count;
-                return *this;
-            }
-            SegmentOptions& segment_options()
-            {
-                return _segment_options;
-            }
-
         private:
-
-            SegmentOptions _segment_options;
-            segment_pos_t _node_capacity;
-        };
-
-        template <class Payload>
-        struct NodeManager
-        {
-            enum State
+            /**Structure specific for 0 segment only*/
+            struct ZeroHeader
             {
-                /**Node of this state is not in memory*/
-                void_c = 0,
-                /**Node in this state can be used to find by sequence of bytes */
-                findable_c = 0x1,
-                /** node in this state can reference to another nodes*/
-                navigable_c = 0x2,
-                /** node in this state can access the associated value*/
-                valueable_c = 0x4
+                /**Pointer from 1 to #Capacity blocks free to use, if no free blocks this value is #SegmentDef::far_null_c. 
+                * This value can point not only single segment.
+                */
+                far_pos_t _next;
+                /** Number of free blocks adjacent one by at point addressed by _next. Valid values starts from 1 to #Capacity */
+                std::uint32_t _adjacent_count;
             };
-            typedef NodeManager<Payload> this_t;
-            typedef NodeHead<Payload> node_head_t;
-            /**Default type that implements NodeHead::navigation_container_t*/
-            typedef NodeSortedArray<atom_t, 16> default_navigation_conatiner_t;
-
-            /**Type that implements NodeHead::navigation_container_t for root node*/
-            typedef NodeTrie<atom_t> root_navigation_conatiner_t;
-
-            /**Default type that implements NodeHead::address_container_t*/
-            typedef NodeHashTable<NodeAddress, 8> default_address_container_t;
-
-            /**Default type that implements NodeHead::value_container_t*/
-            typedef NodeHashTable<Payload, 8> default_value_container_t;
-
-            static std::unique_ptr<NodeManagerOptions> create_options()
-            {
-                return std::unique_ptr<NodeManagerOptions>(new NodeManagerOptions);
-            }
-            static std::unique_ptr<NodeManager> create_new(const char * file_name, const NodeManagerOptions& options)
-            {
-                //clone local option
-                NodeManagerOptions local_options(options);
-                local_options.segment_options()
-                    //declare neccessary space for segment management
-                    .heuristic_size(
-                    //size_heuristic::of_assorted<NodeManagementBlock, 1>,
-                    size_heuristic::of_array_dyn<node_head_t>(options.node_count()),
-                    size_heuristic::of_assorted<root_navigation_conatiner_t, 1>,
-                    size_heuristic::of_array_dyn<default_navigation_conatiner_t>(options.node_count()),
-                    size_heuristic::of_array_dyn<default_address_container_t>(options.node_count()),
-                    size_heuristic::of_array_dyn<default_value_container_t>(options.node_count()),
-                    size_heuristic::add_percentage(5/*Add 5% for reallocation purposes*/)
-                    );
-                auto segment_manager = SegmentManager::create_new(file_name, local_options.segment_options());
-
-                //allocate array of heads
-                auto node_manager = std::unique_ptr<NodeManager>(new NodeManager(segment_manager));
-                node_manager->_node_capacity = options.node_count();
-                node_manager->on_new_segment_allocated(0);
-                return node_manager;
-            }
-            SegmentManager& segment_manager()
-            {
-                return *_segment_manager;
-            }
-            static std::unique_ptr<NodeManager> open_existing()
-            {
-
-            }
-            std::future<node_head_t*> async_get_head(const NodeAddress& addr)
-            {
-
-            }
-            far_pos_t create_new_node(far_pos_t parent = SegmentDef::far_null_c)
-            {
-                tran_guard_t g(this);
-                _segment_manager->make_new()
-            }
         protected:
 
-            void start_transaction()
+            virtual bool has_residence(segment_idx_t segment_idx, SegmentManager& manager) const override
             {
-
+                return true; //always true, has always NodeManager in segment
             }
-            void stop_transaction(bool success)
-            {
-
-            }
-        private:
-            typedef RangeContainer<NodeAddress> free_ranges_t;
-            typedef std::shared_ptr<SegmentManager> segments_ptr_t;
-            segments_ptr_t _segment_manager;
-            /**number of nodes per 1 segment*/
-            segment_pos_t _node_capacity;
-            /**top free node*/
-            NodeAddress _top_node;
-            static const std::string nm_headers_c;
-            static const std::string nm_headers_free_c;
-            /**On new segment allocation need place some objects inside it
+            /**
+            *   @return byte size that should be reserved inside segment. 
             */
-            void on_new_segment_allocated(segment_idx_t new_segment)
+            virtual segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const override 
             {
-                //auto node_array_off = _segment_manager->make_array<node_head_t>(new_segment, _node_capacity);
-                //auto node_array = _segment_manager->from_far<node_head_t>(node_array_off);
-                ////make all new free block reference in linear list
-                //for (segment_pos_t i = 0; i < (_node_capacity - 1); ++i)
-                //    node_array[i].next_free = i + 1;
-                //_segment_manager->put_named_object(new_segment, nm_headers_c, node_array_off);
-                ////_segment_manager->put_named_object(new_segment, nm_headers_free_c, &node_array[0]/*pointer to first free header*/);
-                //l.commit();
+                segment_pos_t result = entry_size_c * Capacity;
+                if (segment_address.segment == 0)
+                {  //reserve place for ZeroHeader struct in 0-segment
+                    result += memory_requirement<ZeroHeader>::requirement;
+                }
+                return result;
             }
-            NodeManager(segments_ptr_t segment_manager)
+            /**
+            *   Make initialization of slot in the specified segment as specified offset
+            */
+            virtual void on_new_segment(FarAddress start_address, SegmentManager& manager) override
             {
-                _segment_manager = segment_manager;
+                _segment_manager = &manager;
+                auto blocks_begin = start_address;
+                OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
+                if (start_address.segment == 0)
+                { //create special entry for ZeroHeader
+                    blocks_begin += memory_requirement<ZeroHeader>::requirement;
+                    _zero_header_address = start_address;
+                    //no problem with following capturing zero-block again
+                    *_segment_manager->wr_at<ZeroHeader>(_zero_header_address, WritableBlockHint::new_c) 
+                    = { SegmentDef::far_null_c, 0 };
+                }
+                //New segment allocation is a big challenge for entire system, that is why 
+                //count of reties to capture ZeroHeader so big
+                auto header = OP::vtm::transactional_yield_retry_n<1000>([this]()
+                {
+                    return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
+                });
+                //in the just allocated blocks make copy of zero-header
+                *_segment_manager->wr_at<ZeroHeader>(blocks_begin, WritableBlockHint::new_c) 
+                    = *header;
+                header->_next = blocks_begin;
+                header->_adjacent_count = Capacity;
+                op_g.commit();
+            }
+            /**
+            *   Perform slot openning in the specified segment as specified offset
+            */
+            virtual void open(FarAddress start_address, SegmentManager& manager) override
+            {
+                if (start_address.segment == 0)
+                {
+                    _zero_header_address = start_address;
+                }
+            }
+            /**Notify slot that some segement should release resources. It is not about deletion of segment, but deactivating it*/
+            virtual void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
+            {
+
             }
 
+        private:
+            /**Size of entry in persistence state, must have capacity to accomodate ZeroHeader*/
+            static OP_CONSTEXPR(const) segment_pos_t entry_size_c =
+                memory_requirement<ZeroHeader>::requirement > memory_requirement<Payload>::requirement ?
+                memory_requirement<ZeroHeader>::requirement : memory_requirement<Payload>::requirement;
+            SegmentManager* _segment_manager;
+            FarAddress _zero_header_address;
         };
-        template <class Payload>
-        const std::string NodeManager<Payload>::nm_headers_c("hdr");
-        template <class Payload>
-        const std::string NodeManager<Payload>::nm_headers_free_c("frhdr");
     }
 }//endof namespace OP

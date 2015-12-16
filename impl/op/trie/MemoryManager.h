@@ -162,10 +162,10 @@ namespace OP
                 g.commit();
                 return result;
             }
-            void _check_integrity(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset)
+            void _check_integrity(FarAddress segment_addr, SegmentManager& manager)
             {
-                FarAddress first_block_pos (segment_idx, offset);
-                if (segment_idx == 0)
+                FarAddress first_block_pos = segment_addr;
+                if (segment_addr.segment == 0)
                 {//only single instance of free-space list
                     first_block_pos += free_blocks_t::byte_size();
                     //for zero segment check also table of free blocks
@@ -231,20 +231,20 @@ namespace OP
             /**
             *   @return all available memory after `offset` inside segment
             */
-            segment_pos_t byte_size(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset) const override
+            segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const override
             {
-                assert(offset < manager.segment_size());
-                return manager.segment_size() - offset;
+                assert(segment_address.offset < manager.segment_size());
+                return manager.segment_size() - segment_address.offset;
             }
             /**
             *   Make initialization of slot in the specified segment as specified offset
             */
-            void emplace_slot_to_segment(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset) override
+            void on_new_segment(FarAddress start_address, SegmentManager& manager) override
             {
                 OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
                 _segment_manager = &manager;
-                FarAddress first_block_pos (segment_idx, offset);
-                if (segment_idx == 0)
+                FarAddress first_block_pos (start_address);
+                if (start_address.segment == 0)
                 {//only single instance of free-space list
                     _free_blocks = free_blocks_t::create_new(manager, first_block_pos);
                     first_block_pos.offset += free_blocks_t::byte_size();
@@ -263,7 +263,7 @@ namespace OP
                     ->size(byte_size - mbh_size_align)
                     ->set_free(true)
                     ->set_has_next(false)
-                    ->my_segement(segment_idx)
+                    ->my_segement(start_address.segment)
                     ;
                 //just created block is free, so place FreeMemoryBlock info inside it
                 FreeMemoryBlock *span_of_free = new (block->memory()) FreeMemoryBlock(emplaced_t());
@@ -278,7 +278,7 @@ namespace OP
                 Description desc;
                 guard_t l(_segments_map_lock);
                 auto insres = _opened_segments.emplace( std::piecewise_construct,
-                     std::forward_as_tuple(segment_idx),
+                     std::forward_as_tuple(start_address.segment),
                      std::forward_as_tuple()
                 );
                 assert(insres.second); //should not exists such segment yet
@@ -286,15 +286,15 @@ namespace OP
                  
                 op_g.commit();
             }
-            void open(segment_idx_t segment_idx, SegmentManager& manager, segment_pos_t offset) override
+            void open(FarAddress start_address, SegmentManager& manager) override
             {
                 OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
                 _segment_manager = &manager;
-                segment_pos_t avail_bytes_offset = offset;
+                segment_pos_t avail_bytes_offset = start_address.offset;
                 
-                if (segment_idx == 0)
+                if (start_address.segment == 0)
                 {//only single instance of free-space list
-                    auto free_blocks_pos = FarAddress(segment_idx, offset);
+                    auto free_blocks_pos = start_address;
                     //auto first_block_pos = offset + aligned_sizeof<free_blocks_t>(SegmentHeader::align_c);
                     _free_blocks = free_blocks_t::open(manager, free_blocks_pos);
                     avail_bytes_offset += free_blocks_t::byte_size();
@@ -302,7 +302,7 @@ namespace OP
                 avail_bytes_offset = align_on(avail_bytes_offset, SegmentDef::align_c);
                 guard_t l(_segments_map_lock);
                 auto insres = _opened_segments.emplace( std::piecewise_construct,
-                     std::forward_as_tuple(segment_idx),
+                     std::forward_as_tuple(start_address.segment),
                      std::forward_as_tuple()
                 );
                 assert(insres.second); //should not exists such segment yet

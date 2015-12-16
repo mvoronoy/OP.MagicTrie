@@ -143,7 +143,6 @@ void test_CacheManager()
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     cache._check_integrity();
 }
-extern void test_NodeManager();
 extern void test_RangeContainer();
 extern void test_Range();
 
@@ -152,7 +151,6 @@ static auto module_suite = OP::utest::default_test_suite("Arbitrary")
 ->declare(test_RangeContainer, "rangeConatiner")
 ->declare(test_Range, "range")
 ->declare(test_CacheManager, "cacheManager")
-->declare(test_NodeManager, "nodeManager")
 ;
 
 int main(int argc, char* argv[])
