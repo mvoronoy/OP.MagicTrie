@@ -509,7 +509,7 @@ void test_SegmentManager()
     }
     std::random_shuffle(std::begin(rnd_indexes), std::end(rnd_indexes));
     mngr3->_check_integrity();
-    std::chrono::system_clock::time_point now = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
     for (size_t i = 0; i < 1000; ++i)
     {
         auto p = rand_buf[rnd_indexes[i]];

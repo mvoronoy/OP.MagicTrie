@@ -91,8 +91,8 @@ namespace OP
         template <class T, class Y>
         OP_CONSTEXPR(OP_EMPTY_ARG) inline T align_on(T address, Y base)
         {
-            auto align = address % base;
-            return align ? (address + (base - align)) : address;
+			//OP_CONSTEXPR(OP_EMPTY_ARG) auto align = ;
+            return (address % base) ? (address + (base - (address % base))) : address;
         }
         /**Rounds align down (compare with #align_on that rounds up)*/
         template <class T, class Y>
