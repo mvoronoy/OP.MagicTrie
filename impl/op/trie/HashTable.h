@@ -41,22 +41,24 @@ namespace OP
                     }
                 };
             }//ns:details
-            struct AbstractHashTableData
-            {
-                const HashTableCapacity capacity;
-                const dim_t neighbor_width;
-                dim_t size;
-            };
 
-            template <class Payload>
-            struct HashTableData : public AbstractHashTableData
+            struct HashTableData 
             {
+                HashTableData(HashTableCapacity acapacity)
+                    : capacity((dim_t)acapacity)
+                    , neighbor_width(details::max_hash_neighbors(acapacity))
+                    , size(0)
+                {
+
+                }
                 struct Content
                 {
                     atom_t key;
                     std::uint8_t flag;
-                    Payload data;
                 };
+                const dim_t capacity;
+                const dim_t neighbor_width;
+                dim_t size;
                 Content memory_block[1];
             };
 
@@ -64,24 +66,28 @@ namespace OP
             template <class SegmentTopology>
             struct PersistedHashTable
             {
+                enum : dim_t
+                {
+                    nil_c = ~dim_t(0)
+
+                };
                 PersistedHashTable(SegmentTopology& topology)
                     : _topology(topology)
                 {}
-
-                template<class Payload>
+                /**
+                * Create HashTableData<Payload> in dynamic memory using MemoryManager slot
+                * @return far-address that point to allocated table
+                */
                 FarAddress create(HashTableCapacity capacity)
                 {
                     assert(capacity <= 256);
-                    typedef HashTableData<Payload> data_t;
+                    typedef <Payload> data_t;
                     auto& memmngr = _toplogy.slot<MemoryManager>();
                     OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                    auto byte_size = memory_requirements<Payload>(capacity);
+                    auto byte_size = memory_requirements(capacity);
                     auto result = memmngr.allocate(byte_size);
                     auto mem = _topology.segment_manager().writable_block(result, byte_size);
-                    auto table = new (mem.pos()) data_t{ 
-                        .capacity = capacity, 
-                        .neighbor_width = details::max_hash_neighbors(capacity), 
-                        .size = 0 };
+                    auto table = new (mem.pos()) HashTableData(capacity);
                     for (auto i = 0; i < capacity; ++i)
                     { //reset all flags
                         table->memory_block[i].flag = 0;
@@ -89,24 +95,21 @@ namespace OP
                     g.commit();
                     return result;
                 }
-                template<class Payload>
-                static size_t memory_requirements(dim_t capacity)
+                
+                OP_CONSTEXPR(OP_EMPTY_ARG) static size_t memory_requirements(dim_t capacity)
                 {
-                    typedef HashTableData<Payload> data_t;
-                    typedef typename std::aligned_storage<sizeof(AbstractHashTableData)>::type head_type;
-                    typedef typename std::aligned_storage<sizeof(data_t)>::type concrete_type;
-                    OP_CONSTEXPR(const) size_t content_size = sizeof(concrete_type) - sizeof(head_type); //how big Content memory_block[1] is
-                    return sizeof(head_type) + content_size * capacity;
+                    typedef typename std::aligned_storage<sizeof(HashTableData)>::type head_type;
+                    typedef typename std::aligned_storage<sizeof(HashTableData::Content)>::type item_type;
+                    return sizeof(head_type) + sizeof(item_type) * (capacity - 1);
                 }
                 /**
                 *   @return insert position or #end() if no more capacity
                 */
-                template <class Payload>
-                std::pair<dim_t, bool> insert(FarAddress address, atom_t key, Payload && value)
+                std::pair<dim_t, bool> insert(FarAddress address, atom_t key)
                 {
                     OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                    auto mem = _topology.segment_manager().writable_block(result,  
-                        memory_requirements<Payload>(capacity));
+                    auto mem = _topology.segment_manager().writable_block(
+                        result,  memory_requirements(capacity));
                     auto hash_data = mem.at<HashTableData<Payload> >(0);
 
                     unsigned hash = static_cast<unsigned>(key) & (hash_data.capacity - 1); //assume that capacity is ^ 2
@@ -156,88 +159,25 @@ namespace OP
                     std::for_each(container(), container() + size(), [](Content& c){ c._flag = 0; });
                     _count = 0;
                 }
-                Payload& value(const iterator& index)
-                {
-                    //static_assert(!std::is_same(Payload, EmptyPayload), "No value array for this container");
-                    if (index._offset >= capacity_c
-                        || !(container()[index._offset]._flag & fpresence_c))
-                        throw std::out_of_range("invalid index or no value associated with key");
-                    return container()[index._offset]._data;
-                }
+               
+
                 /**Find index of key entry or #end() if nothing found*/
-                iterator find(atom_t key) const
+                dim_t find(atom_t key) const
                 {
                     unsigned hash = static_cast<unsigned>(key)& bitmask_c;
                     for (unsigned i = 0; i < neighbor_width_c; ++i)
                     {
                         if (0 == (fpresence_c & container()[hash]._flag))
                         { //nothing at this pos
-                            return end();
+                            return nil_c;
                         }
                         if (container()[hash]._key == key)
-                            return iterator(this, hash);
+                            return hash;
                         ++hash %= capacity(); //keep in boundary
                     }
-                    return end();
+                    return nil_c;
                 }
-                atom_t key(const iterator& i) const
-                {
-                    return container()[i._offset]._key;
-                }
-                iterator begin() const
-                {
-                    if (size() == 0)
-                        return end();
-                    for (unsigned i = 0; i < capacity(); ++i)
-                        if (container()[i]._flag & fpresence_c)
-                            return iterator(this, i);
-                    return end();
-                }
-                iterator end() const
-                {
-                    return iterator(this, ~0u);
-                }
-                iterator& next(iterator& i, typename iterator::distance_type offset = 1) const
-                {
-                    //note following 'for' plays with unsigned-byte arithmetic
-                    iterator::distance_type inc = offset > 0 ? 1 : -1;
-                    for (i._offset += inc; offset && i._offset < capacity(); i._offset += inc)
-                        if (container()[i._offset]._flag & fpresence_c)
-                        {
-                            offset -= inc;
-                            if (!offset)
-                                return i;
-                        }
-                    if (i._offset >= capacity())
-                        i._offset = ~0u;
-                    return i;
-                }
-                ///
-                /// Overrides
-                ///
-                atom_t allocate_key() override
-                {
-                    for (node_size_t i = 0; i < capacity(); ++i)
-                        if (!(container()[i]._flag & fpresence_c))
-                        {//occupy this
-                            atom_t k = static_cast<atom_t>(i);
-                            container()[i]._flag = fpresence_c;
-                            container()[i]._key = k;
-                            return k;
-                        }
-                    throw std::out_of_range("table is full");
-                }
-                /**
-                *   Get value placeholder for the key
-                *   *@throws std::out_of_range exception if key is not exists
-                */
-                payload_t& value(atom_t key)  override
-                {
-                    auto i = find(key);
-                    if (i == end())
-                        std::out_of_range("no such key");
-                    return value(i);
-                }
+                
                 /** Erase the entry associated with key
                 *   *@throws std::out_of_range exception if key is not exists
                 */
@@ -284,7 +224,7 @@ namespace OP
                     less(0x2, 0x1) == false
                     less(0x5, 0xF) == true
                     less(0xF, 0x5) == false
-                    */
+                */
                 bool less_pos(unsigned tst_min, unsigned tst_max) const
                 {
                     int dif = static_cast<int>(tst_min)-static_cast<int>(tst_max);

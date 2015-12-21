@@ -39,7 +39,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
         auto options = OP::trie::SegmentOptions().segment_size(0x110000);
         auto mngr1 = Sm::create_new(seg_file_name, options);
         tst_size = mngr1->segment_size();
-        SegmentTopology<MemoryManager> mngrTopology = SegmentTopology<MemoryManager>(mngr1);
+        SegmentTopology<MemoryManager> mngrTopology (mngr1);
         one_byte_pos = mngrTopology.slot<MemoryManager>().allocate(1);
         one_byte_block = mngr1->readonly_block(one_byte_pos, 1).at<std::uint8_t>(0);
         mngr1->_check_integrity();
@@ -188,12 +188,12 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     }
     std::random_shuffle(std::begin(rnd_indexes), std::end(rnd_indexes));
     mngr3->_check_integrity();
-    std::chrono::system_clock::time_point now = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
     for (size_t i = 0; i < 1000; ++i)
     {
         auto p = rand_buf[rnd_indexes[i]];
         mm.deallocate( p );
-        mngr3->_check_integrity();
+        //mngr3->_check_integrity();
     }
     std::cout << "\tTook:" 
         << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() 

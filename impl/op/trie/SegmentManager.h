@@ -98,8 +98,7 @@ namespace OP
         template <class T, class Y>
         OP_CONSTEXPR(OP_EMPTY_ARG) inline T align_on(T address, Y base)
         {
-            auto align = address % base;
-            return align ? (address + (base - align)) : address;
+            return (address % base) ? (address + (base - (address % base))) : address;
         }
         /**Rounds align down (compare with #align_on that rounds up)*/
         template <class T, class Y>
@@ -744,17 +743,17 @@ namespace OP
                 readonly_block(pos, sizeof(T)).at<T>(0)
             \endcode
             */
-            /*template <class T>
-            const T* ro_at(const FarAddress& pos)
+            template <class T>
+            const T* ro_at(FarAddress pos, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
             {
-                return this->readonly_block(pos, sizeof(T)).at<T>(0);
-            } */
+                return this->readonly_block(pos, sizeof(T), hint).at<T>(0);
+            }
             /** Shorthand for \code
                 readonly_block(pos, sizeof(T)).at<T>(0)
             \endcode
             */
             template <class T>
-            T* wr_at(const FarAddress& pos, WritableBlockHint hint = WritableBlockHint::update_c)
+            T* wr_at(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
                 return this->writable_block(pos, sizeof(T), hint).at<T>(0);
             }

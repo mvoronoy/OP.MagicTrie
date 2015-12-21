@@ -10,10 +10,16 @@ namespace OP{
         template <class Key, class Value, class Hasher = std::hash<Key> >
         struct CacheManager
         {
-    
-            CacheManager(size_t limit):
-                _limit(limit),
-                _root(new ReferenceKey(root_reference_key_t()))
+            typedef std::function<void(void)> background_task_t;
+            typedef std::function<void(background_task_t)> background_task_producer_t;
+            static void default_background_producer (background_task_t t) 
+            {
+                t();
+            };
+            CacheManager(size_t limit, background_task_producer_t p= default_background_producer)
+                : _limit(limit)
+                , _background_producer(p)
+                ,_root(new ReferenceKey(root_reference_key_t()))
             {
             }
             /**
@@ -148,11 +154,14 @@ namespace OP{
             void shrink()
             {
                 if (this->limit() < this->_map.size())
-                    std::async(std::launch::async, [this](){
+                {
+                    auto f = [this]() {
                         guard_t l(this->_map_lock);
-                        if (this->limit() < this->_map.size())//erase smallest used
+                        if (this->limit() < this->_map.size())//erase less used
                             this->_erase(this->_root->next()->key);
-                        });
+                    };
+                    _background_producer(f);
+                }
             }
             struct root_reference_key_t{};
             struct RefHasher;
@@ -295,7 +304,7 @@ namespace OP{
                 Hasher _hasher;
             };
             typedef std::unordered_map<refkey_ptr_t, Value, RefHasher, RefHasher> map_t;
-            typedef std::mutex lock_t;
+            typedef std::recursive_mutex lock_t;
             typedef std::unique_lock<lock_t> guard_t;
             typedef std::function<void(const Key&, const Value&)> erase_callback_t;
 
@@ -305,6 +314,7 @@ namespace OP{
             refkey_ptr_t _root;
             size_t _limit;
             erase_callback_t _erase_callback;
+            background_task_producer_t _background_producer;
         };
 
         /**Organize storage of elements indexed in range [0...).*/

@@ -29,10 +29,7 @@ namespace OP
                 max_entries_c = 256
             };
 
-            struct StemStatistic
-            {
-                dim_t sum_length = 0;
-            };
+            
             template <dim_t Max = 255>
             struct StemString
             {
@@ -62,43 +59,58 @@ namespace OP
                 atom_t _length = 0;
                 atom_t _str[max_length_c];
             };
-            using StemTable8x32 = NodeHashTable<StemString<32>, 16>;
 
-            template <class SegmentTopology>
-            struct StemStore
+            struct StemData
             {
                 typedef atom_t* data_ptr_t;
                 typedef const atom_t* cont_data_ptr_t;
-                typedef StemTable8x32 stem_table_t;
-                
+                StemData(dim_t awidth, dim_t aheight)
+                    : width(awidth)
+                    , height(aheight)
+                    , summary_length(0)
+                    , count(0)
+                    , stem_length{}
+                {
+
+                }
+                dim_t width;
+                dim_t height;
+                /**Sums-up all lengts of stored strings*/
+                dim_t summary_length;
+                /**Number of strings assigned, not really reflects count of string sequentally folowed one by one
+                * but just counts number of slots totally occupied, used to evaluate average string length.
+                * This number is never exceeds the `width`
+                */
+                dim_t count;
+                /**Store length of all strings in stem container*/
+                dim_t stem_length[max_entries_c];
+            };
+            template <class SegmentTopology>
+            struct StemStore
+            {
                 StemStore(SegmentTopology& topology)
                     : _topology(topology)
                 {}
 
-                template < class Tuple >
-                OP_CONSTEXPR(OP_EMPTY_ARG) static size_t memory_requirements()
+                OP_CONSTEXPR(OP_EMPTY_ARG) static size_t memory_requirements(dim_t width, dim_t str_max_height)
                 {
-                    return memory_requirement<Tuple>::requirement;
+                    return memory_requirement<StemData>::requirement 
+                        + sizeof(atom_t) * (width * str_max_height);
                 }
 
-                template < class Tuple >
-                inline FarAddress create(Tuple && t = Tuple() )
+                inline FarAddress create(dim_t width, dim_t str_max_height)
                 {
                     //size_t expected = memory_requirements<Tuple>();
                     auto& memmngr = _toplogy.slot<MemoryManager>();
                     OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
-
-                    auto addr = memmngr.allocate( memory_requirements<Tuple>()::requirement );
-                    auto mem_block = toplogy.segment_manager().writable_block(addr, memory_requirements<Tuple>());
-                    Helper<Tuple>::move_into< std::tuple_size<Tuple>::value >(mem_block.pos(), std::forward<Tuple>(t));
+                    auto mem_size = memory_requirements(width, str_max_height);
+                    auto addr = memmngr.allocate( mem_size );
+                    auto mem_block = toplogy.segment_manager().writable_block(addr, mem_size);
+                    new (mem_block.pos()) StemData(width, str_max_height);
                     g.commit();
                     return addr;
                 }
-                template < class Tuple >
-                dim_t size( Tuple&t ) 
-                {
-                    return tuple_ref<StemLength>(t).size();
-                }
+
                 /**Place new sequence specified by [begin-end) range as new item to this storage
                 *   @param begin - [in/out] start of range to insert, at [out] points where range insertion was stopped (for
                 *                   example if #height() was exceeded.
@@ -111,58 +123,69 @@ namespace OP
                 *           -# Insert string just the same as existing one;
                 *           -# Insert string to container that is full.
                 */
-                template <class Tuple, class T>
-                inline void accommodate(Tuple& tuple, atom_t key, T& begin, T && end)
+                template <class T>
+                inline void accommodate(FarAddress address, atom_t key, T& begin, T && end)
                 {
+                    assert(key < data.width);
                     assert(begin != end);
-                    
-                    stem_table_t& stem_table = tuple_ref_by_inheritance<stem_table_t>(tuple);
-                    StemStatistic& stat = tuple_ref_by_inheritance<StemStatistic>(tuple);
-                    
-                    auto insres = stem_table.insert(key);
+                    OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
+                    //write-lock header part
+                    auto data_header = _topology.segment_manager().writable_block(address, 
+                        memory_requirement<StemData>::requirement).at<StemData>(0);
+                    address += memory_requirement<StemData>::requirement 
+                        + sizeof(atom_t)*data_header.height * key;
+                    auto f_str = _topology.segment_manager().writable_block(
+                        address, data_header.height).at<atom_t>(0);
 
-                    if (insres.second)
-                    { //new entry created
-                        auto& f_str = stem_table.value(insres.first);
-                        dim_fast_t n = 0;
-                        for (auto p = f_str.begin(); begin != end && p != f_str.end(); ++p, ++begin, ++n)
-                        {
-                            *p = *begin;
-                        }
-                        f_str.set_length(n);
-                        stat.sum_length += n;
+                    auto& size = data_header.stem_length[key];
+                    assert(size == 0);
+                    
+                    for (; begin != end && size < data_header.height; ++f_str, ++begin, ++size, ++data.summary_length)
+                    {
+                        *f_str = *begin;
                     }
-                    else if (insres.first == stem_table.end() )
-                    { //reach the limit of hashtable, need extend it
-                        auto col_begin = mem.begin(column);
-                    }
-                    else
-                    { //there since string already exists, let's detect how many atoms are in common
-                        auto& f_str = stem_table.value(insres.first);
-                        dim_fast_t n = 0;
-                        for (auto p = f_str.begin(); p != f_str.end() && begin != end; ++p, ++begin)
-                        {
-                            if (*p != *begin)
-                            { //difference in sequence mean that stem should be splitted
-                                
-                            }
-                        }
-                        stat.sum_length += n;
-                    }
-                    return result;
+                    ++data.count;
+                    g.commit();
                 }
-                inline void erase(dim_fast_t entry_index)
+                template <class T>
+                inline void prefix_of(FarAddress address, atom_t key, T& begin, T && end) const
                 {
-                    assert(entry_index < _width);
-                    //just set length to 0
-                    set_length(entry_index) = 0;
-                    --_size;
-                    //make _first_free leftmost 
-                    _first_free = std::min<dim_t>(_first_free, entry_index);
+                    //start tran over readonly operation to grant data consistence
+                    OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
+                    auto data_header = _topology.segment_manager().ro_at<StemData>(address);
+
+                    assert(key < data_header.width);
+                    assert(begin != end);
+                    address += memory_requirement<StemData>::requirement 
+                        + sizeof(atom_t)*data_header.height * key;
+                    auto f_str = _topology.segment_manager().ro_at<atom_t>(address);
+
+                    for (dim_t i = 0; i < data.stem_length[key] && begin != end; ++f_str, ++begin)
+                    {
+                        if (*f_str != *begin)
+                        { //difference in sequence mean that stem should be splitted
+                            return;
+                        }
+                    }
+                    //here rollback goes
+                }
+                
+                inline void trunc_str(StemData& data, atom_t key, dim_t shorten) const
+                {
+                    OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
+                    auto data_header = _topology.segment_manager().wr_at<StemData>(address);
+
+                    assert(key < data_header.width);
+                    //assert that can't make str longer
+                    assert(data_header.stem_length[key] > shorten);
+                    data_header.stem_length[key] = shorten;
+                    g.commit();
                 }
 
             protected:
             private:
+                
+
                 template <class Tuple>
                 struct Helper
                 {

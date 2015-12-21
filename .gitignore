@@ -36,3 +36,9 @@
 /tests/Debug/vc120.pdb
 /tests/x64/Debug/tr.tlog
 /tests/x64/Debug
+
+# Misk
+*.sdf
+
+# Test result
+*.test

@@ -294,7 +294,7 @@ namespace OP
                 return *_segment_manager->wr_at<FreeMemoryBlock>(FarAddress(n));
             }
         private:
-            OP_CONSTEXPR(static const) size_t slots_c = sizeof(std::uint32_t) << 3;
+			static OP_CONSTEXPR(const) size_t slots_c = sizeof(std::uint32_t) << 3;
             SegmentManager *_segment_manager;
             
             const size_t _low;

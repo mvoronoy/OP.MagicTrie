@@ -25,7 +25,7 @@ namespace OP
             typedef Payload payload_t;
             typedef NodeManager<Payload, Capacity> this_t;
 
-            far_pos_t allocate()
+            FarAddress allocate()
             {
                 OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
                 //capture ZeroHeader for write during 10 tries
@@ -38,23 +38,24 @@ namespace OP
                     auto avail_segments = _segment_manager->available_segments();
                     _segment_manager->ensure_segment(avail_segments);
                 }
-                far_pos_t result;
+                FarAddress result;
                 if (header->_adjacent_count > 1) 
                 {//there are adjacent blocks more then one, so don't care about following list of other
                     --header->_adjacent_count;
                     //return last available entry 
-                    result = header->_next + memory_requirement<Payload>::requirement * header->_adjacent_count;
+                    result.address = header->_next + memory_requirement<Payload>::requirement * header->_adjacent_count;
                 }
                 else
                 {//only one entry left, so need rebuild further list
-                    result = header->_next; //points to block with ZeroHeader over it will be erased after allocation
+                    result.address = header->_next; //points to block with ZeroHeader over it will be erased after allocation
                     *header =
-                        *_segment_manager->readonly_block(FarAddress(result), sizeof(ZeroHeader)).at<ZeroHeader>(0);
+                        *_segment_manager->ro_at<ZeroHeader>(result);
                 }
+                *_segment_manager->wr_at<payload_t>(result) = std::move(payload_t());
                 op_g.commit();
                 return result;
             }
-            void deallocate(far_pos_t addr)
+            void deallocate(FarAddress addr)
             {
                 OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
                 //@! todo: validate that addr belong to NodeManager
