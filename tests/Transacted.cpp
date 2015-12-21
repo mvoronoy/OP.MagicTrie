@@ -433,7 +433,7 @@ void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
         //test we have ro available for all
         auto future1 = std::async(std::launch::async, [&]() -> bool {
             auto r1_no_tran = tmngr1->readonly_block(FarAddress(0, read_block_pos), wide_write_block_size); 
-            for (auto i = 0; i < (write_block_pos - read_block_pos); ++i)
+            for (auto i = 0u; i < (write_block_pos - read_block_pos); ++i)
                 if (test_byte != r1_no_tran.pos()[i])
                     return false;
             return 0 == memcmp(r1_no_tran.pos()+write_block_pos - read_block_pos, write_fill_seq1, sizeof(write_fill_seq1));
@@ -447,7 +447,7 @@ void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
         auto w1t3 = tmngr1->writable_block(FarAddress(0, read_block_pos), wide_write_block_size); 
         //it's work! No exception there
 
-        for (auto i = 0; i < (write_block_pos - read_block_pos); ++i)
+        for (auto i = 0u; i < (write_block_pos - read_block_pos); ++i)
             if (test_byte != w1t3.pos()[i])
                 return false;
         if (0 != memcmp(w1t3.pos() + write_block_pos-read_block_pos, write_fill_seq1, sizeof(write_fill_seq1)))

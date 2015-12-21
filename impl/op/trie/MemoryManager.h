@@ -95,9 +95,9 @@ namespace OP
             segment_pos_t available(segment_idx_t segment_idx) const
             {
                 guard_t l(_segments_map_lock);
-                auto found = _opened_segments.find(segment_idx);
-                assert(found != _opened_segments.end()); //should already exists
-                FarAddress pos(segment_idx, (*found).second.avail_bytes_offset());
+                auto const& found = _opened_segments[segment_idx]; //should already exists
+                assert(!found.is_null()); 
+                FarAddress pos(segment_idx, found.avail_bytes_offset());
                 //no need in lock anymore
                 l.unlock();
                 auto ro_block = _segment_manager->readonly_block(pos, sizeof(segment_pos_t));
@@ -277,12 +277,10 @@ namespace OP
                 
                 Description desc;
                 guard_t l(_segments_map_lock);
-                auto insres = _opened_segments.emplace( std::piecewise_construct,
-                     std::forward_as_tuple(start_address.segment),
-                     std::forward_as_tuple()
-                );
-                assert(insres.second); //should not exists such segment yet
-                (*insres.first).second.avail_bytes_offset(avail_bytes_offset.offset);
+                ensure_index(start_address.segment);
+                auto &entry = _opened_segments[start_address.segment];
+                assert(entry.is_null()); //should not exists such segment yet
+                entry.avail_bytes_offset(avail_bytes_offset.offset);
                  
                 op_g.commit();
             }
@@ -301,18 +299,16 @@ namespace OP
                 }
                 avail_bytes_offset = align_on(avail_bytes_offset, SegmentDef::align_c);
                 guard_t l(_segments_map_lock);
-                auto insres = _opened_segments.emplace( std::piecewise_construct,
-                     std::forward_as_tuple(start_address.segment),
-                     std::forward_as_tuple()
-                );
-                assert(insres.second); //should not exists such segment yet
-                (*insres.first).second.avail_bytes_offset(avail_bytes_offset);
+                ensure_index(start_address.segment);
+                auto &entry = _opened_segments[start_address.segment];
+                assert(entry.is_null()); //should not exists such segment yet
+                entry.avail_bytes_offset(avail_bytes_offset);
                 op_g.commit();
             }
             void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
             {
                 guard_t l(_segments_map_lock);
-                _opened_segments.erase(segment_index);
+                _opened_segments[segment_index].erase();
             }
         private:
             typedef std::recursive_mutex map_lock_t;
@@ -320,11 +316,14 @@ namespace OP
 
             struct Description
             {
-                Description():
-                    _avail_bytes_offset(0)
+                Description()
+                    : _avail_bytes_offset(SegmentDef::eos_c)
                 {
                 }
                 Description(const Description&) = delete;
+                Description(Description && other)
+                    : _avail_bytes_offset(other._avail_bytes_offset)
+                {}
                 
                 /**Offset where 'available-bytes' variable begins*/
                 Description& avail_bytes_offset(segment_pos_t v)
@@ -336,11 +335,20 @@ namespace OP
                 {
                     return _avail_bytes_offset;
                 }
+                bool is_null() const
+                {
+                    return _avail_bytes_offset == SegmentDef::eos_c;
+                }
+                void erase()
+                {
+                    _avail_bytes_offset = SegmentDef::eos_c;
+                }
             private:
                 segment_pos_t _avail_bytes_offset;
             };
-            typedef std::unordered_map<segment_idx_t, Description> opened_segment_t;
+            //?->typedef std::unordered_map<segment_idx_t, Description> opened_segment_t;
             mutable map_lock_t _segments_map_lock;
+            typedef std::vector<Description> opened_segment_t;
             opened_segment_t _opened_segments;
             typedef Log2SkipList<FreeMemoryBlockTraits> free_blocks_t;
 
@@ -351,12 +359,19 @@ namespace OP
             segment_pos_t& get_available_bytes(segment_idx_t segment)
             {
                 guard_t l(_segments_map_lock);
-                auto found = _opened_segments.find( segment );
-                assert(found != _opened_segments.end()); //should already exists
-                FarAddress pos(segment, (*found).second.avail_bytes_offset());
+                auto& found = _opened_segments[segment];
+                assert(!found.is_null()); //should already exists
+                FarAddress pos(segment, found.avail_bytes_offset());
                 //no need in lock anymore
                 l.unlock();
                 return *_segment_manager->wr_at<segment_pos_t>(pos);
+            }
+            /**Ensure that _opened_segments contains specific index. Must ve called ubder lock _segments_map_lock*/
+            void ensure_index(segment_idx_t segment)
+            {
+                if (segment < _opened_segments.size())
+                    return;
+                _opened_segments.resize(segment + 1);
             }
             /**Merge together 2 adjacent memory blocks
             * @param merge_with_right block that may have 

@@ -124,7 +124,7 @@ namespace OP
 
             far_pos_t pull_not_less(traits_t& traits, typename Traits::key_t key)
             {
-                OP_CONSTEXPR(const static) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                static OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 auto pull_op = [this, &traits, key](size_t index){
                     FarAddress prev_pos = entry_offset_by_idx(index);
                     auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));

@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="BgWorkerTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="ContainersTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="NodeTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="RangeTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="SegmentManagerTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="SegmentToplogyTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="StemContainer.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="tr.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Transacted.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="skplst.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Trie.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\impl\op\trie\Bitset.h" />
+    <ClInclude Include="..\impl\op\trie\HashTable.h" />
+    <ClInclude Include="..\impl\op\trie\MemoryBlock.h" />
+    <ClInclude Include="..\impl\op\trie\MemoryManager.h" />
+    <ClInclude Include="..\impl\op\trie\NamedObjects.h" />
+    <ClInclude Include="..\impl\op\trie\Range.h" />
+    <ClInclude Include="..\impl\op\trie\SegmentManager.h" />
+    <ClInclude Include="..\impl\op\trie\CacheManager.h" />
+    <ClInclude Include="..\impl\op\trie\Containers.h" />
+    <ClInclude Include="..\impl\op\trie\Exceptions.h" />
+    <ClInclude Include="..\impl\op\trie\Node.h" />
+    <ClInclude Include="..\impl\op\trie\Skplst.h" />
+    <ClInclude Include="..\impl\op\trie\StemContainer.h" />
+    <ClInclude Include="..\impl\op\trie\TransactedSegmentManager.h" />
+    <ClInclude Include="..\impl\op\trie\Transactional.h" />
+    <ClInclude Include="..\impl\op\trie\Trie.h" />
+    <ClInclude Include="..\impl\op\trie\Utils.h" />
+    <ClInclude Include="GenericMemoryTest.h" />
+    <ClInclude Include="..\impl\op\service\BackgroundWorker.h">
+      <Filter>service</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="service">
+      <UniqueIdentifier>{23b03923-be69-4c0e-ba50-849591de5a0c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests">
+      <UniqueIdentifier>{5bc008c7-46cd-40da-934e-9ce83fe33f55}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
