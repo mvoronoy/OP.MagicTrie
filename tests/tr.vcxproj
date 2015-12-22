@@ -170,6 +170,7 @@
     <ClInclude Include="GenericMemoryTest.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BgWorkerTest.cpp" />
     <ClCompile Include="ContainersTest.cpp" />
     <ClCompile Include="NodeTest.cpp" />
     <ClCompile Include="RangeTest.cpp" />
@@ -184,6 +185,7 @@
       <PreprocessKeepComments Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</PreprocessKeepComments>
     </ClCompile>
     <ClCompile Include="Transacted.cpp" />
+    <ClCompile Include="Trie.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

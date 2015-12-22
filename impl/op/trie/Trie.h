@@ -109,9 +109,8 @@ namespace OP
                 }
             }
         private:
-            //typedef NodeManager<atom_t> node_manager_t;
-            //node_manager_t& _node_manager;
-            typedef SegmentTopology< MemoryManager, NodeManager<TrieNode, initial_node_count> > topology_t;
+            typedef NodeManager<TrieNode, initial_node_count> node_manager_t;
+            typedef SegmentTopology<node_manager_t, MemoryManager/*Memory manager must go last*/> topology_t;
             std::unique_ptr<topology_t> _topology_ptr;
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments)
