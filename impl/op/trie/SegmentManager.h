@@ -1061,7 +1061,9 @@ namespace OP
                 OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
                 segment_pos_t current_offset = manager.header_size();
                 //start write toplogy right after header
-                TopologyHeader* header = manager.wr_at<TopologyHeader>(FarAddress(new_segment, current_offset));
+                TopologyHeader* header = manager
+                    .writable_block(FarAddress(new_segment, current_offset), addres_table_size_c)
+                    .at<TopologyHeader>(0);
                 current_offset += addres_table_size_c;
                 header->_slots_count = 0;
 

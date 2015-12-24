@@ -7,9 +7,6 @@
     <ClCompile Include="ContainersTest.cpp">
       <Filter>tests</Filter>
     </ClCompile>
-    <ClCompile Include="NodeTest.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
     <ClCompile Include="RangeTest.cpp">
       <Filter>tests</Filter>
     </ClCompile>
@@ -34,6 +31,9 @@
     <ClCompile Include="Trie.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="FixedSizeMemoryManagerTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\impl\op\trie\Bitset.h" />
@@ -46,7 +46,6 @@
     <ClInclude Include="..\impl\op\trie\CacheManager.h" />
     <ClInclude Include="..\impl\op\trie\Containers.h" />
     <ClInclude Include="..\impl\op\trie\Exceptions.h" />
-    <ClInclude Include="..\impl\op\trie\Node.h" />
     <ClInclude Include="..\impl\op\trie\Skplst.h" />
     <ClInclude Include="..\impl\op\trie\StemContainer.h" />
     <ClInclude Include="..\impl\op\trie\TransactedSegmentManager.h" />
@@ -57,6 +56,7 @@
     <ClInclude Include="..\impl\op\service\BackgroundWorker.h">
       <Filter>service</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\trie\FixedSizeMemoryManager.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />

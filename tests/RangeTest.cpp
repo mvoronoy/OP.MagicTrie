@@ -1,5 +1,5 @@
 #include <op/trie/Range.h>
-#include <op/trie/Node.h>
+#include <op/trie/SegmentManager.h>
 #include <assert.h>
 using namespace OP;
 using namespace OP::trie;

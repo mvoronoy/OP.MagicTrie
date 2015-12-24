@@ -24,7 +24,7 @@
     <ClInclude Include="..\impl\op\trie\Containers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\Node.h">
+    <ClInclude Include="..\impl\op\trie\FixedSizeMemoryManager">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\Exceptions.h">
@@ -77,7 +77,7 @@
     <ClCompile Include="tr.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="NodeTest.cpp">
+    <ClCompile Include="FixedSizeMemoryManagerTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="RangeTest.cpp">
