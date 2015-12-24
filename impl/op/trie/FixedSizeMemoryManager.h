@@ -18,12 +18,12 @@ namespace OP
         @tparam Capacity number of #Payload entries in this container
         */
         template <class Payload, size_t Capacity>
-        struct NodeManager : public Slot
+        struct FixedSizeMemoryManager : public Slot
         {
             static_assert(Capacity > 0, "Capacity template argument must be greater than 0");
 
             typedef Payload payload_t;
-            typedef NodeManager<Payload, Capacity> this_t;
+            typedef FixedSizeMemoryManager<Payload, Capacity> this_t;
 
             FarAddress allocate()
             {
@@ -58,7 +58,7 @@ namespace OP
             void deallocate(FarAddress addr)
             {
                 OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
-                //@! todo: validate that addr belong to NodeManager
+                //@! todo: validate that addr belong to FixedSizeMemoryManager
                 
                 //capture ZeroHeader for write during 10 tries
                 auto header = OP::vtm::transactional_yield_retry_n<10>([this]()
@@ -105,7 +105,7 @@ namespace OP
 
             virtual bool has_residence(segment_idx_t segment_idx, SegmentManager& manager) const override
             {
-                return true; //always true, has always NodeManager in segment
+                return true; //always true, has always FixedSizeMemoryManager in each segment
             }
             /**
             *   @return byte size that should be reserved inside segment. 

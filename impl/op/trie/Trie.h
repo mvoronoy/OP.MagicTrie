@@ -7,12 +7,11 @@
 #include <memory>
 #include <future>
 #include <op/trie/Containers.h>
-#include <op/trie/Node.h>
+#include <op/trie/FixedSizeMemoryManager.h>
 #include <op/trie/SegmentManager.h>
 #include <op/trie/Bitset.h>
 #include <op/trie/HashTable.h>
 #include <op/trie/StemContainer.h>
-#include <op/trie/Node.h>
 #include <op/trie/MemoryManager.h>
 
 namespace OP
@@ -109,7 +108,7 @@ namespace OP
                 }
             }
         private:
-            typedef NodeManager<TrieNode, initial_node_count> node_manager_t;
+            typedef FixedSizeMemoryManager<TrieNode, initial_node_count> node_manager_t;
             typedef SegmentTopology<node_manager_t, MemoryManager/*Memory manager must go last*/> topology_t;
             std::unique_ptr<topology_t> _topology_ptr;
         private:

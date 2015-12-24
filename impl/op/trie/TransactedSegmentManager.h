@@ -457,7 +457,7 @@ namespace OP
                     return !_save_points.empty();
                 }
                 /**Create mapping between pointer of shaddow buffer and real far-address*/
-                void on_shadow_buffer_created(std::uint8_t*addr, far_pos_t pos)
+                void on_shadow_buffer_created(const std::uint8_t*addr, far_pos_t pos)
                 {
                     _address_lookup.emplace(addr, pos);
                 }
