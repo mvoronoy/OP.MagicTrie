@@ -38,6 +38,7 @@ namespace OP
                         return 1;
                     default:
                         assert(false);
+                        throw std::invalid_argument("capacity");
                     }
                 };
             }//ns:details
@@ -68,7 +69,7 @@ namespace OP
             {
                 enum : dim_t
                 {
-                    nil_c = ~dim_t(0)
+                    nil_c = dim_t(-1)
 
                 };
                 PersistedHashTable(SegmentTopology& topology)
@@ -80,15 +81,15 @@ namespace OP
                 */
                 FarAddress create(HashTableCapacity capacity)
                 {
-                    assert(capacity <= 256);
-                    typedef <Payload> data_t;
-                    auto& memmngr = _toplogy.slot<MemoryManager>();
+                    assert((dim_t)capacity <= 256);
+
+                    auto& memmngr = _topology.slot<MemoryManager>();
                     OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                    auto byte_size = memory_requirements(capacity);
+                    auto byte_size = memory_requirements((dim_t)capacity);
                     auto result = memmngr.allocate(byte_size);
                     auto mem = _topology.segment_manager().writable_block(result, byte_size);
                     auto table = new (mem.pos()) HashTableData(capacity);
-                    for (auto i = 0; i < capacity; ++i)
+                    for (auto i = 0; i < (dim_t)capacity; ++i)
                     { //reset all flags
                         table->memory_block[i].flag = 0;
                     }
@@ -96,7 +97,7 @@ namespace OP
                     return result;
                 }
                 
-                OP_CONSTEXPR(OP_EMPTY_ARG) static size_t memory_requirements(dim_t capacity)
+                OP_CONSTEXPR(OP_EMPTY_ARG) static dim_t memory_requirements(dim_t capacity)
                 {
                     typedef typename std::aligned_storage<sizeof(HashTableData)>::type head_type;
                     typedef typename std::aligned_storage<sizeof(HashTableData::Content)>::type item_type;
@@ -181,7 +182,7 @@ namespace OP
                 /** Erase the entry associated with key
                 *   *@throws std::out_of_range exception if key is not exists
                 */
-                void remove(atom_t key)  override
+                void remove(atom_t key)
                 {
                     auto n = erase(key);
                     if (n == 0)

@@ -160,7 +160,9 @@
     <ClInclude Include="..\impl\op\trie\CacheManager.h" />
     <ClInclude Include="..\impl\op\trie\Containers.h" />
     <ClInclude Include="..\impl\op\trie\Exceptions.h" />
-    <ClInclude Include="..\impl\op\trie\FixedSizeMemoryManager" />
+    <ClInclude Include="..\impl\op\trie\FixedSizeMemoryManager">
+      <FileType>CppHeader</FileType>
+    </ClInclude>
     <ClInclude Include="..\impl\op\trie\Skplst.h" />
     <ClInclude Include="..\impl\op\trie\StemContainer.h" />
     <ClInclude Include="..\impl\op\trie\TransactedSegmentManager.h" />
@@ -171,6 +173,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BgWorkerTest.cpp" />
+    <ClCompile Include="BitsetTest.cpp" />
     <ClCompile Include="ContainersTest.cpp" />
     <ClCompile Include="FixedSizeMemoryManagerTest.cpp" />
     <ClCompile Include="RangeTest.cpp" />

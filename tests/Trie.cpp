@@ -16,7 +16,17 @@ void test_TrieCreation(OP::utest::TestResult &tresult)
     typedef Trie<TransactedSegmentManager, double> trie_t;
 
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    tresult.assert_true(0 == trie->size());
+    tresult.assert_true(1 == trie->nodes_count());
+    auto nav1 = trie->navigator_begin();
+    tresult.assert_true(nav1 == trie->navigator_end());
+    trie.reset();
 
+    //test reopen
+    trie = trie_t::open(tmngr1);
+    tresult.assert_true(0 == trie->size());
+    tresult.assert_true(1 == trie->nodes_count());
+    tresult.assert_true(nav1 == trie->navigator_end());
 }
 
 static auto module_suite = OP::utest::default_test_suite("Trie")

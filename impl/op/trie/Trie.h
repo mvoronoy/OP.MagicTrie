@@ -18,14 +18,21 @@ namespace OP
 {
     namespace trie
     {
-        struct TrieIterator
+        template <class TNode, class TSegmentManager>
+        struct TrieNavigator
         {
-            unsigned version() const
+            TrieNavigator(FarAddress node_addr, dim_t offset)
+                : _node_addr(node_addr)
+                , _offset(offset)
+            {}
+            bool operator == (const TrieNavigator& other) const
             {
-                return _version.load();
+                return _offset == other._offset && (_offset == dim_t(-1) || _node_addr == other._node_addr );
             }
+            
         private:
-            std::atomic<unsigned> _version;
+            FarAddress _node_addr;
+            dim_t _offset;
         };
 
         template <class T>
@@ -38,16 +45,30 @@ namespace OP
         struct TrieNode
         {
             typedef Bitset<4, std::uint64_t> presence_t;
-            typedef OP::trie::containers::HashTableData stem_hash_t;
+            typedef std::uint32_t version_t;
+            typedef OP::trie::containers::HashTableData reindex_hash_t;
+            typedef PersistedReference<reindex_hash_t> ref_reindex_hash_t;
+            
             typedef OP::trie::stem::StemData stems_t;
-            typedef std::tuple<presence_t, stem_hash_t, stems_t> node_def_t;
-            node_def_t _data;
+            typedef PersistedReference<stems_t> ref_stems_t;
+
+            //typedef std::tuple<presence_t, ref_reindex_hash_t, ref_stems_t> node_def_t;
+            //node_def_t _data;
+
+            presence_t presence;
+            version_t version;
+            ref_reindex_hash_t reindexer;
+            ref_stems_t stems;
+            
+            TrieNode()
+                : version(0)
+            {
+            }
         };
 
         template <class Payload>
         struct SubTrie
         {
-            typedef TrieIterator iterator;
             /**start lexicographical ascending iteration over trie content. Following is a sequence of iteration:
             *   - a
             *   - aaaaaaaaaa
@@ -55,19 +76,120 @@ namespace OP
             *   - b
             *   - ...
             */
-            virtual iterator begin() = 0;
-            virtual iterator end() = 0;
                         
             virtual std::unique_ptr<SubTrie<Payload> > subtree(const atom_t*& begin, const atom_t* end) const = 0;
             
         };
-        
+        /**
+        *   Small slot to keep arbitrary Trie information in 0 segment
+        */
+        struct TrieResidence : public Slot
+        {
+            template <class TSegmentManager, class Payload, std::uint32_t initial_node_count>
+            friend struct Trie;
+            /**Keep address of root node of Trie*/
+            FarAddress get_root_addr()
+            {
+                return _segment_manager->ro_at<TrieHeader>(_segment_address)->_root;
+            }
+            /**Total count of items in Trie*/
+            std::uint64_t count()
+            {
+                return _segment_manager->ro_at<TrieHeader>(_segment_address)->_count;
+            }
+            /**Total number of nodes (pags) allocated in Trie*/
+            std::uint64_t nodes_allocated()
+            {
+                return _segment_manager->ro_at<TrieHeader>(_segment_address)->_nodes_allocated;
+            }
+        private:
+            struct TrieHeader
+            {
+                TrieHeader()
+                    : _root{}
+                    , _count(0)
+                    , _nodes_allocated(0)
+                {}
+                /**Where root resides*/
+                FarAddress _root;
+                /**Total count of terminal entries*/
+                std::uint64_t _count;
+                /**Number of nodes (pages) allocated*/
+                std::uint64_t _nodes_allocated;
+            };
+            FarAddress _segment_address;
+            SegmentManager* _segment_manager;
+        protected:
+                        /**
+            *   Set new root node for Trie
+            *   @throws TransactionIsNotStarted if method called outside of transaction scope
+            */
+            TrieResidence& set_root_addr(FarAddress new_root)
+            {
+                _segment_manager->wr_at<TrieHeader>(_segment_address)->_root = new_root;
+                return *this;
+            }
+            /**Increase/decrease total count of items in Trie. 
+            *   @param delta positive/negative numeric value to modify counter
+            *   @throws TransactionIsNotStarted if method called outside of transaction scope
+            */
+            TrieResidence& increase_count(int delta)
+            {
+                _segment_manager->wr_at<TrieHeader>(_segment_address)->_count += delta;
+                return *this;
+            }
+
+            /**Increase/decrease total number of nodes in Trie. 
+            *   @param delta positive/negative numeric value to modify counter
+            *   @throws TransactionIsNotStarted if method called outside of transaction scope
+            */
+            TrieResidence& increase_nodes_allocated(int delta)
+            {
+                _segment_manager->wr_at<TrieHeader>(_segment_address)->_nodes_allocated += delta;
+                return *this;
+            }
+            //
+            //  Overrides
+            //
+            /**Slot resides in zero-segment only*/
+            bool has_residence(segment_idx_t segment_idx, SegmentManager& manager) const override
+            {
+                return segment_idx == 0; //true only for 0
+            }
+            /**Reserve enough to keep TrieHeader*/
+            segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const override
+            {
+                assert(segment_address.segment == 0);
+                return memory_requirement<TrieHeader>::requirement;
+            }
+            void on_new_segment(FarAddress segment_address, SegmentManager& manager) override
+            {
+                assert(segment_address.segment == 0);
+                _segment_address = segment_address;
+                _segment_manager = &manager;
+                OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
+                *manager.wr_at<TrieHeader>(segment_address, OP::trie::WritableBlockHint::new_c)
+                    = TrieHeader(); //init with null
+                op_g.commit();
+            }
+            void open(FarAddress segment_address, SegmentManager& manager) override
+            {
+                assert(segment_address.segment == 0);
+                _segment_manager = &manager;
+                _segment_address = segment_address;
+            }
+            void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
+            {
+                
+            }
+        };
         template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 1024>
         struct Trie
         {
         public:
-            typedef TrieIterator iterator;
+            typedef int iterator;
             typedef Trie<TSegmentManager, Payload, initial_node_count> this_t;
+            typedef TrieNavigator<TrieNode, TSegmentManager> navigator_t;
 
             virtual ~Trie()
             {
@@ -75,8 +197,12 @@ namespace OP
             
             static std::shared_ptr<Trie> create_new(std::shared_ptr<TSegmentManager>& segment_manager)
             {
-                //make root for trie
+                //create new file
                 auto r = std::shared_ptr<this_t>(new this_t(segment_manager));
+                //make root for trie
+                OP::vtm::TransactionGuard op_g(segment_manager->begin_transaction()); //invoke begin/end write-op
+                r->_topology_ptr->slot<TrieResidence>().set_root_addr(r->new_node());
+                op_g.commit();
                 return r;
             }
             static std::shared_ptr<Trie> open(std::shared_ptr<TSegmentManager>& segment_manager)
@@ -84,9 +210,30 @@ namespace OP
                 auto r = std::shared_ptr<this_t>(new this_t(segment_manager));
                 return r;
             }
-            iterator end() const
+            /**Total number of items*/
+            std::uint64_t size()
             {
-                return iterator();
+                return _topology_ptr->slot<TrieResidence>().count();
+            }
+            /**Number of allocated nodes*/
+            std::uint64_t nodes_count()
+            {
+                return _topology_ptr->slot<TrieResidence>().nodes_allocated();
+            }
+
+            navigator_t navigator_begin()
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction()); //place all RO operations to atomic scope
+                auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                auto node = _topology_ptr->segment_manager().ro_at<TrieNode>(r_addr);
+                
+                return navigator_t(_topology_ptr->slot<TrieResidence>().get_root_addr(), 
+                    node->presence.first_set()/*may produce nil_c*/ 
+                    );
+            }
+            navigator_t navigator_end() const
+            {
+                return navigator_t(FarAddress(SegmentDef::far_null_c, dim_t(~0));
             }
 
             bool insert(const atom_t* begin, const atom_t* end, iterator * result = nullptr)
@@ -109,12 +256,33 @@ namespace OP
             }
         private:
             typedef FixedSizeMemoryManager<TrieNode, initial_node_count> node_manager_t;
-            typedef SegmentTopology<node_manager_t, MemoryManager/*Memory manager must go last*/> topology_t;
+            typedef SegmentTopology<
+                TrieResidence, 
+                node_manager_t, 
+                MemoryManager/*Memory manager must go last*/> topology_t;
             std::unique_ptr<topology_t> _topology_ptr;
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments)
             {
                 _topology_ptr = std::make_unique<topology_t>(segments);
+            }
+            /** Create new node with default requirements. 
+            * It is assumed that exists outer transaction scope.
+            */
+            FarAddress new_node()
+            {
+                auto node_pos = _topology_ptr->slot<node_manager_t>().allocate();
+                auto node =* new (_topology_ptr->segment_manager().wr_at<TrieNode>(node_pos)) TrieNode;
+                // create hash-reindexer
+                containers::PersistedHashTable<topology_t> hash_mngr(*_topology_ptr);
+                node.reindexer.address = hash_mngr.create(containers::HashTableCapacity::_8);
+                //create stem-container
+                stem::StemStore<topology_t> stem_mngr(*_topology_ptr);
+                node.stems.address = stem_mngr.create((dim_t)containers::HashTableCapacity::_8, 256);
+
+                auto &res = _topology_ptr->slot<TrieResidence>();
+                res.increase_nodes_allocated(+1);
+                return node_pos;
             }
         };
     }

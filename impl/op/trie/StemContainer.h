@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <cassert>
 #include <algorithm>
-#include <op/trie/Bitset.h>
 #include <op/trie/Utils.h>
 #include <op/trie/SegmentManager.h>
 #include <op/trie/Containers.h>
@@ -92,7 +91,7 @@ namespace OP
                     : _topology(topology)
                 {}
 
-                OP_CONSTEXPR(OP_EMPTY_ARG) static size_t memory_requirements(dim_t width, dim_t str_max_height)
+                OP_CONSTEXPR(OP_EMPTY_ARG) static dim_t memory_requirements(dim_t width, dim_t str_max_height)
                 {
                     return memory_requirement<StemData>::requirement 
                         + sizeof(atom_t) * (width * str_max_height);
@@ -101,11 +100,11 @@ namespace OP
                 inline FarAddress create(dim_t width, dim_t str_max_height)
                 {
                     //size_t expected = memory_requirements<Tuple>();
-                    auto& memmngr = _toplogy.slot<MemoryManager>();
-                    OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
+                    auto& memmngr = _topology.slot<MemoryManager>();
+                    OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
                     auto mem_size = memory_requirements(width, str_max_height);
                     auto addr = memmngr.allocate( mem_size );
-                    auto mem_block = toplogy.segment_manager().writable_block(addr, mem_size);
+                    auto mem_block = _topology.segment_manager().writable_block(addr, mem_size);
                     new (mem_block.pos()) StemData(width, str_max_height);
                     g.commit();
                     return addr;
