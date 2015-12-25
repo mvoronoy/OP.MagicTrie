@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iterator>
+#include <assert.h>
 namespace OP
 {
     namespace trie
@@ -168,7 +169,7 @@ namespace OP
             
             typedef std::uint16_t dim_t;
             typedef std::uint8_t atom_t;
-
+            static const dim_t nil_c = dim_t(~0u);
             enum
             {
                 /**bits count in single entry*/
@@ -189,30 +190,56 @@ namespace OP
                 return const_iterator(_presence, bit_length_c);
             }
             /**Return index of first bit that is set*/
-            inline const_iterator first_set() const
+            inline dim_t first_set() const
             {
                 return presence_index(_presence);
             }
+            /**Return index of bit that is set after 'prev' one. May return `nil_c` if no bits are set.*/
+            inline dim_t next_set(dim_t prev) const
+            {
+                Int mask = (1ULL << (prev % bits_c));
+                mask += mask - 1;
+                for (auto i = prev / bits_c; i < N; ++i)
+                {
+                    auto x = _presence[i] & ~mask;
+                    if (x != 0) //test all bits are set
+                    {
+                        return ln2(x & (~x + 1)) + i*bits_c;
+                    }
+                    mask = Int(0); //reset mask for all other entries
+                }
+                return nil_c;
+            }
+
             /**Return index of first bit that is not set*/
             inline dim_t first_clear() const
             {
                 return clearence_index(_presence);
             }
+            inline bool get(dim_t index)const
+            {
+                assert(index < bit_length_c);
+                return 0 != (_presence[index / bits_c] & ( 1ULL << (index % bits_c) ));
+            }
             inline void set(dim_t index)
             {
                 assert(index < bit_length_c);
-                _presence[(N - 1) - index / bits_c] |= 1ULL << (index % bits_c);
+                _presence[index / bits_c] |= 1ULL << (index % bits_c);
             }
             inline void clear(dim_t index)
             {
                 assert(index < bit_length_c);
 
-                _presence[(N - 1) - index / bits_c] &= ~(1ULL << (index % bits_c));
+                _presence[index / bits_c] &= ~(1ULL << (index % bits_c));
             }
             inline void toggle(dim_t index)
             {
                 assert(index < bit_length_c);
-                _presence[(N - 1) - index / bits_c] ^= (1ULL << (index % bits_c));
+                _presence[index / bits_c] ^= (1ULL << (index % bits_c));
+            }
+            size_t capacity() const
+            {
+                return bit_length_c;
             }
         private:
             static inline dim_t ln2(std::uint_fast64_t value)
@@ -221,33 +248,34 @@ namespace OP
             }
             static inline dim_t presence_index(const std::uint64_t presence[N])
             {
-                return presence[0] == 0
-                    ? Presence256<N - 1>::presence_index(presence + 1)
-                    : ln2(presence[0]) + (N - 1)*bits_c;
+                //note 2: that ( x & (~(x) + 1) ) deletes all but the lowest set bit
+                for (auto i = 0; i < N; ++i)
+                {
+                    if (presence[i] != 0) //test all bits are set
+                    {
+                        return ln2(presence[0] & (~presence[0] + 1)) + i*bits_c;
+                    }
+                }
+                return nil_c;
             }
+            /**detect first un-set bit*/
             static inline dim_t clearence_index(const std::uint64_t presence[N])
-            {
-                return presence[0] == std::numeric_limits<uint64_t>::max()
-                    ? Presence256<N - 1>::clearence_index(presence + 1)
-                    : ln2(~presence[0]) + (N - 1)*bits_c;
+            {   
+                //note 1: to test first clear bit uses inversion (~) so first set bit is detected
+                //note 2: that ( x & (~(x) + 1) ) deletes all but the lowest set bit
+                for (auto i = 0; i < N; ++i)
+                {
+                    if (presence[i] != std::numeric_limits<std::uint64_t>::max()) //test all bits are set
+                    {
+                        return ln2(~presence[0] & (presence[0] + 1)) + i*bits_c;
+                    }
+                }
+                return nil_c;
             }
         private:
             Int _presence[N];
         };
-        template <>
-        inline Bitset<1>::dim_t Bitset<1>::presence_index(const std::uint64_t presence[1])
-        {
-            return presence[0] == 0
-                ? ~dim_t(0) //no entry
-                : ln2(presence[0]);
-        }
-        template <>
-        inline Bitset<1>::dim_t Bitset<1>::clearence_index(const std::uint64_t presence[1])
-        {
-            return presence[0] == std::numeric_limits<uint64_t>::max()
-                ? ~dim_t(0) //no entry
-                : ln2(~presence[0]);
-        }
+        
     } //ns: trie
 }//ns:OP
 #endif //_OP_TRIE_BITSET__H_

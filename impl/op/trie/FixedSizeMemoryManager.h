@@ -24,8 +24,11 @@ namespace OP
 
             typedef Payload payload_t;
             typedef FixedSizeMemoryManager<Payload, Capacity> this_t;
-
-            FarAddress allocate()
+            /**
+            *   \tparam Args - optional argument of Payload constructor.
+            */
+            template <class ... Args>
+            FarAddress allocate(Args&& ...args)
             {
                 OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
                 //capture ZeroHeader for write during 10 tries
@@ -51,7 +54,7 @@ namespace OP
                     *header =
                         *_segment_manager->ro_at<ZeroHeader>(result);
                 }
-                *_segment_manager->wr_at<payload_t>(result) = std::move(payload_t());
+                *_segment_manager->wr_at<payload_t>(result) = std::move(payload_t(std::forward<Args>(args)...));
                 op_g.commit();
                 return result;
             }
@@ -103,14 +106,14 @@ namespace OP
             };
         protected:
 
-            virtual bool has_residence(segment_idx_t segment_idx, SegmentManager& manager) const override
+            bool has_residence(segment_idx_t segment_idx, SegmentManager& manager) const override
             {
                 return true; //always true, has always FixedSizeMemoryManager in each segment
             }
             /**
             *   @return byte size that should be reserved inside segment. 
             */
-            virtual segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const override 
+            segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const override 
             {
                 segment_pos_t result = entry_size_c * Capacity;
                 if (segment_address.segment == 0)
@@ -122,7 +125,7 @@ namespace OP
             /**
             *   Make initialization of slot in the specified segment as specified offset
             */
-            virtual void on_new_segment(FarAddress start_address, SegmentManager& manager) override
+            void on_new_segment(FarAddress start_address, SegmentManager& manager) override
             {
                 _segment_manager = &manager;
                 auto blocks_begin = start_address;
@@ -151,7 +154,7 @@ namespace OP
             /**
             *   Perform slot openning in the specified segment as specified offset
             */
-            virtual void open(FarAddress start_address, SegmentManager& manager) override
+            void open(FarAddress start_address, SegmentManager& manager) override
             {
                 if (start_address.segment == 0)
                 {
@@ -159,7 +162,7 @@ namespace OP
                 }
             }
             /**Notify slot that some segement should release resources. It is not about deletion of segment, but deactivating it*/
-            virtual void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
+            void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
             {
 
             }
