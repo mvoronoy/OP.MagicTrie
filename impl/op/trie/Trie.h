@@ -233,7 +233,7 @@ namespace OP
             }
             navigator_t navigator_end() const
             {
-                return navigator_t(FarAddress(SegmentDef::far_null_c, dim_t(~0));
+                return navigator_t(FarAddress(SegmentDef::far_null_c, dim_t(-1)));
             }
 
             bool insert(const atom_t* begin, const atom_t* end, iterator * result = nullptr)
