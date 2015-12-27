@@ -20,6 +20,10 @@ namespace OP
                 _128 = 128, 
                 _256 = 256
             };
+            enum class HashTableFlag
+            {
+                uf_0 = 0,
+            };
             namespace details
             {
                 inline dim_t max_hash_neighbors(HashTableCapacity capacity)
@@ -130,6 +134,7 @@ namespace OP
                     }
                     return std::make_pair(~dim_t(0), false); //no capacity
                 }
+
                 /**@return number of erased - 0 or 1*/
                 unsigned erase(atom_t key)
                 {
@@ -178,7 +183,22 @@ namespace OP
                     }
                     return nil_c;
                 }
-                
+                bool get_user_flag(atom_t key, NodePersense flag)
+                {
+                    auto idx = find(key);
+                    assert(idx != nil_c);
+                    return 0 != (flag & container()[hash].flag);
+                }
+                void set_user_flag(atom_t key, NodePresence flag, bool new_val)
+                {
+                    assert(flag >= _f_userdefined_);
+                    auto idx = find(key);
+                    assert(idx != nil_c);
+                    if (new_val)
+                        container()[idx].flag |= flag;
+                    else
+                        container()[idx].flag &= ~flag;
+                }
                 /** Erase the entry associated with key
                 *   *@throws std::out_of_range exception if key is not exists
                 */

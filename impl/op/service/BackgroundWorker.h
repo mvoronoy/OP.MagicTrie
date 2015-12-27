@@ -71,6 +71,7 @@ namespace OP
                 {
                     push_queue(exit);
                 }
+                _queue_condition.notify_all(); //not sure if really needed
                 for (auto& t : _pool)
                 {
                     t.join();

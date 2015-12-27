@@ -349,6 +349,15 @@ namespace OP
                     fail(std::forward<Xetails>(details));
                 }
             }
+            void assert_false(bool condition)
+            {
+                assert_true(!condition, "assert_false(true)");
+            }
+            template <class Xetails>
+            void assert_false(bool condition, Xetails&& details)
+            {
+                assert_true(!condition, std::forward<Xetails>(details));
+            }
             template<class Comparator, class Xetails>
             void assert_that(Comparator && cmp, Xetails &&details)
             {

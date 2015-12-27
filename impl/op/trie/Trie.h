@@ -40,8 +40,22 @@ namespace OP
         {
             typedef T type;
             FarAddress address;
+            
+            template <class TSegmentManager>
+            T* ref(TSegmentManager& manager)
+            {
+                return manager.wr_at<T>(address);
+            }
+            template <class TSegmentManager>
+            const T* cref()
+            {
+                return manager.ro_at<T>(address);
+            }
         };
-
+        struct TrieDef
+        {
+            static const dim_t max_stem_length_c = 256;
+        };
         struct TrieNode
         {
             typedef Bitset<4, std::uint64_t> presence_t;
@@ -63,6 +77,66 @@ namespace OP
             TrieNode()
                 : version(0)
             {
+            }
+            typedef std::tuple<bool, FarAddress> insert_result_t;
+            /** @return <0> - false if duplicate was found, true mean need continue to research
+            *
+            */
+            template <class TSegmentTopology, class Atom, class FSuffixInsert>
+            insert_result_t insert(TSegmentTopology& topology, const Atom& begin, const Atom end, FSuffixInsert&& suffix_insert)
+            {
+                StemStore<TSegmentTopology> stem_manager(topology);
+                auto key = static_cast<atom_t>(*begin);
+                if (presence.get(key))
+                { //same atom already points somewhere
+                    ++begin; //first letter concidered in `presence`
+                    /**
+                    *   |   src   |     stem    |
+                    *  1    ""          ""         duplicate
+                    *  2    ""           x         split stem on length of src, so terminal is for src and for x
+                    *  3     x          ""         add x to page pointed by stem
+                    *  4     x           y         create child with 2 entries: x, y (check if followed of y can be optimized)
+                    */
+                    auto index = this->reindex(key);
+                    if (stems.address != SegmentDef::far_null_c)
+                    {//let's cut prefix from stem container
+                        auto stems = stems.ref(manager);
+                        auto src_len = end - begin;
+                        stem_manager.prefix_of(stems.address, index, begin, end);
+                        auto rest_length = end - begin;
+                        auto common_length = src_len - rest_length;
+                        auto stem_rest = stems.stem_length[index] - common_length;
+                        if (!stem_rest && !rest_length)
+                            return false; //duplicate
+                        if (!stem_rest)
+                        {//case 3 - need continue insertion
+
+                            return std::make_tuple(true, ;
+                        }
+                        if (rest_lengt > 0)
+                        {//string not fully fit in stem container, need split
+                                
+                        }
+                        auto after_len = end - begin;
+                    }
+                    //no stems
+                }
+                else //set new entry
+                {
+                    presence.set(key);
+                    
+                }
+            }
+        private:
+            
+            template <class TSegmentTopology>
+            dim_t reindex(TSegmentTopology& topology, atom_t key)
+            {
+                if (this->reindexer.address == SegmentDef::far_null_c)
+                    return key;
+                auto reindexed = this->reindex.cref()->find(key);
+                assert(reindexed != reindex_hash_t::nil_c);
+                return reindexed;
             }
         };
 
@@ -233,13 +307,19 @@ namespace OP
             }
             navigator_t navigator_end() const
             {
-                return navigator_t(FarAddress(SegmentDef::far_null_c, dim_t(-1)));
+                return navigator_t(FarAddress(SegmentDef::far_null_c), dim_t(~0u));
             }
 
-            bool insert(const atom_t* begin, const atom_t* end, iterator * result = nullptr)
+            bool insert(const atom_t*& begin, const atom_t* end, Payload&& value, iterator * result = nullptr)
             {
                 if (begin == end)
                     return false; //empty string cannot be inserted
+                
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction()); 
+                auto root_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                auto node = _topology_ptr->segment_manager().wr_at<TrieNode>(root_addr);
+                node->
+
                 node_ptr_t node = _root;
                 while (begin != end)
                 {
@@ -278,7 +358,9 @@ namespace OP
                 node.reindexer.address = hash_mngr.create(containers::HashTableCapacity::_8);
                 //create stem-container
                 stem::StemStore<topology_t> stem_mngr(*_topology_ptr);
-                node.stems.address = stem_mngr.create((dim_t)containers::HashTableCapacity::_8, 256);
+                node.stems.address = stem_mngr.create(
+                    (dim_t)containers::HashTableCapacity::_8, 
+                    TrieDef::max_stem_length_c);
 
                 auto &res = _topology_ptr->slot<TrieResidence>();
                 res.increase_nodes_allocated(+1);
