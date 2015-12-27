@@ -146,8 +146,11 @@ namespace OP
                     ++data.count;
                     g.commit();
                 }
+                /**
+                *   Detect substr return processed characters number of stem
+                */
                 template <class T>
-                inline void prefix_of(FarAddress address, atom_t key, T& begin, T && end) const
+                inline dim_t prefix_of(FarAddress address, atom_t key, T& begin, T && end) const
                 {
                     //start tran over readonly operation to grant data consistence
                     OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
@@ -158,17 +161,18 @@ namespace OP
                     address += memory_requirement<StemData>::requirement 
                         + sizeof(atom_t)*data_header.height * key;
                     auto f_str = _topology.segment_manager().ro_at<atom_t>(address);
-
-                    for (dim_t i = 0; i < data.stem_length[key] && begin != end; ++f_str, ++begin)
+                    dim_t i = 0;
+                    for (; i < data_header.stem_length[key] && begin != end; ++f_str, ++begin)
                     {
                         if (*f_str != *begin)
                         { //difference in sequence mean that stem should be splitted
-                            return;
+                            return i;
                         }
                     }
+                    return i;
                     //here rollback goes
                 }
-                
+                /**Cut already existing string*/
                 inline void trunc_str(StemData& data, atom_t key, dim_t shorten) const
                 {
                     OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());

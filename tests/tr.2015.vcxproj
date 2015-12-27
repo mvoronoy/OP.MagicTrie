@@ -172,6 +172,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BgWorkerTest.cpp" />
+    <ClCompile Include="BitsetTest.cpp" />
     <ClCompile Include="ContainersTest.cpp" />
     <ClCompile Include="FixedSizeMemoryManagerTest.cpp" />
     <ClCompile Include="RangeTest.cpp" />

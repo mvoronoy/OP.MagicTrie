@@ -34,29 +34,66 @@
     <ClCompile Include="FixedSizeMemoryManagerTest.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="BitsetTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\impl\op\trie\Bitset.h" />
-    <ClInclude Include="..\impl\op\trie\HashTable.h" />
-    <ClInclude Include="..\impl\op\trie\MemoryBlock.h" />
-    <ClInclude Include="..\impl\op\trie\MemoryManager.h" />
-    <ClInclude Include="..\impl\op\trie\NamedObjects.h" />
-    <ClInclude Include="..\impl\op\trie\Range.h" />
-    <ClInclude Include="..\impl\op\trie\SegmentManager.h" />
-    <ClInclude Include="..\impl\op\trie\CacheManager.h" />
-    <ClInclude Include="..\impl\op\trie\Containers.h" />
-    <ClInclude Include="..\impl\op\trie\Exceptions.h" />
-    <ClInclude Include="..\impl\op\trie\Skplst.h" />
-    <ClInclude Include="..\impl\op\trie\StemContainer.h" />
-    <ClInclude Include="..\impl\op\trie\TransactedSegmentManager.h" />
-    <ClInclude Include="..\impl\op\trie\Transactional.h" />
-    <ClInclude Include="..\impl\op\trie\Trie.h" />
-    <ClInclude Include="..\impl\op\trie\Utils.h" />
     <ClInclude Include="GenericMemoryTest.h" />
     <ClInclude Include="..\impl\op\service\BackgroundWorker.h">
       <Filter>service</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\FixedSizeMemoryManager.h" />
+    <ClInclude Include="..\impl\op\trie\Bitset.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\CacheManager.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\Containers.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\Exceptions.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\HashTable.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\MemoryBlock.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\MemoryManager.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\NamedObjects.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\FixedSizeMemoryManager.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\Range.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\SegmentManager.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\Skplst.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\StemContainer.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TransactedSegmentManager.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\Transactional.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\Trie.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\Utils.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -67,6 +104,12 @@
     </Filter>
     <Filter Include="tests">
       <UniqueIdentifier>{5bc008c7-46cd-40da-934e-9ce83fe33f55}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP">
+      <UniqueIdentifier>{c56eab2e-73a7-4ce4-aefa-71baca98d239}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\trie">
+      <UniqueIdentifier>{537c11de-522e-4307-954f-abcfca58bd02}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
