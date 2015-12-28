@@ -583,6 +583,9 @@ namespace OP
                 assert(offset < count());
                 return MemoryRange(this->pos() + offset, count() - offset, address() + offset, this->segment());
             }
+            /**
+            *   @param idx - byte offset (not an item index)
+            */
             template <class T>
             T* at(segment_pos_t idx)
             {
@@ -616,6 +619,9 @@ namespace OP
             ReadonlyMemoryRange(const ReadonlyMemoryRange&) = delete;
             ReadonlyMemoryRange& operator = (const ReadonlyMemoryRange&) = delete;
 
+            /**
+            *   @param idx - byte offset (not an item index)
+            */
             template <class T>
             const T* at(segment_pos_t idx) const
             {
@@ -742,12 +748,14 @@ namespace OP
             /** Shorthand for \code
                 readonly_block(pos, sizeof(T)).at<T>(0)
             \endcode
+            *   Removed as dangerous code - if RO block destroyed reference is in unpredictable state
             */
-            template <class T>
-            const T* ro_at(FarAddress pos, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
-            {
-                return this->readonly_block(pos, sizeof(T), hint).at<T>(0);
-            }
+            //template <class T>
+            //const T* ro_at(FarAddress pos, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
+            //{
+            //    return this->readonly_block(pos, sizeof(T), hint).at<T>(0);
+            //}
+
             /** Shorthand for \code
                 readonly_block(pos, sizeof(T)).at<T>(0)
             \endcode

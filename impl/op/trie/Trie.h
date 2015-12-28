@@ -13,6 +13,7 @@
 #include <op/trie/HashTable.h>
 #include <op/trie/StemContainer.h>
 #include <op/trie/MemoryManager.h>
+#include <op/trie/TypeHelper.h>
 
 namespace OP
 {
@@ -35,29 +36,17 @@ namespace OP
             dim_t _offset;
         };
 
-        template <class T>
-        struct PersistedReference
-        {
-            typedef T type;
-            FarAddress address;
-            
-            template <class TSegmentManager>
-            T* ref(TSegmentManager& manager)
-            {
-                return manager.wr_at<T>(address);
-            }
-            template <class TSegmentManager>
-            const T* cref()
-            {
-                return manager.ro_at<T>(address);
-            }
-        };
+        
+        /**Constant definition for trie*/
         struct TrieDef
         {
+            /**Maximal length of stem*/
             static const dim_t max_stem_length_c = 256;
         };
+        template <class Payload>
         struct TrieNode
         {
+            typedef typename Payload payload_t;
             typedef Bitset<4, std::uint64_t> presence_t;
             typedef std::uint32_t version_t;
             typedef OP::trie::containers::HashTableData reindex_hash_t;
@@ -66,6 +55,9 @@ namespace OP
             typedef OP::trie::stem::StemData stems_t;
             typedef PersistedReference<stems_t> ref_stems_t;
 
+            typedef ValueArrayData<payload_t> values_t;
+            typedef PersistedArray<values_t> ref_values_t;
+
             //typedef std::tuple<presence_t, ref_reindex_hash_t, ref_stems_t> node_def_t;
             //node_def_t _data;
 
@@ -73,7 +65,8 @@ namespace OP
             version_t version;
             ref_reindex_hash_t reindexer;
             ref_stems_t stems;
-            
+            ref_values_t payload;
+
             TrieNode()
                 : version(0)
             {
@@ -86,6 +79,7 @@ namespace OP
             insert_result_t insert(TSegmentTopology& topology, const Atom& begin, const Atom end, FSuffixInsert&& suffix_insert)
             {
                 StemStore<TSegmentTopology> stem_manager(topology);
+                PersistedHashTable<TSegmentTopology> hash_manager(topology);
                 auto key = static_cast<atom_t>(*begin);
                 if (presence.get(key))
                 { //same atom already points somewhere
@@ -106,12 +100,15 @@ namespace OP
                         auto rest_length = end - begin;
                         auto common_length = src_len - rest_length;
                         auto stem_rest = stems.stem_length[index] - common_length;
-                        if (!stem_rest && !rest_length)
-                            return false; //duplicate
                         if (!stem_rest)
-                        {//case 3 - need continue insertion
+                        {
+                            if (!rest_length)
+                                return false; //case 1 - duplicate
+                            if (!stem_rest)
+                            {//case 3 - need continue insertion
 
-                            return std::make_tuple(true, ;
+                                return std::make_tuple(true, ;
+                            }
                         }
                         if (rest_lengt > 0)
                         {//string not fully fit in stem container, need split
@@ -123,6 +120,8 @@ namespace OP
                 }
                 else //set new entry
                 {
+                    auto reindex_res = hash_manager.insert(this->reindex.address, key);
+                    assert(reindex_res.second); //no-presence automatically mean no hash-entry
                     presence.set(key);
                     
                 }
@@ -263,7 +262,8 @@ namespace OP
         public:
             typedef int iterator;
             typedef Trie<TSegmentManager, Payload, initial_node_count> this_t;
-            typedef TrieNavigator<TrieNode, TSegmentManager> navigator_t;
+            typedef TrieNode<Payload> node_t;
+            typedef TrieNavigator<node_t, TSegmentManager> navigator_t;
 
             virtual ~Trie()
             {
@@ -299,7 +299,7 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction()); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                auto node = _topology_ptr->segment_manager().ro_at<TrieNode>(r_addr);
+                auto node = _topology_ptr->segment_manager().ro_at<node_t>(r_addr);
                 
                 return navigator_t(_topology_ptr->slot<TrieResidence>().get_root_addr(), 
                     node->presence.first_set()/*may produce nil_c*/ 
@@ -317,7 +317,7 @@ namespace OP
                 
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction()); 
                 auto root_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                auto node = _topology_ptr->segment_manager().wr_at<TrieNode>(root_addr);
+                auto node = _topology_ptr->segment_manager().wr_at<node_t>(root_addr);
                 node->
 
                 node_ptr_t node = _root;
@@ -335,7 +335,7 @@ namespace OP
                 }
             }
         private:
-            typedef FixedSizeMemoryManager<TrieNode, initial_node_count> node_manager_t;
+            typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
             typedef SegmentTopology<
                 TrieResidence, 
                 node_manager_t, 
@@ -352,7 +352,7 @@ namespace OP
             FarAddress new_node()
             {
                 auto node_pos = _topology_ptr->slot<node_manager_t>().allocate();
-                auto node =* new (_topology_ptr->segment_manager().wr_at<TrieNode>(node_pos)) TrieNode;
+                auto node =* new (_topology_ptr->segment_manager().wr_at<node_t>(node_pos)) node_t;
                 // create hash-reindexer
                 containers::PersistedHashTable<topology_t> hash_mngr(*_topology_ptr);
                 node.reindexer.address = hash_mngr.create(containers::HashTableCapacity::_8);
@@ -361,6 +361,8 @@ namespace OP
                 node.stems.address = stem_mngr.create(
                     (dim_t)containers::HashTableCapacity::_8, 
                     TrieDef::max_stem_length_c);
+                ValueArrayManager<topology_t, payload_t> vmanager(*_topology_ptr);
+                node.payload.address = vmanager.create((dim_t)containers::HashTableCapacity::_8);
 
                 auto &res = _topology_ptr->slot<TrieResidence>();
                 res.increase_nodes_allocated(+1);
