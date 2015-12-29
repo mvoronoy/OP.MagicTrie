@@ -94,6 +94,12 @@
     <ClInclude Include="..\impl\op\trie\Utils.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TypeHelper.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ValueArray.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />

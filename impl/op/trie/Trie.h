@@ -58,6 +58,8 @@ namespace OP
             typedef ValueArrayData<payload_t> values_t;
             typedef PersistedArray<values_t> ref_values_t;
 
+            static const NodePersense f_value_resent_c = fdef_0; 
+            static const NodePersense f_addre_presence_c = fdef_1;
             //typedef std::tuple<presence_t, ref_reindex_hash_t, ref_stems_t> node_def_t;
             //node_def_t _data;
 
@@ -81,9 +83,10 @@ namespace OP
                 StemStore<TSegmentTopology> stem_manager(topology);
                 PersistedHashTable<TSegmentTopology> hash_manager(topology);
                 auto key = static_cast<atom_t>(*begin);
+                ++begin; //first letter concidered in `presence`
                 if (presence.get(key))
                 { //same atom already points somewhere
-                    ++begin; //first letter concidered in `presence`
+                    
                     /**
                     *   |   src   |     stem    |
                     *  1    ""          ""         duplicate
@@ -107,7 +110,7 @@ namespace OP
                             if (!stem_rest)
                             {//case 3 - need continue insertion
 
-                                return std::make_tuple(true, ;
+                                return std::make_tuple(true, index, ;
                             }
                         }
                         if (rest_lengt > 0)
@@ -123,7 +126,13 @@ namespace OP
                     auto reindex_res = hash_manager.insert(this->reindex.address, key);
                     assert(reindex_res.second); //no-presence automatically mean no hash-entry
                     presence.set(key);
-                    
+                    stem_manager.accomodate(stems.address, reindex_res.first, begin, end);
+                    if (begin == end)
+                    { //source fully fit to stem
+                        ValueArrayManager<TSegmentTopology, payload_t> value_manager(toplogy);
+                        hash_manager.set_user_flag(key, f_value_resent_c, true);
+                        value_manager.put_data(this->payload.address, reindex_res.first, )
+                    }
                 }
             }
         private:
@@ -316,8 +325,14 @@ namespace OP
                     return false; //empty string cannot be inserted
                 
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction()); 
-                auto root_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                auto node = _topology_ptr->segment_manager().wr_at<node_t>(root_addr);
+                auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                while(node_addr != SegmentDef::far_null_c)
+                { 
+                    auto node = _topology_ptr->segment_manager().wr_at<node_t>(node_addr);
+                    node->
+
+                }
+                
                 node->
 
                 node_ptr_t node = _root;
