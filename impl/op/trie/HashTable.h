@@ -185,6 +185,7 @@ namespace OP
                 }
                 bool get_user_flag(atom_t key, NodePersense flag)
                 {
+                    assert(flag >= _f_userdefined_);
                     auto idx = find(key);
                     assert(idx != nil_c);
                     return 0 != (flag & container()[hash].flag);

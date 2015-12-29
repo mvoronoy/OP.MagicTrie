@@ -25,11 +25,12 @@ namespace OP
                 /**Mean infinit length*/
                 nil_c = dim_t(~0u),
                 /**Max enties allowed in stem container*/
-                max_entries_c = 256
+                max_entries_c = 256,
+                max_stem_length_c = 255
             };
 
             
-            template <dim_t Max = 255>
+            template <dim_t Max = max_stem_length_c>
             struct StemString
             {
                 typedef atom_t* data_ptr_t;
@@ -70,7 +71,7 @@ namespace OP
                     , count(0)
                     , stem_length{}
                 {
-
+                    assert(height <= max_stem_length_c);
                 }
                 dim_t width;
                 dim_t height;
@@ -139,7 +140,7 @@ namespace OP
                     auto& size = data_header.stem_length[key];
                     assert(size == 0);
                     
-                    for (; begin != end && size < data_header.height; ++f_str, ++begin, ++size, ++data.summary_length)
+                    for (; begin != end && size <= data_header.height; ++f_str, ++begin, ++size, ++data.summary_length)
                     {
                         *f_str = *begin;
                     }
@@ -181,7 +182,11 @@ namespace OP
                     assert(key < data_header.width);
                     //assert that can't make str longer
                     assert(data_header.stem_length[key] > shorten);
+                    
+                    data_header.summary_length = data_header.stem_length[key] -
+                        data_header.stem_length[key] + shorten;
                     data_header.stem_length[key] = shorten;
+                    
                     g.commit();
                 }
 
