@@ -70,11 +70,10 @@ namespace OP
             
             FarAddress create(dim_t capacity, payload_t && payload = payload_t())
             {
-
                 auto& memmngr = _topology.slot<MemoryManager>();
-                OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
+                //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
                 auto result = memmngr.make_array<vad_t>(capacity, std::forward<payload_t>(payload));
-                g.commit();
+                //g.commit();
                 return result;
             }
             
