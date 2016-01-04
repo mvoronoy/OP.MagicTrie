@@ -186,7 +186,7 @@ namespace OP
             dim_t insert_stem(TSegmentTopology& topology, Atom& begin, Atom end)
             {
                 stem::StemStore<TSegmentTopology> stem_manager(topology);
-                containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
+                
                 auto key = static_cast<atom_t>(*begin);
                 ++begin; //first letter concidered in `presence`
                 assert(!presence.get(key));
@@ -196,16 +196,13 @@ namespace OP
                 {
                     containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                     auto p = hash_mngr.insert(this->reindexer.address, key);
-                    if (!p.second) //may be dupplicate (impossible for normal flow) or no capacity
+                    if (!p.second) //may be on no capacity or dupplicate (impossible for normal flow)
                     {
                         assert(p.first == ~dim_t(0));//only possible reason - capacity is over
-
+                        grow(topology);
                     }
-
-
                 }
                 
-
                 auto reindex_res = reindex(topology, key);
                 stem_manager.accommodate(stems.address, reindex_res, begin, std::move(end));
                 return reindex_res;
@@ -222,10 +219,10 @@ namespace OP
 
                 return static_cast<atom_t>(reindexed);
             }
-            template <class TSegmentTopology>
-            void grow()
+            template <class THashManager>
+            void grow(THashManager& hash_manager)
             {
-                static
+                auto new_capacity = details::grow_size((HashTableCapacity)prev_tbl_head->capacity);
             }
         };
 
