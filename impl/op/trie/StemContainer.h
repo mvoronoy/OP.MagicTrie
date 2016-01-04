@@ -284,16 +284,19 @@ namespace OP
                 }
                 /**
                 *   @param previous - in/out holder of address
-                *   @! @todo current impl is velocity efficient, but must be implmented as space efficient - instead of taking max stem, need base on average length
+                *   @!@ @todo current impl is velocity efficient, but must be implmented as space efficient - instead of taking max stem, need base on average length
                 */
-                template<class IndexIterator>
-                StemData* grow(PersistedReference<StemData>& previous, dim_t new_size, IndexIterator begin, IndexIterator end)
+                
+                std::tuple<FarAddress, StemData*> grow(const PersistedReference<StemData>& previous, dim_t new_size)
                 {
                     auto ro_access = _topology.segment_manager()
                         .readonly_access<StemData>(previous.address);
                     auto max_height = std::max_element(ro_access->stem_length, ro_access->stem_length + ro_access->width);
-                    auto new_stem_data = this->create(new_size, max_height);
-                    return tuple_ref<StemData*>(new_stem_data);
+                    //it is possible that all set to 0, so 
+                    //@!@ @todo allow nil-stem container
+                    if (max_height < 2)
+                        max_height = 2;
+                    return this->create(new_size, max_height);
                 }
                 
             protected:

@@ -217,9 +217,11 @@ namespace OP
                 }
                 /**
                 *   @param from [in/out] origin hash table that will be changed during grow. When table exceeds 128, this became nil since no table should be used above 128
+                *   @tparam callback - functor with signature void(atom_t from, dim_t to)
+                *   @tparam prepare - functor with signature void(HashTableCapacity new_capacity)
                 */
-                template <class FReindexCallback>
-                HashTableData* grow(PersistedReference<HashTableData>& from, FReindexCallback&callback)
+                template <class FPepareCallback class FReindexCallback>
+                HashTableData* grow(PersistedReference<HashTableData>& from, FPepareCallback& prepare, FReindexCallback&callback)
                 {
                     auto prev_tbl_head = _topology.segment_manager().readonly_accessor<HashTableData>(from.address);
                     auto prev_tbl_data = _topology.segment_manager().readonly_accessor<HashTableData::Content>(
@@ -227,6 +229,7 @@ namespace OP
                         );
 
                     auto new_capacity = details::grow_size((HashTableCapacity)prev_tbl_head->capacity);
+                    prepare(new_capacity);
                     FarAddress new_address; //got default value nil
                     std::function<dim_t(atom_t)> remap;
                     if (new_capacity == HashTableCapacity::_256) //check if limit is reached - must remove table at all

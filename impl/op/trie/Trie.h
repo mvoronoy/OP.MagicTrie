@@ -196,7 +196,7 @@ namespace OP
                 {
                     containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                     auto p = hash_mngr.insert(this->reindexer.address, key);
-                    if (!p.second) //may be on no capacity or dupplicate (impossible for normal flow)
+                    if (!p.second) //may be on no capacity or dupplicate (that's impossible for normal flow)
                     {
                         assert(p.first == ~dim_t(0));//only possible reason - capacity is over
                         grow(topology);
@@ -219,10 +219,46 @@ namespace OP
 
                 return static_cast<atom_t>(reindexed);
             }
-            template <class THashManager>
-            void grow(THashManager& hash_manager)
+            /**Helper class to keep track of states durin grow operation*/
+            template <class TSegmentTopology>
+            struct GrowTrackState
             {
+                GrowTrackState(TSegmentTopology& toplogy, ref_stems_t& stems_ref, ref_values_t& values_ref )
+                    : _stem_manager(topology)
+                    , _value_manager(topology)
+                    , _stems_ref(stems_ref)
+                    , _values_ref(values_ref)
+                {}
+
+                /**Create new containers for values and stems*/
+                void pre_grow(containers::HashTableCapacity new_capacity)
+                {
+                    _new_stems = std::move(_stem_manager.grow(_stems_ref, (dim_t)new_capacity);
+                    _new_vad = _value_manager.create((dim_t)new_capacity);
+                }
+                void copy_data(atom_t from, dim_t to)
+                {
+                    
+                }
+                stem::StemStore<TSegmentTopology> _stem_manager;
+                ValueArrayManager<TSegmentTopology, payload_t> _value_manager;
+                ref_stems_t& _stems_ref;
+                std::tuple<FarAddress, StemData*> _new_stems;
+                FarAddress _new_vad;
+                ref_values_t& _values_ref;
+            };
+            template <class TSegmentTopology>
+            void grow(TSegmentTopology& toplogy)
+            {
+                stem::StemStore<TSegmentTopology> stem_manager(topology);
+                containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
+
+                hash_manager.grow(this->reindexer,
+                    [](containers::HashTableCapacity new_capacity) {
+                    //
+                }
                 auto new_capacity = details::grow_size((HashTableCapacity)prev_tbl_head->capacity);
+                
             }
         };
 
