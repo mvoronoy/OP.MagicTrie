@@ -629,6 +629,33 @@ namespace OP
                 return reinterpret_cast<T*>(pos() + idx);
             }
         };
+        template <class T>
+        struct ReadonlyAccess : public ReadonlyMemoryRange
+        {
+            ReadonlyAccess(ReadonlyMemoryRange&& right) OP_NOEXCEPT
+                : ReadonlyMemoryRange(std::move(right))
+            {
+            }
+            operator const T* () const
+            {
+                return ReadonlyMemoryRange::at<T>(0);
+            }
+            const T& operator *() const
+            {
+                return *ReadonlyMemoryRange::at<T>(0);
+            }
+            const T* operator -> () const
+            {
+                return ReadonlyMemoryRange::at<T>(0);
+            }
+            const T& operator[](segment_pos_t index) const
+            {
+                auto byte_offset = memory_requirement<T>::requirement * index;
+                if (byte_offset >= this->count())
+                    throw std::out_of_range("index out of range");
+                return *ReadonlyMemoryRange::at<T>(byte_offset);
+            }
+        };
         /**Hint allows specify how writable block will be used*/
         enum class WritableBlockHint : std::uint8_t
         {
@@ -729,6 +756,12 @@ namespace OP
                 assert((pos.offset + size) <= this->segment_size());
                 return ReadonlyMemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
             }
+            /**Just utility to simplify access of single structure.*/
+            template <class T>
+            ReadonlyAccess<T> readonly_access(FarAddress pos, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
+            {
+                return ReadonlyAccess<T>(std::move(readonly_block(pos, memory_requirement<T>::requirement, hint)));
+            }
             /**
             * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
             */
@@ -763,7 +796,7 @@ namespace OP
             template <class T>
             T* wr_at(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
-                return this->writable_block(pos, sizeof(T), hint).at<T>(0);
+                return this->writable_block(pos, memory_requirement<T>::requirement, hint).at<T>(0);
             }
             /**
             *   It is very slow (!)  method. Prefer to use #to_far(segment_idx_t, const void *address) instead

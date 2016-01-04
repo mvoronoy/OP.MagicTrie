@@ -41,7 +41,7 @@ void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
     //test all values kept correct value
     for (auto i = 0; i < test_nodes_count_c; ++i)
     {
-        auto to_test = topology.segment_manager().ro_at<FixedSizeMemoryManager::payload_t>(allocated_addrs[i]);
+        auto to_test = topology.segment_manager().readonly_access<FixedSizeMemoryManager::payload_t>(allocated_addrs[i]);
         tresult.assert_true(i + 57 == to_test->inc, "Invalid value stored");
     }
 }

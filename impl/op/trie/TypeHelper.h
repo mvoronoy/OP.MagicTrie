@@ -19,8 +19,12 @@ namespace OP
             {
                 return manager.wr_at<T>(address);
             }
-            template <class Args...>
-            T* construct(Args ... args)
+            bool is_null() const
+            {
+                return address == SegmentDef::far_null_c;
+            }
+            template <class ... Args>
+            T* construct(Args&& ... args)
             {
                 return new (manager.wr_at<T>(address)) T(std::forward<Args>(args)...);
             }
@@ -30,7 +34,12 @@ namespace OP
         {
             typedef T type;
             FarAddress address;
-
+            
+            bool is_null() const
+            {
+                return address == SegmentDef::far_null_c;
+            }
+            
             template <class TSegmentManager>
             T* ref(TSegmentManager& manager, segment_pos_t index)
             {

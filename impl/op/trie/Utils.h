@@ -117,12 +117,12 @@ namespace OP
         template <class T, class Tuple>
         inline T& tuple_ref(Tuple& tuple)
         {
-            return std::get< tuple_ref_index<T, Tuple> >(tuple);
+            return std::get< tuple_ref_index<T, Tuple>::value >(tuple);
         }
         template <class T, class Tuple>
         inline const T& tuple_ref(const Tuple& tuple)
         {
-            return std::get< tuple_ref_index<T, Tuple> >(tuple);
+            return std::get< tuple_ref_index<T, Tuple>::value >(tuple);
         }
 
         template <typename Base, typename Tuple, std::size_t I = 0>
