@@ -52,8 +52,8 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
         OP_CODE_DETAILS("Duplicate insert must not be allowed"));
     tresult.assert_true(b1 == std::end(stem1));
     tresult.assert_true(trie->size() == 1);
-
-    tresult.assert_true(trie->insert(b1 = std::begin(stem1_deviation1), std::end(stem1_deviation1), 0.0), OP_CODE_DETAILS());
+    tresult.assert_true(
+        trie->insert(b1 = stem1_deviation1.cbegin(), stem1_deviation1.cend(), 0.0), OP_CODE_DETAILS());
     tresult.assert_true(b1 == std::end(stem1_deviation1));
 }
 static auto module_suite = OP::utest::default_test_suite("Trie")

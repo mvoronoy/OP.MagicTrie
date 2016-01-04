@@ -18,9 +18,6 @@ namespace OP
         /**unsigned size of single page(container) */
         typedef std::uint16_t node_size_t;
 
-        struct EmptyPayload
-        {};
-
         namespace _internal
         {
             template <bool tst, node_size_t _then, node_size_t _or_else>

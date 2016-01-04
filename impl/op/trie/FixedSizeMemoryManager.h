@@ -51,8 +51,8 @@ namespace OP
                 else
                 {//only one entry left, so need rebuild further list
                     result.address = header->_next; //points to block with ZeroHeader over it will be erased after allocation
-                    *header =
-                        *_segment_manager->ro_at<ZeroHeader>(result);
+                    auto res_block = _segment_manager->readonly_block(result, memory_requirement<ZeroHeader>::requirement);
+                    *header = *res_block.at<ZeroHeader>(0);
                 }
                 *_segment_manager->wr_at<payload_t>(result) = std::move(payload_t(std::forward<Args>(args)...));
                 op_g.commit();

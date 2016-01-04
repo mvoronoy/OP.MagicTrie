@@ -76,7 +76,10 @@ namespace OP
                     }
                 }
                 if (!current)//no current transaction at all
+                {
+                    real_mem_future.wait();
                     throw Exception(er_transaction_not_started, "write allowed only inside transaction");
+                }
                 auto super_res = SegmentManager::writable_block(pos, size, hint);
                 auto found_res = real_mem_future.get();
                 if (found_res != _captured_blocks.end() && !(_captured_blocks.key_comp()(search_range, found_res->first)))

@@ -63,9 +63,10 @@ namespace OP
         struct TransactionGuard
         {
             template <class Sh>
-            TransactionGuard(Sh && instance) :
-                _instance(std::forward<Sh>(instance)),
-                _is_closed(!_instance)//be polite to null transactions
+            TransactionGuard(Sh && instance, bool do_commit_on_close = false) 
+                : _instance(std::forward<Sh>(instance))
+                , _is_closed(!_instance)//be polite to null transactions
+                , _do_commit_on_close(do_commit_on_close)
             {}
             void commit()
             {
@@ -89,11 +90,12 @@ namespace OP
             ~TransactionGuard()
             {
                 if (!_is_closed)
-                    _instance->rollback();
+                    _do_commit_on_close ? _instance->commit() : _instance->rollback();
             }
         private:
             std::shared_ptr<Transaction> _instance;
             bool _is_closed;
+            bool _do_commit_on_close;
         };
 
         /**
