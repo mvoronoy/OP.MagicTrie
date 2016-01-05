@@ -238,7 +238,7 @@ namespace OP
                 }
                 void copy_data(atom_t from, dim_t to)
                 {
-                    
+                    tuple_ref<StemData*>(_new_stems)
                 }
                 stem::StemStore<TSegmentTopology> _stem_manager;
                 ValueArrayManager<TSegmentTopology, payload_t> _value_manager;
