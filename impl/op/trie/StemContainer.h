@@ -298,7 +298,11 @@ namespace OP
                         max_height = 2;
                     return this->create(new_size, max_height);
                 }
-                
+                void move_item(StemData& from, dim_t from_idx, StemData& to, dim_t to_idx)
+                {
+                    address += memory_requirement<StemData>::requirement
+                        + sizeof(atom_t)*data_header.height * key;
+                }
             protected:
             private:
                 
