@@ -55,8 +55,35 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     tresult.assert_true(
         trie->insert(b1 = stem1_deviation1.cbegin(), stem1_deviation1.cend(), 0.0), OP_CODE_DETAILS());
     tresult.assert_true(b1 == std::end(stem1_deviation1));
+
+    
 }
+void test_TrieInsertGrow(OP::utest::TestResult &tresult)
+{
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    std::map<std::string, double> test_values;
+    // Populate trie with unique strings in range from [0..255]
+    // this must cause grow of root node
+    const std::string stems[] = { "abc", "", "x", std::string(256, 'z') };
+    std::array<std::uint16_t, 256> rand_idx;
+    std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
+    std::random_shuffle(std::begin(rand_idx), std::end(rand_idx));
+    for (auto i : rand_idx)
+    {
+        std::string test = std::string(1, (std::string::value_type)i) + 
+            stems[rand() % std::extent< decltype(stems) >::value];
+        trie->insert(std::begin(test), std::end(test), (double)test.length());
+        test_values[test] = (double)test.length();
+    }
+}
+
 static auto module_suite = OP::utest::default_test_suite("Trie")
 ->declare(test_TrieCreation, "creation")
 ->declare(test_TrieInsert, "insertion")
+->declare(test_TrieInsertGrow, "insertion-grow")
 ;

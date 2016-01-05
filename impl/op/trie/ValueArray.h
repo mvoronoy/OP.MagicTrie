@@ -20,7 +20,7 @@ namespace OP
             {}
             ValueArrayData(ValueArrayData && other) OP_NOEXCEPT
                 : child(other.child)
-                , data(std::move(other.payload)) //in hope that payload supports move
+                , data(std::move(other.data)) //in hope that payload supports move
                 , presence(other.presence)
             {
                 other.presence = no_data_c; //clear previous
@@ -94,6 +94,12 @@ namespace OP
                 wr->presence |= vad_t::has_child_c;
                 wr->child = address;
                 //g.commit();
+            }
+            void put(FarAddress array_addr, dim_t index, vad_t v)
+            {
+                array_addr += index * memory_requirement<vad_t>::requirement;
+                auto wr = _topology.segment_manager().wr_at<vad_t>(array_addr);
+                *wr = std::move(v);
             }
             /**Get value by index for RO purpose*/
             vad_t get(FarAddress array_addr, dim_t index)
