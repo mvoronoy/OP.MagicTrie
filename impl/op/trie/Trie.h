@@ -160,7 +160,7 @@ namespace OP
                 auto target_node =
                     topology.segment_manager().wr_at<this_t>(target);
                 //extract stem from current node
-                std::tuple<const atom_t*, dim_t&, stem::StemData& > stem_info = 
+                /*std::tuple<const atom_t*, dim_t, stem::StemData& >*/auto stem_info = 
                     stem_manager.stem(stems.address, reindex_src);
                 auto src_begin = stem::StemOfNode(key, at_index, std::get<0>(stem_info));
                 auto src_end = stem::StemOfNode(key, std::get<1>(stem_info), std::get<0>(stem_info));
@@ -188,23 +188,30 @@ namespace OP
                 stem::StemStore<TSegmentTopology> stem_manager(topology);
                 
                 auto key = static_cast<atom_t>(*begin);
-                ++begin; //first letter concidered in `presence`
                 assert(!presence.get(key));
                 presence.set(key);
+                ++begin; //first letter concidered in `presence`
                 dim_t reindex_res = key;
-                if (this->reindexer.is_null())
+                if (!stems.is_null())
                 {
-                    containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
-                    auto p = hash_mngr.insert(this->reindexer.address, key);
-                    if (!p.second) //may be on no capacity or dupplicate (that's impossible for normal flow)
+                    if (this->reindexer.is_null())
                     {
-                        assert(p.first == ~dim_t(0));//only possible reason - capacity is over
-                        grow(topology);
+                        containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
+                        auto p = hash_mngr.insert(this->reindexer.address, key);
+                        if (!p.second) //may be on no capacity or dupplicate (that's impossible for normal flow)
+                        {
+                            assert(p.first == ~dim_t(0));//only possible reason - capacity is over
+                            grow(topology);
+                            if (!this->reindexer.is_null()) //might grow to 256 and became nil
+                            {
+                                p = hash_mngr.insert(this->reindexer.address, key);
+                                assert(p.second);//in new container 
+                            }
+                        }
+                        reindex_res = p.first;
                     }
+                    stem_manager.accommodate(stems.address, (atom_t)reindex_res, begin, std::move(end));
                 }
-                
-                auto reindex_res = reindex(topology, key);
-                stem_manager.accommodate(stems.address, reindex_res, begin, std::move(end));
                 return reindex_res;
             }
             template <class TSegmentTopology>
@@ -223,7 +230,7 @@ namespace OP
             template <class TSegmentTopology>
             struct GrowTrackState
             {
-                GrowTrackState(TSegmentTopology& toplogy, ref_stems_t& stems_ref, ref_values_t& values_ref )
+                GrowTrackState(TSegmentTopology& topology, ref_stems_t& stems_ref, ref_values_t& values_ref )
                     : _stem_manager(topology)
                     , _value_manager(topology)
                     , _stems_ref(stems_ref)
@@ -233,31 +240,42 @@ namespace OP
                 /**Create new containers for values and stems*/
                 void pre_grow(containers::HashTableCapacity new_capacity)
                 {
-                    _new_stems = std::move(_stem_manager.grow(_stems_ref, (dim_t)new_capacity);
+                    _new_stems = std::move(_stem_manager.grow(_stems_ref, (dim_t)new_capacity));
                     _new_vad = _value_manager.create((dim_t)new_capacity);
                 }
                 void copy_data(atom_t from, dim_t to)
                 {
-                    tuple_ref<StemData*>(_new_stems)
+                    _stem_manager.move_item(_stems_ref.address, from, *tuple_ref<stem::StemData*>(_new_stems), to);
+                    _value_manager.put(_new_vad, to,
+                        std::move(_value_manager.get(_values_ref.address, from)));
+                }
+                void shutdown()
+                {
+                    _stems_ref.address = tuple_ref<FarAddress>(_new_stems);
+                    _values_ref.address = _new_vad;
                 }
                 stem::StemStore<TSegmentTopology> _stem_manager;
                 ValueArrayManager<TSegmentTopology, payload_t> _value_manager;
                 ref_stems_t& _stems_ref;
-                std::tuple<FarAddress, StemData*> _new_stems;
+                std::tuple<FarAddress, stem::StemData*> _new_stems;
                 FarAddress _new_vad;
                 ref_values_t& _values_ref;
             };
             template <class TSegmentTopology>
-            void grow(TSegmentTopology& toplogy)
+            void grow(TSegmentTopology& topology)
             {
-                stem::StemStore<TSegmentTopology> stem_manager(topology);
                 containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
+                GrowTrackState<TSegmentTopology> track_state(topology, this->stems, this->payload);
 
                 hash_manager.grow(this->reindexer,
-                    [](containers::HashTableCapacity new_capacity) {
-                    //
-                }
-                auto new_capacity = details::grow_size((HashTableCapacity)prev_tbl_head->capacity);
+                        [&track_state](containers::HashTableCapacity new_capacity) { 
+                            track_state.pre_grow(new_capacity);
+                        }, 
+                        [&track_state](atom_t from, dim_t to){
+                            track_state.copy_data(from, to);
+                        }
+                    );
+                track_state.shutdown();
                 
             }
         };
@@ -539,9 +557,9 @@ namespace OP
                 node->reindexer.address = hash_mngr.create(containers::HashTableCapacity::_8);
                 //create stem-container
                 stem::StemStore<topology_t> stem_mngr(*_topology_ptr);
-                node->stems.address = stem_mngr.create(
+                node->stems.address = tuple_ref<FarAddress>(stem_mngr.create(
                     (dim_t)containers::HashTableCapacity::_8, 
-                    TrieDef::max_stem_length_c);
+                    TrieDef::max_stem_length_c));
                 ValueArrayManager<topology_t, payload_t> vmanager(*_topology_ptr);
                 node->payload.address = vmanager.create((dim_t)containers::HashTableCapacity::_8);
 

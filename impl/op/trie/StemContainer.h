@@ -278,9 +278,9 @@ namespace OP
                     assert(key < data_header->width);
                     address += memory_requirement<StemData>::requirement 
                         + sizeof(atom_t)*data_header->height * key;
-                    auto f_str = _topology.segment_manager().wr_at<atom_t>(address);
+                    auto f_str = _topology.segment_manager().writable_block(address, sizeof(atom_t)*data_header->height);
                     
-                    return std::make_tuple(f_str, /*std::ref*/(data_header->stem_length[key]), std::ref(*data_header));
+                    return std::make_tuple((atom_t*)f_str.pos(), /*std::ref*/(data_header->stem_length[key]), std::ref(*data_header));
                 }
                 /**
                 *   @param previous - in/out holder of address
@@ -291,17 +291,27 @@ namespace OP
                 {
                     auto ro_access = _topology.segment_manager()
                         .readonly_access<StemData>(previous.address);
-                    auto max_height = std::max_element(ro_access->stem_length, ro_access->stem_length + ro_access->width);
+                    auto max_height = *std::max_element(ro_access->stem_length, ro_access->stem_length + ro_access->width);
                     //it is possible that all set to 0, so 
                     //@!@ @todo allow nil-stem container
                     if (max_height < 2)
                         max_height = 2;
                     return this->create(new_size, max_height);
                 }
-                void move_item(StemData& from, dim_t from_idx, StemData& to, dim_t to_idx)
+                void move_item(FarAddress from_addr, dim_t from_idx, StemData& to, dim_t to_idx)
                 {
-                    address += memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header.height * key;
+                    auto ro_header = _topology.segment_manager()
+                        .readonly_access<StemData>(from_addr);
+                    from_addr += memory_requirement<StemData>::requirement
+                        + sizeof(atom_t)*ro_header->height * from_idx;
+                    auto ro_block = _topology.segment_manager().readonly_block(from_addr, sizeof(atom_t)*ro_header->height);
+                    atom_t* dest = reinterpret_cast<atom_t*>(&to) + memory_requirement<StemData>::requirement
+                        + sizeof(atom_t) * (to_idx * ro_header->height);
+                    assert(ro_header->stem_length[from_idx] <= to.height);
+                    memcpy(dest, ro_block.pos(), ro_header->stem_length[from_idx]);
+                    to.stem_length[to_idx] = ro_header->stem_length[from_idx];
+                    to.summary_length += ro_header->stem_length[from_idx];
+                    ++to.count;
                 }
             protected:
             private:

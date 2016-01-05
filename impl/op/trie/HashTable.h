@@ -3,6 +3,7 @@
 
 #include <OP/trie/typedefs.h>
 #include <OP/trie/SegmentManager.h>
+#include <OP/trie/TypeHelper.h>
 
 namespace OP
 {
@@ -130,7 +131,7 @@ namespace OP
                         address + memory_requirement<HashTableData>::requirement,
                         table_head->capacity * memory_requirement<HashTableData::Content>::requirement);
                     auto hash_data = data_block.at<HashTableData::Content>(0);
-                    return do_insert(table_head, hash_data, key);
+                    return do_insert(*table_head, hash_data, key);
                 }
 
                 /**@return number of erased - 0 or 1*/
@@ -220,8 +221,8 @@ namespace OP
                 *   @tparam callback - functor with signature void(atom_t from, dim_t to)
                 *   @tparam prepare - functor with signature void(HashTableCapacity new_capacity)
                 */
-                template <class FPepareCallback class FReindexCallback>
-                HashTableData* grow(PersistedReference<HashTableData>& from, FPepareCallback& prepare, FReindexCallback&callback)
+                template <class FPepareCallback, class FReindexCallback>
+                void grow(trie::PersistedReference<HashTableData>& from, FPepareCallback& prepare, FReindexCallback&callback)
                 {
                     auto prev_tbl_head = _topology.segment_manager().readonly_accessor<HashTableData>(from.address);
                     auto prev_tbl_data = _topology.segment_manager().readonly_accessor<HashTableData::Content>(
@@ -273,18 +274,18 @@ namespace OP
                 std::pair<dim_t, bool> do_insert(HashTableData& head, HashTableData::Content * hash_data, atom_t key)
                 {
                     unsigned hash = static_cast<unsigned>(key) & (head.capacity - 1); //assume that capacity is ^ 2
-                    for (unsigned i = 0; i < head.neighbor_width; ++i)
+                    for (unsigned i = 0; i < head.neighbor_width && head.size < head.capacity; ++i)
                     {
                         if (0 == (fpresence_c & hash_data[hash].flag))
                         { //nothing at this pos
                             hash_data[hash].flag |= fpresence_c;
                             hash_data[hash].key = key;
-                            hash_data.count++;
+                            head.size++;
                             return std::make_pair(hash, true);
                         }
                         if (hash_data[hash].key == key)
                             return std::make_pair(hash, false); //already exists
-                        ++hash %= table_head.capacity; //keep in boundary
+                        ++hash %= head.capacity; //keep in boundary
                     }
                     return std::make_pair(~dim_t(0), false); //no capacity
                 }
