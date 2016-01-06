@@ -7,6 +7,7 @@
 #include <op/trie/Utils.h>
 #include <op/trie/SegmentManager.h>
 #include <op/trie/Containers.h>
+#include <op/trie/TypeHelper.h>
 
 namespace OP
 {
@@ -195,8 +196,7 @@ namespace OP
                     assert(begin != end);
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     //write-lock header part
-                    auto data_header = _topology.segment_manager().writable_block(address,
-                        memory_requirement<StemData>::requirement).at<StemData>(0);
+                    auto data_header = _topology.segment_manager().wr_at<StemData>(address);
                     assert(key < data_header->width);
                     address += memory_requirement<StemData>::requirement
                         + sizeof(atom_t)*data_header->height * key;
@@ -208,8 +208,9 @@ namespace OP
 
                     for (; begin != end && size <= data_header->height; ++f_str, ++begin, ++size, ++data_header->summary_length)
                     {
-                        *f_str = *begin;
+                        //*f_str = *begin;
                     }
+                    
                     ++data_header->count;
                     //g.commit();
                 }
@@ -286,8 +287,7 @@ namespace OP
                 *   @param previous - in/out holder of address
                 *   @!@ @todo current impl is velocity efficient, but must be implmented as space efficient - instead of taking max stem, need base on average length
                 */
-                
-                std::tuple<FarAddress, StemData*> grow(const PersistedReference<StemData>& previous, dim_t new_size)
+                std::tuple<FarAddress, StemData*> grow(const trie::PersistedReference<StemData>& previous, dim_t new_size)
                 {
                     auto ro_access = _topology.segment_manager()
                         .readonly_access<StemData>(previous.address);

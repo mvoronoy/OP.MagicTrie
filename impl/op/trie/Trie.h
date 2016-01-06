@@ -194,7 +194,7 @@ namespace OP
                 dim_t reindex_res = key;
                 if (!stems.is_null())
                 {
-                    if (this->reindexer.is_null())
+                    if (!this->reindexer.is_null())
                     {
                         containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                         auto p = hash_mngr.insert(this->reindexer.address, key);
@@ -211,6 +211,7 @@ namespace OP
                         reindex_res = p.first;
                     }
                     stem_manager.accommodate(stems.address, (atom_t)reindex_res, begin, std::move(end));
+                    
                 }
                 return reindex_res;
             }
