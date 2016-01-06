@@ -224,8 +224,8 @@ namespace OP
                 template <class FPepareCallback, class FReindexCallback>
                 void grow(trie::PersistedReference<HashTableData>& from, FPepareCallback& prepare, FReindexCallback&callback)
                 {
-                    auto prev_tbl_head = _topology.segment_manager().readonly_accessor<HashTableData>(from.address);
-                    auto prev_tbl_data = _topology.segment_manager().readonly_accessor<HashTableData::Content>(
+                    auto prev_tbl_head = _topology.segment_manager().readonly_access<HashTableData>(from.address);
+                    auto prev_tbl_data = _topology.segment_manager().readonly_access<HashTableData::Content>(
                         from.address + memory_requirement<HashTableData>::requirement
                         );
 
@@ -236,7 +236,7 @@ namespace OP
                     if (new_capacity == HashTableCapacity::_256) //check if limit is reached - must remove table at all
                     {
                         remap = [](atom_t prev_key) -> dim_t{ //when no table there is no need to modify index
-                            return to;
+                            return prev_key;
                         };
                     }
                     else
@@ -249,7 +249,7 @@ namespace OP
                             table_head->capacity * memory_requirement<HashTableData::Content>::requirement);
                         auto hash_data = data_block.at<HashTableData::Content>(0);
                         remap = [&](atom_t prev_key) ->dim_t { //lambda inserts key to new table and returns just created index
-                            auto ins_res = do_insert(*table_head, hash_data, prev_tbl_data[i].key);
+                            auto ins_res = do_insert(*table_head, hash_data, prev_key);
                             assert(ins_res.second && ins_res.first != ~dim_t(0)); //bigger table cannot fail on grow operation
                             return ins_res.first;
                         };
@@ -260,7 +260,7 @@ namespace OP
                         if (fpresence_c & prev_tbl_data[i].flag)
                         {
                             //tell other that position was remaped 
-                            callback(prev_tbl_data[i].key, remap(prev_tbl_data[i].key));
+                            callback(i, remap(prev_tbl_data[i].key));
                         }
                     }
 
