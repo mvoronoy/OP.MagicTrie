@@ -98,11 +98,12 @@ namespace OP
                     auto prefix_info = stem_manager.prefix_of(stems.address, index, begin, end);
                     std::get<1>(prefix_info)++;//because of ++begin need increase index
 
-                    stem::StemCompareResult nav_type = std::get<0>(prefix_info);
+                    auto nav_type = tuple_ref<stem::StemCompareResult>(prefix_info);
                     if (nav_type == stem::StemCompareResult::stem_end)
                     { //stem ended, this mean either this is terminal or reference to other node
                         value_manager_t value_manager(topology);
                         auto v = value_manager.get(payload.address, index);
+                        assert(v.has_child() || v.has_data()); //otherwise Trie is corrupted
                         return std::tuple_cat(prefix_info, std::make_tuple(v.get_child()));
                     }
                     //there since nav_type == string_end || nav_type == equals || nav_type == unequals
@@ -114,7 +115,7 @@ namespace OP
                 auto term = value_manager.get(payload.address, index);
                 return std::make_tuple(
                     (begin == end) ? stem::StemCompareResult::equals : stem::StemCompareResult::stem_end,
-                    1,
+                    dim_t{ 1 },
                     (begin == end) ? FarAddress() : term.child
                     );
             }
@@ -463,7 +464,7 @@ namespace OP
                 return navigator_t(FarAddress(SegmentDef::far_null_c), dim_t(~0u));
             }
             template <class Atom>
-            bool insert(Atom begin, Atom end, Payload&& value, iterator * result = nullptr)
+            bool insert(Atom& begin, Atom end, Payload value, iterator * result = nullptr)
             {
                 if (begin == end)
                     return false; //empty string cannot be inserted
@@ -513,6 +514,7 @@ namespace OP
                             wr_node->insert(*_topology_ptr, begin, end, std::forward<payload_t>(value));
                             if (begin == end) //fully fit to this node
                             {
+                                _topology_ptr->slot<TrieResidence>().increase_count(+1);
                                 op_g.commit();
                                 return true;
                             }

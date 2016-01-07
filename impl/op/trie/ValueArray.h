@@ -44,6 +44,14 @@ namespace OP
             {
                 return presence & has_child_c ? child : FarAddress();
             }
+            bool has_child() const
+            {
+                return presence & has_child_c;
+            }
+            bool has_data() const
+            {
+                return presence & has_data_c;
+            }
 
             enum : std::uint8_t
             {
@@ -109,7 +117,7 @@ namespace OP
                     array_addr,  memory_requirement<vad_t>::requirement );
                 return * ro_block.at<vad_t>(0);
             }
-            /**Get value by index for RO purpose*/
+            /**Get value by index for WR purpose*/
             vad_t& getw(FarAddress array_addr, dim_t index)
             {
                 array_addr += index * memory_requirement<vad_t>::requirement;

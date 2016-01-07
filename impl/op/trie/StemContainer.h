@@ -206,11 +206,11 @@ namespace OP
                     auto& size = data_header->stem_length[key];
                     assert(size == 0);
 
-                    for (; begin != end && size <= data_header->height; ++f_str, ++begin, ++size, ++data_header->summary_length)
+                    for (; begin != end && size < data_header->height; ++begin, ++size)
                     {
-                        //*f_str = *begin;
+                        f_str[size] = *begin;
                     }
-                    
+                    data_header->summary_length += size;
                     ++data_header->count;
                     //g.commit();
                 }
@@ -234,17 +234,17 @@ namespace OP
                     auto f_str = str_block.at<atom_t>(0);
                     dim_t i = 0;
                     auto stem_len = data_header.stem_length[key];
-                    for (; i < stem_len && begin != end; ++f_str, ++begin)
+                    for (; i < stem_len && begin != end; ++i, ++begin)
                     {
-                        if (*f_str != *begin)
+                        if (f_str[i] != *begin)
                         { //difference in sequence mean that stem should be splitted
                             return std::make_tuple(StemCompareResult::unequals, i);
                         }
                     }
                     return std::make_tuple(
                         i < stem_len
-                        ? StemCompareResult::stem_end
-                        : (begin == end ? StemCompareResult::equals : StemCompareResult::string_end)
+                        ? (StemCompareResult::string_end)
+                        : (begin == end ? StemCompareResult::equals : StemCompareResult::stem_end)
                         , i);
                 }
                 /**Cut already existing string*/
