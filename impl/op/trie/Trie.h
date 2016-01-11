@@ -201,7 +201,7 @@ namespace OP
                         auto p = hash_mngr.insert(this->reindexer, key);
                         if (!p.second) //may be on no capacity or dupplicate (that's impossible for normal flow)
                         {
-                            assert(p.first == ~dim_t(0));//only possible reason - capacity is over
+                            assert(p.first == dim_nil_c);//only possible reason - capacity is over
                             grow(topology);
                             if (!this->reindexer.is_null()) //might grow to 256 and became nil
                             {
@@ -253,7 +253,9 @@ namespace OP
                 }
                 void shutdown()
                 {
+                    _stem_manager.destroy(_stems_ref);
                     _stems_ref = tuple_ref<ref_stems_t>(_new_stems);
+                    _value_manager.destroy(_values_ref);
                     _values_ref = _new_vad;
                 }
                 stem::StemStore<TSegmentTopology> _stem_manager;

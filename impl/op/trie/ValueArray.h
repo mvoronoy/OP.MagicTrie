@@ -91,7 +91,12 @@ namespace OP
                 //g.commit();
                 return PersistedArray<vad_t>(result);
             }
-            
+            /**Destroy previously allocated by #create() */
+            void destroy(const PersistedArray<vad_t>& array_ref)
+            {
+                auto& memmngr = _topology.slot<MemoryManager>();
+                memmngr.deallocate(array_ref.address);
+            }
             void put_data(const PersistedArray<vad_t>& array_ref, dim_t index, payload_t && new_value)
             {
                 //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());

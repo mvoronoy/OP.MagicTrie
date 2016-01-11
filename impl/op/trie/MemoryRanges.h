@@ -129,9 +129,24 @@ namespace OP
                 return source_size;
             }
             template <class T, size_t N>
-            segment_pos_t copy(const T arr[N])
+            segment_pos_t copy(const T (&arr)[N])
             {
-                this->copy(arr, sizeof())
+                return this->copy(arr, sizeof(arr));
+            }
+            
+            template <class T, size_t N>
+            segment_pos_t aligned_copy(const T arr[N])
+            {
+                static OP_CONSTEXPR(const) byte_size_c = memory_requirement<T>::requirement * N;
+                if((this->count() - dest_offset) < byte_size_c)
+                    throw std::out_of_range("source size too big");
+                auto p = pos() + dest_offset;
+                for (auto t : arr)
+                {
+                    *p = t;
+                    p += memory_requirement<T>::requirement;
+                }
+                return byte_size_c;
             }
         };
         template <class T>
@@ -216,13 +231,13 @@ namespace OP
             {
                 return ReadonlyMemoryRange::at<T>(0);
             }
-            const T& operator[](segment_pos_t index) const
-            {
-                auto byte_offset = memory_requirement<T>::requirement * index;
-                if (byte_offset >= this->count())
-                    throw std::out_of_range("index out of range");
-                return *ReadonlyMemoryRange::at<T>(byte_offset);
-            }
+            //const T& operator[](segment_pos_t index) const
+            //{
+            //    auto byte_offset = memory_requirement<T>::requirement * index;
+            //    if (byte_offset >= this->count())
+            //        throw std::out_of_range("index out of range");
+            //    return *ReadonlyMemoryRange::at<T>(byte_offset);
+            //}
         };
         /**Hint allows specify how writable block will be used*/
         enum class WritableBlockHint : std::uint8_t
