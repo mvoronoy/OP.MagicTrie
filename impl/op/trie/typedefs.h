@@ -25,7 +25,10 @@ namespace OP
     {
         typedef std::uint8_t atom_t;
         typedef std::uint16_t dim_t;
-
+        enum : dim_t
+        {
+            dim_nil_c = dim_t(-1)
+        };
     
         typedef std::uint32_t header_idx_t;
         typedef std::uint32_t segment_idx_t;

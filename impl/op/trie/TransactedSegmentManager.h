@@ -126,7 +126,8 @@ namespace OP
                 //shadow buffer is returned only for pessimistic write, otherwise origin memory have to be used
                 if (found_res->second.transaction_code().flag & optimistic_write_c)
                     return super_res;
-                return MemoryRange( found_res->second.shadow_buffer(), size,
+                auto include_delta = pos - found_res->first.pos();//handle case when included region queried
+                return MemoryRange( found_res->second.shadow_buffer()+include_delta, size,
                         std::move(pos), std::move(SegmentManager::get_segment(pos.segment)) );
             }
             MemoryRange upgrade_to_writable_block(ReadonlyMemoryRange& ro)  override
@@ -677,7 +678,8 @@ namespace OP
                 //or backed shadow buffer (pessimistic write)
                 if (found_res->second.transaction_code().flag & optimistic_write_c)
                     return SegmentManager::readonly_block(pos, size, hint);
-                return ReadonlyMemoryRange(found_res->second.shadow_buffer(), //use shadow
+                auto include_delta = pos - found_res->first.pos();//handle case when included region queried
+                return ReadonlyMemoryRange(found_res->second.shadow_buffer()+include_delta, //use shadow
                     size, std::move(pos), std::move(SegmentManager::get_segment(pos.segment)));
             }
             typedef std::unordered_map<std::thread::id, transaction_impl_ptr_t> opened_transactions_t;

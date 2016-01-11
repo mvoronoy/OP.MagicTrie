@@ -674,11 +674,26 @@ void test_TransactedBlockInclude(OP::utest::TestResult &tresult)
     OP::vtm::TransactionGuard g(tmngr1->begin_transaction());
 
     auto outer_block = tmngr1->writable_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq1));
-    outer_block.copy(write_fill_seq1, sizeof(write_fill_seq1));
-    auto inner_block = tmngr1->writable_block(FarAddress(writable_data_fpos) + segment_pos_t{ sizeof(write_fill_seq1) / 2 },
-        sizeof(write_fill_seq2)/4);
-    inner_block.copy
+    outer_block.copy(write_fill_seq1/*, sizeof(write_fill_seq1)*/);
+    const segment_pos_t inner_offset = segment_pos_t{ sizeof(write_fill_seq1) / 2 };
+    const segment_pos_t inner_size = sizeof(write_fill_seq2) / 4;
+    auto inner_block = tmngr1->writable_block(FarAddress(writable_data_fpos) + inner_offset, inner_size);
+    inner_block.copy(write_fill_seq2, inner_size);
+    auto do_test_overlap = [&](){
+        using namespace OP::utest;
+        auto block1 = tmngr1->readonly_block(FarAddress(writable_data_fpos), inner_offset);
+        auto block2 = tmngr1->readonly_block(FarAddress(writable_data_fpos)+inner_offset, inner_size);
+        auto block3 = tmngr1->readonly_block(FarAddress(writable_data_fpos)+inner_offset+inner_size, sizeof(write_fill_seq1) - inner_offset-inner_size);
+        tresult.assert_that(is::equals(block1.pos(), write_fill_seq1, inner_offset), 
+            OP_CODE_DETAILS(<< "Invalid overlapped data #1"));
+        tresult.assert_that(is::equals(block2.pos(), write_fill_seq2, inner_size), 
+            OP_CODE_DETAILS(<< "Invalid overlapped data #2"));
+        tresult.assert_that(is::equals(block3.pos(), write_fill_seq1+inner_offset+inner_size, sizeof(write_fill_seq1) - inner_offset-inner_size), 
+            OP_CODE_DETAILS(<< "Invalid overlapped data #3"));
+    };
+    do_test_overlap();
     g.commit();
+    do_test_overlap();
 }
 //using std::placeholders;
 static auto module_suite = OP::utest::default_test_suite("TransactedSegmentManager")
@@ -688,5 +703,5 @@ static auto module_suite = OP::utest::default_test_suite("TransactedSegmentManag
 ->declare(test_TransactedSegmentManagerMultithreadMemoryAllocator, "multithread")
 ->declare(test_ReleaseReadBlock, "release read block")
 ->declare(test_NestedTransactions, "nested transactions")
-->declare(test_TransactedBlockInclude, "test write-block include capaility")
+->declare(test_TransactedBlockInclude, "test write-block include capability")
 ;

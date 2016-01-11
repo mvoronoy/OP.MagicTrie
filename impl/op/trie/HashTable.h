@@ -224,9 +224,11 @@ namespace OP
                 void grow(trie::PersistedReference<HashTableData>& from, FPepareCallback& prepare, FReindexCallback&callback)
                 {
                     auto prev_tbl_head = _topology.segment_manager().readonly_access<HashTableData>(from.address);
-                    auto prev_tbl_data = _topology.segment_manager().readonly_access<HashTableData::Content>(
-                        from.address + memory_requirement<HashTableData>::requirement
+                    auto prev_tbl_data_block = _topology.segment_manager().readonly_block(
+                        from.address + memory_requirement<HashTableData>::requirement, 
+                        prev_tbl_head->capacity * memory_requirement<HashTableData::Content>::requirement
                         );
+                    auto prev_tbl_data = prev_tbl_data_block.at<HashTableData::Content>(0);
 
                     auto new_capacity = details::grow_size((HashTableCapacity)prev_tbl_head->capacity);
                     prepare(new_capacity);
@@ -249,7 +251,7 @@ namespace OP
                         auto hash_data = data_block.at<HashTableData::Content>(0);
                         remap = [&](atom_t prev_key) ->dim_t { //lambda inserts key to new table and returns just created index
                             auto ins_res = do_insert(*table_head, hash_data, prev_key);
-                            assert(ins_res.second && ins_res.first != ~dim_t(0)); //bigger table cannot fail on grow operation
+                            assert(ins_res.second && ins_res.first != dim_nil_c ); //bigger table cannot fail on grow operation
                             return ins_res.first;
                         };
                     }
@@ -292,7 +294,7 @@ namespace OP
                             return std::make_pair(hash, false); //already exists
                         ++hash %= head.capacity; //keep in boundary
                     }
-                    return std::make_pair(~dim_t(0), false); //no capacity
+                    return std::make_pair(dim_nil_c, false); //no capacity
                 }
                 /** Optimize space before some item is removed
                 * @return - during optimization this method may change origin param 'erase_pos', so to real erase use index returned

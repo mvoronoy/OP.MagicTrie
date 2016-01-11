@@ -179,7 +179,12 @@ namespace OP
                         ref_stems_t(addr), new (mem_block.pos()) StemData(width, str_max_height));
                     //g.commit();
                 }
-
+                /**Destroy previously allocated by #create stem container*/
+                void destroy(const ref_stems_t& stems)
+                {
+                    auto& memmngr = _topology.slot<MemoryManager>();
+                    memmngr.deallocate(stems.address);
+                }
                 /**Place new sequence specified by [begin-end) range as new item to this storage
                 *   @param begin - [in/out] start of range to insert, at [out] points where range insertion was stopped (for
                 *                   example if #height() was exceeded.
@@ -195,7 +200,7 @@ namespace OP
                 template <class T>
                 inline void accommodate(const ref_stems_t& st_address, atom_t key, T& begin, T &&end)
                 {
-                    assert(begin != end);
+                    //assert(begin != end);
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     //write-lock header part
                     auto data_header = _topology.segment_manager().wr_at<StemData>(
