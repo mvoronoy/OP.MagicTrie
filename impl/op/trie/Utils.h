@@ -4,20 +4,7 @@
 #include <type_traits>
 #include <tuple>
 #include <atomic>
-
-#define OP_EMPTY_ARG
-#ifdef _MSC_VER
-    #if _MSC_VER <= 1800
-        #define OP_CONSTEXPR(alt) alt 
-        #define OP_NOEXCEPT
-    #else
-        #define OP_CONSTEXPR(alt) constexpr
-        #define OP_NOEXCEPT noexcept 
-    #endif
-#else
-    #define OP_CONSTEXPR(alt) constexpr
-    #define OP_NOEXCEPT noexcept 
-#endif //
+#include <OP/trie/typedefs.h>
 
 namespace OP
 {
@@ -238,6 +225,38 @@ namespace OP
             T* _ref;
             bool _is_closed;
         };
+
+        template <class T, class Y>
+        OP_CONSTEXPR(OP_EMPTY_ARG) inline T align_on(T address, Y base)
+        {
+            return (address % base) ? (address + (base - (address % base))) : address;
+        }
+        /**Rounds align down (compare with #align_on that rounds up)*/
+        template <class T, class Y>
+        OP_CONSTEXPR(OP_EMPTY_ARG) inline T ceil_align_on(T address, Y base)
+        {
+            return (address / base)*base;
+        }
+        template <class T, class Y>
+        OP_CONSTEXPR(OP_EMPTY_ARG) inline segment_pos_t aligned_sizeof(Y base)
+        {
+            return align_on(static_cast<segment_pos_t>(sizeof(T)), base);
+        }
+        template <class T, class Y>
+        inline bool is_aligned(T address, Y base)
+        {
+            return ((size_t)(address) % base) == 0;
+        }
+        /**get segment part from far address*/
+        inline segment_idx_t segment_of_far(far_pos_t pos)
+        {
+            return static_cast<segment_idx_t>(pos >> 32);
+        }
+        /**get offset part from far address*/
+        inline segment_pos_t pos_of_far(far_pos_t pos)
+        {
+            return static_cast<segment_pos_t>(pos);
+        }
 
     } //trie
 } //OP

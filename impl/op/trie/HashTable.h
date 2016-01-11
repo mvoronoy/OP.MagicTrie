@@ -3,7 +3,7 @@
 
 #include <OP/trie/typedefs.h>
 #include <OP/trie/SegmentManager.h>
-#include <OP/trie/TypeHelper.h>
+#include <OP/trie/PersistedReference.h>
 
 namespace OP
 {
@@ -122,15 +122,15 @@ namespace OP
                 /**
                 *   @return insert position or #end() if no more capacity
                 */
-                std::pair<dim_t, bool> insert(FarAddress address, atom_t key)
+                std::pair<dim_t, bool> insert(const trie::PersistedReference<HashTableData>& ref_data, atom_t key)
                 {
                     //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
                     
-                    auto table_head = _topology.segment_manager().wr_at<HashTableData>(address);
-                    auto data_block = _topology.segment_manager().writable_block(
-                        address + memory_requirement<HashTableData>::requirement,
-                        table_head->capacity * memory_requirement<HashTableData::Content>::requirement);
-                    auto hash_data = data_block.at<HashTableData::Content>(0);
+                    auto table_head = _topology.segment_manager().wr_at<HashTableData>(ref_data.address);
+                    auto hash_data = _topology.segment_manager().writable_block(
+                        content_item_address(ref_data.address, 0),
+                        table_head->capacity * memory_requirement<HashTableData::Content>::requirement)
+                        .at<HashTableData::Content>(0);
                     return do_insert(*table_head, hash_data, key);
                 }
 
@@ -167,18 +167,17 @@ namespace OP
                
 
                 /**Find index of key entry or #end() if nothing found*/
-                dim_t find(FarAddress address, atom_t key) const
+                dim_t find(const trie::PersistedReference<HashTableData>& ref_data, atom_t key) const
                 {
                     //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                    auto head_block = _topology.segment_manager().readonly_block(
-                        address, memory_requirement<HashTableData>::requirement );
-                    auto head = head_block.at<HashTableData>(0);
+                    auto const & head = *_topology.segment_manager()
+                        .readonly_access<HashTableData>(ref_data.address);
                     auto data_block = _topology.segment_manager().readonly_block(
-                        address + memory_requirement<HashTableData>::requirement,  
-                        head->capacity * memory_requirement<HashTableData::Content>::requirement);
+                        content_item_address(ref_data.address, 0),
+                        head.capacity * memory_requirement<HashTableData::Content>::requirement);
                     auto data_table = data_block.at<HashTableData::Content>(0);
-                    unsigned hash = static_cast<unsigned>(key)& details::bitmask((HashTableCapacity)head->capacity);
-                    for (unsigned i = 0; i < head->neighbor_width; ++i)
+                    unsigned hash = static_cast<unsigned>(key)& details::bitmask((HashTableCapacity)head.capacity);
+                    for (unsigned i = 0; i < head.neighbor_width; ++i)
                     {
                         if (0 == (fpresence_c & data_table[hash].flag))
                         { //nothing at this pos
@@ -186,7 +185,7 @@ namespace OP
                         }
                         if (data_table[hash].key == key)
                             return hash;
-                        ++hash %= head->capacity; //keep in boundary
+                        ++hash %= head.capacity; //keep in boundary
                     }
                     return nil_c;
                 }
@@ -271,6 +270,12 @@ namespace OP
                 }
 
             private:
+                static FarAddress content_item_address(FarAddress base, dim_t idx) 
+                {
+                    return base + (memory_requirement<HashTableData>::requirement +
+                        idx * memory_requirement<HashTableData::Content>::requirement
+                        );
+                }
                 std::pair<dim_t, bool> do_insert(HashTableData& head, HashTableData::Content * hash_data, atom_t key)
                 {
                     unsigned hash = static_cast<unsigned>(key) & (head.capacity - 1); //assume that capacity is ^ 2
@@ -278,7 +283,7 @@ namespace OP
                     {
                         if (0 == (fpresence_c & hash_data[hash].flag))
                         { //nothing at this pos
-                            hash_data[hash].flag |= fpresence_c;
+                            hash_data[hash].flag |= std::uint8_t{ fpresence_c };
                             hash_data[hash].key = key;
                             head.size++;
                             return std::make_pair(hash, true);

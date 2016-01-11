@@ -7,7 +7,7 @@
 #include <op/trie/Utils.h>
 #include <op/trie/SegmentManager.h>
 #include <op/trie/Containers.h>
-#include <op/trie/TypeHelper.h>
+#include <op/trie/PersistedReference.h>
 
 namespace OP
 {
@@ -155,6 +155,7 @@ namespace OP
             template <class SegmentTopology>
             struct StemStore
             {
+                typedef PersistedReference<StemData> ref_stems_t;
                 StemStore(SegmentTopology& topology)
                     : _topology(topology)
                 {}
@@ -165,7 +166,7 @@ namespace OP
                         + sizeof(atom_t) * (width * str_max_height);
                 }
 
-                inline std::tuple<FarAddress, StemData*> create(dim_t width, dim_t str_max_height)
+                inline std::tuple<ref_stems_t, StemData*> create(dim_t width, dim_t str_max_height)
                 {
                     //size_t expected = memory_requirements<Tuple>();
                     auto& memmngr = _topology.slot<MemoryManager>();
@@ -174,7 +175,8 @@ namespace OP
                     auto mem_size = memory_requirements(width, str_max_height);
                     auto addr = memmngr.allocate(mem_size);
                     auto mem_block = _topology.segment_manager().writable_block(addr, mem_size);
-                    return std::make_tuple(addr, new (mem_block.pos()) StemData(width, str_max_height));
+                    return std::make_tuple(
+                        ref_stems_t(addr), new (mem_block.pos()) StemData(width, str_max_height));
                     //g.commit();
                 }
 
@@ -191,15 +193,16 @@ namespace OP
                 *           -# Insert string to container that is full.
                 */
                 template <class T>
-                inline void accommodate(FarAddress address, atom_t key, T& begin, T &&end)
+                inline void accommodate(const ref_stems_t& st_address, atom_t key, T& begin, T &&end)
                 {
                     assert(begin != end);
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     //write-lock header part
-                    auto data_header = _topology.segment_manager().wr_at<StemData>(address);
+                    auto data_header = _topology.segment_manager().wr_at<StemData>(
+                        st_address.address);
                     assert(key < data_header->width);
-                    address += memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header->height * key;
+                    auto address = st_address.address + static_cast<segment_pos_t>( memory_requirement<StemData>::requirement
+                        + data_header->height * key );
                     auto f_str = _topology.segment_manager().writable_block(
                         address, data_header->height).at<atom_t>(0);
 
@@ -219,17 +222,17 @@ namespace OP
                 *   Detect substr return processed characters number of stem
                 */
                 template <class T>
-                inline prefix_result_t prefix_of(FarAddress address, atom_t key, T& begin, T end) const
+                inline prefix_result_t prefix_of(const ref_stems_t& st_address, atom_t key, T& begin, T end) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     auto ro_access = _topology.segment_manager()
-                        .readonly_access<StemData>(address);
+                        .readonly_access<StemData>(st_address.address);
                     auto &data_header = *ro_access;
 
                     assert(key < data_header.width);
                     assert(begin != end);
-                    address += memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header.height * key;
+                    auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
+                        + sizeof(atom_t)*data_header.height * key };
                     auto str_block = _topology.segment_manager().readonly_block(address, sizeof(atom_t)*data_header.height);
                     auto f_str = str_block.at<atom_t>(0);
                     dim_t i = 0;
@@ -248,10 +251,10 @@ namespace OP
                         , i);
                 }
                 /**Cut already existing string*/
-                inline void trunc_str(FarAddress address, atom_t key, dim_t shorten) const
+                inline void trunc_str(const ref_stems_t& st_address, atom_t key, dim_t shorten) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
-                    auto data_header = _topology.segment_manager().wr_at<StemData>(address);
+                    auto data_header = _topology.segment_manager().wr_at<StemData>(st_address.address);
                     trunc_str(data_header, key, shorten);
                     //g.commit();
                 }
@@ -271,14 +274,14 @@ namespace OP
                 *   -# reference (can be modified) to length of stem. 
                 *   -# StemData - the header of all stems contained by `address`
                 */
-                std::tuple<const atom_t*, dim_t, StemData& > stem(FarAddress address, atom_t key)
+                std::tuple<const atom_t*, dim_t, StemData& > stem(const ref_stems_t& st_address, atom_t key)
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
-                    auto data_header = _topology.segment_manager().wr_at<StemData>(address);
+                    auto data_header = _topology.segment_manager().wr_at<StemData>(st_address.address);
 
                     assert(key < data_header->width);
-                    address += memory_requirement<StemData>::requirement 
-                        + sizeof(atom_t)*data_header->height * key;
+                    auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
+                        + sizeof(atom_t)*data_header->height * key };
                     auto f_str = _topology.segment_manager().writable_block(address, sizeof(atom_t)*data_header->height);
                     
                     return std::make_tuple((atom_t*)f_str.pos(), /*std::ref*/(data_header->stem_length[key]), std::ref(*data_header));
@@ -287,7 +290,7 @@ namespace OP
                 *   @param previous - in/out holder of address
                 *   @!@ @todo current impl is velocity efficient, but must be implmented as space efficient - instead of taking max stem, need base on average length
                 */
-                std::tuple<FarAddress, StemData*> grow(const trie::PersistedReference<StemData>& previous, dim_t new_size)
+                std::tuple<ref_stems_t, StemData*> grow(const trie::PersistedReference<StemData>& previous, dim_t new_size)
                 {
                     auto ro_access = _topology.segment_manager()
                         .readonly_access<StemData>(previous.address);
@@ -298,12 +301,12 @@ namespace OP
                         max_height = 2;
                     return this->create(new_size, max_height);
                 }
-                void move_item(FarAddress from_addr, dim_t from_idx, StemData& to, dim_t to_idx)
+                void move_item(const ref_stems_t& st_address, dim_t from_idx, StemData& to, dim_t to_idx)
                 {
                     auto ro_header = _topology.segment_manager()
-                        .readonly_access<StemData>(from_addr);
-                    from_addr += memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*ro_header->height * from_idx;
+                        .readonly_access<StemData>(st_address.address);
+                    auto from_addr = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
+                        + sizeof(atom_t)*ro_header->height * from_idx };
                     auto ro_block = _topology.segment_manager().readonly_block(from_addr, sizeof(atom_t)*ro_header->height);
                     atom_t* dest = reinterpret_cast<atom_t*>(&to) + memory_requirement<StemData>::requirement
                         + sizeof(atom_t) * (to_idx * ro_header->height);

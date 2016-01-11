@@ -191,7 +191,7 @@ void test_TransactedSegmentManager(OP::utest::TestResult &tresult)
     //when all transaction closed, no overlapped exception anymore
     auto overlapped_block = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq)+10);
     tresult.assert_true(0 == memcmp(tst_seq, overlapped_block.pos(), sizeof(tst_seq)), OP_CODE_DETAILS( << "part of overlaped is not correct" ));
-
+    //test block inclusion
 }
 void test_FarAddress(OP::utest::TestResult &tresult)
 {
@@ -657,6 +657,29 @@ void test_NestedTransactions(OP::utest::TestResult &tresult)
         tresult.assert_true(case3_r.get());
     }
 }
+void test_TransactedBlockInclude(OP::utest::TestResult &tresult)
+{
+    tresult.info() << "test Transacted Segment Manager..." << std::endl;
+
+    const char seg_file_name[] = "t-segementation.test";
+
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(1024));
+    tmngr1->ensure_segment(0);
+    std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+    tresult.assert_true(fdata_acc.good());
+
+    //read out of tran must be permitted
+    OP::vtm::TransactionGuard g(tmngr1->begin_transaction());
+
+    auto outer_block = tmngr1->writable_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq1));
+    outer_block.copy(write_fill_seq1, sizeof(write_fill_seq1));
+    auto inner_block = tmngr1->writable_block(FarAddress(writable_data_fpos) + segment_pos_t{ sizeof(write_fill_seq1) / 2 },
+        sizeof(write_fill_seq2)/4);
+    inner_block.copy
+    g.commit();
+}
 //using std::placeholders;
 static auto module_suite = OP::utest::default_test_suite("TransactedSegmentManager")
 ->declare(test_TransactedSegmentManager, "general")
@@ -665,4 +688,5 @@ static auto module_suite = OP::utest::default_test_suite("TransactedSegmentManag
 ->declare(test_TransactedSegmentManagerMultithreadMemoryAllocator, "multithread")
 ->declare(test_ReleaseReadBlock, "release read block")
 ->declare(test_NestedTransactions, "nested transactions")
+->declare(test_TransactedBlockInclude, "test write-block include capaility")
 ;
