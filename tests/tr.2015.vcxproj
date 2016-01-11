@@ -155,8 +155,10 @@
     <ClInclude Include="..\impl\op\trie\HashTable.h" />
     <ClInclude Include="..\impl\op\trie\MemoryBlock.h" />
     <ClInclude Include="..\impl\op\trie\MemoryManager.h" />
+    <ClInclude Include="..\impl\op\trie\MemoryRanges.h" />
     <ClInclude Include="..\impl\op\trie\NamedObjects.h" />
     <ClInclude Include="..\impl\op\trie\Range.h" />
+    <ClInclude Include="..\impl\op\trie\SegmentHelper.h" />
     <ClInclude Include="..\impl\op\trie\SegmentManager.h" />
     <ClInclude Include="..\impl\op\trie\CacheManager.h" />
     <ClInclude Include="..\impl\op\trie\Containers.h" />
@@ -167,7 +169,8 @@
     <ClInclude Include="..\impl\op\trie\TransactedSegmentManager.h" />
     <ClInclude Include="..\impl\op\trie\Transactional.h" />
     <ClInclude Include="..\impl\op\trie\Trie.h" />
-    <ClInclude Include="..\impl\op\trie\TypeHelper.h" />
+    <ClInclude Include="..\impl\op\trie\typedefs.h" />
+    <ClInclude Include="..\impl\op\trie\PersistedReference.h" />
     <ClInclude Include="..\impl\op\trie\Utils.h" />
     <ClInclude Include="..\impl\op\trie\ValueArray.h" />
     <ClInclude Include="GenericMemoryTest.h" />

@@ -153,13 +153,13 @@ namespace OP
             FarAddress make_array(segment_pos_t items_count, Types&&... args)
             {
                 OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
-                OP_CONSTEXPR(const) auto mem_req = memory_requirement<T>::requirement * items_count;
+                const auto mem_req = memory_requirement<T>::requirement * items_count;
                 auto result = allocate(mem_req);
                 auto mem_block = this->_segment_manager->writable_block(result, 
                     mem_req, WritableBlockHint::new_c);
                 //use placement constructor for each item
-                for (T * p = mem_block.at<T>(0); items_count; --items_count, ++p)
-                    new (p)T(std::forward<Types>(args)...);
+                for (auto p = mem_block.at<memory_requirement<T>::type>(0); items_count; --items_count, ++p)
+                    new (p) T(std::forward<Types>(args)...);
                 g.commit();
                 return result;
             }

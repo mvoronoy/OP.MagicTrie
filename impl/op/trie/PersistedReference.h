@@ -14,6 +14,12 @@ namespace OP
             typedef T type;
             FarAddress address;
 
+            explicit PersistedReference(FarAddress aadr)
+                : address(aadr)
+            {}
+            PersistedReference()
+                : address{}
+            {}
             template <class TSegmentManager>
             T* ref(TSegmentManager& manager)
             {
@@ -35,6 +41,13 @@ namespace OP
             typedef T type;
             FarAddress address;
             
+            explicit PersistedArray(FarAddress aadr)
+                : address(aadr)
+            {}
+            PersistedArray()
+                : address{}
+            {}
+
             bool is_null() const
             {
                 return address == SegmentDef::far_null_c;

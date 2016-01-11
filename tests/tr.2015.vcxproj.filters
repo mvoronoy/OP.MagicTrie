@@ -94,10 +94,19 @@
     <ClInclude Include="..\impl\op\trie\Utils.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\TypeHelper.h">
+    <ClInclude Include="..\impl\op\trie\ValueArray.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\ValueArray.h">
+    <ClInclude Include="..\impl\op\trie\MemoryRanges.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\typedefs.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\SegmentHelper.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\PersistedReference.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
   </ItemGroup>
