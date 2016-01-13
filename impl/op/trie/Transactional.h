@@ -18,6 +18,13 @@ namespace OP
             ConcurentLockException(const char* debug) :
                 Exception(OP::trie::er_transaction_concurent_lock, debug){}
         };
+        /***/
+        struct BeforeTransactionEnd
+        {
+            virtual ~BeforeTransactionEnd() = default;
+            virtual void on_commit() = 0;
+            virtual void on_rollback() = 0;
+        };
         /**
         *   Declare general definition of transaction as identifiable object with pair of operations commit/rollback
         */
@@ -46,6 +53,8 @@ namespace OP
             
             virtual void rollback() = 0;
             virtual void commit() = 0;
+
+            virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) = 0;
         protected:
             Transaction(transaction_id_t id) :
                 _transaction_id(id)

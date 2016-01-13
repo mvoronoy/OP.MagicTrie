@@ -114,6 +114,14 @@ namespace OP
                     //|| !check_pointer(memblock)
                     )
                     throw trie::Exception(trie::er_invalid_block);
+
+            }
+            virtual void raw_deallocate(FarAddress address)
+            {
+                if (!is_aligned(address.offset, SegmentHeader::align_c)
+                    //|| !check_pointer(memblock)
+                    )
+                    throw trie::Exception(trie::er_invalid_block);
                 std::cout << "\n[dealloc]" << address << '\n';
                 OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 FarAddress header_far (FreeMemoryBlock::get_header_addr(address));
