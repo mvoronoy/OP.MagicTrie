@@ -525,8 +525,10 @@ namespace OP
                 {}
                 void on_leave_scope(MemoryRangeBase& closing) OP_NOEXCEPT
                 {
-                    if ( _owner->is_active() ) //process only on active transactions
+                    if (_owner->is_active()) //process only on active transactions (that have some open blocks)
+                    {
                         _owner->_owner->release_ro_lock(_owner, _entry);
+                    }
                 }
             private:
                 transaction_impl_ptr_t _owner;

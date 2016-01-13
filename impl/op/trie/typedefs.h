@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <cassert>
 
-
 #define OP_EMPTY_ARG
 #ifdef _MSC_VER
 #if _MSC_VER <= 1800
@@ -94,6 +93,17 @@ namespace OP
                 return offset - other.offset;
             }
         };
+        template <typename ch, typename char_traits>
+        std::basic_ostream<ch, char_traits>& operator<<(std::basic_ostream<ch, char_traits> &os, FarAddress const& addr)
+        {
+
+            const typename std::basic_ostream<ch, char_traits>::sentry ok(os);
+            if (ok) 
+            {
+                os << std::setw(8) << std::setbase(16) << std::setfill(os.widen('0')) << addr.segment << ':' << addr.offset;
+            }
+            return os;
+        }
 
     }//ns:trie
 }//ns:OP

@@ -114,6 +114,7 @@ namespace OP
                     //|| !check_pointer(memblock)
                     )
                     throw trie::Exception(trie::er_invalid_block);
+                std::cout << "\n[dealloc]" << address << '\n';
                 OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 FarAddress header_far (FreeMemoryBlock::get_header_addr(address));
                 OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());

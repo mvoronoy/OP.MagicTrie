@@ -1,6 +1,11 @@
 #ifndef _OP_TRIE_TRIE__H_
 #define _OP_TRIE_TRIE__H_
 
+#if defined(_MSC_VER)
+#define _SCL_SECURE_NO_WARNINGS 1
+#endif //_MSC_VER
+#include <boost/uuid/random_generator.hpp>
+
 #include <cstdint>
 #include <type_traits>
 #include <atomic>
@@ -16,6 +21,7 @@
 #include <op/trie/PersistedReference.h>
 #include <op/trie/ValueArray.h>
 #include <op/trie/StemContainer.h>
+
 
 namespace OP
 {
@@ -72,7 +78,9 @@ namespace OP
             ref_reindex_hash_t reindexer;
             ref_stems_t stems;
             ref_values_t payload;
-
+            /**Unique signature of node*/
+            std::uint8_t uid[16];
+            
             TrieNode()
                 : version(0)
             {
@@ -199,15 +207,17 @@ namespace OP
                     {
                         containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                         auto p = hash_mngr.insert(this->reindexer, key);
-                        if (!p.second) //may be on no capacity or dupplicate (that's impossible for normal flow)
+                        while (!p.second) //may be on no capacity or dupplicate (that's impossible for normal flow)
                         {
                             assert(p.first == dim_nil_c);//only possible reason - capacity is over
                             grow(topology);
                             if (!this->reindexer.is_null()) //might grow to 256 and became nil
                             {
                                 p = hash_mngr.insert(this->reindexer, key);
-                                assert(p.second);//in new container 
+                                //assert(p.second);//in new container 
                             }
+                            else
+                                break;
                         }
                         reindex_res = p.first;
                     }
@@ -253,9 +263,9 @@ namespace OP
                 }
                 void shutdown()
                 {
-                    _stem_manager.destroy(_stems_ref);
+                    //_stem_manager.destroy(_stems_ref);
                     _stems_ref = tuple_ref<ref_stems_t>(_new_stems);
-                    _value_manager.destroy(_values_ref);
+                    //_value_manager.destroy(_values_ref);
                     _values_ref = _new_vad;
                 }
                 stem::StemStore<TSegmentTopology> _stem_manager;
@@ -570,6 +580,8 @@ namespace OP
 
                 auto &res = _topology_ptr->slot<TrieResidence>();
                 res.increase_nodes_allocated(+1);
+                auto g = boost::uuids::random_generator()();
+                memcpy(node->uid, g.begin(), g.size());
                 return node_pos;
             }
             /**Return pair of:
