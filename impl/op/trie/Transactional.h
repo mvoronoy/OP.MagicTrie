@@ -18,7 +18,7 @@ namespace OP
             ConcurentLockException(const char* debug) :
                 Exception(OP::trie::er_transaction_concurent_lock, debug){}
         };
-        /***/
+        /**Handler allows intercept end of transaction*/
         struct BeforeTransactionEnd
         {
             virtual ~BeforeTransactionEnd() = default;
@@ -31,6 +31,7 @@ namespace OP
         struct Transaction
         {
             typedef std::uint64_t transaction_id_t;
+            friend struct TransactionGuard;
 
             Transaction() = delete;
             Transaction(const Transaction&) = delete;
@@ -50,11 +51,11 @@ namespace OP
             {
                 return _transaction_id;
             }
-            
+            /**Register handler that is invoked during rollback/commit process*/
+            virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) = 0;
             virtual void rollback() = 0;
             virtual void commit() = 0;
 
-            virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) = 0;
         protected:
             Transaction(transaction_id_t id) :
                 _transaction_id(id)
@@ -65,6 +66,7 @@ namespace OP
             const transaction_id_t _transaction_id;
         };
         
+        typedef std::shared_ptr<Transaction> transaction_ptr_t;
         /**
         *   Guard wrapper that grants transaction accomplishment.
         *   Destructor is responsible to rollback transaction if user did not commit it explictly before.
@@ -102,7 +104,7 @@ namespace OP
                     _do_commit_on_close ? _instance->commit() : _instance->rollback();
             }
         private:
-            std::shared_ptr<Transaction> _instance;
+            transaction_ptr_t _instance;
             bool _is_closed;
             bool _do_commit_on_close;
         };

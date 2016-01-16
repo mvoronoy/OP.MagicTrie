@@ -68,7 +68,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     mngr2._check_integrity();
     try
     {
-        mngr2.slot<MemoryManager>().deallocate(rest + 1);
+        mngr2.slot<MemoryManager>().forcible_deallocate(rest + 1);
         result.assert_true(false, OP_CODE_DETAILS(<<"exception must be raised"));
     }
     catch (const OP::trie::Exception& e)
@@ -80,18 +80,18 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     //mngr2.segment_manager().ensure_segment(1);
     //try
     //{
-    //    mngr2.slot<MemoryManager>().deallocate((1ull<<32)| rest);
+    //    mngr2.slot<MemoryManager>().forcible_deallocate((1ull<<32)| rest);
     //    result.assert_true(false);//exception must be raised
     //}
     //catch (const OP::trie::Exception& e)
     //{
     //    result.assert_true(e.code() == OP::trie::er_invalid_block);
     //}
-    mngr2.slot<MemoryManager>().deallocate(one_byte_pos);
+    mngr2.slot<MemoryManager>().forcible_deallocate(one_byte_pos);
     mngr2._check_integrity();
-    mngr2.slot<MemoryManager>().deallocate(rest);
+    mngr2.slot<MemoryManager>().forcible_deallocate(rest);
     mngr2._check_integrity();
-    mngr2.slot<MemoryManager>().deallocate(half_block);
+    mngr2.slot<MemoryManager>().forcible_deallocate(half_block);
     mngr2._check_integrity();
     auto bl_control = mngr2.slot<MemoryManager>().allocate(100);
     auto test_size = mngr2.slot<MemoryManager>().available(0);
@@ -145,7 +145,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     {
         if (!has_block_compression)
             test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);
-        mm.deallocate(stripes[i]);
+        mm.forcible_deallocate(stripes[i]);
     }
     mngr3->_check_integrity();
     //now test merging of adjacency blocks
@@ -157,7 +157,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
 
         if (!has_block_compression)
             test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);
-        mm.deallocate(stripes[i]);
+        mm.forcible_deallocate(stripes[i]);
         mngr3->_check_integrity();
     }
     result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
@@ -165,11 +165,11 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     for (size_t i = 0; i < 7; ++i)
         stripes[i] = mm.allocate(sizeof(seq));
     for (size_t i = 0; i < 7; i+=2)
-        mm.deallocate(stripes[i]);
+        mm.forcible_deallocate(stripes[i]);
     mngr3->_check_integrity();
     for (size_t i = 1; i < 7; i += 2)
     {
-        mm.deallocate(stripes[i]);
+        mm.forcible_deallocate(stripes[i]);
         mngr3->_check_integrity();
     }
     result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
@@ -192,7 +192,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     for (size_t i = 0; i < 1000; ++i)
     {
         auto p = rand_buf[rnd_indexes[i]];
-        mm.deallocate( p );
+        mm.forcible_deallocate( p );
         //mngr3->_check_integrity();
     }
     std::cout << "\tTook:" 

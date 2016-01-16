@@ -218,6 +218,13 @@ namespace OP
             {
                 return this_addr - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
             }
+            /**
+            *   Taking this far address convert it to far address of associated MemoryBlockHeader
+            */
+            static far_pos_t get_addr_by_header(far_pos_t header_addr)
+            {
+                return header_addr + aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+            }
             
         };
         struct FreeMemoryBlockTraits

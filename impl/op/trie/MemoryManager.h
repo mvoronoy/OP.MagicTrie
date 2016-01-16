@@ -103,44 +103,51 @@ namespace OP
                 auto ro_block = _segment_manager->readonly_block(pos, sizeof(segment_pos_t));
                 return *ro_block.at<segment_pos_t>(0);
             }
-            /*void deallocate(std::uint8_t* addr)
+            /**
+            *   Deallocate memory block previously obtained by #allocate method.
+            *  
+            */
+            void deallocate(FarAddress address)
             {
-                auto dar = _segment_manager->to_far(addr);
-                deallocate(FarAddress(dar));
-            }*/
-            virtual void deallocate(FarAddress address)
+                if (!is_aligned(address.offset, SegmentHeader::align_c)
+                    //|| !check_pointer(memblock)
+                    )
+                    throw trie::Exception(trie::er_invalid_block);
+                OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                FarAddress header_far (FreeMemoryBlock::get_header_addr(address));
+                
+                OP::vtm::transaction_ptr_t tr;
+                OP::vtm::TransactionGuard g(tr = _segment_manager->begin_transaction());
+                //obtain RO block of memory header to validate address
+                auto ro_block =
+                    _segment_manager->readonly_block(header_far, mbh, 
+                    OP::trie::ReadonlyBlockHint::ro_keep_lock/*retain this block's header in scope of transaction*/);
+                const MemoryBlockHeader* header = ro_block.at<MemoryBlockHeader>(0);
+                if (!header->check_signature() || header->is_free())
+                    throw trie::Exception(trie::er_invalid_block);
+                //postpone deletion untill transaction end
+                tr->register_handle(std::make_unique<PostponDeallocToTransactionEnd>(this, std::move(ro_block)));
+                g.commit();
+            }
+            
+            void forcible_deallocate(FarAddress address)
             {
                 if (!is_aligned(address.offset, SegmentHeader::align_c)
                     //|| !check_pointer(memblock)
                     )
                     throw trie::Exception(trie::er_invalid_block);
 
-            }
-            virtual void raw_deallocate(FarAddress address)
-            {
-                if (!is_aligned(address.offset, SegmentHeader::align_c)
-                    //|| !check_pointer(memblock)
-                    )
-                    throw trie::Exception(trie::er_invalid_block);
-                std::cout << "\n[dealloc]" << address << '\n';
                 OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 FarAddress header_far (FreeMemoryBlock::get_header_addr(address));
                 OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
 
                 //need separate 2 wr_at to avoid overlapped block exception
+                auto header_block = _segment_manager->writable_block(header_far, mbh);
                 MemoryBlockHeader* header = _segment_manager->wr_at<MemoryBlockHeader>(header_far);
                 if (!header->check_signature() || header->is_free())
                     throw trie::Exception(trie::er_invalid_block);
 
-                //Mark segment and memory for FreeMemoryBlock as available for write
-                header->set_free(true);
-                auto free_marker = _segment_manager->wr_at<FreeMemoryBlock>(address, WritableBlockHint::new_c);
-
-                FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(emplaced_t());
-                auto deposited = header->size();
-                
-                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), address, span_of_free, header);
-                get_available_bytes(address.segment) += deposited;
+                do_deallocate(header_block);
                 g.commit();
             }
 
@@ -390,6 +397,44 @@ namespace OP
             {
                 
             }
+            void do_deallocate(MemoryRange& header_block)
+            {
+                //Mark segment and memory for FreeMemoryBlock as available for write
+                auto header = header_block.at<MemoryBlockHeader>(0);
+                assert(!header->is_free())
+                header->set_free(true);
+                //from header address evaluate address of memory block
+                FarAddress address (FreeMemoryBlock::get_addr_by_header(header_block.address())); 
+                auto free_marker = _segment_manager->wr_at<FreeMemoryBlock>(address, WritableBlockHint::new_c);
+
+                FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(emplaced_t());
+                auto deposited = header->size();
+                
+                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), address, span_of_free, header);
+                get_available_bytes(address.segment) += deposited;
+            }
+            /**Postpon delete of memory block until Transaction commit,*/
+            struct PostponDeallocToTransactionEnd : public OP::vtm::BeforeTransactionEnd
+            {
+                PostponDeallocToTransactionEnd(MemoryManager * memory_manager, ReadonlyMemoryRange memory_block)
+                    : _memory_manager(memory_manager)
+                    , _memory_block(std::move(memory_block))
+                {
+
+                }
+                void on_commit() override
+                {
+                    auto header = _memory_manager->_segment_manager->upgrade_to_writable_block(_memory_block);
+                    _memory_manager->do_deallocate(header);
+                }
+                void on_rollback() override
+                {
+
+                }
+            private:
+                MemoryManager * _memory_manager;
+                ReadonlyMemoryRange _memory_block;
+            };
         };
 
 
