@@ -183,7 +183,7 @@ namespace OP
         struct SegmentManager 
         {
             friend struct SegmentOptions;
-            typedef std::shared_ptr<OP::vtm::Transaction> transaction_ptr_t;
+            typedef OP::vtm::transaction_ptr_t transaction_ptr_t;
 
             template <class Manager = SegmentManager>
             static std::shared_ptr<Manager> create_new(const char * file_name,
@@ -505,7 +505,14 @@ namespace OP
             }
             
         };
-        
+        /**Abstract base to construct slots. Slot is an entity that allows statically format existing segment of virtual memory.
+        *   So instead of dealing with raw memory provided by SegmentManager, you can describe memory usage-rule at compile time
+        * by specifying SegementTopology with bunch of slots.
+        * For example: \code
+        *   SegmentTopology<NodeManager, MemoryManager> 
+        * \endcode
+        *   Specifies that we place 2 slots into each segment processed by SegmentManager. 
+        */
         struct Slot
         {
             virtual ~Slot() = default;
@@ -651,6 +658,7 @@ namespace OP
                 }
                 op_g.commit();
             }
+        private:
             slots_arr_t _slots;
             segments_ptr_t _segments;
         };

@@ -368,7 +368,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
             {
             OP::vtm::TransactionGuard transaction2(tmngr1->begin_transaction());
                 lock_t g(m2);
-                mm.deallocate(managed_ptr[i]);
+                mm.forcible_deallocate(managed_ptr[i]);
             transaction2.commit();
             }
             //dealloc odd
@@ -376,7 +376,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
             {
             OP::vtm::TransactionGuard transaction3(tmngr1->begin_transaction());
                 lock_t g(m2);
-                mm.deallocate(managed_ptr[i]);
+                mm.forcible_deallocate(managed_ptr[i]);
             transaction3.commit();
             }
         }
@@ -405,6 +405,51 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
     tmngr1.reset();
 }
 
+void test_TransactedMemmngrAllocDealloc(OP::utest::TestResult &tresult)
+{
+    tresult.info() << "Reproduce issue with dealloc-alloc in singel transaction..." << std::endl;
+    const char seg_file_name[] = "t-segementation.test";
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name, 
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    auto aa1 = tmngr1->segment_size();
+    //tmngr1->ensure_segment(0);
+    SegmentTopology<MemoryManager> mngrToplogy (tmngr1);
+
+    auto & mm = mngrToplogy.slot<MemoryManager>();
+    auto tran1 = tmngr1->begin_transaction();
+    auto block1 = mm.allocate(50);
+    tran1->commit();
+    auto test_avail = mm.available(0);
+    
+    //test that issue exists, do it twice to test that issue is not disappeared during rollback
+    for (auto i = 0; i < 2; ++i)
+    {
+        auto tran2 = tmngr1->begin_transaction();
+        mm.forcible_deallocate(block1);
+        try{
+            mm.allocate(50);  //no overlapped exception there
+            tresult.fail("Exception(er_overlapping_block) must be raised");
+        }
+        catch (const Exception& e)
+        {
+            tresult.assert_true(e.code() == er_overlapping_block);
+        }
+        tran2->rollback();
+    }
+    //
+    tresult.assert_true(test_avail == mm.available(0));
+
+    auto tran3 = tmngr1->begin_transaction();
+    mm.deallocate(block1);
+    mm.allocate(50);  //no overlapped exception there
+    tran3->commit();
+    //
+    tresult.assert_true((test_avail+50) == mm.available(0));
+    
+    tmngr1->_check_integrity();
+    tmngr1.reset();
+}
 void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
 {
     tresult.info() << "Generic positive tests...\n";
@@ -700,8 +745,10 @@ static auto module_suite = OP::utest::default_test_suite("TransactedSegmentManag
 ->declare(test_TransactedSegmentManager, "general")
 ->declare(test_FarAddress, "far address conversion")
 ->declare(test_TransactedSegmentGenericMemoryAlloc, "memoryAlloc")
-->declare(test_TransactedSegmentManagerMultithreadMemoryAllocator, "multithread")
+->declare(test_TransactedSegmentManagerMultithreadMemoryAllocator, "multithreadAlloc")
+->declare(test_TransactedMemmngrAllocDealloc, "dealloc-alloc issue in single tran" )
 ->declare(test_ReleaseReadBlock, "release read block")
 ->declare(test_NestedTransactions, "nested transactions")
 ->declare(test_TransactedBlockInclude, "test write-block include capability")
+
 ;

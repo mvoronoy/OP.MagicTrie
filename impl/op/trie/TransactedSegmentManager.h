@@ -363,20 +363,20 @@ namespace OP
 
             };
             typedef std::map<RWR, BlockUse> captured_blocks_t;
-            
+            struct TransactionImpl;
             struct SavePoint : public Transaction
             {
                 /**Since std::map::iterator is stable can store it.*/
                 typedef std::deque<captured_blocks_t::iterator> log_t;
                 typedef log_t::iterator iterator;
 
-                SavePoint(transaction_id_t id, TransactedSegmentManager *owner)
-                    : Transaction(id)
-                    , _owner(owner)
+                SavePoint(TransactionImpl* framed_tran)
+                    : Transaction(framed_tran->transaction_id())
+                    , _framed_tran(framed_tran)
                     {}
                 void rollback() override
                 {
-                    _owner->apply_transaction_log(transaction_id(), *this, false);
+                    _framed_tran->_owner->apply_transaction_log(transaction_id(), *this, false);
                     _transaction_log.clear();
                 }
                 iterator begin()
@@ -390,6 +390,10 @@ namespace OP
                 void commit() override
                 {
                     //do nothing
+                }
+                void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
+                {
+                    _framed_tran->register_handle(std::move(handler));
                 }
                 void store(captured_blocks_t::iterator& pos)
                 {
@@ -421,25 +425,29 @@ namespace OP
                     return false;
                 }
             private:
-                TransactedSegmentManager *_owner;
+                TransactionImpl* _framed_tran;
                 log_t _transaction_log;
             };
-
+            /**Implement Transaction interface*/
             struct TransactionImpl : public Transaction, std::enable_shared_from_this<TransactionImpl>
             {
                 TransactionImpl(transaction_id_t id, TransactedSegmentManager *owner)
                     : Transaction(id)
                     , _owner(owner)
                 {
-                    _save_points.emplace_back(new SavePoint(this->transaction_id(), this->_owner));
+                    _save_points.emplace_back(new SavePoint(this));
                 }
                 /**Client code may claim nested transaction. Instead of real transaction just provide save-point
                 * @return new instance of SavePoint with the same transaction-id as current one
                 */
                 transaction_ptr_t recursive()
                 {
-                    _save_points.emplace_back(new SavePoint(this->transaction_id(), this->_owner));
+                    _save_points.emplace_back(new SavePoint(this));
                     return _save_points.back();
+                }
+                virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler)
+                {
+                    _end_listener.emplace_back(std::move(handler));
                 }
                 void rollback() override
                 {
@@ -495,6 +503,12 @@ namespace OP
                 void finish_transaction(bool is_commit)
                 {
                     assert(!_save_points.empty());
+                    //invoke events on transaction end
+                    auto event_callback = is_commit ? &BeforeTransactionEnd::on_commit : &BeforeTransactionEnd::on_rollback;
+                    for (auto& ev : _end_listener)
+                    {
+                        ((*ev).*event_callback)();
+                    }
                     //wipe this transaction on background
                     auto erase_promise = std::async(std::launch::async, [this](std::thread::id id){
                         _owner->erase_transaction(id);
@@ -515,6 +529,8 @@ namespace OP
                 address_lookup_t _address_lookup;
                 typedef std::deque<std::shared_ptr<SavePoint>> save_point_stack_t;
                 save_point_stack_t _save_points;
+                typedef std::vector<std::unique_ptr<BeforeTransactionEnd>> transaction_end_listener_t;
+                transaction_end_listener_t _end_listener;
             };
             typedef std::shared_ptr<TransactionImpl> transaction_impl_ptr_t;
             struct LockDisposer : public BlockDisposer
