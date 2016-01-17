@@ -401,7 +401,7 @@ namespace OP
             {
                 //Mark segment and memory for FreeMemoryBlock as available for write
                 auto header = header_block.at<MemoryBlockHeader>(0);
-                assert(!header->is_free())
+                assert(!header->is_free());
                 header->set_free(true);
                 //from header address evaluate address of memory block
                 FarAddress address (FreeMemoryBlock::get_addr_by_header(header_block.address())); 

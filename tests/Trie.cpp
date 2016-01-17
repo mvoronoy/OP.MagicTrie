@@ -86,7 +86,7 @@ void test_TrieInsertGrow(OP::utest::TestResult &tresult)
     // Populate trie with unique strings in range from [0..255]
     // this must cause grow of root node
     const std::string stems[] = { "abc", "", "x", std::string(256, 'z') };
-    std::array<std::uint16_t, 128> rand_idx;
+    std::array<std::uint16_t, 129> rand_idx;
     std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
     std::random_shuffle(std::begin(rand_idx), std::end(rand_idx));
     for (auto i : rand_idx)

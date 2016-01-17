@@ -24,6 +24,7 @@ namespace OP
     {
         typedef std::uint8_t atom_t;
         typedef std::uint16_t dim_t;
+        typedef std::uint_fast16_t fast_dim_t;
         enum : dim_t
         {
             dim_nil_c = dim_t(-1)
