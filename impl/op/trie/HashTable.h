@@ -272,6 +272,15 @@ namespace OP
                 }
 
             private:
+                /**When hashtable not exceeds 128 entries method inserts value to the */
+                dim_t remap_16_32_64_128(fast_dim_t key)
+                {
+
+                }
+                /**Evaluate FarAddress of hashtable entry 
+                * @param base - the address of HashTable header
+                * @param idx - index of entry in hash table
+                */
                 static FarAddress content_item_address(FarAddress base, dim_t idx) 
                 {
                     return base + (memory_requirement<HashTableData>::requirement +
@@ -280,7 +289,7 @@ namespace OP
                 }
                 std::pair<dim_t, bool> do_insert(HashTableData& head, HashTableData::Content * hash_data, atom_t key)
                 {
-                    unsigned hash = static_cast<unsigned>(key) & (head.capacity - 1); //assume that capacity is ^ 2
+                    unsigned hash = static_cast<unsigned>(key) & (head.capacity - 1); //assuming that capacity is ^ 2
                     for (unsigned i = 0; i < head.neighbor_width && head.size < head.capacity; ++i)
                     {
                         if (0 == (fpresence_c & hash_data[hash].flag))

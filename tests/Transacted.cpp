@@ -428,7 +428,7 @@ void test_TransactedMemmngrAllocDealloc(OP::utest::TestResult &tresult)
         auto tran2 = tmngr1->begin_transaction();
         mm.forcible_deallocate(block1);
         try{
-            mm.allocate(50);  //no overlapped exception there
+            mm.allocate(50);  // overlapped exception there
             tresult.fail("Exception(er_overlapping_block) must be raised");
         }
         catch (const Exception& e)
@@ -439,13 +439,13 @@ void test_TransactedMemmngrAllocDealloc(OP::utest::TestResult &tresult)
     }
     //
     tresult.assert_true(test_avail == mm.available(0));
-
+    std::cout <<"0x"<<std::setbase(16) << mm.available(0) << '\n';
     auto tran3 = tmngr1->begin_transaction();
     mm.deallocate(block1);
     mm.allocate(50);  //no overlapped exception there
     tran3->commit();
-    //
-    tresult.assert_true((test_avail+50) == mm.available(0));
+    //following 16 bytes are consumed by allocation new MemoryHeader, so include this to calc
+    tresult.assert_true((test_avail- aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c)) == mm.available(0));
     
     tmngr1->_check_integrity();
     tmngr1.reset();
