@@ -168,7 +168,7 @@ namespace OP
                 * \li address of just created 
                 * \li 
                 */
-                inline std::tuple<ref_stems_t, WritableAccess<StemData>&&, WritableAccess<atom_t>&& > create(dim_t width, dim_t str_max_height)
+                inline std::tuple<ref_stems_t, WritableAccess<StemData>, WritableAccess<atom_t> > create(dim_t width, dim_t str_max_height)
                 {
                     auto& memmngr = _topology.slot<MemoryManager>();
                     //query data enough for StemData and stems strings

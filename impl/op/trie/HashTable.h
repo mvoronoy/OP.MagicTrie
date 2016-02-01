@@ -110,7 +110,7 @@ namespace OP
                     assert((dim_t)capacity < 256);
 
                     auto& memmngr = _topology.slot<MemoryManager>();
-                    //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
+                    
                     auto byte_size = memory_requirement<HashTableData>::requirement +
                         memory_requirement<HashTableData::Content>::requirement * (dim_t)capacity;
 
@@ -118,13 +118,12 @@ namespace OP
                     auto table_block = _topology.segment_manager().writable_block(result, byte_size);
                     
                     auto data_block = std::move(table_block.subset(memory_requirement<HashTableData>::requirement));
-                    /*
+                    
                     WritableAccess<HashTableData> table_head(std::move(table_block));
                     table_head.make_new(capacity);
                     WritableAccess<HashTableData::Content> table_data(std::move(data_block));
                     table_data.make_array((dim_t)capacity);
-                    */
-                    //g.commit();
+                    
                     return result;
                 }
                 void destroy(FarAddress htbl)
@@ -147,24 +146,29 @@ namespace OP
                 }
 
                 /**@return number of erased - 0 or 1*/
-                unsigned erase(atom_t key)
+                unsigned erase(const trie::PersistedReference<HashTableData>& ref_data, atom_t key)
                 {
-                    const unsigned key_hash = static_cast<unsigned>(key)& bitmask_c;
+                    const unsigned key_hash = static_cast<unsigned>(key) & bitmask_c;
                     unsigned hash = key_hash;
-                    for (unsigned i = 0; i < neighbor_width_c; ++i)
+                    auto table_head = accessor<HashTableData>(_topology, ref_data.address);
+                    auto hash_data = array_accessor<HashTableData::Content>(_topology,
+                        content_item_address(ref_data.address, 0),
+                        table_head->capacity);
+
+                    for (unsigned i = 0; i < table_head->neighbor_width_c; ++i)
                     {
-                        if (0 == (fpresence_c & container()[hash].flag))
+                        if (0 == (fpresence_c & hash_data[hash].flag))
                         { //nothing at this pos
                             return 0;
                         }
-                        if (container()[hash]._key == key)
+                        if (hash_data[hash]._key == key)
                         {//make erase
-                            _count--;
+                            table_head->_count--;
                             //may be rest of neighbors sequence may be shifted by 1, so scan in backward
 
                             hash = restore_on_erase(hash);
                             //just release pos
-                            container()[hash]._flag = 0;
+                            hash_data[hash]._flag = 0;
                             return 1;
                         }
                         ++hash %= capacity(); //keep in boundary
@@ -189,23 +193,7 @@ namespace OP
                         head->capacity);
                     return do_find(head, data_table, key);
                 }
-                //bool get_user_flag(atom_t key, NodePersense flag)
-                //{
-                //    assert(flag >= _f_userdefined_);
-                //    auto idx = find(key);
-                //    assert(idx != nil_c);
-                //    return 0 != (flag & container()[hash].flag);
-                //}
-                //void set_user_flag(atom_t key, NodePresence flag, bool new_val)
-                //{
-                //    assert(flag >= _f_userdefined_);
-                //    auto idx = find(key);
-                //    assert(idx != nil_c);
-                //    if (new_val)
-                //        container()[idx].flag |= flag;
-                //    else
-                //        container()[idx].flag &= ~flag;
-                //}
+                
                 /** Erase the entry associated with key
                 *   *@throws std::out_of_range exception if key is not exists
                 */

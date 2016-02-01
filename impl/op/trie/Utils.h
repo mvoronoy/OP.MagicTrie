@@ -102,6 +102,12 @@ namespace OP
         *\endcode
         */
         template <class T, class Tuple>
+        inline OP_CONSTEXPR(OP_EMPTY_ARG) T&& tuple_ref(Tuple&& tuple) OP_NOEXCEPT
+        {
+            return std::forward<T&&>(
+                std::get< tuple_ref_index<T, Tuple>::value >(std::forward<Tuple>(tuple)) );
+        }
+        template <class T, class Tuple>
         inline T& tuple_ref(Tuple& tuple)
         {
             return std::get< tuple_ref_index<T, Tuple>::value >(tuple);
