@@ -263,12 +263,13 @@ namespace OP
                 assert((pos.offset + size) <= this->segment_size());
                 return MemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
             }
+            /*
             template <class T>
             WritableAccess<T> writable_access(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
                 return WritableAccess<T>(std::move(writable_block(pos, memory_requirement<T>::requirement, hint)));
             }
-            /*template <class T>
+            template <class T>
             WritableAccess<T> writable_access(FarAddress pos, segment_pos_t array_size, WritableBlockHint hint = WritableBlockHint::update_c)
             {
                 return WritableAccess<T>(std::move(writable_block(pos, array_size*memory_requirement<T>::requirement, hint)));

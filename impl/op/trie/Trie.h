@@ -250,17 +250,7 @@ namespace OP
                 
                 auto remap = hash_manager.grow(this->reindexer, presence.presence_begin(), presence.presence_end());
                 
-                auto copy_stuff = [this, &remap](auto& move_callback)
-                {
-                    auto &old_map_func = std::get<2>(remap);
-                    auto &new_map_func = std::get<3>(remap);
-                    for (auto i = presence.presence_begin(); i != presence.presence_end(); ++i)
-                    {
-                        auto old_idx = old_map_func(static_cast<atom_t>(*i));
-                        auto new_idx = new_map_func(static_cast<atom_t>(*i));
-                        move_callback(old_idx, new_idx);
-                    }
-                };
+                
                 //place to thread copying of data, while stems are copied in this thread
                 auto data_copy_future = std::async(std::launch::async, []() {
                 });
@@ -268,7 +258,7 @@ namespace OP
                 //make new stem container
                 auto stem_move_mngr = stem_manager.grow(this->stems, (dim_t)tuple_ref<containers::HashTableCapacity>(remap));
 
-                copy_stuff([&stem_move_mngr](dim_t old_idx, dim_t to_idx) {
+                copy_stuff(remap, [&stem_move_mngr](dim_t old_idx, dim_t to_idx) {
                     stem_move_mngr.move(old_idx, to_idx);
                 });
                 stem_manager.destroy(this->stems);
@@ -280,6 +270,18 @@ namespace OP
                 
                 data_copy_future.wait();
                 
+            }
+            template <class Remap, class MoveCallback>
+            void copy_stuff(Remap& remap, MoveCallback& move_callback)
+            {
+                auto &old_map_func = std::get<2>(remap);
+                auto &new_map_func = std::get<3>(remap);
+                for (auto i = presence.presence_begin(); i != presence.presence_end(); ++i)
+                {
+                    auto old_idx = old_map_func(static_cast<atom_t>(*i));
+                    auto new_idx = new_map_func(static_cast<atom_t>(*i));
+                    move_callback(old_idx, new_idx);
+                }
             }
         };
 
@@ -560,9 +562,10 @@ namespace OP
                 node->reindexer.address = hash_mngr.create(containers::HashTableCapacity::_8);
                 //create stem-container
                 stem::StemStore<topology_t> stem_mngr(*_topology_ptr);
-                node->stems = tuple_ref<node_t::ref_stems_t>(stem_mngr.create(
-                    (dim_t)containers::HashTableCapacity::_8, 
+                auto cr_result = std::move(stem_mngr.create(
+                    (dim_t)containers::HashTableCapacity::_8,
                     TrieDef::max_stem_length_c));
+                node->stems = tuple_ref<node_t::ref_stems_t>(cr_result);
                 ValueArrayManager<topology_t, payload_t> vmanager(*_topology_ptr);
                 node->payload = vmanager.create((dim_t)containers::HashTableCapacity::_8);
 

@@ -89,13 +89,18 @@ namespace OP
                 MemoryRangeBase(pos, count, std::move(address), std::move(segment))
             {
             }
+            //@!!! MemoryRange(const MemoryRange&) = delete;
+            MemoryRange(const OP::trie::MemoryRange &)
+            {
+                std::cout << "Nonsence!";
+            }
             MemoryRange() = default;
             MemoryRange(MemoryRange&& right)
                 :MemoryRangeBase(std::move(right))
             {
             }
 
-            MemoryRange(const MemoryRange&) = delete;
+            
             MemoryRange& operator = (const MemoryRange&) = delete;
             /**
             * @return new instance that is subset of this where beginning is shifted on `offset` bytes
@@ -172,7 +177,7 @@ namespace OP
         template <class T>
         struct WritableAccess : public MemoryRange
         {
-            WritableAccess(MemoryRange right) OP_NOEXCEPT
+            WritableAccess(MemoryRange&& right) OP_NOEXCEPT
                 : MemoryRange(std::move(right))
             {
             }
@@ -211,13 +216,13 @@ namespace OP
                 return *MemoryRange::at<T>(byte_offset);
             }
             template <class ... Ts>
-            T* make_new(Ts&&... args)
+            void make_new(Ts&&... args)
             {
                 if ( this->count() < details::array_view_size_helper<T>() )
                     throw std::out_of_range("too small block to allocate T");
-                return new (pos()) T(std::forward<Types>(args)...);
+                new (pos()) T(std::forward<Ts>(args)...);
             }
-            T* make_array(segment_pos_t array_size)
+            void make_array(segment_pos_t array_size)
             {
                 //items have to be alligned
                 OP_CONSTEXPR(static const) auto inc = details::array_view_size_helper<T>();
@@ -227,7 +232,7 @@ namespace OP
                 {
                     new (p) T;
                 }
-                return *MemoryRange::at<T>(0);
+                
             }
         };
         /**Hint allows specify how writable block will be used*/
@@ -306,7 +311,12 @@ namespace OP
                 return *this;
             }
 
-            ReadonlyMemoryRange(const ReadonlyMemoryRange&) = delete;
+            //@!!! ReadonlyMemoryRange(const ReadonlyMemoryRange&) = delete;
+            ReadonlyMemoryRange(const ReadonlyMemoryRange &)
+            {
+                std::cout << "Nonsence!";
+            }
+
             ReadonlyMemoryRange& operator = (const ReadonlyMemoryRange&) = delete;
 
             /**
@@ -326,7 +336,7 @@ namespace OP
         template <class T>
         struct ReadonlyAccess : public ReadonlyMemoryRange
         {
-            ReadonlyAccess(ReadonlyMemoryRange right) OP_NOEXCEPT
+            ReadonlyAccess(ReadonlyMemoryRange&& right) OP_NOEXCEPT
                 : ReadonlyMemoryRange(std::move(right))
             {
             }
