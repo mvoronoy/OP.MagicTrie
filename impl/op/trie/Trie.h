@@ -202,7 +202,6 @@ namespace OP
                 
                 auto key = static_cast<atom_t>(*begin);
                 assert(!presence.get(key));
-                presence.set(key);
                 ++begin; //first letter concidered in `presence`
                 dim_t reindex_res = key;
                 if (!stems.is_null())
@@ -228,6 +227,8 @@ namespace OP
                     stem_manager.accommodate(stems, (atom_t)reindex_res, begin, std::move(end));
                     
                 }
+                presence.set(key);
+
                 return reindex_res;
             }
             template <class TSegmentTopology>
@@ -247,7 +248,6 @@ namespace OP
             void grow(TSegmentTopology& topology)
             {
                 containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
-                
                 auto remap = hash_manager.grow(this->reindexer, presence.presence_begin(), presence.presence_end());
                 
                 
