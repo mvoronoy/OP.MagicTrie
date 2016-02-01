@@ -155,28 +155,35 @@ namespace OP
             template <class SegmentTopology>
             struct StemStore
             {
+                typedef StemStore<SegmentTopology> this_t;
                 typedef PersistedReference<StemData> ref_stems_t;
                 StemStore(SegmentTopology& topology)
                     : _topology(topology)
                 {}
 
-                OP_CONSTEXPR(OP_EMPTY_ARG) static dim_t memory_requirements(dim_t width, dim_t str_max_height)
+                
+                /**
+                * Create new stem container.
+                * @return tuple of:
+                * \li address of just created 
+                * \li 
+                */
+                inline std::tuple<ref_stems_t, WritableAccess<StemData>, WritableAccess<atom_t> > create(dim_t width, dim_t str_max_height)
                 {
-                    return memory_requirement<StemData>::requirement
-                        + sizeof(atom_t) * (width * str_max_height);
-                }
-
-                inline std::tuple<ref_stems_t, StemData*> create(dim_t width, dim_t str_max_height)
-                {
-                    //size_t expected = memory_requirements<Tuple>();
                     auto& memmngr = _topology.slot<MemoryManager>();
                     //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
                     //query data enough for StemData and stems strings
-                    auto mem_size = memory_requirements(width, str_max_height);
+                    auto header_size = memory_requirement<StemData>::requirement;
+                    auto mem_size = header_size + width * str_max_height;
                     auto addr = memmngr.allocate(mem_size);
                     auto mem_block = _topology.segment_manager().writable_block(addr, mem_size);
+                    new (mem_block.pos()) StemData(width, str_max_height); //constructs header
+                    auto stems_block = mem_block.subset(header_size);
                     return std::make_tuple(
-                        ref_stems_t(addr), new (mem_block.pos()) StemData(width, str_max_height));
+                        ref_stems_t(addr), 
+                        WritableAccess<StemData>(std::move(mem_block)),
+                        WritableAccess<atom_t>(std::move(stems_block))
+                        );
                     //g.commit();
                 }
                 /**Destroy previously allocated by #create stem container*/
@@ -230,8 +237,8 @@ namespace OP
                 inline prefix_result_t prefix_of(const ref_stems_t& st_address, atom_t key, T& begin, T end) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
-                    auto ro_access = _topology.segment_manager()
-                        .readonly_access<StemData>(st_address.address);
+                    auto ro_access = 
+                        view<StemData>(_topology, st_address.address);
                     auto &data_header = *ro_access;
 
                     assert(key < data_header.width);
@@ -291,37 +298,69 @@ namespace OP
                     
                     return std::make_tuple((atom_t*)f_str.pos(), /*std::ref*/(data_header->stem_length[key]), std::ref(*data_header));
                 }
+                struct MoveProcessor
+                {
+                    friend struct this_t;
+                    void move(dim_t from, dim_t to)
+                    {
+                        assert(from < _from_header->width);
+                        assert(to < _to_header->width);
+                        auto len = _from_header->stem_length[from];
+                        assert(len <= _to_header->height);
+                        
+                        _to_header->stem_length[to] = len;
+                        _to_data.byte_copy(&_from_data[from * _from_header->height], len, to * _to_header->height);
+
+                        _to_header->summary_length += len;
+                        _to_header->count++;
+                    }
+                    const ref_stems_t& to_address() const
+                    {
+                        return _to_address;
+                    }
+                private:
+                    MoveProcessor(
+                        ReadonlyAccess<StemData> from_header, ReadonlyAccess<std::uint8_t> from_data,
+                        WritableAccess<StemData> to_header, WritableAccess<std::uint8_t> to_data,
+                        ref_stems_t to_address)
+                        : _from_header(std::move(from_header))
+                        , _from_data(std::move(from_data))
+                        , _to_header(std::move(to_header))
+                        , _to_data(std::move(to_data))
+                        , _to_address(std::move(to_address))
+                    {
+                        
+                    }
+                    ReadonlyAccess<StemData> _from_header;
+                    ReadonlyAccess<std::uint8_t> _from_data;
+                    WritableAccess<StemData> _to_header;
+                    WritableAccess<std::uint8_t> _to_data;
+                    ref_stems_t _to_address;
+                };
                 /**
                 *   @param previous - in/out holder of address
                 *   @!@ @todo current impl is velocity efficient, but must be implmented as space efficient - instead of taking max stem, need base on average length
                 */
-                std::tuple<ref_stems_t, StemData*> grow(const trie::PersistedReference<StemData>& previous, dim_t new_size)
+                MoveProcessor grow(const trie::PersistedReference<StemData>& previous, dim_t new_size)
                 {
-                    auto ro_access = _topology.segment_manager()
-                        .readonly_access<StemData>(previous.address);
+                    auto ro_access = view<StemData>(_topology, previous.address);
+                    
+                    auto ro_data = array_view<std::uint8_t>(_topology, 
+                        previous.address + memory_requirement<StemData>::requirement,
+                        ro_access->width * ro_access->height);
                     auto max_height = *std::max_element(ro_access->stem_length, ro_access->stem_length + ro_access->width);
                     //it is possible that all set to 0, so 
                     //@!@ @todo allow nil-stem container
                     if (max_height < 2)
                         max_height = 2;
-                    return this->create(new_size, max_height);
+                    auto new_stem = this->create(new_size, max_height);
+                    return MoveProcessor(
+                        std::move(ro_access), std::move(ro_data),
+                        std::move(tuple_ref<WritableAccess<StemData> >(new_stem)),
+                        std::move(tuple_ref<WritableAccess<atom_t> >(new_stem)),
+                        tuple_ref<trie::PersistedReference<StemData> >(new_stem)
+                        );
                 }
-                void move_item(const ref_stems_t& st_address, dim_t from_idx, StemData& to, dim_t to_idx)
-                {
-                    auto ro_header = _topology.segment_manager()
-                        .readonly_access<StemData>(st_address.address);
-                    auto from_addr = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*ro_header->height * from_idx };
-                    auto ro_block = _topology.segment_manager().readonly_block(from_addr, sizeof(atom_t)*ro_header->height);
-                    atom_t* dest = reinterpret_cast<atom_t*>(&to) + memory_requirement<StemData>::requirement
-                        + sizeof(atom_t) * (to_idx * ro_header->height);
-                    assert(ro_header->stem_length[from_idx] <= to.height);
-                    memcpy(dest, ro_block.pos(), ro_header->stem_length[from_idx]);
-                    to.stem_length[to_idx] = ro_header->stem_length[from_idx];
-                    to.summary_length += ro_header->stem_length[from_idx];
-                    ++to.count;
-                }
-            protected:
             private:
                 
 

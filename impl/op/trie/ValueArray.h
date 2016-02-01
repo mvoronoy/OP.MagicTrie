@@ -97,6 +97,17 @@ namespace OP
                 auto& memmngr = _topology.slot<MemoryManager>();
                 memmngr.deallocate(array_ref.address);
             }
+            /**Allocate new array and move items from source one by reindexing rules*/
+            PersistedArray<vad_t> create_from(fast_dim_t capacity, PersistedArray<vad_t> source, fast_dim_t source_capacity, std::function<fast_dim_t(fast_dim_t)> &reindexing)
+            {
+                auto dest = create(capacity);
+                auto& sm = _topology.segment_manager();
+                auto src_block = sm.writable_block(source.address, memory_requirement<vad_t>::requirement * source_capacity);
+                auto dest_block = sm.writable_block(dest.address, memory_requirement<vad_t>::requirement * capcity);
+                auto src_array = src_block.at<vad_t>(0);
+                auto dest_array = dest_block.at<vad_t>(0);
+                for()
+            }
             void put_data(const PersistedArray<vad_t>& array_ref, dim_t index, payload_t && new_value)
             {
                 //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());

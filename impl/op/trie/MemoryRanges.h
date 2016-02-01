@@ -2,6 +2,7 @@
 #define _OP_TRIE_MEMORYRANGES__H_
 #include <op/trie/Range.h>
 #include <op/trie/SegmentHelper.h>
+#include <op/trie/Utils.h>
 #include <cstdint>
 #include <memory>
 namespace OP
@@ -97,7 +98,7 @@ namespace OP
             MemoryRange(const MemoryRange&) = delete;
             MemoryRange& operator = (const MemoryRange&) = delete;
             /**
-            * @return new instance that is subset of this where beginning is shifeted on `offset` bytes
+            * @return new instance that is subset of this where beginning is shifted on `offset` bytes
             *   @param offset - how many bytes to offset from beggining, must be less than #count()
             */
             MemoryRange subset(segment_pos_t offset) const
@@ -109,7 +110,7 @@ namespace OP
             *   @param idx - byte offset (not an item index)
             */
             template <class T>
-            T* at(segment_pos_t idx)
+            T* at(segment_pos_t idx) const
             {
                 assert(idx < this->count());
                 return reinterpret_cast<T*>(pos() + idx);
@@ -121,38 +122,57 @@ namespace OP
             * @return number of bytes copied
             * @throws std::out_of_range exception if `source_size` exceeds this block size
             */
-            segment_pos_t copy(const void * source, segment_pos_t source_size, segment_pos_t dest_offset = 0)
+            segment_pos_t byte_copy(const void * source, segment_pos_t source_size, segment_pos_t dest_offset = 0)
             {
                 if((this->count() - dest_offset) < source_size)
                     throw std::out_of_range("source size too big");
                 memcpy(pos() + dest_offset, source, source_size);
                 return source_size;
             }
-            template <class T, size_t N>
-            segment_pos_t copy(const T (&arr)[N])
-            {
-                return this->copy(arr, sizeof(arr));
-            }
-            
-            template <class T, size_t N>
-            segment_pos_t aligned_copy(const T arr[N])
-            {
-                static OP_CONSTEXPR(const) byte_size_c = memory_requirement<T>::requirement * N;
-                if((this->count() - dest_offset) < byte_size_c)
-                    throw std::out_of_range("source size too big");
-                auto p = pos() + dest_offset;
-                for (auto t : arr)
-                {
-                    *p = t;
-                    p += memory_requirement<T>::requirement;
-                }
-                return byte_size_c;
-            }
+            //template <class T, size_t N>
+            //segment_pos_t copy(const T (&arr)[N])
+            //{
+            //    return this->copy(arr, sizeof(arr));
+            //}
+            //
+            //template <class T, size_t N>
+            //segment_pos_t aligned_copy(const T arr[N])
+            //{
+            //    static OP_CONSTEXPR(const) byte_size_c = memory_requirement<T>::requirement * N;
+            //    if((this->count() - dest_offset) < byte_size_c)
+            //        throw std::out_of_range("source size too big");
+            //    auto p = pos() + dest_offset;
+            //    for (auto t : arr)
+            //    {
+            //        *p = t;
+            //        p += memory_requirement<T>::requirement;
+            //    }
+            //    return byte_size_c;
+            //}
         };
-        template <class T>
-        struct WritableAccess
+        namespace details
         {
-            WritableAccess(MemoryRange&& right) OP_NOEXCEPT
+            template <class T>
+            inline OP_CONSTEXPR(const) typename std::enable_if< !std::is_scalar<T>::value, segment_pos_t >::type array_view_size_helper() OP_NOEXCEPT
+            {
+                return memory_requirement<T>::requirement;
+            }
+            template <class T>
+            inline OP_CONSTEXPR(const) typename std::enable_if< std::is_scalar<T>::value, segment_pos_t >::type array_view_size_helper() OP_NOEXCEPT
+            {
+                return sizeof(T);
+            }
+
+        } //ns:details               
+
+        /**Helper that provides writable access to virtual memory occupied by single instance or array of 
+        * alligned instances of `T`
+        * \tparam T - "standard layout types" (see http://www.stroustrup.com/C++11FAQ.html#PODs)
+        */
+        template <class T>
+        struct WritableAccess : public MemoryRange
+        {
+            WritableAccess(MemoryRange right) OP_NOEXCEPT
                 : MemoryRange(std::move(right))
             {
             }
@@ -168,13 +188,100 @@ namespace OP
             {
                 return MemoryRange::at<T>(0);
             }
+            const T* operator -> () const
+            {
+                return MemoryRange::at<T>(0);
+            }
+            /**
+            * @return reference to array element reside by specified index
+            * @throws std::out_of_range if index address invalid element
+            */
             T& operator[](segment_pos_t index)
             {
-                auto byte_offset = memory_requirement<T>::requirement * index;
+                auto byte_offset = details::array_view_size_helper<T>() * index;
                 if (byte_offset >= this->count())
-                    throw std::out_of_range("index out of range");
+                    throw std::out_of_range("index is out of range");
                 return *MemoryRange::at<T>(byte_offset);
             }
+            const T& operator[](segment_pos_t index) const
+            {
+                auto byte_offset = details::array_view_size_helper<T>() * index;
+                if (byte_offset >= this->count())
+                    throw std::out_of_range("index is out of range");
+                return *MemoryRange::at<T>(byte_offset);
+            }
+            template <class ... Ts>
+            T* make_new(Ts&&... args)
+            {
+                if ( this->count() < details::array_view_size_helper<T>() )
+                    throw std::out_of_range("too small block to allocate T");
+                return new (pos()) T(std::forward<Types>(args)...);
+            }
+            T* make_array(segment_pos_t array_size)
+            {
+                //items have to be alligned
+                OP_CONSTEXPR(static const) auto inc = details::array_view_size_helper<T>();
+                if (this->count() < (inc*array_size) )
+                    throw std::out_of_range("too small block to allocate T[N]");
+                for (auto p = pos(); array_size; p += inc, --array_size)
+                {
+                    new (p) T;
+                }
+                return *MemoryRange::at<T>(0);
+            }
+        };
+        /**Hint allows specify how writable block will be used*/
+        enum class WritableBlockHint : std::uint8_t
+        {
+            block_no_hint_c = 0,
+            block_for_read_c = 0x1,
+            block_for_write_c = 0x2,
+            force_optimistic_write_c = 0x4,
+            /**Block contains some information and will be used for r/w operations*/
+            update_c = block_for_read_c | block_for_write_c,
+
+            /**Block is used only for write purpose and doesn't contain usefull information yet*/
+            new_c = block_for_write_c
+        };
+        /**
+        *   Create writable accessor to some virtual memory
+        * \tparam T some type that resides at accesed writable memory
+        * \tparam SMProvider some type that either castable to SegmentManager or resolved by resolve_segment_manager() (like a SegmentToplogy)
+        * \return accessor that provide writable access to the instance of `T`
+        */
+        template <class T, class SMProvider>
+        WritableAccess<T> accessor(SMProvider& segment_manager_provider, FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
+        {
+            return WritableAccess<T>(std::move(resolve_segment_manager(segment_manager_provider).
+                writable_block(pos, memory_requirement<T>::requirement, hint)));
+        }
+        
+        /**
+        *   Create read/write accessor to virtual memory ocupied by array of `T` elements of length `number_elements`
+        * \tparam T some type that resides at accesed readonly memory
+        * \tparam SMProvider some type that either castable to SegmentManager or resolved by resolve_segment_manager() (like a SegmentTopology)
+        * \param number_elements number of items in accessed array
+        * \return accessor that provide readonly (const) access to array of `T`s
+        */
+        template <class T, class SMProvider>
+        WritableAccess<T> array_accessor(SMProvider& segment_manager_provider, FarAddress pos,
+            segment_pos_t number_elements,
+            WritableBlockHint hint = WritableBlockHint::update_c)
+        {
+            using A = WritableAccess<T>;
+            auto size = details::array_view_size_helper<T>() * number_elements;
+            return A(std::move(resolve_segment_manager(segment_manager_provider).
+                writable_block(pos, details::array_view_size_helper<T>() * number_elements, hint)));
+        }
+        /**Hint allows specify how readonly blocks will be used*/
+        struct ReadonlyBlockHint
+        {
+            enum type : std::uint8_t
+            {
+                ro_no_hint_c = 0,
+                /**Forces keep lock even after ReadonlyMemoryRange is released. The default behaviour releases lock */
+                ro_keep_lock = 0x1
+            };
         };
         
         /**
@@ -212,10 +319,14 @@ namespace OP
                 return reinterpret_cast<T*>(pos() + idx);
             }
         };
+        /**Helper that provides readonly access to virtual memory occupied by single instance or array of 
+        * alligned instances of `T`
+        * \tparam T - "standard layout types" (see http://www.stroustrup.com/C++11FAQ.html#PODs)
+        */
         template <class T>
         struct ReadonlyAccess : public ReadonlyMemoryRange
         {
-            ReadonlyAccess(ReadonlyMemoryRange&& right) OP_NOEXCEPT
+            ReadonlyAccess(ReadonlyMemoryRange right) OP_NOEXCEPT
                 : ReadonlyMemoryRange(std::move(right))
             {
             }
@@ -231,37 +342,49 @@ namespace OP
             {
                 return ReadonlyMemoryRange::at<T>(0);
             }
-            //const T& operator[](segment_pos_t index) const
-            //{
-            //    auto byte_offset = memory_requirement<T>::requirement * index;
-            //    if (byte_offset >= this->count())
-            //        throw std::out_of_range("index out of range");
-            //    return *ReadonlyMemoryRange::at<T>(byte_offset);
-            //}
-        };
-        /**Hint allows specify how writable block will be used*/
-        enum class WritableBlockHint : std::uint8_t
-        {
-            block_no_hint_c = 0,
-            block_for_read_c = 0x1,
-            block_for_write_c = 0x2,
-            force_optimistic_write_c = 0x4,
-            /**Block contains some information and will be used for r/w operations*/
-            update_c = block_for_read_c | block_for_write_c,
-
-            /**Block is used only for write purpose and doesn't contain usefull information yet*/
-            new_c = block_for_write_c
-        };
-        /**Hint allows specify how readonly blocks will be used*/
-        struct ReadonlyBlockHint
-        {
-            enum type : std::uint8_t
+            /**
+            * @return const reference to array element reside by specified index
+            * @throws std::out_of_range if index address invalid element
+            */
+            const T& operator[](segment_pos_t index) const
             {
-                ro_no_hint_c = 0,
-                /**Forces keep lock even after ReadonlyMemoryRange is released. The default behaviour releases lock */
-                ro_keep_lock = 0x1
-            };
+                auto byte_offset = details::array_view_size_helper<T>() * index;
+                if (byte_offset >= this->count())
+                    throw std::out_of_range("index is out of range");
+                return *ReadonlyMemoryRange::at<T>(byte_offset);
+            }
         };
+        /**
+        *   Create readonly accessor to some virtual memory
+        * \tparam T some type that resides at accesed readonly memory
+        * \tparam SMProvider some type that either castable to SegmentManager or resolved by resolve_segment_manager() (like a SegmentToplogy)
+        * \return accessor that provide readonly (const) access to instance of `T`
+        */
+        template <class T, class SMProvider>
+        ReadonlyAccess<T> view(SMProvider& segment_manager_provider, FarAddress pos, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
+        {
+            return ReadonlyAccess<T>(std::move(resolve_segment_manager(segment_manager_provider).
+                readonly_block(pos, memory_requirement<T>::requirement, hint)));
+        }
+        
+        /**
+        *   Create readonly accessor to virtual memory ocupied by array of `T` elements of length `number_elements`
+        * \tparam T some type that resides at accesed readonly memory
+        * \tparam SMProvider some type that either castable to SegmentManager or resolved by resolve_segment_manager() (like a SegmentToplogy)
+        * \param number_elements number of items in accessed array
+        * \return accessor that provide readonly (const) access to array of `T`s
+        */
+        template <class T, class SMProvider>
+        ReadonlyAccess<T> array_view(SMProvider& segment_manager_provider, FarAddress pos,
+            segment_pos_t number_elements,
+            ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
+        {
+            using A = ReadonlyAccess<T>;
+            return A(std::move(resolve_segment_manager(segment_manager_provider).
+                readonly_block(pos, details::array_view_size_helper<T>() * number_elements, hint)));
+        }
+        
+        
     } //ns::trie
 } //ns::OP
 #endif //_OP_TRIE_MEMORYRANGES__H_

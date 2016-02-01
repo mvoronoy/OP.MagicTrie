@@ -39,7 +39,6 @@ namespace OP
         template <size_t N, class Int>
         struct BitsetIterator : public std::iterator<std::random_access_iterator_tag, bool>
         {
-
             enum
             {
                 /**bits count in single entry*/
@@ -47,7 +46,6 @@ namespace OP
                 /**Total bit count managed by this container*/
                 bit_length_c = bits_c * N
             };
-
             using base_t = typename std::iterator<std::random_access_iterator_tag, bool>;
             using difference_type = typename base_t::difference_type;
             using this_t = typename BitsetIterator<N, Int>;
@@ -55,7 +53,7 @@ namespace OP
             BitsetIterator() : _ptr(nullptr), _offset{} {}
 
             BitsetIterator(const Int* rhs, size_t offset)
-                : _ptr(rhs),
+                : _ptr(rhs)
                 , _offset(offset) {}
 
             inline this_t& operator+=(difference_type rhs)
@@ -160,13 +158,79 @@ namespace OP
             const Int* _ptr;
             size_t _offset;
         };
+        
+        /**Allows iterate over Bitset only for entries that are set*/
+        template <class TBitset>
+        struct PresenceIterator : public std::iterator<std::forward_iterator_tag, typename TBitset::dim_t>
+        {
+            typedef PresenceIterator<TBitset> this_t;
 
+            PresenceIterator(const TBitset *owner)
+                : _owner(owner)
+                , _pos(owner->first_set())
+            {
+
+            }
+            PresenceIterator()
+                : _owner(nullptr)
+                , _pos(TBitset::nil_c)
+            {
+
+            }
+            inline typename TBitset::dim_t operator*() const
+            {
+                return _pos;
+            }
+            inline this_t& operator ++ ()
+            {
+                assert(_pos != TBitset::nil_c);
+                _pos = _owner->next_set(_pos);
+                return *this;
+            }
+            inline this_t operator ++ (int)
+            {
+                auto rv = *this;
+                this->operator++();
+                return rv;
+            }
+            inline bool operator==(const this_t& rhs) const
+            {
+                return _pos == rhs._pos;
+            }
+            inline bool operator!=(const this_t& rhs) const
+            {
+                return _pos != rhs._pos;
+            }
+            inline bool operator>(const this_t& rhs) const
+            {
+                return _pos > rhs._pos;
+            }
+            inline bool operator<(const this_t& rhs) const
+            {
+                return _pos < rhs._pos;
+            }
+            inline bool operator>=(const this_t& rhs) const
+            {
+                return _pos >= rhs._pos;
+            }
+            inline bool operator<=(const this_t& rhs) const
+            {
+                return _pos <= rhs._pos;
+            }
+        private:
+            typename TBitset::dim_t _pos;
+            const TBitset *_owner;
+        };
+        /**Represent bit-set.*/
         template <size_t N = 1, typename Int = std::uint64_t>
         struct Bitset
         {
             friend struct Bitset<N + 1, Int>;
+            using this_t = Bitset<N, Int>;
+
             using const_iterator = BitsetIterator<N, Int>;
-            
+            using const_presence_iterator = PresenceIterator<this_t>;
+
             typedef std::uint16_t dim_t;
             typedef std::uint8_t atom_t;
             static const dim_t nil_c = dim_t(~0u);
@@ -188,6 +252,14 @@ namespace OP
             const_iterator end() const
             {
                 return const_iterator(_presence, bit_length_c);
+            }
+            const_presence_iterator presence_begin() const
+            {
+                return const_presence_iterator(this);
+            }
+            const_presence_iterator presence_end() const
+            {
+                return const_presence_iterator();
             }
             /**Return index of first bit that is set*/
             inline dim_t first_set() const

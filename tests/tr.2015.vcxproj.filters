@@ -109,6 +109,9 @@
     <ClInclude Include="..\impl\op\trie\PersistedReference.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\trie\func_iter.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
