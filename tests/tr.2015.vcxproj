@@ -152,6 +152,7 @@
   <ItemGroup>
     <ClInclude Include="..\impl\op\service\BackgroundWorker.h" />
     <ClInclude Include="..\impl\op\trie\Bitset.h" />
+    <ClInclude Include="..\impl\op\trie\func_iter.h" />
     <ClInclude Include="..\impl\op\trie\HashTable.h" />
     <ClInclude Include="..\impl\op\trie\MemoryBlock.h" />
     <ClInclude Include="..\impl\op\trie\MemoryManager.h" />

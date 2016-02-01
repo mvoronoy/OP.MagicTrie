@@ -74,6 +74,7 @@ namespace OP
             //node_def_t _data;
 
             presence_t presence;
+            /**modification version of node*/
             version_t version;
             ref_reindex_hash_t reindexer;
             ref_stems_t stems;
@@ -190,7 +191,10 @@ namespace OP
                     std::get<1>(stem_info) - length);
             }
         private:
-            /**return origin index that matches to accomodated key (reindexed key)*/
+            /**
+            * Take some part of string specified by [begin ,end) and place inside this node
+            * @return origin index that matches to accomodated key (reindexed key)
+            */
             template <class TSegmentTopology, class Atom>
             dim_t insert_stem(TSegmentTopology& topology, Atom& begin, Atom end)
             {
@@ -238,59 +242,43 @@ namespace OP
 
                 return static_cast<atom_t>(reindexed);
             }
-            /**Helper class to keep track of states durin grow operation*/
-            template <class TSegmentTopology>
-            struct GrowTrackState
-            {
-                GrowTrackState(TSegmentTopology& topology, ref_stems_t& stems_ref, ref_values_t& values_ref )
-                    : _stem_manager(topology)
-                    , _value_manager(topology)
-                    , _stems_ref(stems_ref)
-                    , _values_ref(values_ref)
-                {}
-
-                /**Create new containers for values and stems*/
-                void pre_grow(containers::HashTableCapacity new_capacity)
-                {
-                    _new_stems = std::move(_stem_manager.grow(_stems_ref, (dim_t)new_capacity));
-                    _new_vad = _value_manager.create((dim_t)new_capacity);
-                }
-                void copy_data(atom_t from, dim_t to)
-                {
-                    _stem_manager.move_item(_stems_ref, from, *tuple_ref<stem::StemData*>(_new_stems), to);
-                    _value_manager.put(_new_vad, to,
-                        std::move(_value_manager.get(_values_ref, from)));
-                }
-                void shutdown()
-                {
-                    //_stem_manager.destroy(_stems_ref);
-                    _stems_ref = tuple_ref<ref_stems_t>(_new_stems);
-                    //_value_manager.destroy(_values_ref);
-                    _values_ref = _new_vad;
-                }
-                stem::StemStore<TSegmentTopology> _stem_manager;
-                ValueArrayManager<TSegmentTopology, payload_t> _value_manager;
-                ref_stems_t& _stems_ref;
-                std::tuple<ref_stems_t, stem::StemData*> _new_stems;
-                
-                PersistedArray<values_t> _new_vad;
-                ref_values_t& _values_ref;
-            };
+            
             template <class TSegmentTopology>
             void grow(TSegmentTopology& topology)
             {
                 containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
-                GrowTrackState<TSegmentTopology> track_state(topology, this->stems, this->payload);
+                
+                auto remap = hash_manager.grow(this->reindexer, presence.presence_begin(), presence.presence_end());
+                
+                auto copy_stuff = [this, &remap](auto& move_callback)
+                {
+                    auto &old_map_func = std::get<2>(remap);
+                    auto &new_map_func = std::get<3>(remap);
+                    for (auto i = presence.presence_begin(); i != presence.presence_end(); ++i)
+                    {
+                        auto old_idx = old_map_func(static_cast<atom_t>(*i));
+                        auto new_idx = new_map_func(static_cast<atom_t>(*i));
+                        move_callback(old_idx, new_idx);
+                    }
+                };
+                //place to thread copying of data, while stems are copied in this thread
+                auto data_copy_future = std::async(std::launch::async, []() {
+                });
+                stem::StemStore<TSegmentTopology> stem_manager(topology);
+                //make new stem container
+                auto stem_move_mngr = stem_manager.grow(this->stems, (dim_t)tuple_ref<containers::HashTableCapacity>(remap));
 
-                hash_manager.grow(this->reindexer,
-                        [&track_state](containers::HashTableCapacity new_capacity) { 
-                            track_state.pre_grow(new_capacity);
-                        }, 
-                        [&track_state](atom_t from, dim_t to){
-                            track_state.copy_data(from, to);
-                        }
-                    );
-                track_state.shutdown();
+                copy_stuff([&stem_move_mngr](dim_t old_idx, dim_t to_idx) {
+                    stem_move_mngr.move(old_idx, to_idx);
+                });
+                stem_manager.destroy(this->stems);
+                this->stems = stem_move_mngr.to_address();
+
+                auto &new_reindexer = tuple_ref<ref_reindex_hash_t>(remap);
+                hash_manager.destroy(this->reindexer.address); //delete old
+                this->reindexer = new_reindexer;
+                
+                data_copy_future.wait();
                 
             }
         };
@@ -487,7 +475,7 @@ namespace OP
                 for (;;)
                 {
                     auto node =
-                        _topology_ptr->segment_manager().readonly_access<node_t>(node_addr);
+                        view<node_t>(*_topology_ptr, node_addr);
                     
                     atom_t key = *begin;
                     auto nav_res = node->navigate_over(*_topology_ptr, begin, end);

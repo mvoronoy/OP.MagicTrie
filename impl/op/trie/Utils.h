@@ -131,6 +131,17 @@ namespace OP
                 tuple_ref_hierarchy_index<Base, typename std::decay<Tuple>::type>::value>(
                     std::forward<Tuple>(tuple));
         }
+        /**Allows to check if parameter T is defined from other template. Usage:
+        *   \code
+        *   typedef std::tuple<int, double> my_tuple; //sample type defined from template
+        *   ...
+        *   std::cout << is_generic<my_tuple, std::tuple>::value; //is true
+        *   \endcode
+        */
+        template <typename T, template <typename...> class Template>
+        struct is_generic : public std::false_type {};
+        template <template <typename...> class Template, typename... Args>
+        struct is_generic<Template<Args...>, Template> : public std::true_type {};
 
         /**
         * Allow evaluate sizeof for type (including tuples) alligned to current compiler requirements.

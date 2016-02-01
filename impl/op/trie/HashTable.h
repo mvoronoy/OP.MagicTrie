@@ -4,21 +4,21 @@
 #include <OP/trie/typedefs.h>
 #include <OP/trie/SegmentManager.h>
 #include <OP/trie/PersistedReference.h>
-
+#include <unordered_map>
 namespace OP
 {
     namespace trie
     {
         namespace containers
         {
-            
+
             enum class HashTableCapacity : dim_t
             {
-                _8 = 8, 
-                _16 = 16, 
-                _32 = 32, 
-                _64 = 64, 
-                _128 = 128, 
+                _8 = 8,
+                _16 = 16,
+                _32 = 32,
+                _64 = 64,
+                _128 = 128,
                 _256 = 256
             };
             enum class HashTableFlag
@@ -27,6 +27,7 @@ namespace OP
             };
             namespace details
             {
+                /**Define how many */
                 inline dim_t max_hash_neighbors(HashTableCapacity capacity)
                 {
                     switch (capacity)
@@ -63,7 +64,7 @@ namespace OP
                 }
             }//ns:details
 
-            struct HashTableData 
+            struct HashTableData
             {
                 HashTableData(HashTableCapacity acapacity)
                     : capacity((dim_t)acapacity)
@@ -86,6 +87,7 @@ namespace OP
             template <class SegmentTopology>
             struct PersistedHashTable
             {
+                using this_t = PersistedHashTable<SegmentTopology>;
                 enum : dim_t
                 {
                     nil_c = dim_t(-1)
@@ -94,6 +96,10 @@ namespace OP
                 PersistedHashTable(SegmentTopology& topology)
                     : _topology(topology)
                 {}
+                SegmentTopology& topology()
+                {
+                    return _topology;
+                }
                 /**
                 * Create HashTableData<Payload> in dynamic memory using MemoryManager slot
                 * @return far-address that point to allocated table
@@ -108,8 +114,13 @@ namespace OP
                         memory_requirement<HashTableData::Content>::requirement * (dim_t)capacity;
 
                     auto result = memmngr.allocate(byte_size);
-                    auto mem = _topology.segment_manager().writable_block(result, byte_size);
-                    auto table_head = new (mem.pos()) HashTableData(capacity);
+                    auto table_block = _topology.segment_manager().writable_block(result, byte_size);
+                    
+                    auto data_block = table_block.sub(memory_requirement<HashTableData>::requirement);
+                    
+                    WritableAccess<HashTableData> table_head(result);
+                    table_head.make_new(capacity);
+                    WritableAccess<HashTableData::Content> table(hash_data_addr);
                     auto table = new (mem.pos() + memory_requirement<HashTableData>::requirement) HashTableData::Content[(dim_t)capacity];
                     for (auto i = 0; i < (dim_t)capacity; ++i)
                     { //reset all flags
@@ -118,20 +129,23 @@ namespace OP
                     //g.commit();
                     return result;
                 }
-                
+                void destroy(FarAddress htbl)
+                {
+                    auto& memmngr = _topology.slot<MemoryManager>();
+                    memmngr.deallocate(htbl);
+                }
                 /**
                 *   @return insert position or #end() if no more capacity
                 */
                 std::pair<dim_t, bool> insert(const trie::PersistedReference<HashTableData>& ref_data, atom_t key)
                 {
                     //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                    
-                    auto table_head = _topology.segment_manager().wr_at<HashTableData>(ref_data.address);
-                    auto hash_data = _topology.segment_manager().writable_block(
+
+                    auto table_head = accessor<HashTableData>(_topology, ref_data.address);
+                    auto hash_data = array_accessor<HashTableData::Content>(_topology,
                         content_item_address(ref_data.address, 0),
-                        table_head->capacity * memory_requirement<HashTableData::Content>::requirement)
-                        .at<HashTableData::Content>(0);
-                    return do_insert(*table_head, hash_data, key);
+                        table_head->capacity);
+                    return do_insert(table_head, hash_data, key);
                 }
 
                 /**@return number of erased - 0 or 1*/
@@ -161,33 +175,21 @@ namespace OP
                 }
                 void clear()
                 {
-                    std::for_each(container(), container() + size(), [](Content& c){ c._flag = 0; });
+                    std::for_each(container(), container() + size(), [](Content& c) { c._flag = 0; });
                     _count = 0;
                 }
-               
+
 
                 /**Find index of key entry or #end() if nothing found*/
                 dim_t find(const trie::PersistedReference<HashTableData>& ref_data, atom_t key) const
                 {
                     //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                    auto const & head = *_topology.segment_manager()
-                        .readonly_access<HashTableData>(ref_data.address);
-                    auto data_block = _topology.segment_manager().readonly_block(
+                    auto head = view<HashTableData>(_topology, ref_data.address);
+                    auto data_table = array_view<HashTableData::Content>(
+                        _topology,
                         content_item_address(ref_data.address, 0),
-                        head.capacity * memory_requirement<HashTableData::Content>::requirement);
-                    auto data_table = data_block.at<HashTableData::Content>(0);
-                    unsigned hash = static_cast<unsigned>(key)& details::bitmask((HashTableCapacity)head.capacity);
-                    for (unsigned i = 0; i < head.neighbor_width; ++i)
-                    {
-                        if (0 == (fpresence_c & data_table[hash].flag))
-                        { //nothing at this pos
-                            return nil_c;
-                        }
-                        if (data_table[hash].key == key)
-                            return hash;
-                        ++hash %= head.capacity; //keep in boundary
-                    }
-                    return nil_c;
+                        head->capacity);
+                    return do_find(head, data_table, key);
                 }
                 //bool get_user_flag(atom_t key, NodePersense flag)
                 //{
@@ -215,93 +217,115 @@ namespace OP
                     if (n == 0)
                         std::out_of_range("no such key");
                 }
+                
                 /**
                 *   @param from [in/out] origin hash table that will be changed during grow. When table exceeds 128, this became nil since no table should be used above 128
-                *   @tparam callback - functor with signature void(atom_t from, dim_t to)
-                *   @tparam prepare - functor with signature void(HashTableCapacity new_capacity)
+                * @return tuple of new dimension and functor that can be used as ruler how key is converted to new indexes 
                 */
-                template <class FPepareCallback, class FReindexCallback>
-                void grow(trie::PersistedReference<HashTableData>& from, FPepareCallback& prepare, FReindexCallback&callback)
+                template <class KeyIterator>
+                std::tuple< 
+                    HashTableCapacity,
+                    trie::PersistedReference<HashTableData>,
+                    std::function<fast_dim_t(atom_t)>,
+                    std::function<fast_dim_t(atom_t)>
+                > grow(trie::PersistedReference<HashTableData> from, KeyIterator begin, KeyIterator end)
                 {
-                    auto prev_tbl_head = _topology.segment_manager().readonly_access<HashTableData>(from.address);
-                    auto prev_tbl_data_block = _topology.segment_manager().readonly_block(
-                        from.address + memory_requirement<HashTableData>::requirement, 
-                        prev_tbl_head->capacity * memory_requirement<HashTableData::Content>::requirement
-                        );
-                    auto prev_tbl_data = prev_tbl_data_block.at<HashTableData::Content>(0);
+                    auto prev_tbl_head = view<HashTableData>(_topology, from.address, ReadonlyBlockHint::ro_keep_lock);
+                    auto prev_tbl_data = array_view<HashTableData::Content>(
+                        _topology,
+                        content_item_address(from.address),
+                        prev_tbl_head->capacity,
+                        ReadonlyBlockHint::ro_keep_lock);
+                    HashTableCapacity prev_capacity = (HashTableCapacity)prev_tbl_head->capacity;
+                    //before c++14 there was no way to move scope var into lambda, so use trick with shared_ptr
+                    auto shared_prev_tbl_head = std::make_shared<decltype(prev_tbl_head)>(std::move(prev_tbl_head));
+                    auto shared_prev_tbl_data = std::make_shared<decltype(prev_tbl_data)>(std::move(prev_tbl_data));
+                    auto old_map_func = [this, shared_prev_tbl_head, shared_prev_tbl_data](auto key)->fast_dim_t {
+                        return this->do_find(*shared_prev_tbl_head, *shared_prev_tbl_data, key);
+                    };
 
-                    auto new_capacity = details::grow_size((HashTableCapacity)prev_tbl_head->capacity);
-                    prepare(new_capacity);
-                    FarAddress new_address; //got default value nil
-                    std::function<dim_t(atom_t)> remap;
-                    if (new_capacity == HashTableCapacity::_256) //check if limit is reached - must remove table at all
+                    for (auto new_capacity = details::grow_size(prev_capacity);
+                        new_capacity != HashTableCapacity::_256;
+                        new_capacity = details::grow_size(new_capacity))
                     {
-                        remap = [](atom_t prev_key) -> dim_t{ //when no table there is no need to modify index
-                            return prev_key;
-                        };
-                    }
-                    else
-                    { //create new grown table
-                        new_address = this->create(new_capacity);
                         
-                        auto table_head = _topology.segment_manager().wr_at<HashTableData>(new_address);
-                        auto data_block = _topology.segment_manager().writable_block(
+                        //create new grown table
+                        auto new_address = this->create(new_capacity);
+
+                        auto table_head = accessor<HashTableData>(_topology, new_address);
+                        auto hash_data = array_accessor<HashTableData::Content>(_topology,
                             new_address + memory_requirement<HashTableData>::requirement,
-                            table_head->capacity * memory_requirement<HashTableData::Content>::requirement);
-                        auto hash_data = data_block.at<HashTableData::Content>(0);
-                        remap = [&](atom_t prev_key) ->dim_t { //lambda inserts key to new table and returns just created index
-                            auto ins_res = do_insert(*table_head, hash_data, prev_key);
-                            assert(ins_res.second && ins_res.first != dim_nil_c ); //bigger table cannot fail on grow operation
-                            return ins_res.first;
-                        };
-                    }
-                    //iterate through existing entries and apply reindexing rule
-                    for (unsigned i = 0; i < prev_tbl_head->capacity; ++i)
-                    {
-                        if (fpresence_c & prev_tbl_data[i].flag)
+                            table_head->capacity );
+                        auto i = begin;
+                        //copy prev table with respect to the new size
+                        for (; i != end; ++i)
                         {
-                            //tell other that position was remaped 
-                            callback(i, remap(prev_tbl_data[i].key));
+                            assert(nil_c != old_map_func(static_cast<atom_t>(*i)));
+                            
+                            auto ins_res = do_insert(table_head, hash_data, static_cast<atom_t>(*i));
+                            if (!ins_res.second)//bad case - after grow conflict is still there
+                            {
+                                this->destroy(new_address);
+                                break; //go to new loop of grow
+                            }
                         }
-                    }
+                        if (i == end) //copy succeeded (there wasn't break)
+                        {
+                            //cannot pass table_head, hash_data by right-reference, so use trick with shared_ptr
+                            auto shared_table_head = std::make_shared<decltype(table_head)>(std::move(table_head));
+                            auto shared_hash_data = std::make_shared<decltype(hash_data)>(std::move(hash_data));
+                            auto new_map_func = [this, shared_table_head, shared_hash_data](auto key)->fast_dim_t {
+                                return this->do_find(*shared_table_head, *shared_hash_data, key);
+                            };
+                            return std::make_tuple(
+                                new_capacity, 
+                                trie::PersistedReference<HashTableData>(new_address), 
+                                std::move(old_map_func),
+                                std::move(new_map_func)
+                                );
+                        }
 
-                    //free old table memory
-                    auto& memmngr = _topology.slot<MemoryManager>();
-                    memmngr.deallocate(from.address);
-                    from.address = new_address; //may be nil
+                    } //end for(new_capacity)
+                    //there since reached HashTableCapacity::_256
+                    return std::make_tuple(
+                        HashTableCapacity::_256,
+                        trie::PersistedReference<HashTableData>(),
+                        std::move(old_map_func),
+                        std::move(std::function<fast_dim_t(atom_t)>([](atom_t key)->fast_dim_t {
+                            //when no hash table just return identity of key
+                            return key;
+                        })));
                 }
-
-            private:
-                /**When hashtable not exceeds 128 entries method inserts value to the */
-                dim_t remap_16_32_64_128(fast_dim_t key)
-                {
-
-                }
-                /**Evaluate FarAddress of hashtable entry 
+                /**Evaluate FarAddress of hashtable entry
                 * @param base - the address of HashTable header
                 * @param idx - index of entry in hash table
                 */
-                static FarAddress content_item_address(FarAddress base, dim_t idx) 
+                static FarAddress content_item_address(FarAddress base, dim_t idx = 0)
                 {
                     return base + (memory_requirement<HashTableData>::requirement +
                         idx * memory_requirement<HashTableData::Content>::requirement
                         );
                 }
-                std::pair<dim_t, bool> do_insert(HashTableData& head, HashTableData::Content * hash_data, atom_t key)
+            private:
+
+                
+                std::pair<dim_t, bool> do_insert(
+                    WritableAccess<HashTableData>& head, WritableAccess<HashTableData::Content>& hash_data, atom_t key)
                 {
-                    unsigned hash = static_cast<unsigned>(key) & (head.capacity - 1); //assuming that capacity is ^ 2
-                    for (unsigned i = 0; i < head.neighbor_width && head.size < head.capacity; ++i)
+                    unsigned hash = static_cast<unsigned>(key) & (head->capacity - 1); //assuming that capacity is ^ 2
+                    for (unsigned i = 0; i < head->neighbor_width && head->size < head->capacity; ++i)
                     {
-                        if (0 == (fpresence_c & hash_data[hash].flag))
+                        auto& data = hash_data[hash];
+                        if (0 == (fpresence_c & data.flag))
                         { //nothing at this pos
-                            hash_data[hash].flag |= std::uint8_t{ fpresence_c };
-                            hash_data[hash].key = key;
-                            head.size++;
+                            data.flag |= std::uint8_t{ fpresence_c };
+                            data.key = key;
+                            head->size++;
                             return std::make_pair(hash, true);
                         }
-                        if (hash_data[hash].key == key)
+                        if (data.key == key)
                             return std::make_pair(hash, false); //already exists
-                        ++hash %= head.capacity; //keep in boundary
+                        ++hash %= head->capacity; //keep in boundary
                     }
                     return std::make_pair(dim_nil_c, false); //no capacity
                 }
@@ -343,7 +367,7 @@ namespace OP
                 */
                 bool less_pos(unsigned tst_min, unsigned tst_max) const
                 {
-                    int dif = static_cast<int>(tst_min)-static_cast<int>(tst_max);
+                    int dif = static_cast<int>(tst_min) - static_cast<int>(tst_max);
                     unsigned a = std::abs(dif);
                     if (a > (static_cast<unsigned>(capacity()) / 2)) //use inversion of signs
                         return dif > 0;
@@ -353,10 +377,35 @@ namespace OP
                 {
                     container()[to] = container()[src];
                 }
-
+                /**
+                * \tparam HeaderView either WritableAccess<HashTableData> or ReadonlyAccess<HashTableData> to discover hashtable header
+                * \tparam TableData either WritableAccess<HashTableData::Content> or ReadonlyAccess<HashTableData::Content> to access table bunches
+                */
+                template <class HeaderView, class TableData>
+                fast_dim_t do_find(const HeaderView& head, const TableData& hash_data, atom_t key) const
+                {
+                    unsigned hash = static_cast<unsigned>(key) & details::bitmask((HashTableCapacity)head->capacity);
+                    for (unsigned i = 0; i < head->neighbor_width; ++i)
+                    {
+                        auto &data = hash_data[hash];
+                        if (0 == (fpresence_c & data.flag))
+                        { //nothing at this pos
+                            return nil_c;
+                        }
+                        if (data.key == key)
+                            return hash;
+                        ++hash %= head->capacity; //keep in boundary
+                    }
+                    return nil_c;
+                }
             private:
                 SegmentTopology& _topology;
-    };
+            };
+            template <class T>
+            inline SegmentManager& resolve_segment_manager(PersistedHashTable<T>& htbl)
+            {
+                return htbl.topology().segment_manager();
+            }
         } //ns:containers
     }//ns: trie
 }//ns: OP

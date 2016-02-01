@@ -254,12 +254,7 @@ namespace OP
                 assert((pos.offset + size) <= this->segment_size());
                 return ReadonlyMemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
             }
-            /**Just utility to simplify access of single structure.*/
-            template <class T>
-            ReadonlyAccess<T> readonly_access(FarAddress pos, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
-            {
-                return ReadonlyAccess<T>(std::move(readonly_block(pos, memory_requirement<T>::requirement, hint)));
-            }
+            
             /**
             * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
             */
@@ -662,6 +657,32 @@ namespace OP
             slots_arr_t _slots;
             segments_ptr_t _segments;
         };
+        /** Helper SFINAE to discover if target `T` has member method segment_manager() to resolve SegmentManager. 
+        * Use:\code
+        * has_segment_manager_accessor<T>::has_c 
+        *\endcode
+        */
+        template<typename T>
+        class has_segment_manager_accessor
+        {
+            template<typename U, SegmentManager&(U::*)() > struct SFINAE {};
+            template<typename U> static char test(SFINAE<U, &U::segment_manager>*);
+            template<typename U> static int test(...);
+        public:
+            static const bool has_c = sizeof(test<T>(0)) == sizeof(char);
+        };
+        
+        /**Resolver of SegmentManager */
+        template <class T, typename std::enable_if< std::is_convertible<T&, SegmentManager&>::value >::type* = nullptr>
+        inline SegmentManager& resolve_segment_manager(T& t)
+        {
+            return ((SegmentManager&)t);
+        }
+        template <class T, typename std::enable_if< has_segment_manager_accessor<T>::has_c >::type* = nullptr>
+        inline SegmentManager& resolve_segment_manager(T& t)
+        {
+            return resolve_segment_manager(t.segment_manager());
+        }
 
         
     }

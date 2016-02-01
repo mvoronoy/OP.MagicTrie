@@ -719,11 +719,11 @@ void test_TransactedBlockInclude(OP::utest::TestResult &tresult)
     OP::vtm::TransactionGuard g(tmngr1->begin_transaction());
 
     auto outer_block = tmngr1->writable_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq1));
-    outer_block.copy(write_fill_seq1/*, sizeof(write_fill_seq1)*/);
+    outer_block.byte_copy(write_fill_seq1, sizeof(write_fill_seq1));
     const segment_pos_t inner_offset = segment_pos_t{ sizeof(write_fill_seq1) / 2 };
     const segment_pos_t inner_size = sizeof(write_fill_seq2) / 4;
     auto inner_block = tmngr1->writable_block(FarAddress(writable_data_fpos) + inner_offset, inner_size);
-    inner_block.copy(write_fill_seq2, inner_size);
+    inner_block.byte_copy(write_fill_seq2, inner_size);
     auto do_test_overlap = [&](){
         using namespace OP::utest;
         auto block1 = tmngr1->readonly_block(FarAddress(writable_data_fpos), inner_offset);
