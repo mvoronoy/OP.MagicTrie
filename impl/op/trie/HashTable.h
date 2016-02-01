@@ -75,6 +75,7 @@ namespace OP
                 }
                 struct Content
                 {
+                    Content() {flag = 0; }
                     atom_t key;
                     std::uint8_t flag;
                 };
@@ -116,16 +117,13 @@ namespace OP
                     auto result = memmngr.allocate(byte_size);
                     auto table_block = _topology.segment_manager().writable_block(result, byte_size);
                     
-                    auto data_block = table_block.sub(memory_requirement<HashTableData>::requirement);
-                    
-                    WritableAccess<HashTableData> table_head(result);
+                    auto data_block = std::move(table_block.subset(memory_requirement<HashTableData>::requirement));
+                    /*
+                    WritableAccess<HashTableData> table_head(std::move(table_block));
                     table_head.make_new(capacity);
-                    WritableAccess<HashTableData::Content> table(hash_data_addr);
-                    auto table = new (mem.pos() + memory_requirement<HashTableData>::requirement) HashTableData::Content[(dim_t)capacity];
-                    for (auto i = 0; i < (dim_t)capacity; ++i)
-                    { //reset all flags
-                        table[i].flag = 0;
-                    }
+                    WritableAccess<HashTableData::Content> table_data(std::move(data_block));
+                    table_data.make_array((dim_t)capacity);
+                    */
                     //g.commit();
                     return result;
                 }
@@ -240,7 +238,7 @@ namespace OP
                     //before c++14 there was no way to move scope var into lambda, so use trick with shared_ptr
                     auto shared_prev_tbl_head = std::make_shared<decltype(prev_tbl_head)>(std::move(prev_tbl_head));
                     auto shared_prev_tbl_data = std::make_shared<decltype(prev_tbl_data)>(std::move(prev_tbl_data));
-                    auto old_map_func = [this, shared_prev_tbl_head, shared_prev_tbl_data](auto key)->fast_dim_t {
+                    auto old_map_func = [this, shared_prev_tbl_head, shared_prev_tbl_data](atom_t key)->fast_dim_t {
                         return this->do_find(*shared_prev_tbl_head, *shared_prev_tbl_data, key);
                     };
 
@@ -274,7 +272,7 @@ namespace OP
                             //cannot pass table_head, hash_data by right-reference, so use trick with shared_ptr
                             auto shared_table_head = std::make_shared<decltype(table_head)>(std::move(table_head));
                             auto shared_hash_data = std::make_shared<decltype(hash_data)>(std::move(hash_data));
-                            auto new_map_func = [this, shared_table_head, shared_hash_data](auto key)->fast_dim_t {
+                            auto new_map_func = [this, shared_table_head, shared_hash_data](atom_t key)->fast_dim_t {
                                 return this->do_find(*shared_table_head, *shared_hash_data, key);
                             };
                             return std::make_tuple(

@@ -168,23 +168,23 @@ namespace OP
                 * \li address of just created 
                 * \li 
                 */
-                inline std::tuple<ref_stems_t, WritableAccess<StemData>, WritableAccess<atom_t> > create(dim_t width, dim_t str_max_height)
+                inline std::tuple<ref_stems_t, WritableAccess<StemData>&&, WritableAccess<atom_t>&& > create(dim_t width, dim_t str_max_height)
                 {
                     auto& memmngr = _topology.slot<MemoryManager>();
-                    //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
                     //query data enough for StemData and stems strings
                     auto header_size = memory_requirement<StemData>::requirement;
                     auto mem_size = header_size + width * str_max_height;
                     auto addr = memmngr.allocate(mem_size);
                     auto mem_block = _topology.segment_manager().writable_block(addr, mem_size);
-                    new (mem_block.pos()) StemData(width, str_max_height); //constructs header
+                    WritableAccess<StemData> header(std::move(mem_block));
+                    header.make_new(width, str_max_height); //constructs header
                     auto stems_block = mem_block.subset(header_size);
                     return std::make_tuple(
-                        ref_stems_t(addr), 
-                        WritableAccess<StemData>(std::move(mem_block)),
-                        WritableAccess<atom_t>(std::move(stems_block))
+                        ref_stems_t(addr),
+                        std::move(header),
+                        std::move(WritableAccess<atom_t>(std::move(stems_block)))
                         );
-                    //g.commit();
+                        
                 }
                 /**Destroy previously allocated by #create stem container*/
                 void destroy(const ref_stems_t& stems)
@@ -320,8 +320,8 @@ namespace OP
                     }
                 private:
                     MoveProcessor(
-                        ReadonlyAccess<StemData> from_header, ReadonlyAccess<std::uint8_t> from_data,
-                        WritableAccess<StemData> to_header, WritableAccess<std::uint8_t> to_data,
+                        ReadonlyAccess<StemData>&& from_header, ReadonlyAccess<std::uint8_t>&& from_data,
+                        WritableAccess<StemData>&& to_header, WritableAccess<std::uint8_t>&& to_data,
                         ref_stems_t to_address)
                         : _from_header(std::move(from_header))
                         , _from_data(std::move(from_data))
@@ -343,11 +343,11 @@ namespace OP
                 */
                 MoveProcessor grow(const trie::PersistedReference<StemData>& previous, dim_t new_size)
                 {
-                    auto ro_access = view<StemData>(_topology, previous.address);
+                    auto ro_access = std::move(view<StemData>(_topology, previous.address));
                     
-                    auto ro_data = array_view<std::uint8_t>(_topology, 
+                    auto ro_data = std::move(array_view<std::uint8_t>(_topology, 
                         previous.address + memory_requirement<StemData>::requirement,
-                        ro_access->width * ro_access->height);
+                        ro_access->width * ro_access->height));
                     auto max_height = *std::max_element(ro_access->stem_length, ro_access->stem_length + ro_access->width);
                     //it is possible that all set to 0, so 
                     //@!@ @todo allow nil-stem container
