@@ -89,16 +89,14 @@ namespace OP
                 MemoryRangeBase(pos, count, std::move(address), std::move(segment))
             {
             }
-            //@!!! MemoryRange(const MemoryRange&) = delete;
-            MemoryRange(const OP::trie::MemoryRange &)
-            {
-                std::cout << "Nonsence!";
-            }
-            MemoryRange() = default;
             MemoryRange(MemoryRange&& right)
                 :MemoryRangeBase(std::move(right))
             {
             }
+            //! For MSVC-2013 it is very important to keep copy-constructor after(!) move constructor
+            MemoryRange(const MemoryRange&) = delete;
+
+            MemoryRange() = default;
 
             
             MemoryRange& operator = (const MemoryRange&) = delete;
@@ -181,6 +179,11 @@ namespace OP
                 : MemoryRange(std::move(right))
             {
             }
+            WritableAccess(WritableAccess<T>&& right) OP_NOEXCEPT
+                :MemoryRange(std::move(right))
+            {
+            }
+
             operator T* () 
             {
                 return MemoryRange::at<T>(0);
@@ -311,11 +314,8 @@ namespace OP
                 return *this;
             }
 
-            //@!!! ReadonlyMemoryRange(const ReadonlyMemoryRange&) = delete;
-            ReadonlyMemoryRange(const ReadonlyMemoryRange &)
-            {
-                std::cout << "Nonsence!";
-            }
+            ReadonlyMemoryRange(const ReadonlyMemoryRange&) = delete;
+            
 
             ReadonlyMemoryRange& operator = (const ReadonlyMemoryRange&) = delete;
 
@@ -337,6 +337,10 @@ namespace OP
         struct ReadonlyAccess : public ReadonlyMemoryRange
         {
             ReadonlyAccess(ReadonlyMemoryRange&& right) OP_NOEXCEPT
+                : ReadonlyMemoryRange(std::move(right))
+            {
+            }
+            ReadonlyAccess(ReadonlyAccess<T>&& right) OP_NOEXCEPT
                 : ReadonlyMemoryRange(std::move(right))
             {
             }
