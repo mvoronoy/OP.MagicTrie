@@ -178,11 +178,11 @@ namespace OP
                     auto mem_block = _topology.segment_manager().writable_block(addr, mem_size);
                     WritableAccess<StemData> header(std::move(mem_block));
                     header.make_new(width, str_max_height); //constructs header
-                    auto stems_block = mem_block.subset(header_size);
+                    auto stems_data_block = mem_block.subset(header_size);
                     return std::make_tuple(
                         ref_stems_t(addr),
                         std::move(header),
-                        std::move(WritableAccess<atom_t>(std::move(stems_block)))
+                        std::move(WritableAccess<atom_t>(std::move(stems_data_block)))
                         );
                         
                 }
