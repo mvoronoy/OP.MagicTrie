@@ -1,8 +1,8 @@
 #ifndef _OP_TRIE_VALUEARRAY__H_
 #define _OP_TRIE_VALUEARRAY__H_
 
-#include <OP/trie/typedefs.h>
-#include <OP/trie/SegmentManager.h>
+#include <OP/common/typedefs.h>
+#include <OP/vtm/SegmentManager.h>
 
 namespace OP
 {
@@ -76,6 +76,7 @@ namespace OP
         template <class SegmentTopology, class Payload>
         struct ValueArrayManager
         {
+            typedef ValueArrayManager<SegmentTopology, Payload> this_t;
             typedef Payload payload_t;
             typedef ValueArrayData<payload_t> vad_t;
 
@@ -97,16 +98,37 @@ namespace OP
                 auto& memmngr = _topology.slot<MemoryManager>();
                 memmngr.deallocate(array_ref.address);
             }
-            /**Allocate new array and move items from source one by reindexing rules*/
-            PersistedArray<vad_t> create_from(fast_dim_t capacity, PersistedArray<vad_t> source, fast_dim_t source_capacity, std::function<fast_dim_t(fast_dim_t)> &reindexing)
+
+            struct MoveProcessor
             {
-                auto dest = create(capacity);
-                auto& sm = _topology.segment_manager();
-                auto src_block = sm.writable_block(source.address, memory_requirement<vad_t>::requirement * source_capacity);
-                auto dest_block = sm.writable_block(dest.address, memory_requirement<vad_t>::requirement * capcity);
-                auto src_array = src_block.at<vad_t>(0);
-                auto dest_array = dest_block.at<vad_t>(0);
-                for()
+                friend struct this_t;
+                
+                void move(dim_t from, dim_t to)
+                {
+                    auto v = _source[from];
+                    _dest[to] = std::move(v);
+                }
+                PersistedArray<vad_t> dest_addr() const
+                {
+                    return _dest_addr;
+                }
+            private:
+                MoveProcessor(ReadonlyAccess<vad_t>&&source, WritableAccess<vad_t>&& dest, PersistedArray<vad_t> dest_addr) 
+                    : _source(std::move(source))
+                    , _dest(std::move(dest))
+                    , _dest_addr(dest_addr)
+                {}
+                ReadonlyAccess<vad_t> _source;
+                WritableAccess<vad_t> _dest;
+                PersistedArray<vad_t> _dest_addr;
+            };
+            /**Allocate new array and move items from source one by reindexing rules*/
+            MoveProcessor grow(PersistedArray<vad_t> source, fast_dim_t old_capacity, fast_dim_t new_capacity)
+            {
+                auto dest = create(new_capacity);
+                auto source_arr_view = array_view<vad_t>(_topology, source.address, old_capacity);
+                auto dest_view = array_accessor<vad_t>(_topology, dest.address, new_capacity);
+                return MoveProcessor(std::move(source_arr_view), std::move(dest_view), dest);
             }
             void put_data(const PersistedArray<vad_t>& array_ref, dim_t index, payload_t && new_value)
             {

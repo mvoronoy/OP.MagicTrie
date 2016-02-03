@@ -20,40 +20,37 @@
     <ClInclude Include="..\impl\op\trie\Containers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\FixedSizeMemoryManager">
+    <ClInclude Include="..\impl\op\common\Exceptions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\Exceptions.h">
+    <ClInclude Include="..\impl\op\vtm\CacheManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\CacheManager.h">
+    <ClInclude Include="..\impl\op\vtm\SegmentManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\SegmentManager.h">
+    <ClInclude Include="..\impl\op\vtm\Transactional.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\Transactional.h">
+    <ClInclude Include="..\impl\op\vtm\TransactedSegmentManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\TransactedSegmentManager.h">
+    <ClInclude Include="..\impl\op\common\Range.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\Range.h">
+    <ClInclude Include="..\impl\op\vtm\MemoryManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\MemoryManager.h">
+    <ClInclude Include="..\impl\op\vtm\NamedObjects.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\NamedObjects.h">
+    <ClInclude Include="..\impl\op\common\Utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\Utils.h">
+    <ClInclude Include="..\impl\op\vtm\MemoryBlock.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\MemoryBlock.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\trie\Skplst.h">
+    <ClInclude Include="..\impl\op\vtm\Skplst.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GenericMemoryTest.h">
@@ -62,7 +59,7 @@
     <ClInclude Include="..\impl\op\trie\StemContainer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\Bitset.h">
+    <ClInclude Include="..\impl\op\common\Bitset.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\HashTable.h">
@@ -71,25 +68,22 @@
     <ClInclude Include="..\impl\op\trie\ValueArray.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\TypeHelper.h">
+    <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\FixedSizeMemoryManager.h">
+    <ClInclude Include="..\impl\op\vtm\MemoryRanges.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\MemoryRanges.h">
+    <ClInclude Include="..\impl\op\vtm\PersistedReference.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\PersistedReference.h">
+    <ClInclude Include="..\impl\op\vtm\SegmentHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\SegmentHelper.h">
+    <ClInclude Include="..\impl\op\common\typedefs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\targetver.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\trie\typedefs.h">
+    <ClInclude Include="..\impl\op\trie\TrieNode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

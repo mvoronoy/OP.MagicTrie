@@ -1,8 +1,8 @@
 #include "unit_test.h"
 #include <op/trie/Trie.h>
 
-#include <op/trie/SegmentManager.h>
-#include <op/trie/MemoryManager.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/MemoryManager.h>
 #include <op/trie/Containers.h>
 #include "GenericMemoryTest.h"
 using namespace OP::trie;

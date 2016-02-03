@@ -8,10 +8,10 @@
 #include <fstream>
 #include <iomanip>
 #include <op/trie/Trie.h>
-#include <op/trie/SegmentManager.h>
-#include <op/trie/CacheManager.h>
-#include <op/trie/TransactedSegmentManager.h>
-#include <op/trie/MemoryManager.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/CacheManager.h>
+#include <op/vtm/TransactedSegmentManager.h>
+#include <op/vtm/MemoryManager.h>
 #include "GenericMemoryTest.h"
 
 using namespace OP::trie;
