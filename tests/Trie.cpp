@@ -1,9 +1,9 @@
 #include "unit_test.h"
 #include "unit_test_is.h"
 #include <op/trie/Trie.h>
-#include <op/trie/SegmentManager.h>
-#include <op/trie/CacheManager.h>
-#include <op/trie/TransactedSegmentManager.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/CacheManager.h>
+#include <op/vtm/TransactedSegmentManager.h>
 
 using namespace OP::trie;
 const char *test_file_name = "trie.test";
@@ -32,7 +32,10 @@ void test_TrieCreation(OP::utest::TestResult &tresult)
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
 {
-
+    //backward scenario - when map is used for key generation
+    for (auto pair : map)
+    {
+    }
 }
 void test_TrieInsert(OP::utest::TestResult &tresult)
 {
@@ -96,6 +99,7 @@ void test_TrieInsertGrow(OP::utest::TestResult &tresult)
         trie->insert(std::begin(test), std::end(test), (double)test.length());
         test_values[test] = (double)test.length();
     }
+    compare_containers(tresult, *trie, test_values);
 }
 
 static auto module_suite = OP::utest::default_test_suite("Trie")

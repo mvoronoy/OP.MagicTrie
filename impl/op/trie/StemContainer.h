@@ -4,10 +4,10 @@
 #include <cstdlib>
 #include <cassert>
 #include <algorithm>
-#include <op/trie/Utils.h>
-#include <op/trie/SegmentManager.h>
+#include <op/common/Utils.h>
+#include <op/vtm/SegmentManager.h>
 #include <op/trie/Containers.h>
-#include <op/trie/PersistedReference.h>
+#include <op/vtm/PersistedReference.h>
 
 namespace OP
 {
@@ -210,8 +210,7 @@ namespace OP
                     //assert(begin != end);
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     //write-lock header part
-                    auto data_header = _topology.segment_manager().wr_at<StemData>(
-                        st_address.address);
+                    auto data_header = accessor<StemData>(_topology, st_address.address);
                     assert(key < data_header->width);
                     auto address = st_address.address + static_cast<segment_pos_t>( memory_requirement<StemData>::requirement
                         + data_header->height * key );

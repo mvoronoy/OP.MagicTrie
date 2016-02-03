@@ -1,9 +1,9 @@
 #ifndef _OP_TRIE_HASHTABLE__H_
 #define _OP_TRIE_HASHTABLE__H_
 
-#include <OP/trie/typedefs.h>
-#include <OP/trie/SegmentManager.h>
-#include <OP/trie/PersistedReference.h>
+#include <OP/common/typedefs.h>
+#include <OP/vtm/SegmentManager.h>
+#include <OP/vtm/PersistedReference.h>
 #include <unordered_map>
 namespace OP
 {
@@ -203,55 +203,59 @@ namespace OP
                     if (n == 0)
                         std::out_of_range("no such key");
                 }
-                
+                struct GrowResult
+                {
+                    HashTableCapacity old_capacity;
+                    HashTableCapacity new_capacity;
+                    FarAddress new_address;
+                    std::function<fast_dim_t(atom_t)> old_map_function;
+                    std::function < fast_dim_t(atom_t)> new_map_function;
+                };
                 /**
                 *   @param from [in/out] origin hash table that will be changed during grow. When table exceeds 128, this became nil since no table should be used above 128
                 * @return tuple of new dimension and functor that can be used as ruler how key is converted to new indexes 
                 */
                 template <class KeyIterator>
-                std::tuple< 
-                    HashTableCapacity,
-                    trie::PersistedReference<HashTableData>,
-                    std::function<fast_dim_t(atom_t)>,
-                    std::function<fast_dim_t(atom_t)>
-                > grow(trie::PersistedReference<HashTableData> from, KeyIterator begin, KeyIterator end)
+                GrowResult grow(trie::PersistedReference<HashTableData> from, KeyIterator begin, KeyIterator end)
                 {
+                    GrowResult retval;
                     auto prev_tbl_head = view<HashTableData>(_topology, from.address, ReadonlyBlockHint::ro_keep_lock);
                     auto prev_tbl_data = array_view<HashTableData::Content>(
                         _topology,
                         content_item_address(from.address),
                         prev_tbl_head->capacity,
                         ReadonlyBlockHint::ro_keep_lock);
-                    HashTableCapacity prev_capacity = (HashTableCapacity)prev_tbl_head->capacity;
+                    retval.old_capacity = (HashTableCapacity)prev_tbl_head->capacity;
                     //before c++14 there was no way to move scope var into lambda, so use trick with shared_ptr
                     auto shared_prev_tbl_head = std::make_shared<decltype(prev_tbl_head)>(std::move(prev_tbl_head));
                     auto shared_prev_tbl_data = std::make_shared<decltype(prev_tbl_data)>(std::move(prev_tbl_data));
-                    auto old_map_func = [this, shared_prev_tbl_head, shared_prev_tbl_data](atom_t key)->fast_dim_t {
+                    retval.old_map_function = [this, shared_prev_tbl_head, shared_prev_tbl_data](atom_t key)->fast_dim_t {
                         return this->do_find(*shared_prev_tbl_head, *shared_prev_tbl_data, key);
                     };
-
-                    for (auto new_capacity = details::grow_size(prev_capacity);
-                        new_capacity != HashTableCapacity::_256;
-                        new_capacity = details::grow_size(new_capacity))
+                    
+                    for (retval.new_capacity = details::grow_size(retval.old_capacity);
+                        retval.new_capacity != HashTableCapacity::_256;
+                        retval.new_capacity = details::grow_size(retval.new_capacity))
                     {
                         
                         //create new grown table
-                        auto new_address = this->create(new_capacity);
+                        retval.new_address = this->create(retval.new_capacity);
 
-                        auto table_head = accessor<HashTableData>(_topology, new_address);
+                        auto table_head = accessor<HashTableData>(_topology, retval.new_address);
                         auto hash_data = array_accessor<HashTableData::Content>(_topology,
-                            new_address + memory_requirement<HashTableData>::requirement,
+                            retval.new_address + memory_requirement<HashTableData>::requirement,
                             table_head->capacity );
                         auto i = begin;
                         //copy prev table with respect to the new size
                         for (; i != end; ++i)
                         {
-                            assert(nil_c != old_map_func(static_cast<atom_t>(*i)));
+                            assert(nil_c != retval.old_map_function(static_cast<atom_t>(*i)));
                             
                             auto ins_res = do_insert(table_head, hash_data, static_cast<atom_t>(*i));
                             if (!ins_res.second)//bad case - after grow conflict is still there
                             {
-                                this->destroy(new_address);
+                                this->destroy(retval.new_address);
+                                retval.new_address = FarAddress();
                                 break; //go to new loop of grow
                             }
                         }
@@ -260,27 +264,19 @@ namespace OP
                             //cannot pass table_head, hash_data by right-reference, so use trick with shared_ptr
                             auto shared_table_head = std::make_shared<decltype(table_head)>(std::move(table_head));
                             auto shared_hash_data = std::make_shared<decltype(hash_data)>(std::move(hash_data));
-                            auto new_map_func = [this, shared_table_head, shared_hash_data](atom_t key)->fast_dim_t {
+                            retval.new_map_function = [this, shared_table_head, shared_hash_data](atom_t key)->fast_dim_t {
                                 return this->do_find(*shared_table_head, *shared_hash_data, key);
                             };
-                            return std::make_tuple(
-                                new_capacity, 
-                                trie::PersistedReference<HashTableData>(new_address), 
-                                std::move(old_map_func),
-                                std::move(new_map_func)
-                                );
+                            return retval;
                         }
 
                     } //end for(new_capacity)
                     //there since reached HashTableCapacity::_256
-                    return std::make_tuple(
-                        HashTableCapacity::_256,
-                        trie::PersistedReference<HashTableData>(),
-                        std::move(old_map_func),
-                        std::move(std::function<fast_dim_t(atom_t)>([](atom_t key)->fast_dim_t {
-                            //when no hash table just return identity of key
-                            return key;
-                        })));
+                    retval.new_map_function = std::move(std::function<fast_dim_t(atom_t)>([](atom_t key)->fast_dim_t {
+                        //when no hash table just return identity of key
+                        return key;
+                    }));
+                    return retval;
                 }
                 /**Evaluate FarAddress of hashtable entry
                 * @param base - the address of HashTable header

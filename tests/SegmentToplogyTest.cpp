@@ -1,6 +1,6 @@
 #include "unit_test.h"
-#include <op/trie/SegmentManager.h>
-#include <op/trie/MemoryManager.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/MemoryManager.h>
 using namespace OP::trie;
 
 struct TestMemAlloc1

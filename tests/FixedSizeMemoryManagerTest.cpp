@@ -1,9 +1,9 @@
 #include "unit_test.h"
 #include "unit_test_is.h"
 #include <op/trie/Trie.h>
-#include <op/trie/SegmentManager.h>
-#include <op/trie/CacheManager.h>
-#include <op/trie/TransactedSegmentManager.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/CacheManager.h>
+#include <op/vtm/TransactedSegmentManager.h>
 #include <set>
 #include <cassert>
 #include <iterator>
