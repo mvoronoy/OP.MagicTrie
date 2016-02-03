@@ -171,6 +171,7 @@
     <ClInclude Include="..\impl\op\vtm\Transactional.h" />
     <ClInclude Include="..\impl\op\trie\Trie.h" />
     <ClInclude Include="..\impl\op\trie\TrieNode.h" />
+    <ClInclude Include="..\impl\op\trie\TrieResidence.h" />
     <ClInclude Include="..\impl\op\common\typedefs.h" />
     <ClInclude Include="..\impl\op\vtm\PersistedReference.h" />
     <ClInclude Include="..\impl\op\common\Utils.h" />
