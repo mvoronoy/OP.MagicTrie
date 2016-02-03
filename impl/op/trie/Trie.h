@@ -16,38 +16,14 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryManager.h>
 #include <op/trie/TrieNode.h>
+#include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
-
 
 namespace OP
 {
     namespace trie
     {
-        
-        template <class TNode>
-        struct TrieNavigator
-        {
-            TrieNavigator(FarAddress node_addr, dim_t offset)
-                : _node_addr(node_addr)
-                , _offset(offset)
-            {}
-            bool operator == (const TrieNavigator& other) const
-            {
-                return _node_addr == other._node_addr //first compare node address as simplest comparison
-                    && _offset == other._offset //check in-node position then
-                    && _uid == other._uid //and only when all other checks succeeded make long check of uid
-                    ;
-            }
-            
-        private:
-            FarAddress _node_addr;
-            /**Unique signature of node*/
-            NodeUid _uid;
-            dim_t _offset;
-        };
-
-
-        
+               
         /**Constant definition for trie*/
         struct TrieDef
         {
@@ -55,7 +31,6 @@ namespace OP
             static const dim_t max_stem_length_c = 255;
         };
         
-
         template <class Payload>
         struct SubTrie
         {
@@ -75,11 +50,12 @@ namespace OP
         struct Trie
         {
         public:
-            typedef int iterator;
-            typedef Payload payload_t;
             typedef Trie<TSegmentManager, payload_t, initial_node_count> this_t;
+            typedef TrieIterator<this_t> iterator;
+            typedef Payload payload_t;
+            typedef payload_t value_type;
             typedef TrieNode<payload_t> node_t;
-            typedef TrieNavigator<node_t> navigator_t;
+            typedef TrieNavigator navigator_t;
 
             virtual ~Trie()
             {
@@ -127,6 +103,27 @@ namespace OP
             navigator_t navigator_end() const
             {
                 return navigator_t(FarAddress(SegmentDef::far_null_c), dim_t(~0u));
+            }
+            iterator begin()
+            {
+                return iterator(this, navigator_begin());
+            }
+            iterator end()
+            {
+                return iterator();
+            }
+            void next(iterator& i)
+            {
+                sync_iterator(i);
+
+            }
+            value_type value_of(navigator_t pos)
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction());
+                auto node = view<node_t>(*_topology_ptr, pos.address());
+
+                op_g.commit();
+
             }
             template <class Atom>
             bool insert(Atom& begin, Atom end, Payload value, iterator * result = nullptr)
@@ -251,6 +248,10 @@ namespace OP
                 wr_node->move_to(*_topology_ptr, key, in_stem_pos, new_node_addr);
                 wr_node->set_child(*_topology_ptr, key, new_node_addr);
                 return std::make_tuple(wr_node, new_node_addr);
+            }
+            void sync_iterator(iterator & it)
+            {
+
             }
         };
     }
