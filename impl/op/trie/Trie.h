@@ -16,12 +16,14 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryManager.h>
 #include <op/trie/TrieNode.h>
+#include <op/trie/TrieResidence.h>
 
 
 namespace OP
 {
     namespace trie
     {
+        
         template <class TNode>
         struct TrieNavigator
         {
@@ -31,13 +33,16 @@ namespace OP
             {}
             bool operator == (const TrieNavigator& other) const
             {
-                return _offset == other._offset && (_offset == dim_t(-1) || _node_addr == other._node_addr );
+                return _node_addr == other._node_addr //first compare node address as simplest comparison
+                    && _offset == other._offset //check in-node position then
+                    && _uid == other._uid //and only when all other checks succeeded make long check of uid
+                    ;
             }
             
         private:
             FarAddress _node_addr;
             /**Unique signature of node*/
-            std::uint8_t _node_uid[16];
+            NodeUid _uid;
             dim_t _offset;
         };
 
@@ -65,116 +70,7 @@ namespace OP
             virtual std::unique_ptr<SubTrie<Payload> > subtree(const atom_t*& begin, const atom_t* end) const = 0;
             
         };
-        /**
-        *   Small slot to keep arbitrary Trie information in 0 segment
-        */
-        struct TrieResidence : public Slot
-        {
-            template <class TSegmentManager, class Payload, std::uint32_t initial_node_count>
-            friend struct Trie;
-            /**Keep address of root node of Trie*/
-            FarAddress get_root_addr()
-            {
-                auto ro_block = get_header_block();
-                return ro_block.at<TrieHeader>(0)->_root;
-            }
-            /**Total count of items in Trie*/
-            std::uint64_t count()
-            {
-                auto ro_block = get_header_block();
-                return ro_block.at<TrieHeader>(0)->_count;
-            }
-            /**Total number of nodes (pags) allocated in Trie*/
-            std::uint64_t nodes_allocated()
-            {
-                auto ro_block = get_header_block();
-                return ro_block.at<TrieHeader>(0)->_nodes_allocated;
-            }
-        private:
-            struct TrieHeader
-            {
-                TrieHeader()
-                    : _root{}
-                    , _count(0)
-                    , _nodes_allocated(0)
-                {}
-                /**Where root resides*/
-                FarAddress _root;
-                /**Total count of terminal entries*/
-                std::uint64_t _count;
-                /**Number of nodes (pages) allocated*/
-                std::uint64_t _nodes_allocated;
-            };
-            ReadonlyMemoryRange get_header_block() const
-            {
-                return _segment_manager->readonly_block(_segment_address, sizeof(TrieHeader));
-            }
-            FarAddress _segment_address;
-            SegmentManager* _segment_manager;
-        protected:
-                        /**
-            *   Set new root node for Trie
-            *   @throws TransactionIsNotStarted if method called outside of transaction scope
-            */
-            TrieResidence& set_root_addr(FarAddress new_root)
-            {
-                _segment_manager->wr_at<TrieHeader>(_segment_address)->_root = new_root;
-                return *this;
-            }
-            /**Increase/decrease total count of items in Trie. 
-            *   @param delta positive/negative numeric value to modify counter
-            *   @throws TransactionIsNotStarted if method called outside of transaction scope
-            */
-            TrieResidence& increase_count(int delta)
-            {
-                _segment_manager->wr_at<TrieHeader>(_segment_address)->_count += delta;
-                return *this;
-            }
-
-            /**Increase/decrease total number of nodes in Trie. 
-            *   @param delta positive/negative numeric value to modify counter
-            *   @throws TransactionIsNotStarted if method called outside of transaction scope
-            */
-            TrieResidence& increase_nodes_allocated(int delta)
-            {
-                _segment_manager->wr_at<TrieHeader>(_segment_address)->_nodes_allocated += delta;
-                return *this;
-            }
-            //
-            //  Overrides
-            //
-            /**Slot resides in zero-segment only*/
-            bool has_residence(segment_idx_t segment_idx, SegmentManager& manager) const override
-            {
-                return segment_idx == 0; //true only for 0
-            }
-            /**Reserve enough to keep TrieHeader*/
-            segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const override
-            {
-                assert(segment_address.segment == 0);
-                return memory_requirement<TrieHeader>::requirement;
-            }
-            void on_new_segment(FarAddress segment_address, SegmentManager& manager) override
-            {
-                assert(segment_address.segment == 0);
-                _segment_address = segment_address;
-                _segment_manager = &manager;
-                OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
-                *manager.wr_at<TrieHeader>(segment_address, OP::trie::WritableBlockHint::new_c)
-                    = TrieHeader(); //init with null
-                op_g.commit();
-            }
-            void open(FarAddress segment_address, SegmentManager& manager) override
-            {
-                assert(segment_address.segment == 0);
-                _segment_manager = &manager;
-                _segment_address = segment_address;
-            }
-            void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
-            {
-                
-            }
-        };
+        
         template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 1024>
         struct Trie
         {
@@ -340,7 +236,7 @@ namespace OP
                 auto &res = _topology_ptr->slot<TrieResidence>();
                 res.increase_nodes_allocated(+1);
                 auto g = boost::uuids::random_generator()();
-                memcpy(node->uid, g.begin(), g.size());
+                memcpy(node->uid.uid, g.begin(), g.size());
                 return node_pos;
             }
             /**Return pair of:

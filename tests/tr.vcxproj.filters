@@ -86,6 +86,9 @@
     <ClInclude Include="..\impl\op\trie\TrieNode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieResidence.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tr.cpp">

@@ -94,6 +94,9 @@
     <ClInclude Include="..\impl\op\trie\TrieNode.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieResidence.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\impl\op\common\Utils.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
