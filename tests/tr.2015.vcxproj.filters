@@ -43,12 +43,6 @@
     <ClInclude Include="..\impl\op\service\BackgroundWorker.h">
       <Filter>service</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\common\Bitset.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\CacheManager.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
     <ClInclude Include="..\impl\op\trie\Containers.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
@@ -58,22 +52,7 @@
     <ClInclude Include="..\impl\op\trie\HashTable.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryBlock.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryManager.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\NamedObjects.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
     <ClInclude Include="..\impl\op\common\Range.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\SegmentManager.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\vtm\Skplst.h">
@@ -82,42 +61,62 @@
     <ClInclude Include="..\impl\op\trie\StemContainer.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\TransactedSegmentManager.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\Transactional.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
     <ClInclude Include="..\impl\op\trie\Trie.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\TrieNode.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\TrieResidence.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\common\Utils.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
     <ClInclude Include="..\impl\op\trie\ValueArray.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryRanges.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\common\typedefs.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\SegmentHelper.h">
-      <Filter>OP\trie</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\PersistedReference.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\common\func_iter.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieResidence.h" />
+    <ClInclude Include="..\impl\op\vtm\CacheManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryBlock.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\NamedObjects.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryRanges.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\PersistedReference.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\SegmentHelper.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\SegmentManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\TransactedSegmentManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\Transactional.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\typedefs.h">
+      <Filter>OP\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Utils.h">
+      <Filter>OP\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Bitset.h">
+      <Filter>OP\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -134,6 +133,12 @@
     </Filter>
     <Filter Include="OP\trie">
       <UniqueIdentifier>{537c11de-522e-4307-954f-abcfca58bd02}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\vtm">
+      <UniqueIdentifier>{167a9afb-20e8-483b-b7e0-dd8f35739f2a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\common">
+      <UniqueIdentifier>{98cd2d51-239f-4e6f-a1db-0a7a182e371d}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

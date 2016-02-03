@@ -11,6 +11,7 @@ namespace OP
 {
     namespace trie
     {
+        typedef std::uint32_t node_version_t;
         struct NodeUid
         {
             enum
@@ -27,6 +28,42 @@ namespace OP
         {
             return !(left == right);
         }
+        
+        struct TriePosition
+        {
+            TriePosition(FarAddress node_addr, dim_t key, node_version_t version)
+                : _node_addr(node_addr)
+                , _key(key)
+                , _version(version)
+            {}
+            inline bool operator == (const TriePosition& other) const
+            {
+                return _node_addr == other._node_addr //first compare node address as simplest comparison
+                    && _key == other._key //check in-node position then
+                    && _uid == other._uid //and only when all other checks succeeded make long check of uid
+                    ;
+            }
+            node_version_t version() const
+            {
+                return _version;
+            }
+            /**Offset inside node. May be nil_c - if this position points to `end` */
+            dim_t key() const
+            {
+                return _key;
+            }
+            FarAddress address() const
+            {
+                return _node_addr;
+            }
+        private:
+            FarAddress _node_addr;
+            /**Unique signature of node*/
+            NodeUid _uid;
+            dim_t _key;
+            node_version_t _version;
+        };
+        
         /** Represent single node of Trie*/
         template <class Payload>
         struct TrieNode
@@ -37,7 +74,6 @@ namespace OP
             /*declare 256-bit presence bitset*/
             typedef Bitset<4, std::uint64_t> presence_t;
 
-            typedef std::uint32_t version_t;
             typedef OP::trie::containers::HashTableData reindex_hash_t;
             typedef PersistedReference<reindex_hash_t> ref_reindex_hash_t;
             
@@ -54,7 +90,7 @@ namespace OP
 
             presence_t presence;
             /**modification version of node*/
-            version_t version;
+            node_version_t version;
             ref_reindex_hash_t reindexer;
             ref_stems_t stems;
             ref_values_t payload;
