@@ -151,6 +151,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\impl\op\common\Bitset.h" />
+    <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
     <ClInclude Include="..\impl\op\trie\TrieNode.h" />
     <ClInclude Include="..\impl\op\trie\TrieResidence.h" />
     <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h" />

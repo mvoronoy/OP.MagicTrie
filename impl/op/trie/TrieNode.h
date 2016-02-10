@@ -29,41 +29,6 @@ namespace OP
             return !(left == right);
         }
         
-        struct TriePosition
-        {
-            TriePosition(FarAddress node_addr, dim_t key, node_version_t version)
-                : _node_addr(node_addr)
-                , _key(key)
-                , _version(version)
-            {}
-            inline bool operator == (const TriePosition& other) const
-            {
-                return _node_addr == other._node_addr //first compare node address as simplest comparison
-                    && _key == other._key //check in-node position then
-                    && _uid == other._uid //and only when all other checks succeeded make long check of uid
-                    ;
-            }
-            node_version_t version() const
-            {
-                return _version;
-            }
-            /**Offset inside node. May be nil_c - if this position points to `end` */
-            dim_t key() const
-            {
-                return _key;
-            }
-            FarAddress address() const
-            {
-                return _node_addr;
-            }
-        private:
-            FarAddress _node_addr;
-            /**Unique signature of node*/
-            NodeUid _uid;
-            dim_t _key;
-            node_version_t _version;
-        };
-        
         /** Represent single node of Trie*/
         template <class Payload>
         struct TrieNode
@@ -96,7 +61,8 @@ namespace OP
             ref_values_t payload;
             /**Unique signature of node*/
             NodeUid uid;
-            
+            dim_t capacity;
+
             TrieNode()
                 : version(0)
             {
@@ -114,7 +80,7 @@ namespace OP
                 //else detect how long common part is
                 ++begin; //first letter concidered in `presence`
                 
-                auto index = this->reindex(topology, key);
+                atom_t index = this->reindex(topology, key);
                 
                 if (!stems.is_null())
                 {//let's cut prefix from stem container
@@ -126,7 +92,7 @@ namespace OP
                     if (nav_type == stem::StemCompareResult::stem_end)
                     { //stem ended, this mean either this is terminal or reference to other node
                         value_manager_t value_manager(topology);
-                        auto v = value_manager.get(payload, index);
+                        auto& v = value_manager.view(payload, (dim_t)capacity)[index];
                         assert(v.has_child() || v.has_data()); //otherwise Trie is corrupted
                         return std::tuple_cat(prefix_info, std::make_tuple(v.get_child()));
                     }
@@ -136,11 +102,11 @@ namespace OP
                 //no stems, just follow down
                 assert(!payload.is_null());
                 value_manager_t value_manager(topology);
-                auto term = value_manager.get(payload, index);
+                auto& term = value_manager.view(payload, (dim_t)capacity)[index];
                 return std::make_tuple(
                     (begin == end) ? stem::StemCompareResult::equals : stem::StemCompareResult::stem_end,
                     dim_t{ 1 },
-                    (begin == end) ? FarAddress() : term.child
+                    (begin == end) ? FarAddress() : term.get_child()
                     );
             }
             
@@ -154,23 +120,47 @@ namespace OP
                 auto reindex_res = insert_stem(topology, begin, end);
                 if (begin == end)
                 { //source fully fit to stem
+                    containers::PersistedHashTable<TSegmentTopology> hash_manager(topology); 
+                    //hash taken just to eval table size
+                    dim_t size = static_cast<dim_t>(
+                        this->reindexer.is_null() ? (dim_t)containers::HashTableCapacity::_256 : (hash_manager.table_head(this->reindexer)->capacity));
                     ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-                    value_manager.put_data(this->payload, reindex_res, std::move(payload));
+                    value_manager.accessor(this->payload, size)[reindex_res].set_data(std::move(payload));
                 }
             }
             template <class TSegmentTopology>
             void set_child(TSegmentTopology& topology, atom_t key, FarAddress address)
             {
-                auto reindex_res = reindex(topology, key);
+                atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-                value_manager.put_child(payload, reindex_res, address);
+                value_manager.accessor(payload, capacity)[ reindexed ].set_child(address);
+            }
+            /**Get child address if present, otherwise return null-pos*/
+            template <class TSegmentTopology>
+            PersistedReference<this_t> get_child(TSegmentTopology& topology, atom_t key) const
+            {
+                atom_t reindexed = reindex(topology, key);
+                ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
+                return PersistedReference<this_t> (
+                    value_manager.view(payload, capacity)[reindexed].get_child() );
+            }
+            /**Get child address if present, otherwise return null-pos*/
+            template <class TSegmentTopology>
+            payload_t get_value(TSegmentTopology& topology, atom_t key) const
+            {
+                atom_t reindexed = reindex(topology, key);
+                ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
+                auto& vad = value_manager.view(payload, capacity)[reindexed];
+                if (vad.has_data())
+                    throw std::invalid_argument("key doesn't contain data");
+                return vad.data;
             }
             template <class TSegmentTopology, class Payload>
             void set_value(TSegmentTopology& topology, atom_t key, Payload&& value)
             {
-                auto reindex_res = reindex(topology, key);
+                atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-                value_manager.put_data(payload, reindex_res, std::forward<Payload>(value));
+                value_manager.accessor(payload, capacity)[ reindexed ].set_data(std::move(value));
             }
             /**
             * Move entry from this specified by 'key' node that is started on 'at_index' to another one 
@@ -181,12 +171,12 @@ namespace OP
             {
                 stem::StemStore<TSegmentTopology> stem_manager(topology);
                 containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
-                auto reindex_src = reindex(topology, key);
+                atom_t ridx = reindex(topology, key);
                 auto target_node =
                     topology.segment_manager().wr_at<this_t>(target);
                 //extract stem from current node
-                /*std::tuple<const atom_t*, dim_t, stem::StemData& >*/auto stem_info = 
-                    stem_manager.stem(stems, reindex_src);
+                auto stem_info = 
+                    stem_manager.stem(stems, ridx);
                 auto src_begin = stem::StemOfNode(key, at_index, std::get<0>(stem_info));
                 auto src_end = stem::StemOfNode(key, std::get<1>(stem_info), std::get<0>(stem_info));
                 auto length = std::get<1>(stem_info) - at_index;//how many bytes to copy
@@ -197,12 +187,12 @@ namespace OP
                     );
                 //copy data/address to target
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-                auto& src_val = value_manager.getw(this->payload, reindex_src);
-                auto& target_val = value_manager.getw(target_node->payload, reindex_target);
+                auto& src_val = value_manager.accessor(this->payload, this->capacity) [ridx];
+                auto& target_val = value_manager.accessor(target_node->payload, this->capacity)[reindex_target];
                 target_val = std::move(src_val);
                 //src_val.clear();//clear previous data/addr in source 
                 //truncate stem in current node
-                stem_manager.trunc_str(std::get<2>(stem_info), reindex_src,
+                stem_manager.trunc_str(std::get<2>(stem_info), ridx,
                     std::get<1>(stem_info) - length);
             }
         private:
@@ -250,14 +240,20 @@ namespace OP
 
                 return reindex_res;
             }
+            /**
+            *   Taken a byte key, return index where corresponding key should reside for stem_manager and value_manager
+            *   @return tuple where:
+            *   \li <0> - reindexed key
+            *   \li <1> - capacity of reindexing map (value is in range _8, _256)
+            */
             template <class TSegmentTopology>
             atom_t reindex(TSegmentTopology& topology, atom_t key) const
             {
                 if (this->reindexer.is_null()) //reindex may absent for 256 table
                     return key;
                 containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
-                
-                auto reindexed = hash_mngr.find(this->reindexer, key);
+                auto table_head = hash_mngr.table_head(this->reindexer);
+                auto reindexed = hash_mngr.find(table_head, key);
                 assert(reindexed != hash_mngr.nil_c);
 
                 return static_cast<atom_t>(reindexed);
@@ -268,7 +264,7 @@ namespace OP
             {
                 containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
                 auto remap = hash_manager.grow(this->reindexer, presence.presence_begin(), presence.presence_end());
-                
+                capacity = (dim_t)remap.new_capacity;
                 
                 //place to thread copying of data, while stems are copied in this thread
                 

@@ -50,12 +50,12 @@ namespace OP
         struct Trie
         {
         public:
+            typedef Payload payload_t;
             typedef Trie<TSegmentManager, payload_t, initial_node_count> this_t;
             typedef TrieIterator<this_t> iterator;
-            typedef Payload payload_t;
             typedef payload_t value_type;
             typedef TrieNode<payload_t> node_t;
-            typedef TrieNavigator navigator_t;
+            typedef TriePosition navigator_t;
 
             virtual ~Trie()
             {
@@ -90,19 +90,17 @@ namespace OP
 
             navigator_t navigator_begin()
             {
-                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction()); //place all RO operations to atomic scope
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                auto root_block = _topology_ptr->segment_manager().readonly_block(r_addr, 
-                    memory_requirement<node_t>::requirement);
-                auto node = root_block.at<node_t>(0);
+                auto node = view<node_t>(*_topology_ptr, r_addr);
+                auto leftmost = node->presence.first_set();/*may produce nil_c*/
+                //since "a" is less than "aa" don't enter deep when leftmost exists, so minimal element stored in Trie:root
+                return navigator_t(r_addr, node->uid, leftmost, node->version);
                 
-                return navigator_t(_topology_ptr->slot<TrieResidence>().get_root_addr(), 
-                    node->presence.first_set()/*may produce nil_c*/ 
-                    );
             }
             navigator_t navigator_end() const
             {
-                return navigator_t(FarAddress(SegmentDef::far_null_c), dim_t(~0u));
+                return navigator_t();
             }
             iterator begin()
             {
@@ -119,11 +117,13 @@ namespace OP
             }
             value_type value_of(navigator_t pos)
             {
-                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction());
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto node = view<node_t>(*_topology_ptr, pos.address());
-
-                op_g.commit();
-
+                if ( pos.key() < (dim_t)containers::HashTableCapacity::_256 )
+                    return node->get_value(*_topology_ptr, (atom_t)pos.key());
+                op_g.rollback();
+                throw std::invalid_argument("position has no value associated");
+                //op_g.commit();
             }
             template <class Atom>
             bool insert(Atom& begin, Atom end, Payload value, iterator * result = nullptr)
@@ -212,7 +212,7 @@ namespace OP
             /** Create new node with default requirements. 
             * It is assumed that exists outer transaction scope.
             */
-            FarAddress new_node()
+            FarAddress new_node(containers::HashTableCapacity capacity = containers::HashTableCapacity::_8)
             {
                 auto node_pos = _topology_ptr->slot<node_manager_t>().allocate();
                 auto node = _topology_ptr->segment_manager().wr_at<node_t>(node_pos);
@@ -220,15 +220,16 @@ namespace OP
                 
                 // create hash-reindexer
                 containers::PersistedHashTable<topology_t> hash_mngr(*_topology_ptr);
-                node->reindexer.address = hash_mngr.create(containers::HashTableCapacity::_8);
+                node->reindexer.address = hash_mngr.create(capacity);
+                node->capacity = (dim_t)capacity;
                 //create stem-container
                 stem::StemStore<topology_t> stem_mngr(*_topology_ptr);
                 auto cr_result = std::move(stem_mngr.create(
-                    (dim_t)containers::HashTableCapacity::_8,
+                    (dim_t)capacity,
                     TrieDef::max_stem_length_c));
                 node->stems = tuple_ref<node_t::ref_stems_t>(cr_result);
                 ValueArrayManager<topology_t, payload_t> vmanager(*_topology_ptr);
-                node->payload = vmanager.create((dim_t)containers::HashTableCapacity::_8);
+                node->payload = vmanager.create((dim_t)capacity);
 
                 auto &res = _topology_ptr->slot<TrieResidence>();
                 res.increase_nodes_allocated(+1);
