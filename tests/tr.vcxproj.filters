@@ -9,6 +9,12 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="Header Files\vtm">
+      <UniqueIdentifier>{cc487397-eb6c-4199-b7c2-8559e2ff83fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\common">
+      <UniqueIdentifier>{4258e71b-cfb7-425e-bc81-58a4213e8ee4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -20,46 +26,10 @@
     <ClInclude Include="..\impl\op\trie\Containers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\common\Exceptions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\CacheManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\SegmentManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\Transactional.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\TransactedSegmentManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\common\Range.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\NamedObjects.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\common\Utils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryBlock.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\Skplst.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="GenericMemoryTest.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\StemContainer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\common\Bitset.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\HashTable.h">
@@ -68,25 +38,64 @@
     <ClInclude Include="..\impl\op\trie\ValueArray.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryRanges.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\PersistedReference.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\SegmentHelper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\common\typedefs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\impl\op\trie\TrieNode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\TrieResidence.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\CacheManager.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryBlock.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryManager.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryRanges.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\NamedObjects.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\PersistedReference.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Bitset.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Exceptions.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Range.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\SegmentHelper.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\SegmentManager.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\Skplst.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\TransactedSegmentManager.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\Transactional.h">
+      <Filter>Header Files\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Utils.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\typedefs.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieIterator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

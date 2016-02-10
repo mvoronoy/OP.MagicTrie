@@ -15,6 +15,9 @@ namespace OP
         {
             typedef Payload payload_t;
             typedef ValueArrayData<payload_t> this_t;
+
+            //static_assert(std::is_standard_layout<this_t>::value, "ValueArrayData<T> must be a standard-layout");
+
             ValueArrayData(this_t && other) OP_NOEXCEPT
                 : child(other.child)
                 , data(std::move(other.data)) //in hope that payload supports move
@@ -51,6 +54,30 @@ namespace OP
             {
                 return presence & has_child_c ? child : FarAddress();
             }
+            /**Set new child. This method also modifies flag #has_child_c if address is not SegmentDef::far_null_c */
+            void set_child(FarAddress address) 
+            {
+                if (address.address == SegmentDef::far_null_c)
+                {
+                    presence &= ~has_child_c;
+                }
+                else
+                {
+                    presence |= has_child_c;
+                }
+                child = address;
+            }
+            /**Set new value. This method also uncodintionally modifies flag #has_data_c. To clear data use #clear_data() */
+            void set_data(payload_t && apayload)
+            {
+                data = std::move(apayload);
+                presence |= has_data_c;
+            }
+            void clear_data()
+            {
+                presence &= ~has_data_c;
+            }
+
             bool has_child() const
             {
                 return 0 != (presence & has_child_c);
@@ -130,44 +157,13 @@ namespace OP
                 auto dest_view = array_accessor<vad_t>(_topology, dest.address, new_capacity);
                 return MoveProcessor(std::move(source_arr_view), std::move(dest_view), dest);
             }
-            void put_data(const PersistedArray<vad_t>& array_ref, dim_t index, payload_t && new_value)
+            WritableAccess<vad_t> accessor(const PersistedArray<vad_t>& array_ref, dim_t capacity)
             {
-                //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                auto array_addr = array_ref.address + index * memory_requirement<vad_t>::requirement;
-                auto wr = _topology.segment_manager().wr_at<vad_t>(array_addr);
-                wr->presence |= vad_t::has_data_c;
-                wr->data = std::move(new_value);
-                //g.commit();
+                return array_accessor<vad_t>(_topology, array_ref.address, capacity);
             }
-            void put_child(const PersistedArray<vad_t>& array_ref, dim_t index, FarAddress address)
+            ReadonlyAccess<vad_t> view(const PersistedArray<vad_t>& array_ref, dim_t capacity)
             {
-                //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                auto array_addr = array_ref.address + index * memory_requirement<vad_t>::requirement;
-                auto wr = _topology.segment_manager().wr_at<vad_t>(array_addr);
-                wr->presence |= vad_t::has_child_c;
-                wr->child = address;
-                //g.commit();
-            }
-            void put(const PersistedArray<vad_t>& array_ref, dim_t index, vad_t v)
-            {
-                auto array_addr = array_ref.address + index * memory_requirement<vad_t>::requirement;
-                auto wr = _topology.segment_manager().wr_at<vad_t>(array_addr);
-                *wr = std::move(v);
-            }
-            /**Get value by index for RO purpose*/
-            vad_t get(const PersistedArray<vad_t>& array_ref, dim_t index)
-            {
-                auto array_addr = array_ref.address + index * memory_requirement<vad_t>::requirement;
-                auto ro_block = _topology.segment_manager().readonly_block(
-                    array_addr,  memory_requirement<vad_t>::requirement );
-                return *ro_block.at<vad_t>(0);
-            }
-            /**Get value by index for WR purpose*/
-            vad_t& getw(const PersistedArray<vad_t>& array_ref, dim_t index)
-            {
-                auto array_addr = array_ref.address + index * memory_requirement<vad_t>::requirement;
-                return *_topology.segment_manager().wr_at<vad_t>(
-                    array_addr);
+                return array_view<vad_t>(_topology, array_ref.address, capacity);
             }
         private:
             SegmentTopology& _topology;

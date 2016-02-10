@@ -181,15 +181,21 @@ namespace OP
                     _count = 0;
                 }
 
-
+                ReadonlyAccess<HashTableData> table_head(const trie::PersistedReference<HashTableData>& ref_data) const
+                {
+                    return view<HashTableData>(_topology, ref_data.address);
+                }
                 /**Find index of key entry or #end() if nothing found*/
                 dim_t find(const trie::PersistedReference<HashTableData>& ref_data, atom_t key) const
                 {
-                    //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                    auto head = view<HashTableData>(_topology, ref_data.address);
+                    return find(table_head(ref_data), key);
+                }
+                /**Find index of key entry or #end() if nothing found*/
+                dim_t find(const ReadonlyAccess<HashTableData>& head, atom_t key) const
+                {
                     auto data_table = array_view<HashTableData::Content>(
                         _topology,
-                        content_item_address(ref_data.address, 0),
+                        content_item_address(head.address(), 0),
                         head->capacity);
                     return do_find(head, data_table, key);
                 }

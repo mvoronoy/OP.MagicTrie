@@ -4,10 +4,17 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/TransactedSegmentManager.h>
+#include <algorithm>
 
 using namespace OP::trie;
 const char *test_file_name = "trie.test";
 
+struct lexicographic_less : public std::binary_function<std::string, std::string, bool> {
+    bool operator() (const std::string & s1, const std::string & s2) const 
+    {
+        return std::lexicographical_compare(s1.begin(), s1.end(), s2.begin(), s2.end());
+    }
+};
 void test_TrieCreation(OP::utest::TestResult &tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
@@ -32,6 +39,18 @@ void test_TrieCreation(OP::utest::TestResult &tresult)
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
 {
+    auto mi = std::begin(map);
+    auto ti = trie.begin();
+    //order must be the same
+    for (; ti != trie.end(); ++ti)
+    {
+        tresult.assert_true(ti.prefix().length() == mi->first.length());
+        tresult.assert_true(
+            std::equal(
+                std::begin(ti.prefix()), std::end(ti.prefix()), std::begin(mi->first)), OP_CODE_DETAILS());
+        tresult.assert_that(OP::utest::is::equals(*ti, mi->second), OP_CODE_DETAILS());
+    }
+    tresult.assert_true(mi == std::end(map), OP_CODE_DETAILS());
     //backward scenario - when map is used for key generation
     for (auto pair : map)
     {
@@ -77,6 +96,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     compare_containers(tresult, *trie, standard);
     
 }
+
 void test_TrieInsertGrow(OP::utest::TestResult &tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
@@ -102,6 +122,31 @@ void test_TrieInsertGrow(OP::utest::TestResult &tresult)
     compare_containers(tresult, *trie, test_values);
 }
 
+void test_TrieGrowAfterUpdate(OP::utest::TestResult &tresult)
+{
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    std::map<std::string, double> test_values;
+    // Populate trie with unique strings in range from [0..255]
+    // this must cause grow of root node
+    const std::string test_seq [] = { "abc", "bcd", "def", "fgh", "ijk", "lmn" };
+    double x = 0.0;
+    for (auto i : test_seq)
+    {
+        const std::string& test = i;
+        trie->insert(std::begin(test), std::end(test), x);
+        test_values[test] = x;
+        x += 1.0;
+    }
+    //
+
+    compare_containers(tresult, *trie, test_values);
+    const std::string& upd = test_seq[std::extent<decltype(test_seq)>::value / 2];
+}
 static auto module_suite = OP::utest::default_test_suite("Trie")
 ->declare(test_TrieCreation, "creation")
 ->declare(test_TrieInsert, "insertion")

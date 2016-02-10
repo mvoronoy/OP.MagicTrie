@@ -93,11 +93,14 @@ namespace OP
                 assert(segment == other.segment);
                 return offset - other.offset;
             }
+            bool is_nil() const
+            {
+                return address == SegmentDef::eos_c;
+            }
         };
         template <typename ch, typename char_traits>
         std::basic_ostream<ch, char_traits>& operator<<(std::basic_ostream<ch, char_traits> &os, FarAddress const& addr)
         {
-
             const typename std::basic_ostream<ch, char_traits>::sentry ok(os);
             if (ok) 
             {
