@@ -90,20 +90,24 @@ namespace OP
 
             navigator_t navigator_begin()
             {
-                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                auto node = view<node_t>(*_topology_ptr, r_addr);
-                auto leftmost = node->presence.first_set();/*may produce nil_c*/
-                //since "a" is less than "aa" don't enter deep when leftmost exists, so minimal element stored in Trie:root
-                return navigator_t(r_addr, node->uid, leftmost, node->version);
                 
             }
+
             navigator_t navigator_end() const
             {
                 return navigator_t();
             }
             iterator begin()
             {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                auto node = view<node_t>(*_topology_ptr, r_addr);
+                auto leftmost = node->presence.first_set();/*may produce nil_c*/
+                if (leftmost == dim_nil_c)
+                    return iterator();
+                //since "a" is less than "aa" don't enter deep when leftmost exists, so minimal element stored in Trie:root
+                navigator_t i(r_addr, node->uid, leftmost, node->version);
+                for (; )
                 return iterator(this, navigator_begin());
             }
             iterator end()
@@ -253,6 +257,18 @@ namespace OP
             void sync_iterator(iterator & it)
             {
 
+            }
+            void enter_deep(iterator & dest, const navigator_t& pos) const
+            {
+                auto ro_node = view<node_t>(*_topology_ptr, pos.address());
+                auto ridx = ro_node->reindex(*_topology_ptr, pos.key());
+                ValueArrayManager<topology_t, payload_t> value_manager(*_topology_ptr);
+                auto &vad = value_manager.view(ro_node->payload, ro_node->capacity);
+                if (vad[pos.key()].has_data()) //stop deep-down since "a" is less "aa"
+                {
+                    stem::StemStore<TSegmentTopology> stem_manager(*_topology_ptr);
+
+                }
             }
         };
     }

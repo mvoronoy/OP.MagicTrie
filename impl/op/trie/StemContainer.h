@@ -161,7 +161,6 @@ namespace OP
                     : _topology(topology)
                 {}
 
-                
                 /**
                 * Create new stem container.
                 * @return tuple of:

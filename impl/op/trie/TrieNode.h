@@ -195,6 +195,22 @@ namespace OP
                 stem_manager.trunc_str(std::get<2>(stem_info), ridx,
                     std::get<1>(stem_info) - length);
             }
+            /**
+            *   Taken a byte key, return index where corresponding key should reside for stem_manager and value_manager
+            *   @return reindexed key (value is in range [_8, _256) ). 
+            */
+            template <class TSegmentTopology>
+            atom_t reindex(TSegmentTopology& topology, atom_t key) const
+            {
+                if (this->reindexer.is_null()) //reindex may absent for 256 table
+                    return key;
+                containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
+                auto table_head = hash_mngr.table_head(this->reindexer);
+                auto reindexed = hash_mngr.find(table_head, key);
+                assert(reindexed != hash_mngr.nil_c);
+
+                return static_cast<atom_t>(reindexed);
+            }
         private:
             /**
             * Take some part of string specified by [begin ,end) and place inside this node
@@ -240,24 +256,7 @@ namespace OP
 
                 return reindex_res;
             }
-            /**
-            *   Taken a byte key, return index where corresponding key should reside for stem_manager and value_manager
-            *   @return tuple where:
-            *   \li <0> - reindexed key
-            *   \li <1> - capacity of reindexing map (value is in range _8, _256)
-            */
-            template <class TSegmentTopology>
-            atom_t reindex(TSegmentTopology& topology, atom_t key) const
-            {
-                if (this->reindexer.is_null()) //reindex may absent for 256 table
-                    return key;
-                containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
-                auto table_head = hash_mngr.table_head(this->reindexer);
-                auto reindexed = hash_mngr.find(table_head, key);
-                assert(reindexed != hash_mngr.nil_c);
-
-                return static_cast<atom_t>(reindexed);
-            }
+            
             
             template <class TSegmentTopology>
             void grow(TSegmentTopology& topology)
