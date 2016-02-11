@@ -265,7 +265,7 @@ namespace OP
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     auto data_header = _topology.segment_manager().wr_at<StemData>(st_address.address);
-                    trunc_str(data_header, key, shorten);
+                    trunc_str(*data_header, key, shorten);
                     //g.commit();
                 }
                 inline void trunc_str(StemData& data, atom_t key, dim_t shorten) const
@@ -284,17 +284,18 @@ namespace OP
                 *   -# reference (can be modified) to length of stem. 
                 *   -# StemData - the header of all stems contained by `address`
                 */
-                std::tuple<const atom_t*, dim_t, StemData& > stem(const ref_stems_t& st_address, atom_t key)
+                template <class FBack>
+                void stem(const ref_stems_t& st_address, atom_t key, FBack& callback) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
-                    auto data_header = _topology.segment_manager().wr_at<StemData>(st_address.address);
+                    auto data_header = view<StemData>(_topology, st_address.address);
 
                     assert(key < data_header->width);
                     auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
                         + sizeof(atom_t)*data_header->height * key };
-                    auto f_str = _topology.segment_manager().writable_block(address, sizeof(atom_t)*data_header->height);
-                    
-                    return std::make_tuple((atom_t*)f_str.pos(), /*std::ref*/(data_header->stem_length[key]), std::ref(*data_header));
+                    auto f_str = array_view<atom_t>(_topology, address, data_header->height);
+                    const atom_t * begin = f_str;
+                    callback(begin, begin + data_header->stem_length[key], *data_header);
                 }
                 struct MoveProcessor
                 {

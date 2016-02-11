@@ -174,17 +174,15 @@ namespace OP
                 atom_t ridx = reindex(topology, key);
                 auto target_node =
                     topology.segment_manager().wr_at<this_t>(target);
+                dim_t reindex_target, stem_len;
                 //extract stem from current node
-                auto stem_info = 
-                    stem_manager.stem(stems, ridx);
-                auto src_begin = stem::StemOfNode(key, at_index, std::get<0>(stem_info));
-                auto src_end = stem::StemOfNode(key, std::get<1>(stem_info), std::get<0>(stem_info));
-                auto length = std::get<1>(stem_info) - at_index;//how many bytes to copy
-                //move this stem to target node
-                auto reindex_target = target_node->insert_stem(topology,
-                    src_begin,
-                    src_end
-                    );
+                stem_manager.stem(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, const stem::StemData& stem_header) -> void{
+                    stem_len = stem_header.stem_length[key];
+                    reindex_target = target_node->insert_stem(topology, src_begin, src_end);
+                });
+
+                auto length = stem_len - at_index;//how many bytes to copy
+             
                 //copy data/address to target
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 auto& src_val = value_manager.accessor(this->payload, this->capacity) [ridx];
@@ -192,8 +190,7 @@ namespace OP
                 target_val = std::move(src_val);
                 //src_val.clear();//clear previous data/addr in source 
                 //truncate stem in current node
-                stem_manager.trunc_str(std::get<2>(stem_info), ridx,
-                    std::get<1>(stem_info) - length);
+                stem_manager.trunc_str(stems, ridx, at_index);
             }
             /**
             *   Taken a byte key, return index where corresponding key should reside for stem_manager and value_manager
