@@ -88,10 +88,6 @@ namespace OP
                 return _topology_ptr->slot<TrieResidence>().nodes_allocated();
             }
 
-            navigator_t navigator_begin()
-            {
-                
-            }
 
             navigator_t navigator_end() const
             {
@@ -107,7 +103,7 @@ namespace OP
                     return iterator();
                 //since "a" is less than "aa" don't enter deep when leftmost exists, so minimal element stored in Trie:root
                 navigator_t i(r_addr, node->uid, leftmost, node->version);
-                for (; )
+                //for (; )
                 return iterator(this, navigator_begin());
             }
             iterator end()
