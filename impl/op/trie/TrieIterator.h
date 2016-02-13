@@ -61,7 +61,9 @@ namespace OP
         >
         {
             friend typename Container;
-            typedef std::vector<TriePosition> node_stack_t;
+            /*add 2nd dimension to position, by specifying stem-length*/
+            typedef std::pair<TriePosition, size_t> position2d_t;
+            typedef std::vector<position2d_t> node_stack_t;
             typedef typename Container::value_type value_type;
             node_stack_t _position_stack;
             Container * _container;
@@ -69,10 +71,9 @@ namespace OP
         public:
             typedef TrieIterator<Container> this_t;
 
-            TrieIterator(Container * container, TriePosition initial)
+            TrieIterator(Container * container)
                 : _container(container)
             {
-                _position_stack.emplace_back(std::move(initial));
             }
             TrieIterator()
             {
@@ -90,7 +91,7 @@ namespace OP
             }
             inline value_type operator * () const
             {
-                return _container->value_of(_position_stack.back());
+                return _container->value_of(_position_stack.back().first);
             }
             
             inline bool operator == (const this_t& other) const
@@ -117,12 +118,15 @@ namespace OP
             }
         protected:
             /**Add position to iterator*/
-            void emplace(TriePosition&& position)
+            void emplace(TriePosition&& position, const atom_t* begin, const atom_t* end)
             {
                 if (position.key() >= std::numeric_limits<atom_t>::max())
                     throw std::out_of_range("Range must be in [0..255]");
-                _prefix.append((atom_t)position.key());
-                _position_stack.emplace_back(std::move(initial));
+                size_t length = end - begin;
+                _prefix.append(1, (atom_t)position.key());
+                _prefix.append(begin, end);
+                _position_stack.emplace_back(
+                    std::move(std::make_pair(std::move(position), length+1)));
             }
         };
     } //ns:trie

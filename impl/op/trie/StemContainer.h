@@ -283,6 +283,7 @@ namespace OP
                 *   -# const pointer to first atom of stem
                 *   -# reference (can be modified) to length of stem. 
                 *   -# StemData - the header of all stems contained by `address`
+                *   @tparam callback - functor with signature `callback(const atom_t* begin, const atom_t* end, const StemData& stem_header)`
                 */
                 template <class FBack>
                 void stem(const ref_stems_t& st_address, atom_t key, FBack& callback) const

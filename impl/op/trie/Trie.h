@@ -97,14 +97,21 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                auto node = view<node_t>(*_topology_ptr, r_addr);
-                auto leftmost = node->presence.first_set();/*may produce nil_c*/
-                if (leftmost == dim_nil_c)
-                    return iterator();
-                //since "a" is less than "aa" don't enter deep when leftmost exists, so minimal element stored in Trie:root
-                navigator_t i(r_addr, node->uid, leftmost, node->version);
-                //for (; )
-                return iterator(this, navigator_begin());
+                auto resolve_leftmost = [](const node_t& node)->std::pair<bool, atom_t>{
+                    auto r = node.presence.first_set();
+                    return std::make_pair(r != dim_nil_c, (atom_t)r);
+                };
+                iterator result(this);
+                if (!enter_deep(result, r_addr, resolve_leftmost)) 
+                {
+                    if( r_addr.is_nil() )//root has no values at all
+                        return iterator();
+                    //continue with valid flow
+                }
+                //make loop to go further
+                while (!r_addr.is_nil() && !enter_deep(result, r_addr, resolve_leftmost))
+                    ;
+                return result;
             }
             iterator end()
             {
@@ -115,7 +122,7 @@ namespace OP
                 sync_iterator(i);
 
             }
-            value_type value_of(navigator_t pos)
+            value_type value_of(navigator_t pos) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto node = view<node_t>(*_topology_ptr, pos.address());
@@ -204,10 +211,17 @@ namespace OP
                 node_manager_t, 
                 MemoryManager/*Memory manager must go last*/> topology_t;
             std::unique_ptr<topology_t> _topology_ptr;
+            containers::PersistedHashTable<topology_t> _hash_mngr;
+            stem::StemStore<topology_t> _stem_mngr;
+            ValueArrayManager<topology_t, payload_t> _value_mngr;
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments)
+                : _topology_ptr{ std::make_unique<topology_t>(segments) }
+                , _hash_mngr(*_topology_ptr)
+                , _stem_mngr(*_topology_ptr)
+                , _value_mngr(*_topology_ptr)
             {
-                _topology_ptr = std::make_unique<topology_t>(segments);
+                
             }
             /** Create new node with default requirements. 
             * It is assumed that exists outer transaction scope.
@@ -219,17 +233,15 @@ namespace OP
                 //auto node = new (node_block.pos()) node_t;
                 
                 // create hash-reindexer
-                containers::PersistedHashTable<topology_t> hash_mngr(*_topology_ptr);
-                node->reindexer.address = hash_mngr.create(capacity);
+                node->reindexer.address = _hash_mngr.create(capacity);
                 node->capacity = (dim_t)capacity;
                 //create stem-container
-                stem::StemStore<topology_t> stem_mngr(*_topology_ptr);
-                auto cr_result = std::move(stem_mngr.create(
+                auto cr_result = std::move(_stem_mngr.create(
                     (dim_t)capacity,
                     TrieDef::max_stem_length_c));
                 node->stems = tuple_ref<node_t::ref_stems_t>(cr_result);
-                ValueArrayManager<topology_t, payload_t> vmanager(*_topology_ptr);
-                node->payload = vmanager.create((dim_t)capacity);
+                
+                node->payload = _value_mngr.create((dim_t)capacity);
 
                 auto &res = _topology_ptr->slot<TrieResidence>();
                 res.increase_nodes_allocated(+1);
@@ -254,17 +266,46 @@ namespace OP
             {
 
             }
-            void enter_deep(iterator & dest, const navigator_t& pos) const
+            /**
+            *   @tparam functor that locates some position in node, matches 
+            *           to signature `std::pair<bool, atom_t>(const node_t&)`
+            * @return   true when terminal was found, and false otherwise. 
+            *           False means one of 2 cases - either there is 
+            *           a valid way deep (then node_address is valid at 
+            *           exit) or enter_deep is failed
+            * 
+            */
+            template <class FInNodePos>
+            bool enter_deep(iterator & dest, FarAddress& node_address, FInNodePos &position_locator) const
             {
-                auto ro_node = view<node_t>(*_topology_ptr, pos.address());
-                auto ridx = ro_node->reindex(*_topology_ptr, pos.key());
-                ValueArrayManager<topology_t, payload_t> value_manager(*_topology_ptr);
-                auto &vad = value_manager.view(ro_node->payload, ro_node->capacity);
-                if (vad[pos.key()].has_data()) //stop deep-down since "a" is less "aa"
-                {
-                    stem::StemStore<TSegmentTopology> stem_manager(*_topology_ptr);
+                auto ro_node = view<node_t>(*_topology_ptr, node_address);
 
+                auto key = position_locator(*ro_node);
+                if (!key.first)
+                    return false;
+                navigator_t pos(node_address, ro_node->uid, key.second, ro_node->version);
+                //eval hashed index of key
+                auto ridx = ro_node->reindex(*_topology_ptr, key.second); 
+                if (!ro_node->stems.is_null())
+                {//if stem exists should be placed to iterator
+                    _stem_mngr.stem(ro_node->stems, ridx, 
+                        [&](const atom_t* begin, const atom_t* end, const stem::StemData& stem_header){
+                            dest.emplace(std::move(pos), begin, end);
+                        }
+                    );
                 }
+                else //no stem
+                {
+                    dest.emplace(std::move(pos), nullptr, nullptr);
+                }
+                auto &values = _value_mngr.view(ro_node->payload, ro_node->capacity);
+                node_address = values[ridx].get_child(); //if exists copy next address
+                if (values[ridx].has_data()) //stop deep-down since "a" is less "aa"
+                {
+                    return true;
+                }
+                assert(values[ridx].has_child());//either data or child flag must be set
+                return false; //for valid address this false mean non-terminal
             }
         };
     }
