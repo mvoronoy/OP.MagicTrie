@@ -120,12 +120,8 @@ namespace OP
                 auto reindex_res = insert_stem(topology, begin, end);
                 if (begin == end)
                 { //source fully fit to stem
-                    containers::PersistedHashTable<TSegmentTopology> hash_manager(topology); 
-                    //hash taken just to eval table size
-                    dim_t size = static_cast<dim_t>(
-                        this->reindexer.is_null() ? (dim_t)containers::HashTableCapacity::_256 : (hash_manager.table_head(this->reindexer)->capacity));
                     ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-                    value_manager.accessor(this->payload, size)[reindex_res].set_data(std::move(payload));
+                    value_manager.accessor(this->payload, this->capacity)[reindex_res].set_data(std::move(payload));
                 }
             }
             template <class TSegmentTopology>
@@ -151,7 +147,7 @@ namespace OP
                 atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 auto& vad = value_manager.view(payload, capacity)[reindexed];
-                if (vad.has_data())
+                if (!vad.has_data())
                     throw std::invalid_argument("key doesn't contain data");
                 return vad.data;
             }

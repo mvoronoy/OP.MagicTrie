@@ -161,7 +161,7 @@ namespace OP
             {
                 return array_accessor<vad_t>(_topology, array_ref.address, capacity);
             }
-            ReadonlyAccess<vad_t> view(const PersistedArray<vad_t>& array_ref, dim_t capacity)
+            ReadonlyAccess<vad_t> view(const PersistedArray<vad_t>& array_ref, dim_t capacity) const
             {
                 return array_view<vad_t>(_topology, array_ref.address, capacity);
             }

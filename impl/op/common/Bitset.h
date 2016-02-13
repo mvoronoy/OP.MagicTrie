@@ -325,7 +325,7 @@ namespace OP
                 {
                     if (presence[i] != 0) //test all bits are set
                     {
-                        return ln2(presence[0] & (~presence[0] + 1)) + i*bits_c;
+                        return ln2(presence[i] & (~presence[i] + 1)) + i*bits_c;
                     }
                 }
                 return nil_c;
@@ -339,7 +339,7 @@ namespace OP
                 {
                     if (presence[i] != std::numeric_limits<std::uint64_t>::max()) //test all bits are set
                     {
-                        return ln2(~presence[0] & (presence[0] + 1)) + i*bits_c;
+                        return ln2(~presence[i] & (presence[i] + 1)) + i*bits_c;
                     }
                 }
                 return nil_c;

@@ -25,8 +25,8 @@ void test_TrieCreation(OP::utest::TestResult &tresult)
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
     tresult.assert_true(0 == trie->size());
     tresult.assert_true(1 == trie->nodes_count());
-    auto nav1 = trie->navigator_begin();
-    tresult.assert_true(nav1 == trie->navigator_end());
+    auto nav1 = trie->begin();
+    tresult.assert_true(nav1 == trie->end());
     trie.reset();
 
     //test reopen
@@ -34,7 +34,7 @@ void test_TrieCreation(OP::utest::TestResult &tresult)
     trie = trie_t::open(tmngr1);
     tresult.assert_true(0 == trie->size());
     tresult.assert_true(1 == trie->nodes_count());
-    tresult.assert_true(nav1 == trie->navigator_end());
+    tresult.assert_true(nav1 == trie->end());
 }
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
