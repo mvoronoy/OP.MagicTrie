@@ -128,6 +128,10 @@ namespace OP
                 _position_stack.emplace_back(
                     std::move(std::make_pair(std::move(position), length+1)));
             }
+            position2d_t& back()
+            {
+                return _position_stack.back();
+            }
         };
     } //ns:trie
 } //ns:OP

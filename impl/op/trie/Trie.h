@@ -93,7 +93,7 @@ namespace OP
             {
                 return navigator_t();
             }
-            iterator begin()
+            iterator begin() const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
@@ -117,10 +117,11 @@ namespace OP
             {
                 return iterator();
             }
-            void next(iterator& i)
+            void next(iterator& i) const
             {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 sync_iterator(i);
-
+                i.back()
             }
             value_type value_of(navigator_t pos) const
             {
