@@ -93,24 +93,24 @@ namespace OP
             {
                 return navigator_t();
             }
+            
             iterator begin() const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                auto resolve_leftmost = [](const node_t& node)->std::pair<bool, atom_t>{
-                    auto r = node.presence.first_set();
-                    return std::make_pair(r != dim_nil_c, (atom_t)r);
-                };
+                
                 iterator result(this);
-                if (!enter_deep(result, r_addr, resolve_leftmost)) 
+                switch(enter_deep(result, r_addr, _resolve_leftmost))
                 {
-                    if( r_addr.is_nil() )//root has no values at all
-                        return iterator();
-                    //continue with valid flow
+                case no_way:
+                    return iterator();
+                case continue_further:
+                    while (!r_addr.is_nil() && !enter_deep(result, r_addr, _resolve_leftmost))
+                        ;
+                    break;
+                case terminal:
+                    break;
                 }
-                //make loop to go further
-                while (!r_addr.is_nil() && !enter_deep(result, r_addr, resolve_leftmost))
-                    ;
                 return result;
             }
             iterator end()
@@ -119,9 +119,56 @@ namespace OP
             }
             void next(iterator& i) const
             {
+                typedef std::pair<bool, atom_t>(*navigate_func_t)(const node_t& node, iterator& prev_iter);
+                navigate_func_t fdeep = [](const node_t& node, iterator&) {
+                    auto r = node.presence.first_set();
+                    return std::make_pair(r != dim_nil_c, (atom_t)r);
+                };
+                navigate_func_t fright = [](const node_t& node, iterator& iter) {
+                    dim_t r = node.presence.next_set(iter.back().first.key());
+                    return std::make_pair(r != dim_nil_c, (atom_t)r);
+                };
+                navigate_func_t fpop = [](const node_t& node, iterator& iter) {
+                    if (!iter.deep())//no way out
+                        return std::make_pair(false, atom_t{ 0 });
+
+                    dim_t r = node.presence.next_set(iter.back().first.key());
+                    return std::make_pair(r != dim_nil_c, (atom_t)r);
+                };
+                navigate_func_t ff = fdeep;
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                sync_iterator(i);
-                i.back()
+                //@! sync_iterator(i);
+                auto node_addr = i.back().first.address();
+                //this step just return previous result, but also refresh address
+                enter_resul_t deep_res = enter_deep(i, node_addr, ff);
+                assert(deep_res == terminal);//since previous must be terminal
+                if (node_addr.is_nil())
+                {//
+                    ff = fright;
+                    node_addr = i.back().first.address();
+                    deep_res = enter_deep(i, node_addr, ff);
+                }
+                int order = 0;
+                for (;;)
+                {
+                    switch (deep_res)
+                    {
+                    case no_way:
+                    {
+                        auto & rback = i.back();
+                        node_addr = rback.first.address();//just for case
+                        //let's try way-right
+                        deep_res = enter_deep(i, node_addr, ff);
+                        break;
+                    }
+                    case continue_further:
+                        deep_res = enter_deep(i, node_addr, ff);
+                        break;
+                    case terminal:
+                        return;
+                    }
+                }//
+                
             }
             value_type value_of(navigator_t pos) const
             {
@@ -215,6 +262,11 @@ namespace OP
             containers::PersistedHashTable<topology_t> _hash_mngr;
             stem::StemStore<topology_t> _stem_mngr;
             ValueArrayManager<topology_t, payload_t> _value_mngr;
+            static std::pair<bool, atom_t> _resolve_leftmost (const node_t& node, iterator& ) 
+            {
+                auto r = node.presence.first_set();
+                return std::make_pair(r != dim_nil_c, (atom_t)r);
+            };
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments)
                 : _topology_ptr{ std::make_unique<topology_t>(segments) }
@@ -267,6 +319,12 @@ namespace OP
             {
 
             }
+            enum enter_resul_t
+            {
+                no_way,
+                continue_further,
+                terminal
+            };
             /**
             *   @tparam functor that locates some position in node, matches 
             *           to signature `std::pair<bool, atom_t>(const node_t&)`
@@ -277,13 +335,13 @@ namespace OP
             * 
             */
             template <class FInNodePos>
-            bool enter_deep(iterator & dest, FarAddress& node_address, FInNodePos &position_locator) const
+            enter_resul_t enter_deep(iterator & dest, FarAddress& node_address, FInNodePos &position_locator) const
             {
                 auto ro_node = view<node_t>(*_topology_ptr, node_address);
 
-                auto key = position_locator(*ro_node);
+                auto key = position_locator(*ro_node, dest);
                 if (!key.first)
-                    return false;
+                    return no_way;
                 navigator_t pos(node_address, ro_node->uid, key.second, ro_node->version);
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, key.second); 
@@ -303,10 +361,10 @@ namespace OP
                 node_address = values[ridx].get_child(); //if exists copy next address
                 if (values[ridx].has_data()) //stop deep-down since "a" is less "aa"
                 {
-                    return true;
+                    return terminal;
                 }
                 assert(values[ridx].has_child());//either data or child flag must be set
-                return false; //for valid address this false mean non-terminal
+                return continue_further; //for valid address mean non-terminal
             }
         };
     }

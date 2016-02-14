@@ -66,12 +66,12 @@ namespace OP
             typedef std::vector<position2d_t> node_stack_t;
             typedef typename Container::value_type value_type;
             node_stack_t _position_stack;
-            Container * _container;
+            const Container * _container;
             atom_string_t _prefix;
         public:
             typedef TrieIterator<Container> this_t;
 
-            TrieIterator(Container * container)
+            TrieIterator(const Container * container)
                 : _container(container)
             {
             }
@@ -131,6 +131,16 @@ namespace OP
             position2d_t& back()
             {
                 return _position_stack.back();
+            }
+            void pop()
+            {
+                auto cut_len = _position_stack.back().second;
+                _prefix.resize(_prefix.length() - cut_len);
+                _position_stack.pop_back();
+            }
+            size_t deep() const
+            {
+                return _position_stack.size();
             }
         };
     } //ns:trie
