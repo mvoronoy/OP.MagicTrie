@@ -95,7 +95,7 @@ namespace OP
             }
             bool is_nil() const
             {
-                return address == SegmentDef::eos_c;
+                return address == SegmentDef::far_null_c;
             }
         };
         template <typename ch, typename char_traits>
