@@ -98,8 +98,14 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                
+                auto ro_node = view<node_t>(*_topology_ptr, r_addr);
+                navigator_t root_pos(ro_node.address(), ro_node->uid, ro_node->first(), ro_node->version);
+                if (root_pos.key() == dim_nil_c)
+                { //no first
+                    return iterator();
+                }
                 iterator result(this);
+                result.emplace(std::move(root_pos), nullptr, nullptr);
                 switch(enter_deep(result, r_addr, _resolve_leftmost))
                 {
                 case no_way:
@@ -336,17 +342,35 @@ namespace OP
             *           exit) or enter_deep is failed
             * 
             */
-            template <class FInNodePos>
-            enter_resul_t enter_deep(iterator & dest, FarAddress& node_address, FInNodePos &position_locator) const
+            template <class NodeView, class FInNodePos>
+            enter_resul_t enter_deep(NodeView& ro_node, iterator& dest, FInNodePos& position_locator) const
             {
-                auto ro_node = view<node_t>(*_topology_ptr, node_address);
+                navigator_t& pos = dest.back();
+                assert(pos.key() < (dim_t)containers::HashTableCapacity::_256);
+                //eval hashed index of key
+                auto ridx = ro_node->reindex(*_topology_ptr, pos.key()); 
 
                 auto key = position_locator(*ro_node, dest);
                 if (!key.first)
                     return no_way;
-                navigator_t pos(node_address, ro_node->uid, key.second, ro_node->version);
-                //eval hashed index of key
-                auto ridx = ro_node->reindex(*_topology_ptr, key.second); 
+                auto &values = _value_mngr.view(ro_node->payload, ro_node->capacity);
+                node_address = values[ridx].get_child(); //if exists copy next address
+                if (values[ridx].has_data()) //stop deep-down since "a" is less "aa"
+                {
+                    return terminal;
+                }
+                assert(values[ridx].has_child());//either data or child flag must be set
+                return continue_further; //for valid address mean non-terminal
+            }
+            template <class NodeView>
+            bool load_iterator(NodeView& ro_node, iterator& dest, fast_dim_t pos) const
+            {
+                if (pos == dim_nil_c)
+                { //no first
+                    return false;
+                }
+                navigator_t root_pos(ro_node.address(), ro_node->uid, pos, ro_node->version);
+
                 if (!ro_node->stems.is_null())
                 {//if stem exists should be placed to iterator
                     _stem_mngr.stem(ro_node->stems, ridx, 
@@ -359,14 +383,7 @@ namespace OP
                 {
                     dest.emplace(std::move(pos), nullptr, nullptr);
                 }
-                auto &values = _value_mngr.view(ro_node->payload, ro_node->capacity);
-                node_address = values[ridx].get_child(); //if exists copy next address
-                if (values[ridx].has_data()) //stop deep-down since "a" is less "aa"
-                {
-                    return terminal;
-                }
-                assert(values[ridx].has_child());//either data or child flag must be set
-                return continue_further; //for valid address mean non-terminal
+                return true;
             }
         };
     }
