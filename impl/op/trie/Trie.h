@@ -137,10 +137,12 @@ namespace OP
                 };
                 navigate_func_t ff = fdeep;
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                //@! sync_iterator(i);
+                sync_iterator(i);
                 auto node_addr = i.back().first.address();
+                auto ro_node = view<node_t>(*_topology_ptr, node_addr);
+                ro_node->
                 //this step just return previous result, but also refresh address
-                enter_resul_t deep_res = enter_deep(i, node_addr, ff);
+                enter_resul_t deep_res = enter_deep(i, node_addr, fdeep);
                 assert(deep_res == terminal);//since previous must be terminal
                 if (node_addr.is_nil())
                 {//
@@ -315,7 +317,7 @@ namespace OP
                 wr_node->set_child(*_topology_ptr, key, new_node_addr);
                 return std::make_tuple(wr_node, new_node_addr);
             }
-            void sync_iterator(iterator & it)
+            void sync_iterator(iterator & it) const
             {
 
             }
