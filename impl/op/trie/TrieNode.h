@@ -158,6 +158,14 @@ namespace OP
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 value_manager.accessor(payload, capacity)[ reindexed ].set_data(std::move(value));
             }
+            template <class TSegmentTopology>
+            std::pair<bool, bool> get_presence(TSegmentTopology& topology, atom_t key) const
+            {
+                atom_t reindexed = reindex(topology, key);
+                ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
+                auto& vad = value_manager.view(payload, capacity)[reindexed];
+                return std::make_pair(vad.has_child(), vad.has_data());
+            }
             /**
             * Move entry from this specified by 'key' node that is started on 'at_index' to another one 
             * specified by 'target' address
