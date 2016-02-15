@@ -166,6 +166,16 @@ namespace OP
                 auto& vad = value_manager.view(payload, capacity)[reindexed];
                 return std::make_pair(vad.has_child(), vad.has_data());
             }
+            /**@return first position where child or value exists, may return dim_nil_c if node empty*/
+            dim_t first() const
+            {
+                return this->presence.first_set();
+            }
+            /**@return next position where child or value exists, may return dim_nil_c if no more entries*/
+            dim_t next(atom_t previous) const
+            {
+                return this->presence.next_set(previous);
+            }
             /**
             * Move entry from this specified by 'key' node that is started on 'at_index' to another one 
             * specified by 'target' address
