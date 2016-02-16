@@ -100,18 +100,17 @@ namespace OP
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 auto ro_node = view<node_t>(*_topology_ptr, r_addr);
                 iterator result(this);
-                if (load_iterator(ro_node, result, ro_node->first()))
+                if (load_iterator<true>(ro_node, result, ro_node->first()))
                 {
                     for (auto clb = std::move(classify_back(ro_node, result));
-                        !std::get<0>(clb);
-                            clb = std::move(classify_back(ro_node, result))
-                    )
+                        !std::get<0>(clb); )
                     {
                         assert(std::get<1>(clb));//assume that if no data, the child must present
-                        ro_node = std::move(view<node_t>(*_topology_ptr, std::get<2>(clb)));
-                        assert( load_iterator(ro_node, result, ro_node->first()) ); //empty nodes are not allowed
+                        auto ro_node2 = view<node_t>(*_topology_ptr, std::get<2>(clb));
+                        assert( load_iterator<true>(ro_node2, result, ro_node->first()) ); //empty nodes are not allowed
+                        clb = std::move(classify_back(ro_node2, result));
                     }
-                }
+                } 
                 return result;
                 
             }
@@ -142,37 +141,12 @@ namespace OP
                 sync_iterator(i);
                 auto node_addr = i.back().first.address();
                 auto ro_node = view<node_t>(*_topology_ptr, node_addr);
-                ro_node->
-                //this step just return previous result, but also refresh address
-                enter_resul_t deep_res = enter_deep(i, node_addr, fdeep);
-                assert(deep_res == terminal);//since previous must be terminal
-                if (node_addr.is_nil())
-                {//
-                    ff = fright;
-                    node_addr = i.back().first.address();
-                    deep_res = enter_deep(i, node_addr, ff);
+                auto clb = classify_back(ro_node, i);
+                if (std::get<1>(clb))//if has child
+                { //go deep
+
+
                 }
-                int order = 0;
-                for (;;)
-                {
-                    switch (deep_res)
-                    {
-                    case no_way:
-                    {
-                        auto & rback = i.back();
-                        node_addr = rback.first.address();//just for case
-                        //let's try way-right
-                        deep_res = enter_deep(i, node_addr, ff);
-                        break;
-                    }
-                    case continue_further:
-                        deep_res = enter_deep(i, node_addr, ff);
-                        break;
-                    case terminal:
-                        return;
-                    }
-                }//
-                
             }
             value_type value_of(navigator_t pos) const
             {
@@ -339,35 +313,39 @@ namespace OP
             template <class NodeView>
             std::tuple<bool, bool, FarAddress> classify_back(NodeView& ro_node, iterator& dest) const
             {
-                navigator_t& pos = dest.back();
+                navigator_t& pos = dest.back().first;
                 assert(pos.key() < (dim_t)containers::HashTableCapacity::_256);
                 //eval hashed index of key
-                auto ridx = ro_node->reindex(*_topology_ptr, pos.key()); 
+                auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.key()); 
 
                 auto &values = _value_mngr.view(ro_node->payload, ro_node->capacity);
-                auto &v = values[rifx];
+                auto &v = values[ridx];
                 return std::make_tuple(v.has_data(), v.has_child(), v.get_child());
             }
-            template <class NodeView>
+            template <bool emplaceVsUpdate, class NodeView>
             bool load_iterator(NodeView& ro_node, iterator& dest, fast_dim_t pos) const
             {
                 if (pos == dim_nil_c)
                 { //no first
                     return false;
                 }
-                navigator_t root_pos(ro_node.address(), ro_node->uid, pos, ro_node->version);
+                //eval hashed index of key
+                auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos); 
 
+                navigator_t root_pos(ro_node.address(), ro_node->uid, pos, ro_node->version);
+                OP_CONSTEXPR(const) auto iter_method =
+                    emplaceVsUpdate ? &iterator::emplace : &iterator::update_back;
                 if (!ro_node->stems.is_null())
                 {//if stem exists should be placed to iterator
                     _stem_mngr.stem(ro_node->stems, ridx, 
                         [&](const atom_t* begin, const atom_t* end, const stem::StemData& stem_header){
-                            dest.emplace(std::move(pos), begin, end);
+                            (dest.*iter_method)(std::move(root_pos), begin, end);
                         }
                     );
                 }
                 else //no stem
                 {
-                    dest.emplace(std::move(pos), nullptr, nullptr);
+                    (dest.*iter_method)(std::move(root_pos), nullptr, nullptr);
                 }
                 return true;
             }

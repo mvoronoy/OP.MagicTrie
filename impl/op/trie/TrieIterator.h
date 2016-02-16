@@ -128,6 +128,20 @@ namespace OP
                 _position_stack.emplace_back(
                     std::move(std::make_pair(std::move(position), length+1)));
             }
+            /**Add position to iterator*/
+            void update_back(TriePosition&& position, const atom_t* begin, const atom_t* end)
+            {
+                if (position.key() >= std::numeric_limits<atom_t>::max())
+                    throw std::out_of_range("Range must be in [0..255]");
+                auto &back = _position_stack.back();
+                _prefix.resize(_prefix.length() - back.second);
+
+                size_t length = end - begin;
+                _prefix.back() = (atom_t)position.key();
+                _prefix.append(begin, end);
+                _position_stack.back().first = std::move(position);
+                _position_stack.back().second = length+1;
+            }
             position2d_t& back()
             {
                 return _position_stack.back();
