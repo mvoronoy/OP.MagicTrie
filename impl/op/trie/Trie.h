@@ -99,25 +99,21 @@ namespace OP
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 auto ro_node = view<node_t>(*_topology_ptr, r_addr);
-                navigator_t root_pos(ro_node.address(), ro_node->uid, ro_node->first(), ro_node->version);
-                if (root_pos.key() == dim_nil_c)
-                { //no first
-                    return iterator();
-                }
                 iterator result(this);
-                result.emplace(std::move(root_pos), nullptr, nullptr);
-                switch(enter_deep(result, r_addr, _resolve_leftmost))
+                if (load_iterator(ro_node, result, ro_node->first()))
                 {
-                case no_way:
-                    return iterator();
-                case continue_further:
-                    while (!r_addr.is_nil() && !enter_deep(result, r_addr, _resolve_leftmost))
-                        ;
-                    break;
-                case terminal:
-                    break;
+                    for (auto clb = std::move(classify_back(ro_node, result));
+                        !std::get<0>(clb);
+                            clb = std::move(classify_back(ro_node, result))
+                    )
+                    {
+                        assert(std::get<1>(clb));//assume that if no data, the child must present
+                        ro_node = std::move(view<node_t>(*_topology_ptr, std::get<2>(clb)));
+                        assert( load_iterator(ro_node, result, ro_node->first()) ); //empty nodes are not allowed
+                    }
                 }
                 return result;
+                
             }
             iterator end()
             {
@@ -334,33 +330,23 @@ namespace OP
                 terminal
             };
             /**
-            *   @tparam functor that locates some position in node, matches 
-            *           to signature `std::pair<bool, atom_t>(const node_t&)`
-            * @return   true when terminal was found, and false otherwise. 
-            *           False means one of 2 cases - either there is 
-            *           a valid way deep (then node_address is valid at 
-            *           exit) or enter_deep is failed
+            * @return   
+            * \li get<0> - true if back of iterator contains data (terminal)
+            * \li get<1> - true if back of iterator has child
+            * \li get<2> - address of child (if present)
             * 
             */
-            template <class NodeView, class FInNodePos>
-            enter_resul_t enter_deep(NodeView& ro_node, iterator& dest, FInNodePos& position_locator) const
+            template <class NodeView>
+            std::tuple<bool, bool, FarAddress> classify_back(NodeView& ro_node, iterator& dest) const
             {
                 navigator_t& pos = dest.back();
                 assert(pos.key() < (dim_t)containers::HashTableCapacity::_256);
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, pos.key()); 
 
-                auto key = position_locator(*ro_node, dest);
-                if (!key.first)
-                    return no_way;
                 auto &values = _value_mngr.view(ro_node->payload, ro_node->capacity);
-                node_address = values[ridx].get_child(); //if exists copy next address
-                if (values[ridx].has_data()) //stop deep-down since "a" is less "aa"
-                {
-                    return terminal;
-                }
-                assert(values[ridx].has_child());//either data or child flag must be set
-                return continue_further; //for valid address mean non-terminal
+                auto &v = values[rifx];
+                return std::make_tuple(v.has_data(), v.has_child(), v.get_child());
             }
             template <class NodeView>
             bool load_iterator(NodeView& ro_node, iterator& dest, fast_dim_t pos) const
