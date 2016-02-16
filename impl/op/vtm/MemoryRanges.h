@@ -93,13 +93,11 @@ namespace OP
                 :MemoryRangeBase(std::move(right))
             {
             }
+
             //! For MSVC-2013 it is very important to keep copy-constructor after(!) move constructor
             MemoryRange(const MemoryRange&) = delete;
-
-            MemoryRange() = default;
-
-            
             MemoryRange& operator = (const MemoryRange&) = delete;
+            MemoryRange() = default;
             /**
             * @return new instance that is subset of this where beginning is shifted on `offset` bytes
             *   @param offset - how many bytes to offset from beggining, must be less than #count()
@@ -315,8 +313,6 @@ namespace OP
             }
 
             ReadonlyMemoryRange(const ReadonlyMemoryRange&) = delete;
-            
-
             ReadonlyMemoryRange& operator = (const ReadonlyMemoryRange&) = delete;
 
             /**
