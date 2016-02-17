@@ -134,7 +134,7 @@ namespace OP
                 if (position.key() >= std::numeric_limits<atom_t>::max())
                     throw std::out_of_range("Range must be in [0..255]");
                 auto &back = _position_stack.back();
-                _prefix.resize(_prefix.length() - back.second);
+                _prefix.resize(_prefix.length() - back.second+1);
 
                 size_t length = end - begin;
                 _prefix.back() = (atom_t)position.key();

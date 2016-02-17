@@ -99,7 +99,7 @@ namespace OP
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 iterator result(this);
-                _begin(r_addr, result, _resolve_leftmost);
+                _begin(r_addr, result, _resolve_leftmost, &iterator::emplace);
                 return result;
                 
             }
@@ -109,40 +109,32 @@ namespace OP
             }
             void next(iterator& i) const
             {
-                typedef std::pair<bool, atom_t>(*navigate_func_t)(const node_t& node, iterator& prev_iter);
-                navigate_func_t fdeep = [](const node_t& node, iterator&) {
-                    auto r = node.presence.first_set();
-                    return std::make_pair(r != dim_nil_c, (atom_t)r);
-                };
-                navigate_func_t fright = [](const node_t& node, iterator& iter) {
-                    dim_t r = node.presence.next_set(iter.back().first.key());
-                    return std::make_pair(r != dim_nil_c, (atom_t)r);
-                };
-                navigate_func_t fpop = [](const node_t& node, iterator& iter) {
-                    if (!iter.deep())//no way out
-                        return std::make_pair(false, atom_t{ 0 });
-
-                    dim_t r = node.presence.next_set(iter.back().first.key());
-                    return std::make_pair(r != dim_nil_c, (atom_t)r);
-                };
-                navigate_func_t ff = fdeep;
+                
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 sync_iterator(i);
-                auto node_addr = i.back().first.address();
-                auto ro_node = view<node_t>(*_topology_ptr, node_addr);
-                auto clb = classify_back(ro_node, i);
-                if (std::get<1>(clb))//if has a child
-                { //go deep
-                    assert( _begin(std::get<2>(clb), i, _resolve_leftmost) );
-                    return;
-                }
-                //no child at this pos
-                // try go right
-                auto pos_right = ro_node->next(); //it is optimization, in fact can be replaced with _begin(.., _resolve_next)
-                if (pos_right != dim_nil_c) //right-way exists
+                bool way_down = true;
+                while (!i.is_end())
                 {
-                    assert( _begin(std::get<2>(clb), i, _resolve_leftmost) );
-                    return;
+                    auto node_addr = i.back().first.address();
+                    auto ro_node = view<node_t>(*_topology_ptr, node_addr);
+                    auto clb = classify_back(ro_node, i);  //just a kind of optimization, may be replaced by _begin(..._resolve_leftmost)
+                    if (way_down && std::get<1>(clb))//if has a child
+                    { //go deep
+                        assert(_begin(std::get<2>(clb), i, _resolve_leftmost, &iterator::emplace));
+                        return;
+                    }
+
+                    //no child at this pos
+                    // try go right
+                    auto pos_right = ro_node->next((atom_t)i.back().first.key()); //it is optimization, in fact can be replaced with _begin(.., _resolve_next)
+                    if (pos_right != dim_nil_c) //right-way exists
+                    {
+                        assert(_begin(std::get<2>(clb), i, _resolve_next, &iterator::update_back));
+                        return;
+                    }
+                    //here since no way neither down nor right
+                    i.pop();
+                    way_down = false;
                 }
 
             }
@@ -245,7 +237,7 @@ namespace OP
             };
             static std::pair<bool, atom_t> _resolve_next (const node_t& node, iterator& i) 
             {
-                auto r = node.next(i.back().first.key());
+                auto r = node.next((atom_t)i.back().first.key());
                 return std::make_pair(r != dim_nil_c, (atom_t)r);
             };
         private:
@@ -325,8 +317,8 @@ namespace OP
                 auto &v = values[ridx];
                 return std::make_tuple(v.has_data(), v.has_child(), v.get_child());
             }
-            template <bool emplaceVsUpdate, class NodeView>
-            bool load_iterator(NodeView& ro_node, iterator& dest, fast_dim_t pos) const
+            template <class NodeView, class FIteratorUpdate>
+            bool load_iterator(NodeView& ro_node, iterator& dest, fast_dim_t pos, FIteratorUpdate iterator_update) const
             {
                 if (pos == dim_nil_c)
                 { //no first
@@ -336,27 +328,26 @@ namespace OP
                 auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos); 
 
                 navigator_t root_pos(ro_node.address(), ro_node->uid, pos, ro_node->version);
-                OP_CONSTEXPR(const) auto iter_method =
-                    emplaceVsUpdate ? &iterator::emplace : &iterator::update_back;
+
                 if (!ro_node->stems.is_null())
                 {//if stem exists should be placed to iterator
                     _stem_mngr.stem(ro_node->stems, ridx, 
                         [&](const atom_t* begin, const atom_t* end, const stem::StemData& stem_header){
-                            (dest.*iter_method)(std::move(root_pos), begin, end);
+                            (dest.*iterator_update)(std::move(root_pos), begin, end);
                         }
                     );
                 }
                 else //no stem
                 {
-                    (dest.*iter_method)(std::move(root_pos), nullptr, nullptr);
+                    (dest.*iterator_update)(std::move(root_pos), nullptr, nullptr);
                 }
                 return true;
             }
-            template <class FirstLoadNavigation>
-            bool _begin(FarAddress start_node, iterator& i, FirstLoadNavigation & firts_navigation) const
+            template <class FirstLoadNavigation, class FirstIteratorUpdate>
+            bool _begin(FarAddress start_node, iterator& i, FirstLoadNavigation & first_navigation, FirstIteratorUpdate first_load) const
             {
-                auto ro_node = view<node_t>(*_topology_ptr, r_addr);
-                if (load_iterator<true>(ro_node, result, firts_navigation(*ro_node, i)))
+                auto ro_node = view<node_t>(*_topology_ptr, start_node);
+                if (load_iterator(ro_node, i, first_navigation(*ro_node, i).second, first_load))
                 {
 
                     for (auto clb = classify_back(ro_node, i);
@@ -364,8 +355,8 @@ namespace OP
                     {
                         assert(std::get<1>(clb));//assume that if no data, the child must present
                         auto ro_node2 = view<node_t>(*_topology_ptr, std::get<2>(clb));
-                        assert(load_iterator<true>(ro_node2, result, ro_node2->first())); //empty nodes are not allowed
-                        clb = std::move(classify_back(ro_node2, result));
+                        assert(load_iterator(ro_node2, i, ro_node2->first(), &iterator::emplace)); //empty nodes are not allowed
+                        clb = std::move(classify_back(ro_node2, i));
                     }
                     return true;
                 }
