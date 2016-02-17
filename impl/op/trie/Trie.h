@@ -98,19 +98,8 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                auto ro_node = view<node_t>(*_topology_ptr, r_addr);
                 iterator result(this);
-                if (load_iterator<true>(ro_node, result, ro_node->first()))
-                {
-                    for (auto clb = std::move(classify_back(ro_node, result));
-                        !std::get<0>(clb); )
-                    {
-                        assert(std::get<1>(clb));//assume that if no data, the child must present
-                        auto ro_node2 = view<node_t>(*_topology_ptr, std::get<2>(clb));
-                        assert( load_iterator<true>(ro_node2, result, ro_node->first()) ); //empty nodes are not allowed
-                        clb = std::move(classify_back(ro_node2, result));
-                    }
-                } 
+                _begin(r_addr, result, _resolve_leftmost);
                 return result;
                 
             }
@@ -142,11 +131,20 @@ namespace OP
                 auto node_addr = i.back().first.address();
                 auto ro_node = view<node_t>(*_topology_ptr, node_addr);
                 auto clb = classify_back(ro_node, i);
-                if (std::get<1>(clb))//if has child
+                if (std::get<1>(clb))//if has a child
                 { //go deep
-
-
+                    assert( _begin(std::get<2>(clb), i, _resolve_leftmost) );
+                    return;
                 }
+                //no child at this pos
+                // try go right
+                auto pos_right = ro_node->next(); //it is optimization, in fact can be replaced with _begin(.., _resolve_next)
+                if (pos_right != dim_nil_c) //right-way exists
+                {
+                    assert( _begin(std::get<2>(clb), i, _resolve_leftmost) );
+                    return;
+                }
+
             }
             value_type value_of(navigator_t pos) const
             {
@@ -243,6 +241,11 @@ namespace OP
             static std::pair<bool, atom_t> _resolve_leftmost (const node_t& node, iterator& ) 
             {
                 auto r = node.presence.first_set();
+                return std::make_pair(r != dim_nil_c, (atom_t)r);
+            };
+            static std::pair<bool, atom_t> _resolve_next (const node_t& node, iterator& i) 
+            {
+                auto r = node.next(i.back().first.key());
                 return std::make_pair(r != dim_nil_c, (atom_t)r);
             };
         private:
@@ -348,6 +351,25 @@ namespace OP
                     (dest.*iter_method)(std::move(root_pos), nullptr, nullptr);
                 }
                 return true;
+            }
+            template <class FirstLoadNavigation>
+            bool _begin(FarAddress start_node, iterator& i, FirstLoadNavigation & firts_navigation) const
+            {
+                auto ro_node = view<node_t>(*_topology_ptr, r_addr);
+                if (load_iterator<true>(ro_node, result, firts_navigation(*ro_node, i)))
+                {
+
+                    for (auto clb = classify_back(ro_node, i);
+                        !std::get<0>(clb);)
+                    {
+                        assert(std::get<1>(clb));//assume that if no data, the child must present
+                        auto ro_node2 = view<node_t>(*_topology_ptr, std::get<2>(clb));
+                        assert(load_iterator<true>(ro_node2, result, ro_node2->first())); //empty nodes are not allowed
+                        clb = std::move(classify_back(ro_node2, result));
+                    }
+                    return true;
+                }
+                return false;
             }
         };
     }
