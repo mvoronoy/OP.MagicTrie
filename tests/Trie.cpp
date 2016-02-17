@@ -42,9 +42,10 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
     auto mi = std::begin(map);
     auto ti = trie.begin();
     //order must be the same
-    for (; ti != trie.end(); ++ti)
+    for (; ti != trie.end(); ++ti, ++mi)
     {
-        tresult.assert_true(ti.prefix().length() == mi->first.length());
+        tresult.assert_true(ti.prefix().length() == mi->first.length(), 
+            OP_CODE_DETAILS(<< "has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
         tresult.assert_true(
             std::equal(
                 std::begin(ti.prefix()), std::end(ti.prefix()), std::begin(mi->first)), OP_CODE_DETAILS());
