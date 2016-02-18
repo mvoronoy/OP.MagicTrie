@@ -1,8 +1,10 @@
 #include "unit_test.h"
 #include "unit_test_is.h"
 #include <op/trie/StemContainer.h>
+#include <op/common/typedefs.h>
 
 using namespace OP::trie::stem;
+using namespace OP::trie;
 
 void test_StemStoreSimple(OP::utest::TestResult &tresult)
 {

@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cassert>
 #include <algorithm>
+#include <op/common/typedefs.h>
 #include <op/common/Utils.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/trie/Containers.h>
@@ -15,10 +16,6 @@ namespace OP
     {
         namespace stem
         {
-            typedef std::uint8_t atom_t;
-            typedef std::uint_fast8_t atom_fast_t;
-            typedef std::uint16_t dim_t;
-            typedef std::uint_fast16_t dim_fast_t;
             typedef std::int16_t offset_t;
             /**Integral constants for stem module*/
             enum : dim_t
@@ -70,7 +67,7 @@ namespace OP
                 {
                     return _str + max_length_c;
                 }
-                void set_length(dim_fast_t l)
+                void set_length(atom_t l)
                 {
                     _length = l;
                 }
