@@ -99,7 +99,9 @@ namespace OP
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto r_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 iterator result(this);
-                _begin(r_addr, result, _resolve_leftmost, &iterator::emplace);
+                auto ro_node = view<node_t>(*_topology_ptr, r_addr);
+                if (load_iterator(ro_node, result, _resolve_leftmost(*ro_node), &iterator::emplace))
+                    assert(_begin(ro_node, result, &iterator::emplace));
                 return result;
                 
             }
@@ -115,9 +117,27 @@ namespace OP
                 bool way_down = true;
                 while (!i.is_end())
                 {
-                    auto node_addr = i.back().first.address();
-                    auto ro_node = view<node_t>(*_topology_ptr, node_addr);
-                    auto clb = classify_back(ro_node, i);  //just a kind of optimization, may be replaced by _begin(..._resolve_leftmost)
+                    auto ro_node = view<node_t>(*_topology_ptr, i.back().first.address());
+                    if (way_down)
+                    {
+                        if (_begin(ro_node, i, true))
+                            return;
+                        way_down = false;
+                    }
+                    if (load_iterator(ro_node, i, _resolve_next(*ro_node, &i), &iterator::update_back))
+                    {
+                        assert(_begin(ro_node, i));//enter deep if needed
+                        return;
+                    }
+                    //here since no way neither down nor right
+                    i.pop();
+                }
+                /*auto node_addr = i.back().first.address();
+                auto ro_node = view<node_t>(*_topology_ptr, node_addr);
+                auto clb = classify_back(ro_node, i);  //just a kind of optimization, may be replaced by _begin(..._resolve_leftmost)
+
+                while (!i.is_end())
+                {
                     if (way_down && std::get<1>(clb))//if has a child
                     { //go deep
                         assert(_begin(std::get<2>(clb), i, _resolve_leftmost, &iterator::emplace));
@@ -133,9 +153,12 @@ namespace OP
                         return;
                     }
                     //here since no way neither down nor right
-                    i.pop();
                     way_down = false;
-                }
+                    i.pop();
+                    if (i.is_end())
+                        return;
+
+                }*/
 
             }
             value_type value_of(navigator_t pos) const
@@ -230,15 +253,13 @@ namespace OP
             containers::PersistedHashTable<topology_t> _hash_mngr;
             stem::StemStore<topology_t> _stem_mngr;
             ValueArrayManager<topology_t, payload_t> _value_mngr;
-            static std::pair<bool, atom_t> _resolve_leftmost (const node_t& node, iterator& ) 
+            static nullable_atom_t _resolve_leftmost (const node_t& node, iterator* = nullptr) 
             {
-                auto r = node.presence.first_set();
-                return std::make_pair(r != dim_nil_c, (atom_t)r);
+                return node.first();
             };
-            static std::pair<bool, atom_t> _resolve_next (const node_t& node, iterator& i) 
+            static nullable_atom_t _resolve_next (const node_t& node, iterator* i) 
             {
-                auto r = node.next((atom_t)i.back().first.key());
-                return std::make_pair(r != dim_nil_c, (atom_t)r);
+                return node.next((atom_t)i->back().first.key());
             };
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments)
@@ -313,21 +334,21 @@ namespace OP
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.key()); 
 
-                auto &values = _value_mngr.view(ro_node->payload, ro_node->capacity);
+                auto values = _value_mngr.view(ro_node->payload, ro_node->capacity);
                 auto &v = values[ridx];
                 return std::make_tuple(v.has_data(), v.has_child(), v.get_child());
             }
             template <class NodeView, class FIteratorUpdate>
-            bool load_iterator(NodeView& ro_node, iterator& dest, fast_dim_t pos, FIteratorUpdate iterator_update) const
+            bool load_iterator(NodeView& ro_node, iterator& dest, nullable_atom_t pos, FIteratorUpdate iterator_update) const
             {
-                if (pos == dim_nil_c)
+                if (!pos.first)
                 { //no first
                     return false;
                 }
                 //eval hashed index of key
-                auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos); 
+                auto ridx = ro_node->reindex(*_topology_ptr, pos.second); 
 
-                navigator_t root_pos(ro_node.address(), ro_node->uid, pos, ro_node->version);
+                navigator_t root_pos(ro_node.address(), ro_node->uid, pos.second, ro_node->version);
 
                 if (!ro_node->stems.is_null())
                 {//if stem exists should be placed to iterator
@@ -343,24 +364,23 @@ namespace OP
                 }
                 return true;
             }
-            template <class FirstLoadNavigation, class FirstIteratorUpdate>
-            bool _begin(FarAddress start_node, iterator& i, FirstLoadNavigation & first_navigation, FirstIteratorUpdate first_load) const
+            template <class NodeView>
+            bool _begin(NodeView& ro_node, iterator& i, bool skip_first = false) const
             {
-                auto ro_node = view<node_t>(*_topology_ptr, start_node);
-                if (load_iterator(ro_node, i, first_navigation(*ro_node, i).second, first_load))
-                {
 
-                    for (auto clb = classify_back(ro_node, i);
-                        !std::get<0>(clb);)
-                    {
-                        assert(std::get<1>(clb));//assume that if no data, the child must present
-                        auto ro_node2 = view<node_t>(*_topology_ptr, std::get<2>(clb));
-                        assert(load_iterator(ro_node2, i, ro_node2->first(), &iterator::emplace)); //empty nodes are not allowed
-                        clb = std::move(classify_back(ro_node2, i));
+                for (auto clb = classify_back(ro_node, i);
+                    skip_first || !std::get<0>(clb);)
+                {
+                    skip_first = false;
+                    if (!std::get<1>(clb))
+                    {//assume that if no data, the child must present
+                        return false;
                     }
-                    return true;
+                    auto ro_node2 = view<node_t>(*_topology_ptr, std::get<2>(clb));
+                    assert(load_iterator(ro_node2, i, ro_node2->first(), &iterator::emplace)); //empty nodes are not allowed
+                    clb = std::move(classify_back(ro_node2, i));
                 }
-                return false;
+                return true;
             }
         };
     }

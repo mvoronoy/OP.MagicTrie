@@ -9,12 +9,11 @@
 #include <type_traits>
 #include <algorithm>
 #include <array>
+#include <op/common/typedefs.h>
 namespace OP
 {
     namespace trie
     {
-        /**the smallest part of trie key*/
-        typedef std::uint8_t atom_t;
         /**unsigned size of single page(container) */
         typedef std::uint16_t node_size_t;
 

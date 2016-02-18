@@ -36,26 +36,39 @@ void test_TrieCreation(OP::utest::TestResult &tresult)
     tresult.assert_true(1 == trie->nodes_count());
     tresult.assert_true(nav1 == trie->end());
 }
+template <class O, class T>
+void print_hex(O& os, const T& t)
+{
+    auto b = std::begin(t), e = std::end(t);
+    for (; b != e; ++b)
+        os << std::setbase(16) << std::setw(2) << std::setfill('0') << (unsigned int)(unsigned char)*b;
+    std::cout << '\n';
+}
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
 {
     auto mi = std::begin(map);
-    auto ti = trie.begin();
-    //order must be the same
-    for (; ti != trie.end(); ++ti, ++mi)
+    auto lim = 10;
+    /*for (auto xp : map)
     {
+        tresult.info() << xp.first << '=' << xp.second << '\n';
+    }*/
+    auto ti = trie.begin();
+    int n = 0;
+    //order must be the same
+    for (; ti != trie.end(); ++ti, ++mi, ++n)
+    {
+        print_hex(tresult.info() << "1)", ti.prefix());
+        print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
             OP_CODE_DETAILS(<< "has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
         tresult.assert_true(
             std::equal(
-                std::begin(ti.prefix()), std::end(ti.prefix()), std::begin(mi->first)), OP_CODE_DETAILS());
-        tresult.assert_that(OP::utest::is::equals(*ti, mi->second), OP_CODE_DETAILS());
+            std::begin(ti.prefix()), std::end(ti.prefix()), std::begin(mi->first), [](atom_t left, atom_t right){return left == right; }),
+            OP_CODE_DETAILS(<<"step#"<< n << ", for key="<<mi->first << ", while obtained:" << ti.prefix().c_str()));
+        tresult.assert_that(OP::utest::is::equals(*ti, mi->second), OP_CODE_DETAILS(<<"Associated value error, has:" << *ti << ", expected:" << mi->second ));
     }
     tresult.assert_true(mi == std::end(map), OP_CODE_DETAILS());
-    //backward scenario - when map is used for key generation
-    for (auto pair : map)
-    {
-    }
 }
 void test_TrieInsert(OP::utest::TestResult &tresult)
 {
@@ -66,9 +79,9 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     std::map<std::string, double> standard;
     double v_order = 0.0;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
-    const std::string stem1(260, 'a');
+    const std::string stem1(260, 'a'); //total 260
     /*stem1_deviation1 - 1'a' for presence, 256'a' for exhausting stem container*/
-    auto stem1_deviation1(std::string(257, 'a') + "b");
+    std::string stem1_deviation1{ std::string(257, 'a') + 'b'};
     //insert that reinforce long stem
     auto b1 = std::begin(stem1);
     tresult.assert_true(trie->insert(b1, std::end(stem1), v_order), OP_CODE_DETAILS());

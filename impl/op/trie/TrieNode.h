@@ -167,14 +167,14 @@ namespace OP
                 return std::make_pair(vad.has_child(), vad.has_data());
             }
             /**@return first position where child or value exists, may return dim_nil_c if node empty*/
-            fast_dim_t first() const
+            inline nullable_atom_t first() const
             {
-                return this->presence.first_set();
+                return make_nullable( this->presence.first_set() );
             }
             /**@return next position where child or value exists, may return dim_nil_c if no more entries*/
-            fast_dim_t next(atom_t previous) const
+            nullable_atom_t next(atom_t previous) const
             {
-                return this->presence.next_set(previous);
+                return make_nullable( this->presence.next_set(previous) );
             }
             /**
             * Move entry from this specified by 'key' node that is started on 'at_index' to another one 
@@ -191,7 +191,7 @@ namespace OP
                 dim_t reindex_target, stem_len;
                 //extract stem from current node
                 stem_manager.stem(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, const stem::StemData& stem_header) -> void{
-                    stem_len = stem_header.stem_length[key];
+                    stem_len = stem_header.stem_length[ridx];
                     reindex_target = target_node->insert_stem(topology, src_begin, src_end);
                 });
 

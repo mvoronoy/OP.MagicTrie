@@ -2,6 +2,8 @@
 #define _OP_TRIE_TYPEDEFS__H_
 #include <cstdint>
 #include <cassert>
+#include <limits>
+#include <cstddef>
 
 #define OP_EMPTY_ARG
 #ifdef _MSC_VER
@@ -23,12 +25,19 @@ namespace OP
     namespace trie
     {
         typedef std::uint8_t atom_t;
+        typedef std::pair<bool, atom_t> nullable_atom_t;
         typedef std::uint16_t dim_t;
         typedef std::uint_fast16_t fast_dim_t;
         enum : dim_t
         {
             dim_nil_c = dim_t(-1)
         };
+        inline nullable_atom_t make_nullable(dim_t index)
+        {
+            return index > std::numeric_limits<atom_t>::max() 
+                ? std::make_pair(false, std::numeric_limits<atom_t>::max()) 
+                : std::make_pair(true, (atom_t)index);
+        }
     
         typedef std::uint32_t header_idx_t;
         typedef std::uint32_t segment_idx_t;
