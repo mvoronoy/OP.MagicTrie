@@ -188,23 +188,19 @@ namespace OP
                 atom_t ridx = reindex(topology, key);
                 auto target_node =
                     topology.segment_manager().wr_at<this_t>(target);
-                dim_t reindex_target, stem_len;
+                dim_t reindex_target;
                 //extract stem from current node
-                stem_manager.stem(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, const stem::StemData& stem_header) -> void{
-                    stem_len = stem_header.stem_length[ridx];
+                stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stem::StemData& stem_header) -> void{
                     reindex_target = target_node->insert_stem(topology, src_begin, src_end);
+                    //truncate stem in current node
+                    stem_header.stem_length[ridx] = at_index - 1;/*byte ate by presence matrix*/
                 });
 
-                auto length = stem_len - at_index;//how many bytes to copy
-             
                 //copy data/address to target
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 auto& src_val = value_manager.accessor(this->payload, this->capacity) [ridx];
                 auto& target_val = value_manager.accessor(target_node->payload, this->capacity)[reindex_target];
-                target_val = std::move(src_val);
-                //src_val.clear();//clear previous data/addr in source 
-                //truncate stem in current node
-                stem_manager.trunc_str(stems, ridx, at_index);
+                target_val = std::move(src_val);// move clears previous data/addr in source 
             }
             /**
             *   Taken a byte key, return index where corresponding key should reside for stem_manager and value_manager

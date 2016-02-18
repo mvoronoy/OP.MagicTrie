@@ -48,7 +48,6 @@ template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
 {
     auto mi = std::begin(map);
-    auto lim = 10;
     /*for (auto xp : map)
     {
         tresult.info() << xp.first << '=' << xp.second << '\n';
@@ -58,8 +57,8 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
     //order must be the same
     for (; ti != trie.end(); ++ti, ++mi, ++n)
     {
-        print_hex(tresult.info() << "1)", ti.prefix());
-        print_hex(tresult.info() << "2)", mi->first);
+        //print_hex(tresult.info() << "1)", ti.prefix());
+        //print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
             OP_CODE_DETAILS(<< "has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
         tresult.assert_true(
@@ -97,13 +96,14 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     tresult.assert_true(b1 == std::end(stem1));
     tresult.assert_true(trie->size() == 1);
     tresult.assert_true(
-        trie->insert(b1 = stem1_deviation1.cbegin(), stem1_deviation1.cend(), 0.0), OP_CODE_DETAILS());
+        trie->insert(b1 = stem1_deviation1.cbegin(), stem1_deviation1.cend(), v_order), OP_CODE_DETAILS());
     tresult.assert_true(b1 == std::end(stem1_deviation1));
     standard[stem1_deviation1] = v_order++;
     compare_containers(tresult, *trie, standard);
     // test behaviour on range
     const std::string stem2(256, 'b');
     tresult.assert_true(trie->insert(b1 = std::begin(stem2), std::end(stem2), v_order), OP_CODE_DETAILS());
+    standard[stem2] = v_order++;
     tresult.assert_true(3 == trie->nodes_count(), "2 nodes must exists in the system");
     tresult.assert_true(b1 == std::end(stem2));
     tresult.assert_true(trie->size() == 3);
