@@ -295,6 +295,19 @@ namespace OP
                     const atom_t * begin = f_str;
                     callback(begin, begin + data_header->stem_length[key], *data_header);
                 }
+                template <class FBack>
+                void stemw(const ref_stems_t& st_address, atom_t key, FBack& callback) const
+                {
+                    //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
+                    auto data_header = accessor<StemData>(_topology, st_address.address);
+
+                    assert(key < data_header->width);
+                    auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
+                        + sizeof(atom_t)*data_header->height * key };
+                    auto f_str = array_view<atom_t>(_topology, address, data_header->height);
+                    const atom_t * begin = f_str;
+                    callback(begin, begin + data_header->stem_length[key], *data_header);
+                }
                 struct MoveProcessor
                 {
                     friend struct this_t;

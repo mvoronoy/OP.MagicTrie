@@ -101,7 +101,7 @@ namespace OP
                 iterator result(this);
                 auto ro_node = view<node_t>(*_topology_ptr, r_addr);
                 if (load_iterator(ro_node, result, _resolve_leftmost(*ro_node), &iterator::emplace))
-                    assert(_begin(ro_node, result, &iterator::emplace));
+                    assert(_begin(ro_node, result, false));
                 return result;
                 
             }
@@ -126,39 +126,12 @@ namespace OP
                     }
                     if (load_iterator(ro_node, i, _resolve_next(*ro_node, &i), &iterator::update_back))
                     {
-                        assert(_begin(ro_node, i));//enter deep if needed
+                        assert(_begin(ro_node, i, false));//enter deep if needed
                         return;
                     }
                     //here since no way neither down nor right
                     i.pop();
                 }
-                /*auto node_addr = i.back().first.address();
-                auto ro_node = view<node_t>(*_topology_ptr, node_addr);
-                auto clb = classify_back(ro_node, i);  //just a kind of optimization, may be replaced by _begin(..._resolve_leftmost)
-
-                while (!i.is_end())
-                {
-                    if (way_down && std::get<1>(clb))//if has a child
-                    { //go deep
-                        assert(_begin(std::get<2>(clb), i, _resolve_leftmost, &iterator::emplace));
-                        return;
-                    }
-
-                    //no child at this pos
-                    // try go right
-                    auto pos_right = ro_node->next((atom_t)i.back().first.key()); //it is optimization, in fact can be replaced with _begin(.., _resolve_next)
-                    if (pos_right != dim_nil_c) //right-way exists
-                    {
-                        assert(_begin(std::get<2>(clb), i, _resolve_next, &iterator::update_back));
-                        return;
-                    }
-                    //here since no way neither down nor right
-                    way_down = false;
-                    i.pop();
-                    if (i.is_end())
-                        return;
-
-                }*/
 
             }
             value_type value_of(navigator_t pos) const
@@ -364,10 +337,13 @@ namespace OP
                 }
                 return true;
             }
+            /**
+            * @param skip_first - true if once current iterator position should be ignored, and new value loaded (used by ::next). 
+            *                     false mean that current iterator position have to be checked if enter deep is allowed (used by ::begin)
+            */
             template <class NodeView>
-            bool _begin(NodeView& ro_node, iterator& i, bool skip_first = false) const
+            bool _begin(NodeView& ro_node, iterator& i, bool skip_first) const
             {
-
                 for (auto clb = classify_back(ro_node, i);
                     skip_first || !std::get<0>(clb);)
                 {
