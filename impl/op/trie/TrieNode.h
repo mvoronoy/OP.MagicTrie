@@ -67,9 +67,9 @@ namespace OP
                 : version(0)
             {
             }
-            template <class TSegmentTopology, class Atom>
+            template <class TSegmentTopology, class Atom, class Iterator>
             std::tuple<stem::StemCompareResult, dim_t, FarAddress> navigate_over(
-                TSegmentTopology& topology, Atom& begin, Atom end) const
+                TSegmentTopology& topology, Atom& begin, Atom end, Iterator* traces = nullptr) const
             {
                 typedef ValueArrayManager<TSegmentTopology, payload_t> value_manager_t;
 
@@ -193,7 +193,7 @@ namespace OP
                 stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stem::StemData& stem_header) -> void{
                     reindex_target = target_node->insert_stem(topology, src_begin, src_end);
                     //truncate stem in current node
-                    stem_header.stem_length[ridx] = at_index - 1;/*byte ate by presence matrix*/
+                    stem_manager.trunc_str(stem_header, ridx, at_index - 1/*byte ate by presence matrix*/);
                 });
 
                 //copy data/address to target

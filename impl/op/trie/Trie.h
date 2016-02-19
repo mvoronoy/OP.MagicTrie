@@ -111,7 +111,6 @@ namespace OP
             }
             void next(iterator& i) const
             {
-                
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 sync_iterator(i);
                 bool way_down = true;
@@ -132,6 +131,76 @@ namespace OP
                     //here since no way neither down nor right
                     i.pop();
                 }
+
+            }
+            template <class Atom>
+            iterator lower_bound(Atom& begin, Atom end) const
+            {
+                if (end == begin)
+                    return iterator();
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); 
+                auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                for (;;)
+                {
+                    auto node =
+                        view<node_t>(*_topology_ptr, node_addr);
+                    
+                    atom_t key = *begin;
+                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end);
+                    switch (tuple_ref<stem::StemCompareResult>(nav_res))
+                    {
+                    case stem::StemCompareResult::equals:
+                        op_g.rollback();
+                        return false; //dupplicate found
+                    case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
+                    {
+                        auto next_addr = tuple_ref<FarAddress>(nav_res);
+                        if (next_addr.address == SegmentDef::far_null_c)
+                        {  //no way down
+                            next_addr = new_node();
+                            auto wr_node_block =
+                                _topology_ptr->segment_manager().upgrade_to_writable_block(node);
+                            auto wr_node = wr_node_block.at<node_t>(0);
+                            wr_node->set_child(*_topology_ptr, key, next_addr);
+                        }
+                        node_addr = next_addr;
+                        break;
+                    }
+                    case stem::StemCompareResult::string_end:
+                    {
+                        //terminal is not there, otherwise it would be StemCompareResult::equals
+                        auto wr_node = tuple_ref<node_t*>(diversificate(node, key, tuple_ref<dim_t>(nav_res)));
+                        wr_node->set_value(*_topology_ptr, key, std::forward<Payload>(value));
+                        op_g.commit();
+                        return true;
+                    }
+                    case stem::StemCompareResult::unequals:
+                    {
+                        auto in_stem_pos = tuple_ref<dim_t>(nav_res);
+                        if (in_stem_pos == 0)//no such entry at all
+                        {
+                            auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
+                            wr_node->insert(*_topology_ptr, begin, end, std::forward<payload_t>(value));
+                            if (begin == end) //fully fit to this node
+                            {
+                                _topology_ptr->slot<TrieResidence>().increase_count(+1);
+                                op_g.commit();
+                                return true;
+                            }
+                            //some suffix have to be accomodated yet
+                            node_addr = new_node();
+                            wr_node->set_child(*_topology_ptr, key, node_addr);
+                        }
+                        else //entry in this node should be splitted on 2
+                            node_addr = tuple_ref<FarAddress>(
+                                diversificate(node, key, in_stem_pos));
+                        //continue in another node
+                        break;
+                    }
+                    default:
+                        assert(false);
+                    }
+                } //for(;;)
 
             }
             value_type value_of(navigator_t pos) const
