@@ -46,7 +46,7 @@ namespace OP
             {
                 return _node_addr;
             }
-        private:
+        
             FarAddress _node_addr;
             /**Unique signature of node*/
             NodeUid _uid;
@@ -61,6 +61,8 @@ namespace OP
         >
         {
             friend typename Container;
+            friend typename Container::node_t;
+
             /*add 2nd dimension to position, by specifying stem-length*/
             typedef std::pair<TriePosition, size_t> position2d_t;
             typedef std::vector<position2d_t> node_stack_t;
@@ -118,7 +120,8 @@ namespace OP
             }
         protected:
             /**Add position to iterator*/
-            void emplace(TriePosition&& position, const atom_t* begin, const atom_t* end)
+            template <class Iterator>
+            void emplace(TriePosition&& position, Iterator begin, Iterator end)
             {
                 if (position.key() >= std::numeric_limits<atom_t>::max())
                     throw std::out_of_range("Range must be in [0..255]");
@@ -127,6 +130,10 @@ namespace OP
                 _prefix.append(begin, end);
                 _position_stack.emplace_back(
                     std::move(std::make_pair(std::move(position), length+1)));
+            }
+            void emplace(TriePosition&& position, const atom_t* begin, const atom_t* end)
+            {
+                emplace<decltype(begin)>(std::move(position), begin, end);
             }
             /**Add position to iterator*/
             void update_back(TriePosition&& position, const atom_t* begin, const atom_t* end)
