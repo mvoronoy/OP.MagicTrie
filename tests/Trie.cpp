@@ -7,6 +7,7 @@
 #include <algorithm>
 
 using namespace OP::trie;
+using namespace OP::utest;
 const char *test_file_name = "trie.test";
 
 struct lexicographic_less : public std::binary_function<std::string, std::string, bool> {
@@ -83,30 +84,48 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     std::string stem1_deviation1{ std::string(257, 'a') + 'b'};
     //insert that reinforce long stem
     auto b1 = std::begin(stem1);
-    tresult.assert_true(trie->insert(b1, std::end(stem1), v_order), OP_CODE_DETAILS());
+    auto ir1 = trie->insert(b1, std::end(stem1), v_order);
+    tresult.assert_true(ir1.first, OP_CODE_DETAILS());
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir1.second.prefix()), std::end(ir1.second.prefix()),
+        std::begin(stem1), std::end(stem1)
+        ));
     tresult.assert_true(2 == trie->nodes_count(), "2 nodes must be create for long stems");
     tresult.assert_true(b1 == std::end(stem1));
     tresult.assert_true(trie->size() == 1);
+
     standard[stem1] = v_order++;
     compare_containers(tresult, *trie, standard);
-
+    
+    auto ir2 = trie->insert(b1 = std::begin(stem1), std::end(stem1), v_order + 101.0);
     tresult.assert_false(
-        trie->insert(b1 = std::begin(stem1), std::end(stem1), v_order+101.0), 
+        ir2.first, 
         OP_CODE_DETAILS("Duplicate insert must not be allowed"));
     tresult.assert_true(b1 == std::end(stem1));
     tresult.assert_true(trie->size() == 1);
-    tresult.assert_true(
-        trie->insert(b1 = stem1_deviation1.cbegin(), stem1_deviation1.cend(), v_order), OP_CODE_DETAILS());
+    
+    auto ir3 = trie->insert(b1 = stem1_deviation1.cbegin(), stem1_deviation1.cend(), v_order);
+    tresult.assert_true(ir3.first, OP_CODE_DETAILS());
     tresult.assert_true(b1 == std::end(stem1_deviation1));
+    //print_hex(std::cout << "1)", stem1_deviation1);
+    //print_hex(std::cout << "2)", ir3.second.prefix());
+
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir3.second.prefix()), std::end(ir3.second.prefix()),
+        std::begin(stem1_deviation1), std::end(stem1_deviation1)
+        ));
     standard[stem1_deviation1] = v_order++;
     compare_containers(tresult, *trie, standard);
     // test behaviour on range
     const std::string stem2(256, 'b');
-    tresult.assert_true(trie->insert(b1 = std::begin(stem2), std::end(stem2), v_order), OP_CODE_DETAILS());
+    auto ir4 = trie->insert(b1 = std::begin(stem2), std::end(stem2), v_order);
+    tresult.assert_true(ir4.first, OP_CODE_DETAILS());
     standard[stem2] = v_order++;
     tresult.assert_true(3 == trie->nodes_count(), "2 nodes must exists in the system");
     tresult.assert_true(b1 == std::end(stem2));
     tresult.assert_true(trie->size() == 3);
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir4.second.prefix()), std::end(ir4.second.prefix()),
+        std::begin(stem2), std::end(stem2)
+        ));
+
     compare_containers(tresult, *trie, standard);
     
 }
@@ -123,14 +142,16 @@ void test_TrieInsertGrow(OP::utest::TestResult &tresult)
     // Populate trie with unique strings in range from [0..255]
     // this must cause grow of root node
     const std::string stems[] = { "abc", "", "x", std::string(256, 'z') };
-    std::array<std::uint16_t, 129> rand_idx;
+    std::array<std::uint16_t, 255> rand_idx;
     std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
     std::random_shuffle(std::begin(rand_idx), std::end(rand_idx));
     for (auto i : rand_idx)
     {
         std::string test = std::string(1, (std::string::value_type)i) + 
             stems[rand() % std::extent< decltype(stems) >::value];
-        trie->insert(std::begin(test), std::end(test), (double)test.length());
+        auto ins_res = trie->insert(std::begin(test), std::end(test), (double)test.length());
+        tresult.assert_true(ins_res.first);
+        tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
         test_values[test] = (double)test.length();
     }
     compare_containers(tresult, *trie, test_values);
@@ -152,7 +173,10 @@ void test_TrieGrowAfterUpdate(OP::utest::TestResult &tresult)
     for (auto i : test_seq)
     {
         const std::string& test = i;
-        trie->insert(std::begin(test), std::end(test), x);
+        auto ins_res = trie->insert(std::begin(test), std::end(test), x);
+        tresult.assert_true(ins_res.first);
+        tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+
         test_values[test] = x;
         x += 1.0;
     }
@@ -161,8 +185,65 @@ void test_TrieGrowAfterUpdate(OP::utest::TestResult &tresult)
     compare_containers(tresult, *trie, test_values);
     const std::string& upd = test_seq[std::extent<decltype(test_seq)>::value / 2];
 }
+void test_TrieLowerBound(OP::utest::TestResult &tresult)
+{
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    std::map<std::string, double> test_values;
+    // Populate trie with unique strings in range from [0..255]
+    // this must cause grow of root node
+    const std::string test_seq[] = { "abc", "bcd", "def", "fgh", "ijk", "lmn" };
+
+    double x = 0.0;
+    for (auto i : test_seq)
+    {
+        const std::string& test = i;
+        auto ins_res = trie->insert(std::begin(test), std::end(test), x);
+        tresult.assert_true(ins_res.first);
+        tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+
+        test_values[test] = x;
+        x += 1.0;
+    }
+    trie.reset();
+    tmngr1 = OP::trie::SegmentManager::open<TransactedSegmentManager>(test_file_name);
+    trie = trie_t::open(tmngr1);
+    compare_containers(tresult, *trie, test_values);
+    x = 0.0;
+    const atom_t *np = nullptr;
+    tresult.assert_true(trie->end() == trie->lower_bound(np, np));
+    const atom_t unexisting[] = "zzz";
+    np = std::begin(unexisting);
+    tresult.assert_true(trie->end() == trie->lower_bound(np, std::end(unexisting)));
+    
+    for (auto i = 0; i < std::extent<decltype(test_seq)>::value - 1; ++i, x += 1.0)
+    {
+        const std::string& test = test_seq[i];
+        auto lbit = trie->lower_bound(std::begin(test), std::end(test));
+
+        tresult.assert_true(tools::container_equals(lbit.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+        tresult.assert_true(x == *lbit);
+
+        auto query = test_seq[i] + "a";
+        auto lbit2 = trie->lower_bound(std::begin(query), std::end(query));
+
+        //print_hex(std::cout << "1)", test_seq[i + 1]);
+        //print_hex(std::cout << "2)", lbit2.prefix());
+        tresult.assert_true(tools::container_equals(lbit2.prefix(), test_seq[i+1], &tools::sign_tolerant_cmp<atom_t>));
+
+        auto lbit3 = trie->lower_bound(std::begin(test), std::end(test)-1);//take shorter key
+        tresult.assert_true(tools::container_equals(lbit3.prefix(), test.substr(0, 2), &tools::sign_tolerant_cmp<atom_t>));
+        tresult.assert_true(x == *lbit);
+    }
+}
 static auto module_suite = OP::utest::default_test_suite("Trie")
-->declare(test_TrieCreation, "creation")
-->declare(test_TrieInsert, "insertion")
-->declare(test_TrieInsertGrow, "insertion-grow")
-;
+    ->declare(test_TrieCreation, "creation")
+    ->declare(test_TrieInsert, "insertion")
+    ->declare(test_TrieInsertGrow, "insertion-grow")
+    //->declare(test_TrieGrowAfterUpdate, "grow-after-update")
+    ->declare(test_TrieLowerBound, "lower_bound")
+    ;

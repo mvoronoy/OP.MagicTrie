@@ -224,12 +224,12 @@ namespace OP
                     ++data_header->count;
                     //g.commit();
                 }
-                typedef std::tuple<StemCompareResult, dim_t> prefix_result_t;
                 /**
-                *   Detect substr return processed characters number of stem
+                *   Detect substr contained in stem. 
+                * @return pair of comparison result and length of overlapped string.
                 */
                 template <class T>
-                inline prefix_result_t prefix_of(const ref_stems_t& st_address, atom_t key, T& begin, T end) const
+                inline std::tuple<StemCompareResult, dim_t> prefix_of(const ref_stems_t& st_address, atom_t key, T& begin, T end) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     auto ro_access = 

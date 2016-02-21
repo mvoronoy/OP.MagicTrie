@@ -67,9 +67,16 @@ namespace OP
                 : version(0)
             {
             }
+            /**
+            * @para track_back - optional pointer to iterator that is populated at exit. NOTE!! node has
+            *                   no information about address, so modify it at exit to reflect correct value
+            *   @return \li get<0> - compare result;
+            *   \li get<1> length of string overlapped part;
+            *   \li get<2> address of further children to continue navigation
+            */
             template <class TSegmentTopology, class Atom, class Iterator>
             std::tuple<stem::StemCompareResult, dim_t, FarAddress> navigate_over(
-                TSegmentTopology& topology, Atom& begin, Atom end, Iterator* traces = nullptr) const
+                TSegmentTopology& topology, Atom& begin, Atom end, Iterator* track_back = nullptr) const
             {
                 typedef ValueArrayManager<TSegmentTopology, payload_t> value_manager_t;
 
@@ -79,15 +86,22 @@ namespace OP
                     return std::make_tuple(stem::StemCompareResult::unequals, 0, FarAddress());
                 //else detect how long common part is
                 ++begin; //first letter concidered in `presence`
-                
+                auto origin_begin = begin;
+
                 atom_t index = this->reindex(topology, key);
                 
                 if (!stems.is_null())
                 {//let's cut prefix from stem container
                     stem::StemStore<TSegmentTopology> stem_manager(topology);
+                    
                     auto prefix_info = stem_manager.prefix_of(stems, index, begin, end);
-                    std::get<1>(prefix_info)++;//because of ++begin need increase index
-
+                    tuple_ref<dim_t>(prefix_info)++;//increase length of common string, because of ++begin
+                    if (track_back)
+                    {
+                        TriePosition pos(FarAddress(),//must be populated after exit 
+                            this->uid, key, this->version);
+                        track_back->emplace(std::move(pos), origin_begin, begin);
+                    }
                     auto nav_type = tuple_ref<stem::StemCompareResult>(prefix_info);
                     if (nav_type == stem::StemCompareResult::stem_end)
                     { //stem ended, this mean either this is terminal or reference to other node
@@ -101,6 +115,12 @@ namespace OP
                 }
                 //no stems, just follow down
                 assert(!payload.is_null());
+                if (track_back)
+                {
+                    TriePosition pos(FarAddress(),//must be populated after exit 
+                        this->uid, key, this->version);
+                    track_back->emplace(std::move(pos), origin_begin, begin);
+                }
                 value_manager_t value_manager(topology);
                 auto& term = value_manager.view(payload, (dim_t)capacity)[index];
                 return std::make_tuple(

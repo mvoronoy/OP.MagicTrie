@@ -136,72 +136,29 @@ namespace OP
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom end) const
             {
-                if (end == begin)
-                    return iterator();
-                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); 
-                auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                for (;;)
+                auto pref_res = common_prefix(begin, end);
+                auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
+                if (kind == stem::StemCompareResult::equals //exact match
+                    || kind == stem::StemCompareResult::string_end //lower bound
+                    )
+                    return tuple_ref<iterator>(pref_res);
+                if (kind == stem::StemCompareResult::stem_end)
                 {
-                    auto node =
-                        view<node_t>(*_topology_ptr, node_addr);
+                    next(tuple_ref<iterator>(pref_res));
+                    return tuple_ref<iterator>(pref_res);
+                }
+                return iterator();// StemCompareResult::unequals or StemCompareResult::stem_end 
+            }
+            template <class Atom>
+            iterator find(Atom& begin, Atom end) const
+            {
+                auto pref_res = common_prefix(begin, end);
+                auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
+                if (kind == stem::StemCompareResult::equals //exact match
                     
-                    atom_t key = *begin;
-                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end);
-                    switch (tuple_ref<stem::StemCompareResult>(nav_res))
-                    {
-                    case stem::StemCompareResult::equals:
-                        op_g.rollback();
-                        return false; //dupplicate found
-                    case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
-                    {
-                        auto next_addr = tuple_ref<FarAddress>(nav_res);
-                        if (next_addr.address == SegmentDef::far_null_c)
-                        {  //no way down
-                            next_addr = new_node();
-                            auto wr_node_block =
-                                _topology_ptr->segment_manager().upgrade_to_writable_block(node);
-                            auto wr_node = wr_node_block.at<node_t>(0);
-                            wr_node->set_child(*_topology_ptr, key, next_addr);
-                        }
-                        node_addr = next_addr;
-                        break;
-                    }
-                    case stem::StemCompareResult::string_end:
-                    {
-                        //terminal is not there, otherwise it would be StemCompareResult::equals
-                        auto wr_node = tuple_ref<node_t*>(diversificate(node, key, tuple_ref<dim_t>(nav_res)));
-                        wr_node->set_value(*_topology_ptr, key, std::forward<Payload>(value));
-                        op_g.commit();
-                        return true;
-                    }
-                    case stem::StemCompareResult::unequals:
-                    {
-                        auto in_stem_pos = tuple_ref<dim_t>(nav_res);
-                        if (in_stem_pos == 0)//no such entry at all
-                        {
-                            auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
-                            wr_node->insert(*_topology_ptr, begin, end, std::forward<payload_t>(value));
-                            if (begin == end) //fully fit to this node
-                            {
-                                _topology_ptr->slot<TrieResidence>().increase_count(+1);
-                                op_g.commit();
-                                return true;
-                            }
-                            //some suffix have to be accomodated yet
-                            node_addr = new_node();
-                            wr_node->set_child(*_topology_ptr, key, node_addr);
-                        }
-                        else //entry in this node should be splitted on 2
-                            node_addr = tuple_ref<FarAddress>(
-                                diversificate(node, key, in_stem_pos));
-                        //continue in another node
-                        break;
-                    }
-                    default:
-                        assert(false);
-                    }
-                } //for(;;)
-
+                    )
+                    return tuple_ref<iterator>(pref_res);
+                return iterator();// StemCompareResult::unequals or StemCompareResult::stem_end or stem::StemCompareResult::string_end
             }
             value_type value_of(navigator_t pos) const
             {
@@ -214,10 +171,11 @@ namespace OP
                 //op_g.commit();
             }
             template <class Atom>
-            bool insert(Atom& begin, Atom end, Payload value, iterator * result = nullptr)
+            std::pair<bool, iterator> insert(Atom& begin, Atom end, Payload value)
             {
+                auto result = std::make_pair(false, iterator());
                 if (begin == end)
-                    return false; //empty string cannot be inserted
+                    return result; //empty string cannot be inserted
                 
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); 
                 auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
@@ -227,12 +185,12 @@ namespace OP
                         view<node_t>(*_topology_ptr, node_addr);
                     
                     atom_t key = *begin;
-                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end);
+                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end, &result.second);
                     switch (tuple_ref<stem::StemCompareResult>(nav_res))
                     {
                     case stem::StemCompareResult::equals:
                         op_g.rollback();
-                        return false; //dupplicate found
+                        return result; //dupplicate found
                     case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
                     {
                         auto next_addr = tuple_ref<FarAddress>(nav_res);
@@ -253,7 +211,8 @@ namespace OP
                         auto wr_node = tuple_ref<node_t*>(diversificate(node, key, tuple_ref<dim_t>(nav_res)));
                         wr_node->set_value(*_topology_ptr, key, std::forward<Payload>(value));
                         op_g.commit();
-                        return true;
+                        result.first = true;
+                        return result;
                     }
                     case stem::StemCompareResult::unequals:
                     {
@@ -261,12 +220,18 @@ namespace OP
                         if (in_stem_pos == 0)//no such entry at all
                         {
                             auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
+                            auto origin_begin = begin;
                             wr_node->insert(*_topology_ptr, begin, end, std::forward<payload_t>(value));
+                            result.second.emplace(
+                                TriePosition(node.address(), wr_node->uid, (atom_t)*origin_begin/*key*/, wr_node->version),
+                                origin_begin+1, begin
+                                );
                             if (begin == end) //fully fit to this node
                             {
                                 _topology_ptr->slot<TrieResidence>().increase_count(+1);
                                 op_g.commit();
-                                return true;
+                                result.first = true;
+                                return result;
                             }
                             //some suffix have to be accomodated yet
                             node_addr = new_node();
@@ -338,7 +303,9 @@ namespace OP
                 memcpy(node->uid.uid, g.begin(), g.size());
                 return node_pos;
             }
-            /**Return pair of:
+            /**
+            *   
+            * @return pair of:
             * \li current node in write-mode (matched to `node_addr`);
             * \li address of new node where the tail was placed.
             */
@@ -350,6 +317,46 @@ namespace OP
                 wr_node->move_to(*_topology_ptr, key, in_stem_pos, new_node_addr);
                 wr_node->set_child(*_topology_ptr, key, new_node_addr);
                 return std::make_tuple(wr_node, new_node_addr);
+            }
+            /**Return not fully valid iterator that matches common part specified by [begin, end)*/
+            template <class Atom>
+            std::tuple<stem::StemCompareResult, iterator> common_prefix(Atom& begin, Atom end) const
+            {
+                auto retval = std::make_tuple(stem::StemCompareResult::unequals, iterator(this));
+                if (end == begin)
+                    return retval;
+                
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                for (;;)
+                {
+                    auto node =
+                        view<node_t>(*_topology_ptr, node_addr);
+
+                    atom_t key = *begin;
+                    auto & result_iter = tuple_ref<iterator>(retval);
+                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end, &result_iter);
+                    if (result_iter.deep() > 0)
+                    {
+                        auto &ibac = result_iter.back();
+                        ibac.first._node_addr = node_addr;  //need correct address since navigate_over cannot set it
+                        ibac.second = tuple_ref<dim_t>(nav_res);
+                    }
+                    tuple_ref<stem::StemCompareResult>(retval) = tuple_ref<stem::StemCompareResult>(nav_res);
+                    // all cases excluding stem::StemCompareResult::stem_end mean that need return current iterator state
+                    if(stem::StemCompareResult::stem_end == tuple_ref<stem::StemCompareResult>(nav_res))
+                    {
+                        node_addr = tuple_ref<FarAddress>(nav_res);
+                        if (node_addr.address == SegmentDef::far_null_c)
+                        {  //no way down, it is not valid result!!!!
+                            return retval; //@! it is prefix that is not satisfied lower_bound
+                        }
+                    }
+                    else 
+                        break;
+                    
+                } //for(;;)
+                return retval;
             }
             void sync_iterator(iterator & it) const
             {

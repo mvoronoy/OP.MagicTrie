@@ -249,7 +249,7 @@ void test_NodeArray_insert(OP::utest::TestResult &tresult)
         auto n = tbl.size();
         auto inspos = tbl.insert(p = templ, templ_end);
         auto v = *inspos;
-        tresult.assert_true(OP::utest::tools::range_equal(templ, templ_end, v.first, v.second));
+        tresult.assert_true(OP::utest::tools::range_equals(templ, templ_end, v.first, v.second));
     }
     const atom_t ustr[] = "abcde";
     p = std::begin(ustr);
