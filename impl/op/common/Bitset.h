@@ -241,7 +241,7 @@ namespace OP
                 /**Total bit count managed by this container*/
                 bit_length_c = const_iterator::bit_length_c
             };
-            Bitset(std::uint64_t def = 0ULL)
+            Bitset(Int def = {0})
             {
                 std::fill_n(_presence, N, def);
             }
@@ -282,7 +282,21 @@ namespace OP
                 }
                 return nil_c;
             }
-
+            /**Return index of bit that is set prior 'index' one. May return `nil_c` if no bits are set prior index.*/
+            inline dim_t prev_set(dim_t index) const
+            {
+                Int mask = (1ULL << (index % bits_c)) - 1;
+                for (int i = index / bits_c; i >=0; --i)
+                {
+                    auto x = _presence[i] & mask;
+                    if (x != 0) //test all bits are set
+                    {
+                        return ln2(x ) + i*bits_c;
+                    }
+                    mask = ~Int(0); //reset mask for all other entries
+                }
+                return nil_c;
+            }
             /**Return index of first bit that is not set*/
             inline dim_t first_clear() const
             {

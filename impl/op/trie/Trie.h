@@ -45,7 +45,37 @@ namespace OP
             virtual std::unique_ptr<SubTrie<Payload> > subtree(const atom_t*& begin, const atom_t* end) const = 0;
             
         };
-        
+        template <class Container>
+        struct IteratorsPair
+        {
+            typedef typename Container::iterator iterator;
+            IteratorsPair(Container& container, iterator prefix) 
+                : _container(container)
+                , _prefix(prefix) 
+            {
+            }
+            iterator begin() const
+            {
+            }
+            iterator end() const
+            {
+                return _container.end();
+            }
+            
+            void next(iterator& iter) const
+            {
+                _container.next(iter);
+                if (iter != end())
+                {
+                    if (_prefix.is_above(iter))
+                        return;
+                    iter = end();
+                }
+            }
+        private:
+            Container& _container;
+            iterator _prefix;
+        };
         template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 1024>
         struct Trie
         {
@@ -88,12 +118,6 @@ namespace OP
                 return _topology_ptr->slot<TrieResidence>().nodes_allocated();
             }
 
-
-            navigator_t navigator_end() const
-            {
-                return navigator_t();
-            }
-            
             iterator begin() const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
@@ -131,7 +155,22 @@ namespace OP
                     //here since no way neither down nor right
                     i.pop();
                 }
-
+            }
+            template <class Atom>
+            iterator subtree(Atom& begin, Atom end) const
+            {
+                auto pref_res = common_prefix(begin, end);
+                auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
+                if (kind == stem::StemCompareResult::equals //exact match
+                    || kind == stem::StemCompareResult::string_end //lower bound
+                    )
+                    return tuple_ref<iterator>(pref_res);
+                if (kind == stem::StemCompareResult::stem_end)
+                {
+                    next(tuple_ref<iterator>(pref_res));
+                    return tuple_ref<iterator>(pref_res);
+                }
+                return iterator();// StemCompareResult::unequals or StemCompareResult::stem_end 
             }
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom end) const
