@@ -56,26 +56,35 @@ void test_Finds(OP::utest::TestResult &tresult)
     tresult.assert_true(b3_t.nil_c == b3_t.first_set());
     tresult.assert_true(0 == b3_t.first_clear());
     tresult.assert_true(b3_t.nil_c == b3_t.next_set(0));
-    
+    tresult.assert_true(b3_t.nil_c == b3_t.prev_set(b3_t.bit_length_c -1u));
+
     b3_t.set(1);
     tresult.assert_true(1 == b3_t.first_set());
     tresult.assert_true(0 == b3_t.first_clear());
     tresult.assert_true(1 == b3_t.next_set(0));
+    tresult.assert_true(1 == b3_t.prev_set(b3_t.bit_length_c - 1));
     b3_t.set(2);//keep 1 set
     tresult.assert_true(1 == b3_t.first_set());
     tresult.assert_true(0 == b3_t.first_clear());
     tresult.assert_true(2 == b3_t.next_set(1));
+    tresult.assert_true(2 == b3_t.prev_set(b3_t.bit_length_c - 1));
     tresult.assert_true(b3_t.nil_c == b3_t.next_set(2));
+    tresult.assert_true(b3_t.nil_c == b3_t.prev_set(1));
 
     b3_t.set(b3_t.bit_length_c - 1);
     tresult.assert_true((b3_t.bit_length_c - 1) == b3_t.next_set(2));
+    b3_t.set(0);
+    tresult.assert_true(0 == b3_t.prev_set(1));
 
     OP::trie::Bitset<1> b1_t2(0xFFFFFFFFFFFFFFFFULL);
     tresult.assert_true(b1_t2.nil_c == b1_t2.first_clear());
     tresult.assert_true(0 == b1_t2.first_set());
-    for (auto i = 0; i < b1_t2.bit_length_c-1; ++i)
+    for (auto i = 0; i < b1_t2.bit_length_c; ++i)
     {
-        tresult.assert_true((i + 1) == b1_t2.next_set(i), OP_CODE_DETAILS("next_set failed for i="<<i));
+        if( i != 0 )
+            tresult.assert_true((i - 1) == b1_t2.prev_set(i), OP_CODE_DETAILS("prev_set failed for i=" << i));
+        if( (i+1) != b1_t2.bit_length_c )
+            tresult.assert_true((i + 1) == b1_t2.next_set(i), OP_CODE_DETAILS("next_set failed for i="<<i));
     }
 }
 static auto module_suite = OP::utest::default_test_suite("Bitset")
