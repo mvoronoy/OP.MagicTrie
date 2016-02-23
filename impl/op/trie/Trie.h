@@ -30,10 +30,23 @@ namespace OP
             /**Maximal length of stem*/
             static const dim_t max_stem_length_c = 255;
         };
-        
-        template <class Payload>
-        struct SubTrie
+        struct PrefixQuery
         {
+            virtual ~PrefixQuery() = default;
+            
+            virtual const atom_t* end() const = 0;
+            /**Advance prefix iteration by 1 symbol. return actual state of iteration*/
+            virtual const atom_t* advance() = 0;
+            /**Return current state of iteration (the same value as #advance() returned*/
+            virtual const atom_t* current() const = 0;
+        };
+
+        template <class Payload>
+        struct Container
+        {
+
+            typedef Conatiner<Payload> this_t;
+            typedef TrieIterator<this_t> iterator;
             /**start lexicographical ascending iteration over trie content. Following is a sequence of iteration:
             *   - a
             *   - aaaaaaaaaa
@@ -41,9 +54,9 @@ namespace OP
             *   - b
             *   - ...
             */
-                        
-            virtual std::unique_ptr<SubTrie<Payload> > subtree(const atom_t*& begin, const atom_t* end) const = 0;
-            
+            virtual std::unique_ptr<this_t> subtree(PrefixQuery& query) const = 0;
+            virtual iterator begin() const = 0;
+            virtual iterator end() const = 0;
         };
         template <class Container>
         struct IteratorsPair
@@ -77,7 +90,7 @@ namespace OP
             iterator _prefix;
         };
         template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 1024>
-        struct Trie
+        struct Trie : public Container<Payload>
         {
         public:
             typedef Payload payload_t;
