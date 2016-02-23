@@ -113,7 +113,7 @@ namespace OP
             
             PersistedArray<vad_t> create(dim_t capacity, payload_t && payload = payload_t())
             {
-                auto& memmngr = _topology.slot<MemoryManager>();
+                auto& memmngr = _topology.slot<HeapManagerSlot>();
                 //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
                 auto result = memmngr.make_array<vad_t>(capacity, std::forward<payload_t>(payload));
                 //g.commit();
@@ -122,7 +122,7 @@ namespace OP
             /**Destroy previously allocated by #create() */
             void destroy(const PersistedArray<vad_t>& array_ref)
             {
-                auto& memmngr = _topology.slot<MemoryManager>();
+                auto& memmngr = _topology.slot<HeapManagerSlot>();
                 memmngr.deallocate(array_ref.address);
             }
 

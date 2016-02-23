@@ -15,6 +15,9 @@
     <Filter Include="Header Files\common">
       <UniqueIdentifier>{4258e71b-cfb7-425e-bc81-58a4213e8ee4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\vtm\ranges">
+      <UniqueIdentifier>{1a5bd1b9-2cb8-47ba-b04c-e5e983913d51}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -51,12 +54,6 @@
       <Filter>Header Files\vtm</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\vtm\MemoryBlock.h">
-      <Filter>Header Files\vtm</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryManager.h">
-      <Filter>Header Files\vtm</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryRanges.h">
       <Filter>Header Files\vtm</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\vtm\NamedObjects.h">
@@ -97,6 +94,18 @@
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\TrieIterator.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\HeapManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryChunks.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h">
+      <Filter>Header Files\vtm\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h">
+      <Filter>Header Files\vtm\ranges</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

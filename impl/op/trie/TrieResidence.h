@@ -46,7 +46,7 @@ namespace OP
                 /**Number of nodes (pages) allocated*/
                 std::uint64_t _nodes_allocated;
             };
-            ReadonlyMemoryRange get_header_block() const
+            ReadonlyMemoryChunk get_header_block() const
             {
                 return _segment_manager->readonly_block(_segment_address, sizeof(TrieHeader));
             }

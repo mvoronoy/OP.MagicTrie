@@ -216,6 +216,9 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
     x = 0.0;
     const atom_t *np = nullptr;
     tresult.assert_true(trie->end() == trie->lower_bound(np, np));
+    const atom_t az[] = "az";  auto b1 = std::begin(az);
+    tresult.assert_true(tools::container_equals(test_seq[1], trie->lower_bound(b1, std::end(az)).prefix(), tools::sign_tolerant_cmp));
+
     const atom_t unexisting[] = "zzz";
     np = std::begin(unexisting);
     tresult.assert_true(trie->end() == trie->lower_bound(np, std::end(unexisting)));
@@ -240,10 +243,49 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
         tresult.assert_true(x == *lbit);
     }
 }
+void test_TrieSubtree(OP::utest::TestResult &tresult)
+{
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    std::map<std::string, double> test_values;
+    // Populate trie with unique strings in range from [0..255]
+    // this must cause grow of root node
+    const std::string stems[] = { "abc", "", "x", std::string(256, 'z') };
+    std::array<std::uint16_t, 255> rand_idx;
+    std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
+    std::random_shuffle(std::begin(rand_idx), std::end(rand_idx));
+    for (auto i : rand_idx)
+    {
+        //make inner loop to create all possible stems combinations
+        for (auto j : stems)
+        {
+            std::string test = std::string(1, (std::string::value_type)i) + j;
+            auto ins_res = trie->insert(std::begin(test), std::end(test), (double)test.length());
+            tresult.assert_true(ins_res.first);
+            tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+            test_values[test] = (double)test.length();
+        }
+    }
+    compare_containers(tresult, *trie, test_values);
+    trie.reset();
+    tmngr1 = OP::trie::SegmentManager::open<TransactedSegmentManager>(test_file_name);
+    trie = trie_t::open(tmngr1);
+    //
+    compare_containers(tresult, *trie, test_values);
+    for (auto i : rand_idx)
+    {
+        std::string test = std::string(1, (std::string::value_type)i);
+        auto container_ptr = trie->subtree()
+    }
+}
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
     ->declare(test_TrieInsert, "insertion")
     ->declare(test_TrieInsertGrow, "insertion-grow")
     //->declare(test_TrieGrowAfterUpdate, "grow-after-update")
     ->declare(test_TrieLowerBound, "lower_bound")
+    ->declare(test_TrieSubtree, "subtree")
     ;

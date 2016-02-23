@@ -11,7 +11,7 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/TransactedSegmentManager.h>
-#include <op/vtm/MemoryManager.h>
+#include <op/vtm/MemoryChunks.h>
 #include "GenericMemoryTest.h"
 
 using namespace OP::trie;
@@ -123,13 +123,13 @@ void test_TransactedSegmentManager(OP::utest::TestResult &tresult)
     tresult.assert_true(fdata_acc.good());
     
     //read out of tran must be permitted
-    ReadonlyMemoryRange ro_block1 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
+    ReadonlyMemoryChunk ro_block1 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     //the same should be returned for another thread
-    std::future<ReadonlyMemoryRange> future_block1_t1 = std::async(std::launch::async, [ tmngr1](){
+    std::future<ReadonlyMemoryChunk> future_block1_t1 = std::async(std::launch::async, [ tmngr1](){
         return tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     });
     auto ro_block1_t1 = future_block1_t1.get();
-    tresult.assert_true(0 == memcmp(&ro_block1, &ro_block1_t1, sizeof(ReadonlyMemoryRange)), OP_CODE_DETAILS( << "RO memory block from different thread must return same bytes"));
+    tresult.assert_true(0 == memcmp(&ro_block1, &ro_block1_t1, sizeof(ReadonlyMemoryChunk)), OP_CODE_DETAILS( << "RO memory block from different thread must return same bytes"));
     //check ro have same view
     fdata_acc.seekp(read_only_data_fpos);
     fdata_acc.write(tst_seq, sizeof(tst_seq));
@@ -146,7 +146,7 @@ void test_TransactedSegmentManager(OP::utest::TestResult &tresult)
         auto tx_rw = tmngr1->writable_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
         tresult.assert_true(0 == memcmp(tst_seq, tx_rw.pos(), sizeof(tst_seq)), OP_CODE_DETAILS( << "hello" ));
     }
-    std::future<ReadonlyMemoryRange> future_check_unlock = std::async(std::launch::async, [ tmngr1](){
+    std::future<ReadonlyMemoryChunk> future_check_unlock = std::async(std::launch::async, [ tmngr1](){
         return tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq)+10);
     });
     auto check_unlock = future_check_unlock.get();
@@ -154,7 +154,7 @@ void test_TransactedSegmentManager(OP::utest::TestResult &tresult)
 
     //do the check data from file for transactions
     auto tr1 = tmngr1->begin_transaction();
-    ReadonlyMemoryRange ro_block2 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
+    ReadonlyMemoryChunk ro_block2 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     tresult.assert_true(ro_block1.address() == ro_block2.address() && ro_block1.count() == ro_block2.count(), 
         OP_CODE_DETAILS( <<"RO block inside transaction must point the same memory"));
     tresult.assert_that(is::equals((const std::uint8_t*)tst_seq, ro_block2.pos(), sizeof(tst_seq)), OP_CODE_DETAILS( << "RO block inside transaction must point the same memory"));
@@ -299,7 +299,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
         .segment_size(0x110000));
     auto aa1 = tmngr1->segment_size();
     //tmngr1->ensure_segment(0);
-    SegmentTopology<MemoryManager> mngrToplogy (tmngr1);
+    SegmentTopology<HeapManagerSlot> mngrToplogy (tmngr1);
 
     struct TestAbc
     {
@@ -313,7 +313,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
             strncpy(this->c, c, sizeof(this->c));
         }
     };
-    auto & mm = mngrToplogy.slot<MemoryManager>();
+    auto & mm = mngrToplogy.slot<HeapManagerSlot>();
     auto test_avail = mm.available(0);
     auto abc1_off = mm.make_new<TestAbc>(1, 1.01, "abc");
     auto abc1_block = tmngr1->readonly_block(abc1_off, sizeof(TestAbc));
@@ -414,9 +414,9 @@ void test_TransactedMemmngrAllocDealloc(OP::utest::TestResult &tresult)
         .segment_size(0x110000));
     auto aa1 = tmngr1->segment_size();
     //tmngr1->ensure_segment(0);
-    SegmentTopology<MemoryManager> mngrToplogy (tmngr1);
+    SegmentTopology<HeapManagerSlot> mngrToplogy (tmngr1);
 
-    auto & mm = mngrToplogy.slot<MemoryManager>();
+    auto & mm = mngrToplogy.slot<HeapManagerSlot>();
     auto tran1 = tmngr1->begin_transaction();
     auto block1 = mm.allocate(50);
     tran1->commit();
@@ -516,7 +516,7 @@ void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
     auto tran3 = tmngr1->begin_transaction();
     if (1 == 1)
     {   //this block will cause destroy, but not release
-        ReadonlyMemoryRange ro_keep_lock = 
+        ReadonlyMemoryChunk ro_keep_lock = 
             tmngr1->readonly_block(FarAddress(0, read_block_pos), 10, ReadonlyBlockHint::ro_keep_lock);
 
     }
@@ -542,7 +542,7 @@ void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
     //  Stacked block is deleted later than originated transaction
     //
     tresult.info() << "Test stacked RO block behaviour...\n";
-    ReadonlyMemoryRange stacked;
+    ReadonlyMemoryChunk stacked;
     if (1 == 1)
     {
         auto local_tran = tmngr1->begin_transaction();

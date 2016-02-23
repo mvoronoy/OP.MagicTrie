@@ -6,7 +6,7 @@
 #include <iomanip>
 #include <op/trie/Trie.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/MemoryManager.h>
+#include <op/vtm/MemoryChunks.h>
 #include <op/vtm/CacheManager.h>
 #include <op/trie/Containers.h>
 
