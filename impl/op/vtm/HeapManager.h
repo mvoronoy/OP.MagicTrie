@@ -11,9 +11,9 @@ namespace OP
 {
     namespace trie
     {
-        struct MemoryManager : public Slot
+        struct HeapManagerSlot : public Slot
         {
-            MemoryManager()
+            HeapManagerSlot()
             {
             }
             /**
@@ -65,7 +65,7 @@ namespace OP
                     current_mem->set_free(false);
                     //when existing block is used it is not needed to use 'real_size' - because header alredy counted
                     deposited_size -= aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                    MemoryRange result = 
+                    MemoryChunk result = 
                         _segment_manager->writable_block(free_addr, size, WritableBlockHint::new_c);
                     retval = result.address();
                 }
@@ -269,12 +269,12 @@ namespace OP
                 first_block_pos.offset = align_on(first_block_pos.offset, SegmentDef::align_c);
                 //reserve 4bytes for segment size
                 FarAddress avail_bytes_offset = first_block_pos;
-                MemoryRange avail_space_mem = _segment_manager->writable_block(avail_bytes_offset, sizeof(segment_pos_t), WritableBlockHint::new_c);
+                MemoryChunk avail_space_mem = _segment_manager->writable_block(avail_bytes_offset, sizeof(segment_pos_t), WritableBlockHint::new_c);
                 first_block_pos.offset = align_on(first_block_pos.offset +static_cast<segment_pos_t>(sizeof(segment_pos_t)), SegmentHeader::align_c);
 
                 segment_pos_t byte_size = ceil_align_on(_segment_manager->segment_size() - first_block_pos.offset, SegmentHeader::align_c);
                 OP_CONSTEXPR(const) segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                MemoryRange zero_header = _segment_manager->writable_block(first_block_pos, mbh_size_align + sizeof(FreeMemoryBlock), WritableBlockHint::new_c);
+                MemoryChunk zero_header = _segment_manager->writable_block(first_block_pos, mbh_size_align + sizeof(FreeMemoryBlock), WritableBlockHint::new_c);
                 MemoryBlockHeader * block = new (zero_header.pos()) MemoryBlockHeader(emplaced_t());
                 block
                     ->size(byte_size - mbh_size_align)
@@ -397,7 +397,7 @@ namespace OP
             {
                 
             }
-            void do_deallocate(MemoryRange& header_block)
+            void do_deallocate(MemoryChunk& header_block)
             {
                 //Mark segment and memory for FreeMemoryBlock as available for write
                 auto header = header_block.at<MemoryBlockHeader>(0);
@@ -416,7 +416,7 @@ namespace OP
             /**Postpon delete of memory block until Transaction commit,*/
             struct PostponDeallocToTransactionEnd : public OP::vtm::BeforeTransactionEnd
             {
-                PostponDeallocToTransactionEnd(MemoryManager * memory_manager, ReadonlyMemoryRange memory_block)
+                PostponDeallocToTransactionEnd(HeapManagerSlot * memory_manager, ReadonlyMemoryChunk memory_block)
                     : _memory_manager(memory_manager)
                     , _memory_block(std::move(memory_block))
                 {
@@ -432,8 +432,8 @@ namespace OP
 
                 }
             private:
-                MemoryManager * _memory_manager;
-                ReadonlyMemoryRange _memory_block;
+                HeapManagerSlot * _memory_manager;
+                ReadonlyMemoryChunk _memory_block;
             };
         };
 

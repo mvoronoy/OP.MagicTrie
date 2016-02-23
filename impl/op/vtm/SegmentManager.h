@@ -20,7 +20,7 @@
 #include <op/common/Range.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/Transactional.h>
-#include <op/vtm/MemoryRanges.h>
+#include <op/vtm/MemoryChunks.h>
 #include <op/common/Utils.h>
 #include <op/vtm/SegmentHelper.h>
 
@@ -246,22 +246,22 @@ namespace OP
             }
             
             /**
-            *   @param hint - default behaviour is to release lock after ReadonlyMemoryRange destroyed.
+            *   @param hint - default behaviour is to release lock after ReadonlyMemoryChunk destroyed.
             * @throws ConcurentLockException if block is already locked for write
             */
-            virtual ReadonlyMemoryRange readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c) 
+            virtual ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c) 
             {
                 assert((pos.offset + size) <= this->segment_size());
-                return ReadonlyMemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
+                return ReadonlyMemoryChunk(size, std::move(pos), std::move(this->get_segment(pos.segment)));
             }
             
             /**
             * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
             */
-            virtual MemoryRange writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
+            virtual MemoryChunk writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
             {
                 assert((pos.offset + size) <= this->segment_size());
-                return MemoryRange(size, std::move(pos), std::move(this->get_segment(pos.segment)));
+                return MemoryChunk(size, std::move(pos), std::move(this->get_segment(pos.segment)));
             }
             /*
             template <class T>
@@ -277,10 +277,10 @@ namespace OP
             /**
             * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
             */
-            virtual MemoryRange upgrade_to_writable_block(ReadonlyMemoryRange& ro)
+            virtual MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro)
             {
                 auto addr = ro.address();
-                return MemoryRange(ro.count(), std::move(addr), std::move(ro.segment()));
+                return MemoryChunk(ro.count(), std::move(addr), std::move(ro.segment()));
             }
             /** Shorthand for \code
                 readonly_block(pos, sizeof(T)).at<T>(0)
@@ -505,7 +505,7 @@ namespace OP
         *   So instead of dealing with raw memory provided by SegmentManager, you can describe memory usage-rule at compile time
         * by specifying SegementTopology with bunch of slots.
         * For example: \code
-        *   SegmentTopology<NodeManager, MemoryManager> 
+        *   SegmentTopology<NodeManager, HeapManagerSlot> 
         * \endcode
         *   Specifies that we place 2 slots into each segment processed by SegmentManager. 
         */
@@ -589,7 +589,7 @@ namespace OP
                 _segments->foreach_segment([this](segment_idx_t idx, SegmentManager& segments){
                     segment_pos_t current_offset = segments.header_size();
                     //start write toplogy right after header
-                    ReadonlyMemoryRange topology_address = segments.readonly_block(FarAddress(idx, current_offset), 
+                    ReadonlyMemoryChunk topology_address = segments.readonly_block(FarAddress(idx, current_offset), 
                         addres_table_size_c);
                     current_offset += addres_table_size_c;
                     for (auto i : _slots)
@@ -640,7 +640,7 @@ namespace OP
                 segment_pos_t current_offset = manager.header_size();
                 
                 segment_pos_t processing_size =addres_table_size_c;
-                ReadonlyMemoryRange topology_address = manager.readonly_block(
+                ReadonlyMemoryChunk topology_address = manager.readonly_block(
                     FarAddress(opening_segment, current_offset), processing_size);
                 const TopologyHeader* header = topology_address.at<TopologyHeader>(0);
                 assert(header->_slots_count == slots_count_c);

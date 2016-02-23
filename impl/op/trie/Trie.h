@@ -14,10 +14,12 @@
 #include <op/trie/Containers.h>
 #include <op/vtm/FixedSizeMemoryManager.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/MemoryManager.h>
+#include <op/vtm/MemoryChunks.h>
+#include <op/vtm/HeapManager.h>
 #include <op/trie/TrieNode.h>
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
+#include <op/trie/ranges/IteratorsRange.h>
 
 namespace OP
 {
@@ -38,62 +40,17 @@ namespace OP
             /**Advance prefix iteration by 1 symbol. return actual state of iteration*/
             virtual const atom_t* advance() = 0;
             /**Return current state of iteration (the same value as #advance() returned*/
-            virtual const atom_t* current() const = 0;
+            virtual atom_t current() const = 0;
         };
 
-        template <class Payload>
-        struct Container
-        {
-
-            typedef Conatiner<Payload> this_t;
-            typedef TrieIterator<this_t> iterator;
-            /**start lexicographical ascending iteration over trie content. Following is a sequence of iteration:
-            *   - a
-            *   - aaaaaaaaaa
-            *   - abcdef
-            *   - b
-            *   - ...
-            */
-            virtual std::unique_ptr<this_t> subtree(PrefixQuery& query) const = 0;
-            virtual iterator begin() const = 0;
-            virtual iterator end() const = 0;
-        };
-        template <class Container>
-        struct IteratorsPair
-        {
-            typedef typename Container::iterator iterator;
-            IteratorsPair(Container& container, iterator prefix) 
-                : _container(container)
-                , _prefix(prefix) 
-            {
-            }
-            iterator begin() const
-            {
-            }
-            iterator end() const
-            {
-                return _container.end();
-            }
-            
-            void next(iterator& iter) const
-            {
-                _container.next(iter);
-                if (iter != end())
-                {
-                    if (_prefix.is_above(iter))
-                        return;
-                    iter = end();
-                }
-            }
-        private:
-            Container& _container;
-            iterator _prefix;
-        };
+        
         template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 1024>
-        struct Trie : public Container<Payload>
+        struct Trie 
         {
         public:
             typedef Payload payload_t;
+            typedef SuffixRange<payload_t> suffix_range_t;
+            typedef std::unique_ptr<suffix_range_t> suffix_range_ptr;
             typedef Trie<TSegmentManager, payload_t, initial_node_count> this_t;
             typedef TrieIterator<this_t> iterator;
             typedef payload_t value_type;
@@ -170,20 +127,11 @@ namespace OP
                 }
             }
             template <class Atom>
-            iterator subtree(Atom& begin, Atom end) const
+            suffix_range_ptr subtree(Atom& begin, Atom end) const
             {
                 auto pref_res = common_prefix(begin, end);
-                auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
-                if (kind == stem::StemCompareResult::equals //exact match
-                    || kind == stem::StemCompareResult::string_end //lower bound
-                    )
-                    return tuple_ref<iterator>(pref_res);
-                if (kind == stem::StemCompareResult::stem_end)
-                {
-                    next(tuple_ref<iterator>(pref_res));
-                    return tuple_ref<iterator>(pref_res);
-                }
-                return iterator();// StemCompareResult::unequals or StemCompareResult::stem_end 
+                return std::make_unique<IteratorsRange<this_t> >(this, 
+                    tuple_ref<iterator>(pref_res) );
             }
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom end) const
@@ -194,7 +142,9 @@ namespace OP
                     || kind == stem::StemCompareResult::string_end //lower bound
                     )
                     return tuple_ref<iterator>(pref_res);
-                if (kind == stem::StemCompareResult::stem_end)
+                if (kind == stem::StemCompareResult::stem_end || 
+                    (kind==stem::StemCompareResult::unequals && !tuple_ref<iterator>(pref_res).is_end())
+                    )
                 {
                     next(tuple_ref<iterator>(pref_res));
                     return tuple_ref<iterator>(pref_res);
@@ -307,7 +257,7 @@ namespace OP
             typedef SegmentTopology<
                 TrieResidence, 
                 node_manager_t, 
-                MemoryManager/*Memory manager must go last*/> topology_t;
+                HeapManagerSlot/*Memory manager must go last*/> topology_t;
             std::unique_ptr<topology_t> _topology_ptr;
             containers::PersistedHashTable<topology_t> _hash_mngr;
             stem::StemStore<topology_t> _stem_mngr;

@@ -166,7 +166,7 @@ namespace OP
                 */
                 inline std::tuple<ref_stems_t, WritableAccess<StemData>, WritableAccess<atom_t> > create(dim_t width, dim_t str_max_height)
                 {
-                    auto& memmngr = _topology.slot<MemoryManager>();
+                    auto& memmngr = _topology.slot<HeapManagerSlot>();
                     //query data enough for StemData and stems strings
                     auto header_size = memory_requirement<StemData>::requirement;
                     auto mem_size = header_size + width * str_max_height;
@@ -185,7 +185,7 @@ namespace OP
                 /**Destroy previously allocated by #create stem container*/
                 void destroy(const ref_stems_t& stems)
                 {
-                    auto& memmngr = _topology.slot<MemoryManager>();
+                    auto& memmngr = _topology.slot<HeapManagerSlot>();
                     memmngr.deallocate(stems.address);
                 }
                 /**Place new sequence specified by [begin-end) range as new item to this storage

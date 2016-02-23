@@ -41,23 +41,23 @@ namespace OP
                 
             }
             
-            ReadonlyMemoryRange readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c) override
+            ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c) override
             {
                 transaction_impl_ptr_t current_transaction;
                 captured_blocks_t::iterator found_res;
-                ReadonlyMemoryRange result{ do_readonly_block(pos, size, hint, current_transaction, found_res) };
+                ReadonlyMemoryChunk result{ do_readonly_block(pos, size, hint, current_transaction, found_res) };
                 if (!current_transaction) //no current transaction, just return
                     return result;
 
                 if ((hint & ReadonlyBlockHint::ro_keep_lock) == 0 //no keep-lock requirements
                    // && !found_res->second.is_exclusive_access(current_transaction->transaction_id())   //is not exclusive mode
                     )
-                { //add disposer that releases lock at MemoryRange destroy
+                { //add disposer that releases lock at MemoryChunk destroy
                     result.emplace_disposable(std::make_unique<LockDisposer>(current_transaction, found_res));
                 }
                 return result;
             }
-            MemoryRange writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
+            MemoryChunk writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
             {
                 RWR search_range(pos, size);
                 guard_t g2(_map_lock); //trick - capture ownership in this thread, but delegate find in other one
@@ -127,10 +127,10 @@ namespace OP
                 if (found_res->second.transaction_code().flag & optimistic_write_c)
                     return super_res;
                 auto include_delta = pos - found_res->first.pos();//handle case when included region queried
-                return MemoryRange( found_res->second.shadow_buffer()+include_delta, size,
+                return MemoryChunk( found_res->second.shadow_buffer()+include_delta, size,
                         std::move(pos), std::move(SegmentManager::get_segment(pos.segment)) );
             }
-            MemoryRange upgrade_to_writable_block(ReadonlyMemoryRange& ro)  override
+            MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro)  override
             {
                 return this->writable_block(ro.address(), ro.count());
             }
@@ -539,7 +539,7 @@ namespace OP
                     : _owner(owner)
                     , _entry(entry)
                 {}
-                void on_leave_scope(MemoryRangeBase& closing) OP_NOEXCEPT
+                void on_leave_scope(MemoryChunkBase& closing) OP_NOEXCEPT
                 {
                     if (_owner->is_active()) //process only on active transactions (that have some open blocks)
                     {
@@ -611,7 +611,7 @@ namespace OP
             * @param current_transaction - output paramter, may be nullptr at exit if no current transaction started
             * @param found_res - output paramter, iterator to map of captures
             */
-            ReadonlyMemoryRange do_readonly_block (
+            ReadonlyMemoryChunk do_readonly_block (
                 FarAddress pos, segment_pos_t size, ReadonlyBlockHint::type hint, 
                 transaction_impl_ptr_t& current_transaction,
                 captured_blocks_t::iterator& found_res) 
@@ -647,7 +647,7 @@ namespace OP
                         {
                             /* It is impossible to have shaddow-buffer and no wr-lock simultaniusly
                             auto dif_off = pos.diff(found_res->first.pos());
-                            return ReadonlyMemoryRange(
+                            return ReadonlyMemoryChunk(
                                 found_res->second.shadow_buffer() + dif_off,
                                 size,
                                 std::move(pos),
@@ -697,7 +697,7 @@ namespace OP
                 if (found_res->second.transaction_code().flag & optimistic_write_c)
                     return SegmentManager::readonly_block(pos, size, hint);
                 auto include_delta = pos - found_res->first.pos();//handle case when included region queried
-                return ReadonlyMemoryRange(found_res->second.shadow_buffer()+include_delta, //use shadow
+                return ReadonlyMemoryChunk(found_res->second.shadow_buffer()+include_delta, //use shadow
                     size, std::move(pos), std::move(SegmentManager::get_segment(pos.segment)));
             }
             typedef std::unordered_map<std::thread::id, transaction_impl_ptr_t> opened_transactions_t;

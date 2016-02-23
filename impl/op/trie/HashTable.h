@@ -102,14 +102,14 @@ namespace OP
                     return _topology;
                 }
                 /**
-                * Create HashTableData<Payload> in dynamic memory using MemoryManager slot
+                * Create HashTableData<Payload> in dynamic memory using HeapManagerSlot slot
                 * @return far-address that point to allocated table
                 */
                 FarAddress create(HashTableCapacity capacity)
                 {
                     assert((dim_t)capacity < 256);
 
-                    auto& memmngr = _topology.slot<MemoryManager>();
+                    auto& memmngr = _topology.slot<HeapManagerSlot>();
                     
                     auto byte_size = memory_requirement<HashTableData>::requirement +
                         memory_requirement<HashTableData::Content>::requirement * (dim_t)capacity;
@@ -128,7 +128,7 @@ namespace OP
                 }
                 void destroy(FarAddress htbl)
                 {
-                    auto& memmngr = _topology.slot<MemoryManager>();
+                    auto& memmngr = _topology.slot<HeapManagerSlot>();
                     memmngr.deallocate(htbl);
                 }
                 /**

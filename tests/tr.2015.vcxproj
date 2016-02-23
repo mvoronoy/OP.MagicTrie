@@ -156,8 +156,7 @@
     <ClInclude Include="..\impl\op\trie\HashTable.h" />
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryBlock.h" />
-    <ClInclude Include="..\impl\op\vtm\MemoryManager.h" />
-    <ClInclude Include="..\impl\op\vtm\MemoryRanges.h" />
+    <ClInclude Include="..\impl\op\vtm\MemoryChunks.h" />
     <ClInclude Include="..\impl\op\vtm\NamedObjects.h" />
     <ClInclude Include="..\impl\op\common\Range.h" />
     <ClInclude Include="..\impl\op\vtm\SegmentHelper.h" />
@@ -166,6 +165,7 @@
     <ClInclude Include="..\impl\op\trie\Containers.h" />
     <ClInclude Include="..\impl\op\common\Exceptions.h" />
     <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h" />
+    <ClInclude Include="..\impl\op\vtm\HeapManager.h" />
     <ClInclude Include="..\impl\op\vtm\Skplst.h" />
     <ClInclude Include="..\impl\op\trie\StemContainer.h" />
     <ClInclude Include="..\impl\op\vtm\TransactedSegmentManager.h" />

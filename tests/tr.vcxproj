@@ -151,14 +151,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\impl\op\common\Bitset.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h" />
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
     <ClInclude Include="..\impl\op\trie\TrieNode.h" />
     <ClInclude Include="..\impl\op\trie\TrieResidence.h" />
     <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h" />
+    <ClInclude Include="..\impl\op\vtm\HeapManager.h" />
     <ClInclude Include="..\impl\op\trie\HashTable.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryBlock.h" />
-    <ClInclude Include="..\impl\op\vtm\MemoryManager.h" />
-    <ClInclude Include="..\impl\op\vtm\MemoryRanges.h" />
+    <ClInclude Include="..\impl\op\vtm\MemoryChunks.h" />
     <ClInclude Include="..\impl\op\vtm\NamedObjects.h" />
     <ClInclude Include="..\impl\op\vtm\PersistedReference.h" />
     <ClInclude Include="..\impl\op\common\Range.h" />
