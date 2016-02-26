@@ -10,36 +10,30 @@ namespace OP
         /**
         *
         */
-        template <class Container>
-        struct IteratorsRange : public SuffixRange<typename Container::payload_t>
+        template <class Iterator>
+        struct IteratorsRange : public SuffixRange<Iterator>
         {
-            typedef typename Container::iterator iterator;
-            IteratorsRange(Container& container, iterator prefix) 
-                : _container(container)
-                , _prefix(prefix) 
+            typedef Iterator iterator;
+            IteratorsRange(iterator begin, iterator end) 
+                : _begin(begin) 
+                , _end(end) 
             {
             }
-            iterator begin() const
+            iterator begin() const override
             {
+                return _begin;
             }
-            iterator end() const
+            iterator end() const override
             {
-                return _container.end();
+                return _end;
+            }
+            virtual void next(iterator& pos) const override
+            {
+                return ++pos;
             }
             
-            void next(iterator& iter) const
-            {
-                _container.next(iter);
-                if (iter != end())
-                {
-                    if (_prefix.is_above(iter))
-                        return;
-                    iter = end();
-                }
-            }
         private:
-            Container& _container;
-            iterator _prefix;
+            iterator _begin, _end;
         };        
     }//ns:trie
 }//ns:OP

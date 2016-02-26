@@ -9,14 +9,10 @@ namespace OP
         /**
         *
         */
-        template <class Payload>
+        template <class Iterator>
         struct SuffixRange
         {
-            typedef Payload payload_t;
-            typedef payload_t value_type;
-
-            typedef SuffixRange<Payload> this_t;
-            typedef TrieIterator<this_t> iterator;
+            typedef Iterator iterator;
             /**start lexicographical ascending iteration over trie content. Following is a sequence of iteration:
             *   - a
             *   - aaaaaaaaaa
@@ -27,6 +23,7 @@ namespace OP
             //virtual std::unique_ptr<this_t> subtree(PrefixQuery& query) const = 0;
             virtual iterator begin() const = 0;
             virtual iterator end() const = 0;
+            virtual void next(iterator& pos) const = 0;
         };
     }//ns:trie
 }//ns:OP
