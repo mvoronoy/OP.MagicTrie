@@ -127,9 +127,18 @@ namespace OP
                 }
             }
             template <class Atom>
-            suffix_range_ptr subtree(Atom& begin, Atom end) const
+            suffix_range_ptr subrange(Atom& begin, Atom end) const
             {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto pref_res = common_prefix(begin, end);
+                if (begin != end) //no such prefix
+                    return std::make_unique<IteratorsRange<this_t> >(end(), end());
+                auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
+                //find next position that doesn't matches to prefix
+                if (kind == stem::StemCompareResult::equals) //prefix matches to existing terminal
+                {
+                    
+                }
                 return std::make_unique<IteratorsRange<this_t> >(this, 
                     tuple_ref<iterator>(pref_res) );
             }
@@ -170,7 +179,20 @@ namespace OP
                     return node->get_value(*_topology_ptr, (atom_t)pos.key());
                 op_g.rollback();
                 throw std::invalid_argument("position has no value associated");
-                //op_g.commit();
+            }
+            /**
+            *   @return pair, where 
+            * \li `first` - has child
+            * \li `second` - has value (is terminal)
+            */
+            std::pair<bool, bool> get_presence(navigator_t position) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                auto node = view<node_t>(*_topology_ptr, position.address());
+                if ( position.key() < (dim_t)containers::HashTableCapacity::_256 )
+                    return node->get_presence(*_topology_ptr, (atom_t)pos.key());
+                op_g.rollback();
+                throw std::invalid_argument("position has no value associated");
             }
             template <class Atom>
             std::pair<bool, iterator> insert(Atom& begin, Atom end, Payload value)

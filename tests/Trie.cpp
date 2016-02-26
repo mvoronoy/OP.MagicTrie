@@ -259,10 +259,17 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
     std::random_shuffle(std::begin(rand_idx), std::end(rand_idx));
     for (auto i : rand_idx)
     {
+        std::string root(1, (std::string::value_type)i);
+        decltype(root.begin()) b1;
+        //for odd entries make terminal
+        if ((i & 1) != 0)
+        {
+            auto ins_res = trie->insert(b1 = std::begin(root), std::end(root), (double)i);
+        }
         //make inner loop to create all possible stems combinations
         for (auto j : stems)
         {
-            std::string test = std::string(1, (std::string::value_type)i) + j;
+            std::string test = root + j;
             auto ins_res = trie->insert(std::begin(test), std::end(test), (double)test.length());
             tresult.assert_true(ins_res.first);
             tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
@@ -278,7 +285,14 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
     for (auto i : rand_idx)
     {
         std::string test = std::string(1, (std::string::value_type)i);
-        auto container_ptr = trie->subtree()
+        decltype(test.begin()) b1;
+        auto container_ptr = trie->subrange(b1 = test.begin(), test.end());
+        auto begin_test = container_ptr->begin();
+
+        if ((i & 1) != 0) //odd entries has a terminal
+        {
+            tresult.assert_true(begin_test.first);
+        }
     }
 }
 static auto module_suite = OP::utest::default_test_suite("Trie")
