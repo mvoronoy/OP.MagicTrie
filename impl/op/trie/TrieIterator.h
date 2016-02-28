@@ -10,7 +10,7 @@ namespace OP
     namespace trie
     {
         typedef std::basic_string<atom_t> atom_string_t;
-
+        
         struct TriePosition
         {
             

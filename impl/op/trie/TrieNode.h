@@ -90,7 +90,7 @@ namespace OP
 
                 atom_t index = this->reindex(topology, key);
                 
-                if (!stems.is_null())
+                if (!stems.is_null() && begin != end)
                 {//let's cut prefix from stem container
                     stem::StemStore<TSegmentTopology> stem_manager(topology);
                     
@@ -219,7 +219,7 @@ namespace OP
                 //copy data/address to target
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 auto& src_val = value_manager.accessor(this->payload, this->capacity) [ridx];
-                auto& target_val = value_manager.accessor(target_node->payload, this->capacity)[reindex_target];
+                auto& target_val = value_manager.accessor(target_node->payload, target_node->capacity)[reindex_target];
                 target_val = std::move(src_val);// move clears previous data/addr in source 
             }
             /**
@@ -314,10 +314,11 @@ namespace OP
                 stem_manager.destroy(this->stems);
                 this->stems = stem_move_mngr.to_address();
 
+                data_copy_future.get();
+
                 hash_manager.destroy(this->reindexer.address); //delete old
                 this->reindexer = ref_reindex_hash_t(remap.new_address);
                 
-                data_copy_future.get();
                 
                 value_manager.destroy(this->payload);
                 this->payload = value_grow_res.dest_addr();

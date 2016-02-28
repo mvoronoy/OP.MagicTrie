@@ -60,12 +60,18 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
     {
         //print_hex(tresult.info() << "1)", ti.prefix());
         //print_hex(tresult.info() << "2)", mi->first);
+        std::cout << n << '\n';
+        if (n == 0x173)
+        {
+            print_hex(tresult.info() << "1)", ti.prefix());
+            print_hex(tresult.info() << "2)", mi->first);
+        }
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
             OP_CODE_DETAILS(<< "has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
         tresult.assert_true(
             std::equal(
             std::begin(ti.prefix()), std::end(ti.prefix()), std::begin(mi->first), [](atom_t left, atom_t right){return left == right; }),
-            OP_CODE_DETAILS(<<"step#"<< n << ", for key="<<mi->first << ", while obtained:" << ti.prefix().c_str()));
+            OP_CODE_DETAILS(<<"step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.prefix().c_str()));
         tresult.assert_that(OP::utest::is::equals(*ti, mi->second), OP_CODE_DETAILS(<<"Associated value error, has:" << *ti << ", expected:" << mi->second ));
     }
     tresult.assert_true(mi == std::end(map), OP_CODE_DETAILS());
@@ -250,31 +256,33 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         .segment_size(0x110000));
     typedef Trie<TransactedSegmentManager, double> trie_t;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
-    std::map<std::string, double> test_values;
+    std::map<atom_string_t, double> test_values;
     // Populate trie with unique strings in range from [0..255]
     // this must cause grow of root node
-    const std::string stems[] = { "abc", "", "x", std::string(256, 'z') };
+    const atom_string_t stems[] = { (atom_t*)"abc", (atom_t*)"x", atom_string_t(256, 'z') };
     std::array<std::uint16_t, 255> rand_idx;
     std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
     std::random_shuffle(std::begin(rand_idx), std::end(rand_idx));
     for (auto i : rand_idx)
     {
-        std::string root(1, (std::string::value_type)i);
+        atom_string_t root(1, (atom_string_t::value_type)i);
         decltype(root.begin()) b1;
         //for odd entries make terminal
         if ((i & 1) != 0)
         {
             auto ins_res = trie->insert(b1 = std::begin(root), std::end(root), (double)i);
+            test_values[root] = (double)i;
         }
         //make inner loop to create all possible stems combinations
         for (auto j : stems)
         {
-            std::string test = root + j;
+            atom_string_t test = root + j;
             auto ins_res = trie->insert(std::begin(test), std::end(test), (double)test.length());
             tresult.assert_true(ins_res.first);
             tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
             test_values[test] = (double)test.length();
         }
+        //std::cout << std::setfill('0') << std::setbase(16) << std::setw(2) << (unsigned)i << "\n";
     }
     compare_containers(tresult, *trie, test_values);
     trie.reset();
@@ -282,18 +290,63 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
     trie = trie_t::open(tmngr1);
     //
     compare_containers(tresult, *trie, test_values);
+    std::set<atom_string_t> sorted_checks(std::begin(stems), std::end(stems));
     for (auto i : rand_idx)
     {
-        std::string test = std::string(1, (std::string::value_type)i);
+        atom_string_t test = atom_string_t(1, (std::string::value_type)i);
         decltype(test.begin()) b1;
         auto container_ptr = trie->subrange(b1 = test.begin(), test.end());
-        auto begin_test = container_ptr->begin();
+        trie_t::iterator begin_test = container_ptr->begin();
 
-        if ((i & 1) != 0) //odd entries has a terminal
+        if ((i & 1) != 0) //odd entries nust have a terminal
         {
-            tresult.assert_true(begin_test.first);
+            tresult.assert_true(
+                tools::container_equals(begin_test.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+
+            tresult.assert_true(*begin_test == (double)i);
+            container_ptr->next(begin_test);
+        }
+        auto a = std::begin(sorted_checks);
+        for (; container_ptr->is_end(begin_test); container_ptr->next(begin_test), ++a)
+        {
+            auto strain_str = (test + *a);
+            //print_hex(std::cout << "1)", strain_str);
+            //print_hex(std::cout << "2)", begin_test.prefix());
+            tresult.assert_true(begin_test.prefix() == strain_str);
+            tresult.assert_true(*begin_test == (double)strain_str.length());
         }
     }
+}
+void test_TrieNoTran(OP::utest::TestResult &tresult)
+{
+    auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    typedef Trie<SegmentManager, double> trie_t;
+    std::map<std::string, double> standard;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    std::string rnd_buf;
+    for (auto i = 0; i < 1024; ++i)
+    {
+        tools::randomize(rnd_buf, 1023, 1);
+        if (rnd_buf.length() > 14 * 60)
+        {
+            std::uint8_t c1 = rnd_buf[0], c2 = rnd_buf[1], c3 = rnd_buf[2]; //c1 == 0x41 && c2==0x4f && c3==0x4b
+            atoi("78");
+        }
+        auto b = std::begin(rnd_buf);
+        auto post = trie->insert(b, std::end(rnd_buf), (double)rnd_buf.length());
+        if (post.first)
+        {
+            standard.emplace(rnd_buf, (double)rnd_buf.length());
+        }
+    }
+    compare_containers(tresult, *trie, standard);
+    trie.reset();
+    tmngr1 = OP::trie::SegmentManager::open<SegmentManager>(test_file_name);
+    trie = trie_t::open(tmngr1);
+    //
+    compare_containers(tresult, *trie, standard);
 }
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
@@ -301,5 +354,6 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieInsertGrow, "insertion-grow")
     //->declare(test_TrieGrowAfterUpdate, "grow-after-update")
     ->declare(test_TrieLowerBound, "lower_bound")
-    ->declare(test_TrieSubtree, "subtree")
+    ->declare(test_TrieSubtree, "subtree of prefix")
+    ->declare(test_TrieNoTran, "trie no tran")
     ;

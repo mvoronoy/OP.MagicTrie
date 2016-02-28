@@ -80,13 +80,7 @@
     <ClInclude Include="..\impl\op\vtm\MemoryBlock.h">
       <Filter>OP\vtm</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryManager.h">
-      <Filter>OP\vtm</Filter>
-    </ClInclude>
     <ClInclude Include="..\impl\op\vtm\NamedObjects.h">
-      <Filter>OP\vtm</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\vtm\MemoryRanges.h">
       <Filter>OP\vtm</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\vtm\PersistedReference.h">
@@ -117,6 +111,14 @@
       <Filter>OP\common</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
+    <ClInclude Include="..\impl\op\vtm\MemoryChunks.h" />
+    <ClInclude Include="..\impl\op\vtm\HeapManager.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -139,6 +141,9 @@
     </Filter>
     <Filter Include="OP\common">
       <UniqueIdentifier>{98cd2d51-239f-4e6f-a1db-0a7a182e371d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\trie\ranges">
+      <UniqueIdentifier>{44b1ef9b-5a05-4ecc-a162-ad7d03940ef9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

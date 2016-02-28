@@ -118,15 +118,26 @@ namespace OP
                 
                 OP::vtm::transaction_ptr_t tr;
                 OP::vtm::TransactionGuard g(tr = _segment_manager->begin_transaction());
-                //obtain RO block of memory header to validate address
-                auto ro_block =
-                    _segment_manager->readonly_block(header_far, mbh, 
-                    OP::trie::ReadonlyBlockHint::ro_keep_lock/*retain this block's header in scope of transaction*/);
-                const MemoryBlockHeader* header = ro_block.at<MemoryBlockHeader>(0);
-                if (!header->check_signature() || header->is_free())
-                    throw trie::Exception(trie::er_invalid_block);
-                //postpone deletion untill transaction end
-                tr->register_handle(std::make_unique<PostponDeallocToTransactionEnd>(this, std::move(ro_block)));
+                if (tr.get() != nullptr)
+                {
+                    //obtain RO block of memory header to validate address
+                    auto ro_block =
+                        _segment_manager->readonly_block(header_far, mbh,
+                            OP::trie::ReadonlyBlockHint::ro_keep_lock/*retain this block's header in scope of transaction*/);
+                    const MemoryBlockHeader* header = ro_block.at<MemoryBlockHeader>(0);
+                    if (!header->check_signature() || header->is_free())
+                        throw trie::Exception(trie::er_invalid_block);
+                    //postpone deletion untill transaction end
+                    tr->register_handle(std::make_unique<PostponDeallocToTransactionEnd>(this, std::move(ro_block)));
+                }
+                else //non-transacted 
+                {
+                    auto wr_block = _segment_manager->writable_block(header_far, mbh);
+                    MemoryBlockHeader* header = wr_block.at<MemoryBlockHeader>(0);
+                    if (!header->check_signature() || header->is_free())
+                        throw trie::Exception(trie::er_invalid_block);
+                    do_deallocate(wr_block);
+                }
                 g.commit();
             }
             
@@ -269,7 +280,7 @@ namespace OP
                 first_block_pos.offset = align_on(first_block_pos.offset, SegmentDef::align_c);
                 //reserve 4bytes for segment size
                 FarAddress avail_bytes_offset = first_block_pos;
-                MemoryChunk avail_space_mem = _segment_manager->writable_block(avail_bytes_offset, sizeof(segment_pos_t), WritableBlockHint::new_c);
+                auto avail_space_mem = accessor<segment_pos_t>(*_segment_manager, avail_bytes_offset, WritableBlockHint::new_c);
                 first_block_pos.offset = align_on(first_block_pos.offset +static_cast<segment_pos_t>(sizeof(segment_pos_t)), SegmentHeader::align_c);
 
                 segment_pos_t byte_size = ceil_align_on(_segment_manager->segment_size() - first_block_pos.offset, SegmentHeader::align_c);
@@ -290,7 +301,7 @@ namespace OP
                     FreeMemoryBlockTraits(_segment_manager), 
                     user_memory_pos,
                     span_of_free, block);
-                *avail_space_mem.at<segment_pos_t>(0) = block->size();
+                *avail_space_mem = block->size();
                 
                 Description desc;
                 guard_t l(_segments_map_lock);
@@ -381,7 +392,7 @@ namespace OP
                 FarAddress pos(segment, found.avail_bytes_offset());
                 //no need in lock anymore
                 l.unlock();
-                return *_segment_manager->wr_at<segment_pos_t>(pos);
+                return *accessor<segment_pos_t>(*_segment_manager, pos);
             }
             /**Ensure that _opened_segments contains specific index. Must ve called ubder lock _segments_map_lock*/
             void ensure_index(segment_idx_t segment)

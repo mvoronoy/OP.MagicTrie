@@ -154,6 +154,8 @@
     <ClInclude Include="..\impl\op\common\Bitset.h" />
     <ClInclude Include="..\impl\op\common\func_iter.h" />
     <ClInclude Include="..\impl\op\trie\HashTable.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h" />
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryBlock.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryChunks.h" />
