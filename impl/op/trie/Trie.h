@@ -49,10 +49,10 @@ namespace OP
         {
         public:
             typedef Payload payload_t;
-            typedef SuffixRange<payload_t> suffix_range_t;
-            typedef std::unique_ptr<suffix_range_t> suffix_range_ptr;
             typedef Trie<TSegmentManager, payload_t, initial_node_count> this_t;
             typedef TrieIterator<this_t> iterator;
+            typedef SuffixRange<typedef iterator> suffix_range_t;
+            typedef std::unique_ptr<suffix_range_t> suffix_range_ptr;
             typedef payload_t value_type;
             typedef TrieNode<payload_t> node_t;
             typedef TriePosition navigator_t;
@@ -99,7 +99,7 @@ namespace OP
                 return result;
                 
             }
-            iterator end()
+            iterator end() const
             {
                 return iterator();
             }
@@ -127,20 +127,27 @@ namespace OP
                 }
             }
             template <class Atom>
-            suffix_range_ptr subrange(Atom& begin, Atom end) const
+            suffix_range_ptr subrange(Atom& begin, Atom aend) const
             {
+                typedef IteratorsRange<iterator> range_container_t;
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto pref_res = common_prefix(begin, end);
-                if (begin != end) //no such prefix
-                    return std::make_unique<IteratorsRange<this_t> >(end(), end());
+                auto pref_res = common_prefix(begin, aend);
+                if (begin != aend) //no such prefix
+                    return std::make_unique<range_container_t>(end(), end());
                 auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
+                auto i = std::move(tuple_ref<iterator>(pref_res));
                 //find next position that doesn't matches to prefix
                 if (kind == stem::StemCompareResult::equals) //prefix matches to existing terminal
                 {
-                    
+                    auto n = view<node_t>(*_topology_ptr, i.back().first.address());
+                    auto beg = i;
+                    assert(_begin(n, beg, false));
+                    return std::make_unique<range_container_t>(i, beg);
                 }
-                return std::make_unique<IteratorsRange<this_t> >(this, 
-                    tuple_ref<iterator>(pref_res) );
+                //
+                auto i_next = i;
+                next(i_next);
+                return std::make_unique<range_container_t>( i, i_next );
             }
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom end) const

@@ -14,26 +14,36 @@ namespace OP
         struct IteratorsRange : public SuffixRange<Iterator>
         {
             typedef Iterator iterator;
-            IteratorsRange(iterator begin, iterator end) 
+            IteratorsRange(iterator prefix, iterator begin) 
                 : _begin(begin) 
-                , _end(end) 
+                , _prefix(prefix)
             {
             }
             iterator begin() const override
             {
                 return _begin;
             }
-            iterator end() const override
+            iterator prefix() const
             {
-                return _end;
+                return _prefix;
+            }
+            virtual bool is_end(const iterator& check) const override
+            {
+                if (check.is_end() ||
+                    check.prefix().length() < _prefix.prefix().length())
+                    return false;
+                const atom_string_t& prefix_str = _prefix.prefix();
+                auto m_pos = std::mismatch(
+                    prefix_str.begin(), prefix_str.end(), check.prefix().begin());
+                return (m_pos.first == _prefix.prefix().end());
             }
             virtual void next(iterator& pos) const override
             {
-                return ++pos;
+                ++pos;
             }
             
         private:
-            iterator _begin, _end;
+            iterator _begin, _prefix;
         };        
     }//ns:trie
 }//ns:OP
