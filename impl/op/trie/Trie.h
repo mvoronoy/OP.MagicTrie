@@ -207,14 +207,14 @@ namespace OP
                 auto result = std::make_pair(false, iterator());
                 if (begin == end)
                     return result; //empty string cannot be inserted
-                
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); 
                 auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 for (;;)
                 {
                     auto node =
                         view<node_t>(*_topology_ptr, node_addr);
-                    
+                    auto origin_begin = begin;
+
                     atom_t key = *begin;
                     auto nav_res = node->navigate_over(*_topology_ptr, begin, end, &result.second);
                     switch (tuple_ref<stem::StemCompareResult>(nav_res))
@@ -248,14 +248,14 @@ namespace OP
                     case stem::StemCompareResult::unequals:
                     {
                         auto in_stem_pos = tuple_ref<dim_t>(nav_res);
-                        if (in_stem_pos == 0)//no such entry at all
+                        if (origin_begin == begin)//no such entry at all
                         {
                             auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
-                            auto origin_begin = begin;
+                            auto local_begin = begin;
                             wr_node->insert(*_topology_ptr, begin, end, std::forward<payload_t>(value));
                             result.second.emplace(
-                                TriePosition(node.address(), wr_node->uid, (atom_t)*origin_begin/*key*/, wr_node->version),
-                                origin_begin+1, begin
+                                TriePosition(node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, wr_node->version),
+                                local_begin +1, begin
                                 );
                             if (begin == end) //fully fit to this node
                             {
@@ -270,7 +270,7 @@ namespace OP
                         }
                         else //entry in this node should be splitted on 2
                             node_addr = tuple_ref<FarAddress>(
-                                diversificate(node, key, in_stem_pos));
+                                diversificate(node, key, in_stem_pos-1));
                         //continue in another node
                         break;
                     }

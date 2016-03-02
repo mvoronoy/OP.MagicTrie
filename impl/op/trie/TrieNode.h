@@ -197,11 +197,11 @@ namespace OP
                 return make_nullable( this->presence.next_set(previous) );
             }
             /**
-            * Move entry from this specified by 'key' node that is started on 'at_index' to another one 
+            * Move entry from this specified by 'key' node that is started on 'in_stem_pos' to another one 
             * specified by 'target' address
             */
             template <class TSegmentTopology>
-            void move_to(TSegmentTopology& topology, atom_t key, dim_t at_index, FarAddress target)
+            void move_to(TSegmentTopology& topology, atom_t key, dim_t in_stem_pos, FarAddress target)
             {
                 stem::StemStore<TSegmentTopology> stem_manager(topology);
                 containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
@@ -213,7 +213,7 @@ namespace OP
                 stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stem::StemData& stem_header) -> void{
                     reindex_target = target_node->insert_stem(topology, src_begin, src_end);
                     //truncate stem in current node
-                    stem_manager.trunc_str(stem_header, ridx, at_index - 1/*byte ate by presence matrix*/);
+                    stem_manager.trunc_str(stem_header, ridx, in_stem_pos );
                 });
 
                 //copy data/address to target
