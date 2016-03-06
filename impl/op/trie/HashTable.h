@@ -73,12 +73,51 @@ namespace OP
                 {
 
                 }
-                struct Content
+                /*struct Content
                 {
                     Content() {flag = 0; }
                     atom_t key;
                     std::uint8_t flag;
-                };
+                };*/
+                typedef std::uint16_t content_t;
+                /**Set bits of the specified flag*/
+                static void set_flag(WritableAccess<HashTableData::content_t>& acc, fast_dim_t index, atom_t flag)
+                {
+                    auto &v = acc[index];
+                    v = v | flag;
+                }
+                /**Clear bits of the specified flag*/
+                static void reset_flag(WritableAccess<HashTableData::content_t>& acc, fast_dim_t index, atom_t flag)
+                {
+                    auto &v = acc[index];
+                    v = v & ~static_cast<content_t>(flag);
+                }
+                /**Clear bits of the specified flag*/
+                template <class Accessor>
+                static bool has_flag(Accessor& acc, fast_dim_t index, atom_t flag)
+                {
+                    auto &v = acc[index];
+                    return (v & flag) != 0;
+                }
+                /**Set value and fpresence_c flag */
+                static void set_value(WritableAccess<HashTableData::content_t>& acc, fast_dim_t index, atom_t value)
+                {
+                    auto &v = acc[index];
+                    v = (v & 0xFF) | (((std::uint16_t)value) << 8) | fpresence_c;
+                }
+                /**\tparam Accessor - either ReadonlyAccess<HashTableData::content_t> or WritableAccess<HashTableData::content_t> */
+                template <class Accessor>
+                static atom_t get_flag(Accessor& acc, fast_dim_t index)
+                {
+                    auto &v = acc[index];
+                    return static_cast<atom_t>(v & 0xFF);
+                }
+                template <class Accessor>
+                static atom_t get_value(Accessor& acc, fast_dim_t index)
+                {
+                    auto &v = acc[index];
+                    return static_cast<atom_t>(v >> 8);
+                }
                 const dim_t capacity;
                 const dim_t neighbor_width;
                 dim_t size;
@@ -112,7 +151,7 @@ namespace OP
                     auto& memmngr = _topology.slot<HeapManagerSlot>();
                     
                     auto byte_size = memory_requirement<HashTableData>::requirement +
-                        memory_requirement<HashTableData::Content>::requirement * (dim_t)capacity;
+                        memory_requirement<HashTableData::content_t>::requirement * (dim_t)capacity;
 
                     auto result = memmngr.allocate(byte_size);
                     auto table_block = _topology.segment_manager().writable_block(result, byte_size);
@@ -121,7 +160,7 @@ namespace OP
                     
                     WritableAccess<HashTableData> table_head(std::move(table_block));
                     table_head.make_new(capacity);
-                    WritableAccess<HashTableData::Content> table_data(std::move(data_block));
+                    WritableAccess<HashTableData::content_t> table_data(std::move(data_block));
                     table_data.make_array((dim_t)capacity);
                     
                     return result;
@@ -139,7 +178,7 @@ namespace OP
                     //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
 
                     auto table_head = accessor<HashTableData>(_topology, ref_data.address);
-                    auto hash_data = array_accessor<HashTableData::Content>(_topology,
+                    auto hash_data = array_accessor<HashTableData::content_t>(_topology,
                         content_item_address(ref_data.address, 0),
                         table_head->capacity);
                     return do_insert(table_head, hash_data, key);
@@ -151,33 +190,38 @@ namespace OP
                     const unsigned key_hash = static_cast<unsigned>(key) & bitmask_c;
                     unsigned hash = key_hash;
                     auto table_head = accessor<HashTableData>(_topology, ref_data.address);
-                    auto hash_data = array_accessor<HashTableData::Content>(_topology,
+                    auto hash_data = array_accessor<HashTableData::content_t>(_topology,
                         content_item_address(ref_data.address, 0),
                         table_head->capacity);
 
                     for (unsigned i = 0; i < table_head->neighbor_width_c; ++i)
                     {
-                        if (0 == (fpresence_c & hash_data[hash].flag))
+                        if (0 == (fpresence_c & HashTableData::get_flag(hash_data, hash)))
                         { //nothing at this pos
                             return 0;
                         }
-                        if (hash_data[hash]._key == key)
+                        if (HashTableData::get_value(hash_data, hash) == key)
                         {//make erase
                             table_head->_count--;
                             //may be rest of neighbors sequence may be shifted by 1, so scan in backward
 
-                            hash = restore_on_erase(hash);
+                            hash = restore_on_erase(table_head, hash_data, hash);
                             //just release pos
-                            hash_data[hash]._flag = 0;
+                            HashTableData::set_value(hash_data, hash, 0);
                             return 1;
                         }
                         ++hash %= capacity(); //keep in boundary
                     }
                     return ~0u;
                 }
-                void clear()
+                void clear(const trie::PersistedReference<HashTableData>& ref_data) const
                 {
-                    std::for_each(container(), container() + size(), [](Content& c) { c._flag = 0; });
+                    auto table_head = accessor<HashTableData>(_topology, ref_data.address);
+                    auto hash_data = array_accessor<HashTableData::content_t>(_topology,
+                        content_item_address(ref_data.address, 0),
+                        table_head->capacity);
+                    std::for_each(&hash_data[0], hash_data[table_head->capacity], 
+                        [](HashTableData::content_t& c) { c = 0; });
                     _count = 0;
                 }
 
@@ -193,7 +237,7 @@ namespace OP
                 /**Find index of key entry or #end() if nothing found*/
                 dim_t find(const ReadonlyAccess<HashTableData>& head, atom_t key) const
                 {
-                    auto data_table = array_view<HashTableData::Content>(
+                    auto data_table = array_view<HashTableData::content_t>(
                         _topology,
                         content_item_address(head.address(), 0),
                         head->capacity);
@@ -226,7 +270,7 @@ namespace OP
                 {
                     GrowResult retval;
                     auto prev_tbl_head = view<HashTableData>(_topology, from.address, ReadonlyBlockHint::ro_keep_lock);
-                    auto prev_tbl_data = array_view<HashTableData::Content>(
+                    auto prev_tbl_data = array_view<HashTableData::content_t>(
                         _topology,
                         content_item_address(from.address),
                         prev_tbl_head->capacity,
@@ -248,7 +292,7 @@ namespace OP
                         retval.new_address = this->create(retval.new_capacity);
 
                         auto table_head = accessor<HashTableData>(_topology, retval.new_address);
-                        auto hash_data = array_accessor<HashTableData::Content>(_topology,
+                        auto hash_data = array_accessor<HashTableData::content_t>(_topology,
                             retval.new_address + memory_requirement<HashTableData>::requirement,
                             table_head->capacity );
                         auto i = begin;
@@ -291,27 +335,25 @@ namespace OP
                 static FarAddress content_item_address(FarAddress base, dim_t idx = 0)
                 {
                     return base + (memory_requirement<HashTableData>::requirement +
-                        idx * memory_requirement<HashTableData::Content>::requirement
+                        idx * memory_requirement<HashTableData::content_t>::requirement
                         );
                 }
             private:
 
                 
                 std::pair<dim_t, bool> do_insert(
-                    WritableAccess<HashTableData>& head, WritableAccess<HashTableData::Content>& hash_data, atom_t key)
+                    WritableAccess<HashTableData>& head, WritableAccess<HashTableData::content_t>& hash_data, atom_t key)
                 {
                     unsigned hash = static_cast<unsigned>(key) & (head->capacity - 1); //assuming that capacity is ^ 2
                     for (unsigned i = 0; i < head->neighbor_width && head->size < head->capacity; ++i)
                     {
-                        auto& data = hash_data[hash];
-                        if (0 == (fpresence_c & data.flag))
+                        if (!HashTableData::has_flag(hash_data, hash, fpresence_c))
                         { //nothing at this pos
-                            data.flag |= std::uint8_t{ fpresence_c };
-                            data.key = key;
+                            HashTableData::set_value(hash_data, hash, key);
                             head->size++;
                             return std::make_pair(hash, true);
                         }
-                        if (data.key == key)
+                        if (HashTableData::get_value(hash_data, hash) == key)
                             return std::make_pair(hash, false); //already exists
                         ++hash %= head->capacity; //keep in boundary
                     }
@@ -320,23 +362,25 @@ namespace OP
                 /** Optimize space before some item is removed
                 * @return - during optimization this method may change origin param 'erase_pos', so to real erase use index returned
                 */
-                unsigned restore_on_erase(unsigned erase_pos)
+                unsigned restore_on_erase(WritableAccess<HashTableData>& table_head, 
+                    WritableAccess<HashTableData::content_t>& hash_data, unsigned erase_pos)
                 {
-                    unsigned erased_hash = static_cast<unsigned>(container()[erase_pos]._key) & bitmask_c;
+                    unsigned erased_hash = static_cast<unsigned>(HashTableData::get_value(hash_data, erase_pos)) & bitmask_c;
                     unsigned limit = (erase_pos + neighbor_width_c) % capacity(); //start from last available neighbor
 
                     for (unsigned i = (erase_pos + 1) % capacity(); i != limit; ++i %= capacity())
                     {
-                        if (0 == (fpresence_c & container()[i]._flag))
+                        if (!HashTableData::has_flag(hash_data, i, fpresence_c))
                             return erase_pos; //stop optimization and erase item at pos
-                        unsigned local_hash = (static_cast<unsigned>(container()[i]._key)&bitmask_c);
+                        unsigned local_hash = 
+                            static_cast<unsigned>(HashTableData::get_value(hash_data, i)) & bitmask_c;
                         bool item_in_right_place = i == local_hash;
                         if (item_in_right_place)
                             continue;
                         unsigned x = less_pos(erased_hash, erase_pos) ? erase_pos : erased_hash;
                         if (!less_pos(x, local_hash)/*equivalent of <=*/)
                         {
-                            copy_to(erase_pos, i);
+                            copy_to(hash_data, erase_pos, i);
                             erase_pos = i;
                             erased_hash = local_hash;
                             limit = (erase_pos + neighbor_width_c) % capacity();
@@ -361,9 +405,10 @@ namespace OP
                         return dif > 0;
                     return dif < 0;
                 }
-                void copy_to(unsigned to, unsigned src)
+                template <class Accessor>
+                void copy_to(Accessor &acc, unsigned to, unsigned src)
                 {
-                    container()[to] = container()[src];
+                    acc[to] = acc[src];
                 }
                 /**
                 * \tparam HeaderView either WritableAccess<HashTableData> or ReadonlyAccess<HashTableData> to discover hashtable header
@@ -375,12 +420,11 @@ namespace OP
                     unsigned hash = static_cast<unsigned>(key) & details::bitmask((HashTableCapacity)head->capacity);
                     for (unsigned i = 0; i < head->neighbor_width; ++i)
                     {
-                        auto &data = hash_data[hash];
-                        if (0 == (fpresence_c & data.flag))
+                        if (!HashTableData::has_flag(hash_data, hash, fpresence_c))
                         { //nothing at this pos
                             return nil_c;
                         }
-                        if (data.key == key)
+                        if (HashTableData::get_value(hash_data, hash) == key)
                             return hash;
                         ++hash %= head->capacity; //keep in boundary
                     }
