@@ -60,14 +60,8 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
     {
         //print_hex(tresult.info() << "1)", ti.prefix());
         //print_hex(tresult.info() << "2)", mi->first);
-        std::cout << n << '\n';
-        if (n == 0x173)
-        {
-            print_hex(tresult.info() << "1)", ti.prefix());
-            print_hex(tresult.info() << "2)", mi->first);
-        }
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
-            OP_CODE_DETAILS(<< "has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
+            OP_CODE_DETAILS(<<"step#"<< n << "has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
         tresult.assert_true(
             std::equal(
             std::begin(ti.prefix()), std::end(ti.prefix()), std::begin(mi->first), [](atom_t left, atom_t right){return left == right; }),
@@ -125,7 +119,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     auto ir4 = trie->insert(b1 = std::begin(stem2), std::end(stem2), v_order);
     tresult.assert_true(ir4.first, OP_CODE_DETAILS());
     standard[stem2] = v_order++;
-    tresult.assert_true(3 == trie->nodes_count(), "2 nodes must exists in the system");
+    tresult.assert_true(3 == trie->nodes_count(), "3 nodes must exists in the system");
     tresult.assert_true(b1 == std::end(stem2));
     tresult.assert_true(trie->size() == 3);
     tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir4.second.prefix()), std::end(ir4.second.prefix()),
@@ -133,7 +127,51 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
         ));
 
     compare_containers(tresult, *trie, standard);
-    
+    //
+    // test diversification
+    //
+    tresult.status_details() << "test diversification\n";
+    std::string stem3 = { std::string(1, 'c') + std::string(256, 'a') };
+    const std::string& const_stem3 = stem3;
+    auto ir5 = trie->insert(b1 = std::begin(const_stem3), std::end(const_stem3), v_order);
+    tresult.assert_true(ir5.first, OP_CODE_DETAILS());
+    standard[stem3] = v_order++;
+    tresult.assert_true(4 == trie->nodes_count(), "4 nodes must exists in the system");
+    tresult.assert_true(b1 == std::end(stem3));
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+        std::begin(stem3), std::end(stem3)
+        ));
+    compare_containers(tresult, *trie, standard);
+    //now make iteration back over stem3 and create diversification in 
+    //std::cout << "***";
+    for (auto i = 0; stem3.length() > 1; ++i)
+    {
+        //std::cout << "\b\b\b" << std::setbase(16) << std::setw(3) << std::setfill('0') << i;
+        stem3.resize(stem3.length() - 1);
+        stem3 += std::string(1, 'b');
+        ir5 = trie->insert(b1 = std::begin(const_stem3), std::end(const_stem3), (double)stem3.length());
+        tresult.assert_true(ir5.first, OP_CODE_DETAILS());
+        standard[stem3] = (double)stem3.length();
+        stem3.resize(stem3.length() - 1);
+    }//
+    std::cout << trie->nodes_count()<< "\n";
+    compare_containers(tresult, *trie, standard);
+    //
+    tresult.status_details() << "test diversification#2\n";
+    std::string stem4 = { std::string(1, 'd') + std::string(256, 'a') };
+    const std::string& const_stem4 = stem4;
+    ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
+    tresult.assert_true(ir5.first, OP_CODE_DETAILS());
+    standard[stem4] = v_order++;
+    tresult.assert_true(260 == trie->nodes_count(), "260 nodes must exists in the system");
+    stem4.resize(stem4.length() - 1);
+    stem4.append(std::string(258,'b'));
+    ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
+    tresult.assert_true(ir5.first, OP_CODE_DETAILS());
+    standard[stem4] = v_order++;
+    tresult.assert_true(261 == trie->nodes_count(), "262 nodes must exists in the system");
+    compare_containers(tresult, *trie, standard);
+
 }
 
 void test_TrieInsertGrow(OP::utest::TestResult &tresult)
@@ -329,11 +367,11 @@ void test_TrieNoTran(OP::utest::TestResult &tresult)
     for (auto i = 0; i < 1024; ++i)
     {
         tools::randomize(rnd_buf, 1023, 1);
-        if (rnd_buf.length() > 14 * 60)
-        {
-            std::uint8_t c1 = rnd_buf[0], c2 = rnd_buf[1], c3 = rnd_buf[2]; //c1 == 0x41 && c2==0x4f && c3==0x4b
-            atoi("78");
-        }
+        //if (rnd_buf.length() > 14 * 60)
+        //{
+        //    std::uint8_t c1 = rnd_buf[0], c2 = rnd_buf[1], c3 = rnd_buf[2]; //c1 == 0x41 && c2==0x4f && c3==0x4b
+        //    atoi("78");
+        //}
         auto b = std::begin(rnd_buf);
         auto post = trie->insert(b, std::end(rnd_buf), (double)rnd_buf.length());
         if (post.first)

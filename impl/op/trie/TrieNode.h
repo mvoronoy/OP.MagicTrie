@@ -211,7 +211,9 @@ namespace OP
                 dim_t reindex_target;
                 //extract stem from current node
                 stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stem::StemData& stem_header) -> void{
-                    reindex_target = target_node->insert_stem(topology, src_begin, src_end);
+                    assert(in_stem_pos < (src_end - src_begin));
+                    auto start = src_begin + in_stem_pos;
+                    reindex_target = target_node->insert_stem(topology, start, src_end);
                     //truncate stem in current node
                     stem_manager.trunc_str(stem_header, ridx, in_stem_pos );
                 });
