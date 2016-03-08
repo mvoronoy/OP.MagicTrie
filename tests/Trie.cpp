@@ -301,6 +301,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
     std::array<std::uint16_t, 255> rand_idx;
     std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
     std::random_shuffle(std::begin(rand_idx), std::end(rand_idx));
+    auto n = 0;
     for (auto i : rand_idx)
     {
         atom_string_t root(1, (atom_string_t::value_type)i);
@@ -315,6 +316,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         for (auto j : stems)
         {
             atom_string_t test = root + j;
+            std::cout << n++ << '\n';
             auto ins_res = trie->insert(std::begin(test), std::end(test), (double)test.length());
             tresult.assert_true(ins_res.first);
             tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));

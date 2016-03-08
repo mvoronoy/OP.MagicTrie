@@ -339,7 +339,6 @@ namespace OP
                         );
                 }
             private:
-
                 
                 std::pair<dim_t, bool> do_insert(
                     WritableAccess<HashTableData>& head, WritableAccess<HashTableData::content_t>& hash_data, atom_t key)
