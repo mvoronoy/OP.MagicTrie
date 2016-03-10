@@ -64,7 +64,7 @@ namespace OP
                 {
                     current_mem->set_free(false);
                     //when existing block is used it is not needed to use 'real_size' - because header alredy counted
-                    deposited_size -= aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                    deposited_size -= mbh;
                     MemoryChunk result = 
                         _segment_manager->writable_block(free_addr, size, WritableBlockHint::new_c);
                     retval = result.address();
@@ -416,7 +416,7 @@ namespace OP
                 header->set_free(true);
                 //from header address evaluate address of memory block
                 FarAddress address (FreeMemoryBlock::get_addr_by_header(header_block.address())); 
-                auto free_marker = _segment_manager->wr_at<FreeMemoryBlock>(address, WritableBlockHint::new_c);
+                auto free_marker = _segment_manager->wr_at<FreeMemoryBlock>(address);
 
                 FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(emplaced_t());
                 auto deposited = header->size();
