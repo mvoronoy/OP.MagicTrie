@@ -57,24 +57,7 @@ namespace OP
                 nav._my_segment = segment;
                 return this;
             }
-            /*!@:To delete MemoryBlockHeader* next() const
-            {
-                assert(has_next());
-
-                return reinterpret_cast<MemoryBlockHeader*>(memory() + size());
-            }
-            MemoryBlockHeader* prev() const
-            {
-                assert(prev_block_offset() < 0 && prev_block_offset() != ~0u);
-
-                return reinterpret_cast<MemoryBlockHeader*>(
-                    ((std::uint8_t*)this) + prev_block_offset());
-            } 
-            MemoryBlockHeader* set_prev(MemoryBlockHeader* prev)
-            {
-                prev_block_offset(static_cast<segment_off_t>((std::uint8_t*)prev - (std::uint8_t*)this));
-                return this;
-            }*/
+            
             segment_off_t prev_block_offset() const
             {
                 return nav._prev_block_offset;

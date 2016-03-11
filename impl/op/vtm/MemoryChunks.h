@@ -243,12 +243,17 @@ namespace OP
             block_for_read_c = 0x1,
             block_for_write_c = 0x2,
             force_optimistic_write_c = 0x4,
+            allow_block_realloc = 0x8,
             /**Block contains some information and will be used for r/w operations*/
             update_c = block_for_read_c | block_for_write_c,
 
             /**Block is used only for write purpose and doesn't contain usefull information yet*/
             new_c = block_for_write_c
         };
+        inline WritableBlockHint operator & (WritableBlockHint left, WritableBlockHint right)
+        {
+            return static_cast<WritableBlockHint>(static_cast<std::uint8_t>(left) & static_cast<std::uint8_t>(right));
+        }
         /**
         *   Create writable accessor to some virtual memory
         * \tparam T some type that resides at accesed writable memory
