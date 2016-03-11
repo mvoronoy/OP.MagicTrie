@@ -86,7 +86,12 @@ namespace OP
                 {//block already have associated transaction(s)
                     // don't allow transactions on overlapped memory blocks
                     if (!found_res->first.is_included(search_range))
-                        throw Exception(er_overlapping_block);
+                    {
+                        if(WritableBlockHint::allow_block_realloc != (hint & WritableBlockHint::allow_block_realloc))
+                            throw Exception(er_overlapping_block);
+                        // extend existing 
+
+                    }
                     //only exclusive access is permitted
                     if (!found_res->second.is_exclusive_access(current->transaction_id()))
                         throw OP::vtm::ConcurentLockException();
@@ -265,7 +270,7 @@ namespace OP
                     assert(_shadow_buffer == nullptr);
                     _shadow_buffer = new std::uint8_t[size];
 
-                    if ( hint != WritableBlockHint::block_for_write_c) //write only don't need create copy
+                    if (WritableBlockHint::block_for_read_c == (hint & WritableBlockHint::block_for_read_c)) //write only don't need create a copy
                         memcpy(_shadow_buffer, from, size);
                     
                     if (is_optimistic_write)

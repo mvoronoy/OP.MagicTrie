@@ -111,13 +111,17 @@
       <Filter>OP\common</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
-    <ClInclude Include="..\impl\op\vtm\MemoryChunks.h" />
-    <ClInclude Include="..\impl\op\vtm\HeapManager.h" />
     <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h">
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h">
       <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\HeapManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryChunks.h">
+      <Filter>OP\vtm</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -316,7 +316,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         for (auto j : stems)
         {
             atom_string_t test = root + j;
-            std::cout << n++ << '\n';
+            std::cout << n++ << std::endl;
             auto ins_res = trie->insert(std::begin(test), std::end(test), (double)test.length());
             tresult.assert_true(ins_res.first);
             tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
