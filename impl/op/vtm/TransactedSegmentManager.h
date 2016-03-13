@@ -89,8 +89,8 @@ namespace OP
                     {
                         if(WritableBlockHint::allow_block_realloc != (hint & WritableBlockHint::allow_block_realloc))
                             throw Exception(er_overlapping_block);
-                        // extend existing 
-
+                        // extend existing if allowed
+                        extend_memory_block(found_res, search_range, current);
                     }
                     //only exclusive access is permitted
                     if (!found_res->second.is_exclusive_access(current->transaction_id()))
@@ -100,7 +100,7 @@ namespace OP
                     {//obtain write lock over already existing read-lock
                          
                         //clone memory block, so other could see old result
-                        found_res->second.create_shaddow(true, //this mean create buffer for read (optimistic write)
+                        found_res->second.create_shadow(true, //this mean create buffer for read (optimistic write)
                             super_res.pos(),
                             super_res.count(),
                             hint
@@ -121,7 +121,7 @@ namespace OP
                     );
                     
                     //clone memory block, so other could see old result
-                    found_res->second.create_shaddow(false, //this mean create buffer for write (instead of buffer for read)
+                    found_res->second.create_shadow(false, //this mean create buffer for write (instead of buffer for read)
                         super_res.pos(),
                         super_res.count(),
                         hint
@@ -139,26 +139,7 @@ namespace OP
             {
                 return this->writable_block(ro.address(), ro.count());
             }
-            //far_pos_t to_far(const void * address) const override 
-            //{
-            //    transaction_impl_ptr_t current;
-            //    if (true)
-            //    {  //extract current transaction in safe way
-            //        guard_t g1(_opened_transactions_lock);
-            //        auto found = _opened_transactions.find(std::this_thread::get_id());
-            //        if (found == _opened_transactions.end()) 
-            //        {//no current transaction at all
-            //            return SegmentManager::to_far(address);
-            //        }
-            //        current = found->second;
-            //    }
-            //    //from current transaction take address
-            //    far_pos_t result;
-            //    if (current->get_address_by_shadow(reinterpret_cast<const std::uint8_t*>(address), result)) //yes, there is a shadow
-            //        return result;
-            //    //no shaddow buffer, return the origin
-            //    return SegmentManager::to_far(address);
-            //}
+            
             far_pos_t to_far(segment_idx_t segment, const void * address) override
             {
                 transaction_impl_ptr_t current;
@@ -253,18 +234,33 @@ namespace OP
             /**Describe how memory block is used*/
             struct BlockUse 
             {
-                BlockUse(flag_t capture_kind, Transaction::transaction_id_t id):
-                    _transaction_code(TransactionCode(capture_kind, id).align),
-                    _shadow_buffer(nullptr)
+                BlockUse(flag_t capture_kind, Transaction::transaction_id_t id) OP_NOEXCEPT
+                    : _transaction_code(TransactionCode(capture_kind, id).align)
+                    , _shadow_buffer(nullptr)
                 {
                     
+                }
+                BlockUse(const BlockUse&) = delete;
+                BlockUse& operator = (const BlockUse&other) = delete;
+
+                BlockUse(BlockUse&&other) OP_NOEXCEPT
+                    : _transaction_code(other._transaction_code.load())
+                    , _shadow_buffer(other._shadow_buffer)
+                {
+                    other._shadow_buffer = nullptr;
+                }
+                BlockUse& operator = (BlockUse&&other) OP_NOEXCEPT
+                {
+                    std::swap(_transaction_code, other._transaction_code);
+                    _shadow_buffer = (other._shadow_buffer);
+                    other._shadow_buffer = nullptr;
                 }
                 ~BlockUse()
                 {
                     if (_shadow_buffer)
                         delete[]_shadow_buffer;
                 }
-                void create_shaddow(bool is_optimistic_write, const std::uint8_t* from, segment_pos_t size,
+                void create_shadow(bool is_optimistic_write, const std::uint8_t* from, segment_pos_t size,
                     WritableBlockHint hint = WritableBlockHint::block_no_hint_c)
                 {
                     assert(_shadow_buffer == nullptr);
@@ -278,6 +274,18 @@ namespace OP
                     else
                         _transaction_code &= ~(static_cast<std::uint64_t>(optimistic_write_c)<< TransactionCode::off_flag);
                     _transaction_code |= static_cast<std::uint64_t>(wr_c) << TransactionCode::off_flag;
+                }
+                template <class MemBlock>
+                void update_shadow(const MemBlock& new_mem, segment_pos_t old_size, segment_pos_t relative_offset = 0)
+                {
+                    if (!_shadow_buffer) //nothing to do
+                        return;
+                    assert((old_size + relative_offset) < new_mem.count()); //new block MUST be bigger than origin
+                    auto new_buffer = new std::uint8_t[new_mem.count()];
+                    memcpy(new_buffer, new_mem.pos(), new_mem.count()); //copy origin memory
+                    memcpy(new_buffer + relative_offset, _shadow_buffer, old_size); //override with origin 
+                    delete[]_shadow_buffer;
+                    _shadow_buffer = new_buffer;
                 }
                 bool is_exclusive_access(Transaction::transaction_id_t current) const
                 {
@@ -478,6 +486,13 @@ namespace OP
                 {
                     _address_lookup.emplace(addr, pos);
                 }
+                /**Remove existing mapping between shaddow buffer.
+                @return true if address existed
+                */
+                bool erase_shadow_buffer_created(const std::uint8_t*addr)
+                {
+                    return _address_lookup.erase(addr) > 0;
+                }
                 /**Lookup if far-pos exists for specified memory address of shadow buffer
                 *@return true if address was found
                 */
@@ -586,7 +601,44 @@ namespace OP
                         _captured_blocks.erase(*begin);
                 }
             }
-
+            /**Allows extend memory block in case of overlapped exception
+            * @param to_extend - iterator in `_captured_blocks` with overlapped block, at exit this parameter contains valid
+            *                    position of just recreate item   
+            * @throws Exception with code `er_overlapping_block` if extnsion of block 'touches' neighbour blocks from
+            *                   `_captured_blocks` map
+            */
+            template <class Iterator, class MemBlock>
+            void extend_memory_block(Iterator& to_extend, MemBlock& new_range, transaction_impl_ptr_t& current_tran)
+            {
+                auto before = to_extend;
+                --before;
+                if (before != _captured_blocks.end() //not the first item
+                    && !join_range(before->first, new_range).empty() //check result range has no commons with previous block
+                    )
+                {
+                    throw Exception(er_overlapping_block);
+                }
+                auto after = to_extend;
+                ++after;
+                if(after != _captured_blocks.end() //not the last item
+                    && !join_range(after->first, new_range).empty() //check result range has no commons with next block
+                    )
+                {
+                    throw Exception(er_overlapping_block);
+                }
+                //erase old and append to map brand-new key instead
+                auto new_val = std::move(to_extend->second);
+                assert(current_tran->erase_shadow_buffer_created(new_val.shadow_buffer()));
+                //if shadow buffer exists update it to bigger 
+                new_val.update_shadow(new_range.count(), to_extend->first.count(),
+                    to_extend->first.pos() - new_range.address());
+                current->on_shadow_buffer_created(new_val.shadow_buffer(), new_range.address());
+                auto erased = _captured_blocks.erase(to_extend);
+                to_extend = _captured_blocks.emplace_hint(to_extend->second.
+                    erased, //use erasure pos as ahint  
+                    RWR(new_range.pos(), new_range.count()),
+                    std::move(new_val));
+            }
             /**
             * wipe the transaction  
             * @param tid - id of thread that owns by transaction
