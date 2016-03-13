@@ -41,6 +41,15 @@ namespace OP
         {
             return (right() > other._pos) && (_pos < other.right());
         }
+        
+        bool in(pos_t check) const
+        {
+            return !(check < _pos) && (check < right());
+        }
+        bool empty() const
+        {
+            return _count == 0;
+        }
         /**Check if 'other' fully inside this*/
         bool is_included(const Range& other) const
         {
@@ -83,6 +92,22 @@ namespace OP
         pos_t _pos;
         mutable Distance _count;
     };
+    template <class TRange>
+    TRange unite_range(const TRange& lar, const TRange& rar)
+    {
+        auto leftmost = std::min(lar.pos(), rar.pos());
+        return TRange(leftmost, std::max(lar.right(), rar.right()) - leftmost);
+    }
+    template <class TRange>
+    TRange join_range(const TRange& lar, const TRange& rar)
+    {
+        auto leftmost_right = std::min(lar.right(), rar.right());
+        auto rightmost_left = std::max(lar.pos(), rar.pos());
+        return rightmost_left < leftmost_right 
+            ? TRange(rightmost_left, leftmost_right - rightmost_left)
+            : TRange(rightmost_left, 0);
+    }
+
     template <class T>
     struct RangeContainer
     {
