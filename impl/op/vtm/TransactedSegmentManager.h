@@ -89,8 +89,10 @@ namespace OP
                     {
                         if(WritableBlockHint::allow_block_realloc != (hint & WritableBlockHint::allow_block_realloc))
                             throw Exception(er_overlapping_block);
+                        search_range = unite_range(search_range, found_res->first);
+                        super_res = std::move(SegmentManager::writable_block(search_range.pos(), search_range.count(), hint));
                         // extend existing if allowed
-                        extend_memory_block(found_res, search_range, current);
+                        extend_memory_block(found_res, search_range, super_res, current);
                     }
                     //only exclusive access is permitted
                     if (!found_res->second.is_exclusive_access(current->transaction_id()))
@@ -251,7 +253,7 @@ namespace OP
                 }
                 BlockUse& operator = (BlockUse&&other) OP_NOEXCEPT
                 {
-                    std::swap(_transaction_code, other._transaction_code);
+                    _transaction_code = other._transaction_code.load();
                     _shadow_buffer = (other._shadow_buffer);
                     other._shadow_buffer = nullptr;
                 }
@@ -608,7 +610,7 @@ namespace OP
             *                   `_captured_blocks` map
             */
             template <class Iterator, class MemBlock>
-            void extend_memory_block(Iterator& to_extend, MemBlock& new_range, transaction_impl_ptr_t& current_tran)
+            void extend_memory_block(Iterator& to_extend, RWR &new_range, MemBlock& real_mem, transaction_impl_ptr_t& current_tran)
             {
                 auto before = to_extend;
                 --before;
@@ -630,12 +632,11 @@ namespace OP
                 auto new_val = std::move(to_extend->second);
                 assert(current_tran->erase_shadow_buffer_created(new_val.shadow_buffer()));
                 //if shadow buffer exists update it to bigger 
-                new_val.update_shadow(new_range.count(), to_extend->first.count(),
-                    to_extend->first.pos() - new_range.address());
-                current->on_shadow_buffer_created(new_val.shadow_buffer(), new_range.address());
+                new_val.update_shadow(real_mem, to_extend->first.count(),
+                    static_cast<segment_pos_t>(to_extend->first.pos() - new_range.pos()));
+                current_tran->on_shadow_buffer_created(new_val.shadow_buffer(), real_mem.address());
                 auto erased = _captured_blocks.erase(to_extend);
-                to_extend = _captured_blocks.emplace_hint(to_extend->second.
-                    erased, //use erasure pos as ahint  
+                to_extend = _captured_blocks.emplace_hint(erased, //use erasure pos as ahint  
                     RWR(new_range.pos(), new_range.count()),
                     std::move(new_val));
             }

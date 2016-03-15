@@ -32,7 +32,7 @@ namespace OP
                 _segment(std::move(segment))
             {
             }
-            MemoryChunkBase(MemoryChunkBase&& right)  OP_NOEXCEPT
+            MemoryChunkBase(MemoryChunkBase&& right) OP_NOEXCEPT
                 : base_t(right.pos(), right.count())
                 , _address(std::move(right._address))
                 , _segment(std::move(right._segment))
@@ -40,7 +40,7 @@ namespace OP
             {
 
             }
-            MemoryChunkBase& operator = (MemoryChunkBase&& right)  OP_NOEXCEPT
+            MemoryChunkBase& operator = (MemoryChunkBase&& right) OP_NOEXCEPT
             {
                 _address = std::move(right._address);
                 _segment = std::move(right._segment);
@@ -89,7 +89,7 @@ namespace OP
                 MemoryChunkBase(pos, count, std::move(address), std::move(segment))
             {
             }
-            MemoryChunk(MemoryChunk&& right)
+            MemoryChunk(MemoryChunk&& right) OP_NOEXCEPT
                 :MemoryChunkBase(std::move(right))
             {
             }
@@ -97,6 +97,11 @@ namespace OP
             //! For MSVC-2013 it is very important to keep copy-constructor after(!) move constructor
             MemoryChunk(const MemoryChunk&) = delete;
             MemoryChunk& operator = (const MemoryChunk&) = delete;
+            MemoryChunk& operator = (MemoryChunk&& right) OP_NOEXCEPT
+            {
+                MemoryChunkBase::operator=(std::move(right));
+                return *this;
+            }
             MemoryChunk() = default;
             /**
             * @return new instance that is subset of this where beginning is shifted on `offset` bytes
@@ -253,6 +258,10 @@ namespace OP
         inline WritableBlockHint operator & (WritableBlockHint left, WritableBlockHint right)
         {
             return static_cast<WritableBlockHint>(static_cast<std::uint8_t>(left) & static_cast<std::uint8_t>(right));
+        }
+        inline WritableBlockHint operator | (WritableBlockHint left, WritableBlockHint right)
+        {
+            return static_cast<WritableBlockHint>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
         }
         /**
         *   Create writable accessor to some virtual memory

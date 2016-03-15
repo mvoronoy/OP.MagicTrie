@@ -66,7 +66,7 @@ namespace OP
                     //when existing block is used it is not needed to use 'real_size' - because header alredy counted
                     deposited_size -= mbh;
                     MemoryChunk result = 
-                        _segment_manager->writable_block(free_addr, size, WritableBlockHint::new_c);
+                        _segment_manager->writable_block(free_addr, size, WritableBlockHint::new_c | WritableBlockHint::allow_block_realloc);
                     retval = result.address();
                 }
                 else
