@@ -10,6 +10,7 @@ namespace OP
     struct Range
     {
         typedef T pos_t;
+        typedef Distance distance_t;
         typedef Range<T, Distance> this_t;
         friend struct RangeContainer<T>;
 
@@ -96,7 +97,7 @@ namespace OP
     TRange unite_range(const TRange& lar, const TRange& rar)
     {
         auto leftmost = std::min(lar.pos(), rar.pos());
-        return TRange(leftmost, std::max(lar.right(), rar.right()) - leftmost);
+        return TRange(leftmost, static_cast<TRange::distance_t>( std::max(lar.right(), rar.right()) - leftmost));
     }
     template <class TRange>
     TRange join_range(const TRange& lar, const TRange& rar)
@@ -104,7 +105,7 @@ namespace OP
         auto leftmost_right = std::min(lar.right(), rar.right());
         auto rightmost_left = std::max(lar.pos(), rar.pos());
         return rightmost_left < leftmost_right 
-            ? TRange(rightmost_left, leftmost_right - rightmost_left)
+            ? TRange(rightmost_left, static_cast<TRange::distance_t>(leftmost_right - rightmost_left))
             : TRange(rightmost_left, 0);
     }
 
