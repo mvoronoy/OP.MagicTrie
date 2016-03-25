@@ -89,10 +89,12 @@ namespace OP
                     {
                         if(WritableBlockHint::allow_block_realloc != (hint & WritableBlockHint::allow_block_realloc))
                             throw Exception(er_overlapping_block);
+                        hint = hint & ~WritableBlockHint::allow_block_realloc; //clear flag to avoid confuse on transaction release
                         search_range = unite_range(search_range, found_res->first);
                         super_res = std::move(SegmentManager::writable_block(search_range.pos(), search_range.count(), hint));
                         // extend existing if allowed
                         extend_memory_block(found_res, search_range, super_res, current);
+                        current->store(found_res);
                     }
                     //only exclusive access is permitted
                     if (!found_res->second.is_exclusive_access(current->transaction_id()))
@@ -630,11 +632,13 @@ namespace OP
                 }
                 //erase old and append to map brand-new key instead
                 auto new_val = std::move(to_extend->second);
-                assert(current_tran->erase_shadow_buffer_created(new_val.shadow_buffer()));
+                auto er_res = current_tran->erase_shadow_buffer_created(new_val.shadow_buffer());
+                assert(er_res);
                 //if shadow buffer exists update it to bigger 
                 new_val.update_shadow(real_mem, to_extend->first.count(),
                     static_cast<segment_pos_t>(to_extend->first.pos() - new_range.pos()));
-                current_tran->on_shadow_buffer_created(new_val.shadow_buffer(), real_mem.address());
+                //current_tran->on_shadow_buffer_created(new_val.shadow_buffer(), real_mem.address());
+                current_tran->erase(to_extend);
                 auto erased = _captured_blocks.erase(to_extend);
                 to_extend = _captured_blocks.emplace_hint(erased, //use erasure pos as ahint  
                     RWR(new_range.pos(), new_range.count()),
