@@ -236,7 +236,7 @@ namespace OP
                     throw std::out_of_range("too small block to allocate T[N]");
                 for (auto p = pos(); array_size; p += inc, --array_size)
                 {
-                    new (p) T;
+                    new (p) T{};
                 }
                 
             }
@@ -262,6 +262,10 @@ namespace OP
         inline WritableBlockHint operator | (WritableBlockHint left, WritableBlockHint right)
         {
             return static_cast<WritableBlockHint>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
+        }
+        inline WritableBlockHint operator ~ (WritableBlockHint hint)
+        {
+            return static_cast<WritableBlockHint>( ~static_cast<std::uint8_t>(hint) );
         }
         /**
         *   Create writable accessor to some virtual memory
