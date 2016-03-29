@@ -6,12 +6,13 @@ namespace OP
 {
     namespace trie
     {
-        template <class Iterator>
-        struct JoinRange : public SuffixRange<Iterator>
+        template <class SourceRange1, class SourceRange2 = SourceRange1>
+        struct JoinRange : public SuffixRange< SourceRange1::iterator >
         {
-            typedef Iterator iterator;
-            typedef SuffixRange< iterator > base_range_t;
-            JoinRange(base_range_t& r1, base_range_t& r2)
+            typedef SourceRange1::iterator iterator;
+            typedef IteratorsRange< iterator > iter_range_t;
+            
+            JoinRange(iter_range_t& r1, iter_range_t& r2)
                 : _r1(r1) 
                 , _r2(r2)
             {
@@ -36,7 +37,7 @@ namespace OP
                 ++pos;
             }
         private:
-            base_range_t _r1, _r2;
+            iter_range_t _r1, _r2;
         };
     } //ns: trie
 } //ns: OP
