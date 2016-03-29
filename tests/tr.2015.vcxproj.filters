@@ -123,6 +123,9 @@
     <ClInclude Include="..\impl\op\vtm\MemoryChunks.h">
       <Filter>OP\vtm</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\PrefixRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />

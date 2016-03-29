@@ -1,31 +1,25 @@
-#ifndef _OP_TRIE_RANGES_ITERATORS_RANGE__H_
-#define _OP_TRIE_RANGES_ITERATORS_RANGE__H_
-
+#ifndef _OP_TRIE_RANGES_PREFIX_RANGE__H_
+#define _OP_TRIE_RANGES_PREFIX_RANGE__H_
 #include <op/trie/ranges/SuffixRange.h>
 
 namespace OP
 {
     namespace trie
     {
-        /**
-        *
-        */
         template <class Iterator>
-        struct IteratorsRange : public SuffixRange<Iterator>
+        struct JoinRange : public SuffixRange<Iterator>
         {
             typedef Iterator iterator;
-            IteratorsRange(iterator prefix, iterator begin) 
-                : _begin(begin) 
-                , _prefix(prefix)
+            typedef SuffixRange< iterator > base_range_t;
+            JoinRange(base_range_t& r1, base_range_t& r2)
+                : _r1(r1) 
+                , _r2(r2)
             {
             }
+            
             iterator begin() const override
             {
                 return _begin;
-            }
-            iterator prefix() const
-            {
-                return _prefix;
             }
             bool is_end(const iterator& check) const override
             {
@@ -41,10 +35,9 @@ namespace OP
             {
                 ++pos;
             }
-            
         private:
-            iterator _begin, _prefix;
-        };        
-    }//ns:trie
-}//ns:OP
-#endif //_OP_TRIE_RANGES_ITERATORS_RANGE__H_
+            base_range_t _r1, _r2;
+        };
+    } //ns: trie
+} //ns: OP
+#endif //_OP_TRIE_RANGES_PREFIX_RANGE__H_
