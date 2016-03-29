@@ -423,6 +423,7 @@ void test_TransactedMemmngrAllocDealloc(OP::utest::TestResult &tresult)
     auto test_avail = mm.available(0);
     
     //test that issue exists, do it twice to test that issue is not disappeared during rollback
+    /*  This test obsolete since: WritableBlockHint::allow_block_realloc
     for (auto i = 0; i < 2; ++i)
     {
         auto tran2 = tmngr1->begin_transaction();
@@ -436,10 +437,18 @@ void test_TransactedMemmngrAllocDealloc(OP::utest::TestResult &tresult)
             tresult.assert_true(e.code() == er_overlapping_block);
         }
         tran2->rollback();
+    } */
+    for (auto i = 0; i < 2; ++i)
+    {
+        auto tran2 = tmngr1->begin_transaction();
+        mm.forcible_deallocate(block1);
+        mm.allocate(50);  // overlapped exception there
+
+        tran2->rollback();
     }
     //
     tresult.assert_true(test_avail == mm.available(0));
-    std::cout <<"0x"<<std::setbase(16) << mm.available(0) << '\n';
+    //std::cout <<"0x"<<std::setbase(16) << mm.available(0) << '\n';
     auto tran3 = tmngr1->begin_transaction();
     mm.deallocate(block1);
     mm.allocate(50);  //no overlapped exception there
