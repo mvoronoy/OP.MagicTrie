@@ -91,6 +91,17 @@ namespace OP
                 _container->next(*this);
                 return result;
             }
+            inline this_t& operator -- ()
+            {
+                static_assert(false, "Not implemented yet");
+                return *this;
+            }
+            inline this_t operator -- (int)
+            {
+                static_assert(false, "Not implemented yet");
+                this_t result(*this);
+                return result;
+            }
             inline value_type operator * () const
             {
                 return _container->value_of(_position_stack.back().first);

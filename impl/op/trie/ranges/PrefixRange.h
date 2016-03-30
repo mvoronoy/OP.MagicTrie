@@ -1,43 +1,110 @@
 #ifndef _OP_TRIE_RANGES_PREFIX_RANGE__H_
 #define _OP_TRIE_RANGES_PREFIX_RANGE__H_
+#include <iterator>
 #include <op/trie/ranges/SuffixRange.h>
 
 namespace OP
 {
     namespace trie
     {
+        template <class Iterator, class OwnerRange>
+        struct JoinRangeIterator :
+            public std::iterator<
+            std::forward_iterator_tag,
+            typename Iterator::value_type
+            >
+        {
+            typedef Iterator iterator;
+            typedef JoinRangeIterator<Iterator, OwnerRange> this_t;
+            typedef Iterator::value_type value_type;
+            friend OwnerRange;
+            JoinRangeIterator(OwnerRange& owner_range, iterator left, iterator right)
+                : _owner_range(owner_range)
+                , _left(left)
+                , _right(right)
+            {}
+            this_t& operator ++()
+            {
+                _owner_range.next(*this);
+                return *this;
+            }
+            this_t operator ++(int)
+            {
+                this_t result = *this;
+                _owner_range.next(*this);
+                return result;
+            }
+            value_type& operator* ()
+            {
+                return *_left;
+            }
+            const value_type& operator* () const
+            {
+                return *_left;
+            }
+        private:
+            const iterator& left() const
+            {
+                return _left;
+            }
+            const iterator& right() const
+            {
+                return _right;
+            }
+
+            OwnerRange& _owner_range;
+            iterator _left, _right;
+        };
         template <class SourceRange1, class SourceRange2 = SourceRange1>
         struct JoinRange : public SuffixRange< SourceRange1::iterator >
         {
-            typedef SourceRange1::iterator iterator;
-            typedef IteratorsRange< iterator > iter_range_t;
-            
-            JoinRange(iter_range_t& r1, iter_range_t& r2)
-                : _r1(r1) 
-                , _r2(r2)
+            typedef JoinRange<SourceRange1, SourceRange2> this_t;
+            typedef JoinRangeIterator<typename SourceRange1::iterator, typename this_t> iterator;
+            /**
+            * @param iterator_comparator - binary predicate `bool(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
+            */
+            template <class BinaryPredicate>
+            JoinRange(SourceRange1 && r1, SourceRange2 && r2, BinaryPredicate iterator_comparator)
+                : _left(std::forward<SourceRange1>(r1))
+                , _right(std::forward<SourceRange2>(r2))
+                , _iterator_comparator(iterator_comparator)
             {
             }
             
             iterator begin() const override
             {
-                return _begin;
+                iterator result(*this, _left.begin(), _right.begin());
+                seek(result);
+                return result;
             }
-            bool is_end(const iterator& check) const override
+            bool in_range(const iterator& check) const override
             {
-                if (check.is_end() ||
-                    check.prefix().length() < _prefix.prefix().length())
-                    return false;
-                const atom_string_t& prefix_str = _prefix.prefix();
-                auto m_pos = std::mismatch(
-                    prefix_str.begin(), prefix_str.end(), check.prefix().begin());
-                return (m_pos.first == _prefix.prefix().end());
+                return !_left.is_end(check.left()) && !_right.is_end(check.right());
             }
             void next(iterator& pos) const override
             {
-                ++pos;
+                seek(pos);
             }
         private:
-            iter_range_t _r1, _r2;
+            void seek(iterator &pos) const
+            {
+                while (in_range(pos))
+                {
+                    if (_iterator_comparator(pos._left, pos._right)) {
+                        ++pos._left;
+                    }
+                    else {
+                        if (!_iterator_comparator(first2, pos._right)) {
+                            return;
+                        }
+                        ++pos._right;
+                    }
+                }
+
+            }
+            SourceRange1 _left;
+            SourceRange2 _right;
+            std::function<bool(const iterator& left, const iterator& right)> _iterator_comparator;
         };
     } //ns: trie
 } //ns: OP

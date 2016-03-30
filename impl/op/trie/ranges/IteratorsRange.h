@@ -27,7 +27,7 @@ namespace OP
             {
                 return _prefix;
             }
-            bool is_end(const iterator& check) const override
+            bool in_range(const iterator& check) const override
             {
                 if (check.is_end() ||
                     check.prefix().length() < _prefix.prefix().length())
@@ -35,7 +35,7 @@ namespace OP
                 const atom_string_t& prefix_str = _prefix.prefix();
                 auto m_pos = std::mismatch(
                     prefix_str.begin(), prefix_str.end(), check.prefix().begin());
-                return (m_pos.first == _prefix.prefix().end());
+                return (m_pos.first != _prefix.prefix().end());
             }
             void next(iterator& pos) const override
             {
