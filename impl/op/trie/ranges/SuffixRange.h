@@ -22,7 +22,7 @@ namespace OP
             */
             //virtual std::unique_ptr<this_t> subtree(PrefixQuery& query) const = 0;
             virtual iterator begin() const = 0;
-            virtual bool is_end(const iterator& check) const = 0;
+            virtual bool in_range(const iterator& check) const = 0;
             virtual void next(iterator& pos) const = 0;
         };
     }//ns:trie

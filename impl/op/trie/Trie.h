@@ -149,6 +149,12 @@ namespace OP
                 next(i_next);
                 return std::make_unique<range_container_t>( i, i_next );
             }
+            template <class Range1, class Range2>
+            JoinRange<Range1, Range2> join_subrange(Range1&& r1, Range2 && r2) const
+            {
+                return JoinRange<Range1, Range2>()
+            }
+
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom end) const
             {
