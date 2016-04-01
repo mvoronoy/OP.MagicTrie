@@ -94,7 +94,7 @@ namespace OP
                         ++pos._left;
                     }
                     else {
-                        if (!_iterator_comparator(first2, pos._right)) {
+                        if (!_iterator_comparator(pos._right, pos._left)) {
                             return;
                         }
                         ++pos._right;
