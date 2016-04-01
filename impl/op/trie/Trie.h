@@ -126,14 +126,15 @@ namespace OP
                     i.pop();
                 }
             }
-            template <class Atom>
-            suffix_range_ptr subrange(Atom& begin, Atom aend) const
+            typedef IteratorsRange<iterator> range_container_t;
+
+            template <class IterateAtom>
+            range_container_t subrange(IterateAtom begin, IterateAtom aend) const
             {
-                typedef IteratorsRange<iterator> range_container_t;
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto pref_res = common_prefix(begin, aend);
                 if (begin != aend) //no such prefix
-                    return std::make_unique<range_container_t>(end(), end());
+                    return range_container_t(end(), end());
                 auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
                 auto i = std::move(tuple_ref<iterator>(pref_res));
                 //find next position that doesn't matches to prefix
@@ -142,17 +143,22 @@ namespace OP
                     auto n = view<node_t>(*_topology_ptr, i.back().first.address());
                     auto beg = i;
                     assert(_begin(n, beg, false));
-                    return std::make_unique<range_container_t>(i, beg);
+                    return range_container_t(i, beg);
                 }
                 //
                 auto i_next = i;
                 next(i_next);
-                return std::make_unique<range_container_t>( i, i_next );
+                return range_container_t( i, i_next );
             }
-            template <class Range1, class Range2>
-            JoinRange<Range1, Range2> join_subrange(Range1&& r1, Range2 && r2) const
+            
+            JoinRange<IteratorsRange<iterator> > join_subrange(IteratorsRange<iterator> r1, IteratorsRange<iterator> r2) const
             {
-                return JoinRange<Range1, Range2>()
+                make_func_iterator(I && i, UnaryFunction && map)
+                auto r1_length = r1.prefix().length(), r2_length = r2.prefix().length();
+                return JoinRange<Range1, Range2>(r1, r2, 
+                    [r1_length, r2_length](const iterator& left, const iterator& rigth)->bool {
+                        return std::lexicographical_compare(left.prefix().begin() + r1.le)
+                })
             }
 
             template <class Atom>
