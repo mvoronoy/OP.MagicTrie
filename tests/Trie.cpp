@@ -287,6 +287,37 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
         tresult.assert_true(x == *lbit);
     }
 }
+void test_TrieNoTran(OP::utest::TestResult &tresult)
+{
+    auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    typedef Trie<SegmentManager, double> trie_t;
+    std::map<std::string, double> standard;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    std::string rnd_buf;
+    for (auto i = 0; i < 1024; ++i)
+    {
+        tools::randomize(rnd_buf, 1023, 1);
+        //if (rnd_buf.length() > 14 * 60)
+        //{
+        //    std::uint8_t c1 = rnd_buf[0], c2 = rnd_buf[1], c3 = rnd_buf[2]; //c1 == 0x41 && c2==0x4f && c3==0x4b
+        //    atoi("78");
+        //}
+        auto b = std::begin(rnd_buf);
+        auto post = trie->insert(b, std::end(rnd_buf), (double)rnd_buf.length());
+        if (post.first)
+        {
+            standard.emplace(rnd_buf, (double)rnd_buf.length());
+        }
+    }
+    compare_containers(tresult, *trie, standard);
+    trie.reset();
+    tmngr1 = OP::trie::SegmentManager::open<SegmentManager>(test_file_name);
+    trie = trie_t::open(tmngr1);
+    //
+    compare_containers(tresult, *trie, standard);
+}
 void test_TrieSubtree(OP::utest::TestResult &tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
@@ -385,37 +416,15 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
         //std::cout << std::setfill('0') << std::setbase(16) << std::setw(2) << (unsigned)i << "\n";
     }
     compare_containers(tresult, *trie, test_values);
-}
-void test_TrieNoTran(OP::utest::TestResult &tresult)
-{
-    auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(test_file_name,
-        OP::trie::SegmentOptions()
-        .segment_size(0x110000));
-    typedef Trie<SegmentManager, double> trie_t;
-    std::map<std::string, double> standard;
-    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
-    std::string rnd_buf;
-    for (auto i = 0; i < 1024; ++i)
-    {
-        tools::randomize(rnd_buf, 1023, 1);
-        //if (rnd_buf.length() > 14 * 60)
-        //{
-        //    std::uint8_t c1 = rnd_buf[0], c2 = rnd_buf[1], c3 = rnd_buf[2]; //c1 == 0x41 && c2==0x4f && c3==0x4b
-        //    atoi("78");
-        //}
-        auto b = std::begin(rnd_buf);
-        auto post = trie->insert(b, std::end(rnd_buf), (double)rnd_buf.length());
-        if (post.first)
-        {
-            standard.emplace(rnd_buf, (double)rnd_buf.length());
-        }
-    }
-    compare_containers(tresult, *trie, standard);
-    trie.reset();
-    tmngr1 = OP::trie::SegmentManager::open<SegmentManager>(test_file_name);
-    trie = trie_t::open(tmngr1);
-    //
-    compare_containers(tresult, *trie, standard);
+    atom_string_t query1 ((const atom_t*)"a");
+    atom_string_t query2 ((const atom_t*)"ab");
+    auto container1 = trie->subrange(std::begin(query1), std::end(query1));
+    auto container2 = trie->subrange(std::begin(query2), std::end(query2));
+    auto r1 = container1.join(container2);
+    auto i1 = r1.begin();
+    tresult.assert_true(r1.in_range(i1));
+    tresult.assert_true(tools::container_equals(i1.prefix(), stems[0], &tools::sign_tolerant_cmp<atom_t>));
+
 }
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")

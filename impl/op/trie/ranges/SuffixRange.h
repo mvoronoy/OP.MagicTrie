@@ -13,6 +13,9 @@ namespace OP
 
         template <class SourceRange, class UnaryPredicate>
         struct FilteredRange;
+
+        template <class SourceRange1, class SourceRange2>
+        struct JoinRange;
         /**
         *
         */
@@ -42,8 +45,10 @@ namespace OP
             inline MappedRange<this_t, UnaryFunction> map(UnaryFunction && f) const;
             
             template <class UnaryPredicate>
-            inline FilteredRange<this_t, UnaryPredicate> filter(UnaryPredicate f) const;
+            inline FilteredRange<this_t, UnaryPredicate> filter(UnaryPredicate && f) const;
 
+            template <class OtherRange>
+            inline JoinRange<this_t, OtherRange> join(OtherRange && f) const;
         };
 
         template <class SourceRange, class UnaryFunction>
@@ -111,16 +116,33 @@ namespace OP
 
         template<class Iterator>
         template<class UnaryFunction>
-        inline MappedRange<typename SuffixRange<Iterator>::this_t, UnaryFunction> SuffixRange<Iterator>::map(UnaryFunction && f) const
+        inline MappedRange<typename SuffixRange<Iterator>, UnaryFunction> SuffixRange<Iterator>::map(UnaryFunction && f) const
         {
             return MappedRange<this_t, UnaryFunction>(*this, std::forward<UnaryFunction>(f));
         }
         template<class Iterator>
         template<class UnaryPredicate>
-        inline FilteredRange<SuffixRange<Iterator>, UnaryPredicate> SuffixRange<Iterator>::filter(UnaryPredicate f) const
+        inline FilteredRange<SuffixRange<Iterator>, UnaryPredicate> SuffixRange<Iterator>::filter(UnaryPredicate && f) const
         {
             return FilteredRange<this_t, UnaryPredicate>(*this, std::forward<UnaryPredicate>(f));
         }
+}//ns:trie
+}//ns:OP
+#include <op/trie/ranges/JoinRange.h>
+namespace OP{
+    namespace trie{
+        template<class Iterator>
+        template<class OtherRange>
+        inline JoinRange<SuffixRange<typename Iterator>, OtherRange> SuffixRange<Iterator>::join(OtherRange && other) const
+        {
+            return JoinRange<this_t, OtherRange>(
+                *this, 
+                std::forward<OtherRange>(other), 
+                [](const iterator& left, const iterator& right)->bool {
+                    return std::lexicographical_compare(left.prefix().begin(), left.prefix().end(), right.prefix().begin(), right.prefix().end());
+            });
+        }
+
 }//ns:trie
 }//ns:OP
 #endif //_OP_TRIE_RANGES_SUFFIX_RANGE__H_
