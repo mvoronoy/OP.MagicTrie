@@ -336,7 +336,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         atom_string_t test = atom_string_t(1, (std::string::value_type)i);
         decltype(test.begin()) b1;
         auto container_ptr = trie->subrange(b1 = test.begin(), test.end());
-        trie_t::iterator begin_test = container_ptr->begin();
+        trie_t::iterator begin_test = container_ptr.begin();
 
         if ((i & 1) != 0) //odd entries nust have a terminal
         {
@@ -344,10 +344,10 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
                 tools::container_equals(begin_test.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
 
             tresult.assert_true(*begin_test == (double)i);
-            container_ptr->next(begin_test);
+            container_ptr.next(begin_test);
         }
         auto a = std::begin(sorted_checks);
-        for (; container_ptr->is_end(begin_test); container_ptr->next(begin_test), ++a)
+        for (; container_ptr.in_range(begin_test); container_ptr.next(begin_test), ++a)
         {
             auto strain_str = (test + *a);
             //print_hex(std::cout << "1)", strain_str);
@@ -356,6 +356,35 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
             tresult.assert_true(*begin_test == (double)strain_str.length());
         }
     }
+}
+void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
+{
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    std::map<atom_string_t, double> test_values;
+    // Populate trie with unique strings in range from [0..255]
+    // this must cause grow of root node
+    const atom_string_t stems[] = { 
+        
+        (atom_t*)"adc", 
+        (atom_t*)"x", 
+        atom_string_t(256, 'a'),
+        atom_string_t(256, 'a') + (atom_t*)("b")
+    };
+    auto n = 0;
+    for (auto i : stems)
+    {
+        auto ins_res = trie->insert(std::begin(i), std::end(i), (double)i.length());
+        tresult.assert_true(ins_res.first);
+        tresult.assert_true(tools::container_equals(ins_res.second.prefix(), i, &tools::sign_tolerant_cmp<atom_t>));
+
+        test_values.emplace(i, (double)i.length());
+        //std::cout << std::setfill('0') << std::setbase(16) << std::setw(2) << (unsigned)i << "\n";
+    }
+    compare_containers(tresult, *trie, test_values);
 }
 void test_TrieNoTran(OP::utest::TestResult &tresult)
 {
@@ -395,5 +424,6 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     //->declare(test_TrieGrowAfterUpdate, "grow-after-update")
     ->declare(test_TrieLowerBound, "lower_bound")
     ->declare(test_TrieSubtree, "subtree of prefix")
+    ->declare(test_TrieSubtreeLambdaOperations, "lambda on subtree")
     ->declare(test_TrieNoTran, "trie no tran")
     ;
