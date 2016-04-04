@@ -16,7 +16,7 @@ namespace OP
         {
             typedef Iterator iterator;
             typedef JoinRangeIterator<Iterator, OwnerRange> this_t;
-            typedef Iterator::value_type value_type;
+            typedef typename Iterator::value_type value_type;
             friend OwnerRange;
             JoinRangeIterator(OwnerRange& owner_range, iterator left, iterator right)
                 : _owner_range(owner_range)
@@ -55,8 +55,8 @@ namespace OP
             OwnerRange& _owner_range;
             iterator _left, _right;
         };
-        template <class SourceRange1, class SourceRange2 = SourceRange1>
-        struct JoinRange : public SuffixRange< SourceRange1::iterator >
+        template <class SourceRange1, class SourceRange2>
+        struct JoinRange : public SuffixRange< typename SourceRange1::iterator >
         {
             typedef JoinRange<SourceRange1, SourceRange2> this_t;
             typedef JoinRangeIterator<typename SourceRange1::iterator, typename this_t> iterator;
