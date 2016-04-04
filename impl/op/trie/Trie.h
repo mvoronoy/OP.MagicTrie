@@ -151,16 +151,6 @@ namespace OP
                 return range_container_t( i, i_next );
             }
             
-            JoinRange<IteratorsRange<iterator> > join_subrange(IteratorsRange<iterator> r1, IteratorsRange<iterator> r2) const
-            {
-                make_func_iterator(I && i, UnaryFunction && map)
-                auto r1_length = r1.prefix().length(), r2_length = r2.prefix().length();
-                return JoinRange<Range1, Range2>(r1, r2, 
-                    [r1_length, r2_length](const iterator& left, const iterator& rigth)->bool {
-                        return std::lexicographical_compare(left.prefix().begin() + r1.le)
-                })
-            }
-
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom end) const
             {

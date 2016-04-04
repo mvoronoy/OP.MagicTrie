@@ -150,7 +150,7 @@ struct func_iterator : public std::iterator<
 >
 {
     using this_t = func_iterator<I, UnaryFunction>;
-
+    typedef typename std::result_of<UnaryFunction(typename I::value_type)>::type production_t;
     func_iterator(I base, UnaryFunction map)
         : _base(std::forward<I>(base))
         , _map(std::forward<UnaryFunction>(map))
@@ -193,9 +193,7 @@ struct func_iterator : public std::iterator<
     }
     value_type operator *() const
     {
-        auto r0 = *_base;
-        auto r1 = _map(r0);
-        return pack_to_tuple<decltype(r0), decltype(r1)>::make(std::move(r0), std::move(r1));
+        return _map(_base);
     }
     //allow compare with origin iterator
     bool operator == (const I& other) const
