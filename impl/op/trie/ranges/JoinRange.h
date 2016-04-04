@@ -56,7 +56,9 @@ namespace OP
             iterator _left, _right;
         };
         template <class SourceRange1, class SourceRange2>
-        struct JoinRange : public SuffixRange< typename SourceRange1::iterator >
+        struct JoinRange : public SuffixRange< 
+                JoinRangeIterator<typename SourceRange1::iterator, 
+                JoinRange<SourceRange1, SourceRange2> > >
         {
             typedef JoinRange<SourceRange1, SourceRange2> this_t;
             typedef JoinRangeIterator<typename SourceRange1::iterator, typename this_t> iterator;
@@ -64,9 +66,9 @@ namespace OP
             * @param iterator_comparator - binary predicate `bool(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
             */
             template <class BinaryPredicate>
-            JoinRange(SourceRange1 && r1, SourceRange2 && r2, BinaryPredicate iterator_comparator)
-                : _left(std::forward<SourceRange1>(r1))
-                , _right(std::forward<SourceRange2>(r2))
+            JoinRange(const SourceRange1 & r1, const SourceRange2 & r2, BinaryPredicate iterator_comparator)
+                : _left(r1)
+                , _right(r2)
                 , _iterator_comparator(iterator_comparator)
             {
             }
@@ -102,8 +104,8 @@ namespace OP
                 }
 
             }
-            SourceRange1 _left;
-            SourceRange2 _right;
+            const SourceRange1& _left;
+            const SourceRange2& _right;
             std::function<bool(const iterator& left, const iterator& right)> _iterator_comparator;
         };
     } //ns: trie

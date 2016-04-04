@@ -66,11 +66,11 @@ namespace OP
             /*add 2nd dimension to position, by specifying stem-length*/
             typedef std::pair<TriePosition, size_t> position2d_t;
             typedef std::vector<position2d_t> node_stack_t;
-            typedef typename Container::value_type value_type;
             node_stack_t _position_stack;
             const Container * _container;
             atom_string_t _prefix;
         public:
+            typedef typename Container::value_type value_type;
             typedef TrieIterator<Container> this_t;
 
             TrieIterator(const Container * container)
