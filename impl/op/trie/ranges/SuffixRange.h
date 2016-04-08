@@ -48,7 +48,7 @@ namespace OP
             inline FilteredRange<this_t, UnaryPredicate> filter(UnaryPredicate && f) const;
 
             template <class OtherRange>
-            inline JoinRange<this_t, OtherRange> join(OtherRange && f) const;
+            inline JoinRange<this_t, OtherRange> join(const OtherRange & f) const;
         };
 
         template <class SourceRange, class UnaryFunction>
@@ -133,11 +133,11 @@ namespace OP{
     namespace trie{
         template<class Iterator>
         template<class OtherRange>
-        inline JoinRange<SuffixRange<typename Iterator>, OtherRange> SuffixRange<Iterator>::join(OtherRange && other) const
+        inline JoinRange<SuffixRange<typename Iterator>, OtherRange> SuffixRange<Iterator>::join(const OtherRange & other) const
         {
             return JoinRange<this_t, OtherRange>(
                 *this, 
-                std::forward<OtherRange>(other), 
+                other, 
                 [](const iterator& left, const iterator& right)->bool {
                     return std::lexicographical_compare(left.prefix().begin(), left.prefix().end(), right.prefix().begin(), right.prefix().end());
             });

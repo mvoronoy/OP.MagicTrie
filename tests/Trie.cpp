@@ -417,9 +417,18 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     }
     compare_containers(tresult, *trie, test_values);
     atom_string_t query1 ((const atom_t*)"a");
-    atom_string_t query2 ((const atom_t*)"ab");
+    atom_string_t query2 ((const atom_t*)"ad");
     auto container1 = trie->subrange(std::begin(query1), std::end(query1));
+    for (auto i = container1.begin(); container1.in_range(i); container1.next(i))
+    {
+        print_hex(tresult.info(), i.prefix());
+    }
     auto container2 = trie->subrange(std::begin(query2), std::end(query2));
+    tresult.info() << "======\n";
+    for (auto i = container2.begin(); container2.in_range(i); container2.next(i))
+    {
+        print_hex(tresult.info(), i.prefix());
+    }
     auto r1 = container1.join(container2);
     auto i1 = r1.begin();
     tresult.assert_true(r1.in_range(i1));

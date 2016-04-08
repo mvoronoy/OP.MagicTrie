@@ -18,7 +18,7 @@ namespace OP
             typedef JoinRangeIterator<Iterator, OwnerRange> this_t;
             typedef typename Iterator::value_type value_type;
             friend OwnerRange;
-            JoinRangeIterator(OwnerRange& owner_range, iterator left, iterator right)
+            JoinRangeIterator(const OwnerRange& owner_range, iterator left, iterator right)
                 : _owner_range(owner_range)
                 , _left(left)
                 , _right(right)
@@ -52,13 +52,12 @@ namespace OP
                 return _right;
             }
 
-            OwnerRange& _owner_range;
+            const OwnerRange& _owner_range;
             iterator _left, _right;
         };
         template <class SourceRange1, class SourceRange2>
         struct JoinRange : public SuffixRange< 
-                JoinRangeIterator<typename SourceRange1::iterator, 
-                JoinRange<SourceRange1, SourceRange2> > >
+                JoinRangeIterator<typename SourceRange1::iterator, JoinRange<SourceRange1, SourceRange2> > >
         {
             typedef JoinRange<SourceRange1, SourceRange2> this_t;
             typedef JoinRangeIterator<typename SourceRange1::iterator, typename this_t> iterator;
@@ -81,7 +80,7 @@ namespace OP
             }
             bool in_range(const iterator& check) const override
             {
-                return !_left.is_end(check.left()) && !_right.is_end(check.right());
+                return _left.in_range(check.left()) && _right.in_range(check.right());
             }
             void next(iterator& pos) const override
             {
@@ -106,7 +105,9 @@ namespace OP
             }
             const SourceRange1& _left;
             const SourceRange2& _right;
-            std::function<bool(const iterator& left, const iterator& right)> _iterator_comparator;
+            typedef typename SourceRange1::iterator i1;
+            typedef typename SourceRange2::iterator i2;
+            const std::function<bool(const i1&, const i2&)> _iterator_comparator;
         };
     } //ns: trie
 } //ns: OP
