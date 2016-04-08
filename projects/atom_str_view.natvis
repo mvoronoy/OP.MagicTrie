@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010"> 
+
+
+  <Type Name="std::basic_string&lt;unsigned char,std::char_traits&lt;unsigned char&gt;,std::allocator&lt;unsigned char&gt; &gt;">
+    <DisplayString Condition="_Mypair._Myval2._Myres &lt; _Mypair._Myval2._BUF_SIZE">{_Mypair._Myval2._Bx._Buf,s32}</DisplayString>
+    <DisplayString Condition="_Mypair._Myval2._Myres &gt;= _Mypair._Myval2._BUF_SIZE">{_Mypair._Myval2._Bx._Ptr,s32}</DisplayString>
+    <StringView Condition="_Mypair._Myval2._Myres &lt; _Mypair._Myval2._BUF_SIZE">_Mypair._Myval2._Bx._Buf,s32</StringView>
+    <StringView Condition="_Mypair._Myval2._Myres &gt;= _Mypair._Myval2._BUF_SIZE">_Mypair._Myval2._Bx._Ptr,s32</StringView>
+    <Expand>
+      <Item Name="[size]" ExcludeView="simple">_Mypair._Myval2._Mysize</Item>
+      <Item Name="[capacity]" ExcludeView="simple">_Mypair._Myval2._Myres</Item>
+      <Item Name="[allocator]" ExcludeView="simple">_Mypair</Item>
+      <ArrayItems>
+        <Size>_Mypair._Myval2._Mysize</Size>
+        <ValuePointer Condition="_Mypair._Myval2._Myres &lt; _Mypair._Myval2._BUF_SIZE">_Mypair._Myval2._Bx._Buf</ValuePointer>
+        <ValuePointer Condition="_Mypair._Myval2._Myres &gt;= _Mypair._Myval2._BUF_SIZE">_Mypair._Myval2._Bx._Ptr</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  
+</AutoVisualizer>

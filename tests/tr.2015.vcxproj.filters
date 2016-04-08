@@ -153,4 +153,7 @@
       <UniqueIdentifier>{44b1ef9b-5a05-4ecc-a162-ad7d03940ef9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\projects\atom_str_view.natvis" />
+  </ItemGroup>
 </Project>
