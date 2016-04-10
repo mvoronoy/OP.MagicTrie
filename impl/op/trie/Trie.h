@@ -136,17 +136,17 @@ namespace OP
                 if (begin != aend) //no such prefix
                     return range_container_t(end(), end());
                 auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
-                auto i = std::move(tuple_ref<iterator>(pref_res));
+                auto& i = tuple_ref<iterator>(pref_res);
                 //find next position that doesn't matches to prefix
                 if (kind == stem::StemCompareResult::equals) //prefix matches to existing terminal
                 {
                     auto n = view<node_t>(*_topology_ptr, i.back().first.address());
-                    auto beg = i;
+                    auto beg = i; //use copy
                     assert(_begin(n, beg, false));
                     return range_container_t(i, beg);
                 }
                 //
-                auto i_next = i;
+                auto i_next = i; //use copy
                 next(i_next);
                 return range_container_t( i, i_next );
             }
@@ -369,7 +369,7 @@ namespace OP
                     atom_t key = *begin;
                     auto & result_iter = tuple_ref<iterator>(retval);
                     auto nav_res = node->navigate_over(*_topology_ptr, begin, end, &result_iter);
-                    if (result_iter.deep() > 0)
+                    if (result_iter.deep() > 0) //!!!!!!!!!!!!!@@@@@@@@@@@ <=============
                     {
                         auto &ibac = result_iter.back();
                         ibac.first._node_addr = node_addr;  //need correct address since navigate_over cannot set it
@@ -414,8 +414,14 @@ namespace OP
                 navigator_t& pos = dest.back().first;
                 assert(pos.key() < (dim_t)containers::HashTableCapacity::_256);
                 //eval hashed index of key
-                auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.key()); 
+                auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.key());
+                assert(ridx < (dim_t)containers::HashTableCapacity::_256);
+                if (!ro_node->stems.is_nil())
+                {
+                    auto l = _stem_mngr.stem_length(ro_node->stems, (atom_t)ridx);
 
+                }
+                
                 auto values = _value_mngr.view(ro_node->payload, ro_node->capacity);
                 auto &v = values[ridx];
                 return std::make_tuple(v.has_data(), v.has_child(), v.get_child());

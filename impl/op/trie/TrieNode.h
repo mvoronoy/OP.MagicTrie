@@ -67,6 +67,31 @@ namespace OP
                 : version(0)
             {
             }
+            struct nav_result_t
+            {
+                nav_result_t()
+                    : compare_result{ stem::StemCompareResult::unequals }
+                    , overlapped{ 0 }
+                    , stem_rest{ 0 }
+                {}
+
+                nav_result_t(stem::StemCompareResult a_compare_result, dim_t a_overlapped, 
+                    FarAddress a_child_node = FarAddress(), dim_t a_stem_rest = 0)
+                    : compare_result{a_compare_result}
+                    , overlapped{ a_overlapped }
+                    , child_node{ a_child_node }
+                    , stem_rest{ a_stem_rest }
+                {}
+
+                /** result of comare string with node */
+                stem::StemCompareResult compare_result;
+                /** length of overlaped part of string with node*/
+                dim_t overlapped;
+                /**address of further children to continue navigation*/
+                FarAddress child_node;
+                /**how many bytes left in the node after string exhausted */
+                dim_t stem_rest;
+            };
             /**
             * @para track_back - optional pointer to iterator that is populated at exit. NOTE!! node has
             *                   no information about address, so modify it at exit to reflect correct value
@@ -83,36 +108,48 @@ namespace OP
                 assert(begin != end);
                 auto key = static_cast<atom_t>(*begin);
                 if (!presence.get(key)) //no such entry at all
-                    return std::make_tuple(stem::StemCompareResult::unequals, 0, FarAddress());
+                    return nav_result_t();
                 //else detect how long common part is
                 ++begin; //first letter concidered in `presence`
                 auto origin_begin = begin;
 
                 atom_t index = this->reindex(topology, key);
-                
-                if (!stems.is_null() && begin != end)
-                {//let's cut prefix from stem container
+                stem::StemCompareResult unprocessed_result = stem::StemCompareResult::equals;
+                if (!stems.is_null())
+                { //there is a stem
                     stem::StemStore<TSegmentTopology> stem_manager(topology);
-                    
-                    auto prefix_info = stem_manager.prefix_of(stems, index, begin, end);
-                    tuple_ref<dim_t>(prefix_info)++;//increase length of common string, because of ++begin
-                    if (track_back)
+                    if (begin != end)//string is not over 
+                    {//let's cut prefix from stem container
+
+                        auto prefix_info = stem_manager.prefix_of(stems, index, begin, end);
+                        tuple_ref<dim_t>(prefix_info)++;//increase length of common string, because of ++begin
+
+                        nav_result_t retval(std::get<0>(prefix_info), std::get<1>(prefix_info));
+                        if (track_back)
+                        {
+                            TriePosition pos(FarAddress(),//must be populated after exit 
+                                this->uid, key, this->version);
+                            track_back->emplace(std::move(pos), origin_begin, begin);
+                        }
+                        if (retval.compare_result == stem::StemCompareResult::stem_end)
+                        { //stem ended, this mean either this is terminal or reference to other node
+                            value_manager_t value_manager(topology);
+                            auto& v = value_manager.view(payload, (dim_t)capacity)[index];
+                            assert(v.has_child() || v.has_data()); //otherwise Trie is corrupted
+                            retval.child_node = v.get_child();
+                            return retval;
+                        }
+                        //there since nav_type == string_end || nav_type == equals || nav_type == unequals
+                        return retval/*no ref-down*/;
+                    }
+                    else //there is a stem, but source string is over (begin==end)
                     {
-                        TriePosition pos(FarAddress(),//must be populated after exit 
-                            this->uid, key, this->version);
-                        track_back->emplace(std::move(pos), origin_begin, begin);
+                        retval.compare_result = stem_manager.stem_length(stems, index) > 0
+                            ? stem::StemCompareResult::string_end
+                            : stem::StemCompareResult::equals;
+                            
                     }
-                    auto nav_type = tuple_ref<stem::StemCompareResult>(prefix_info);
-                    if (nav_type == stem::StemCompareResult::stem_end)
-                    { //stem ended, this mean either this is terminal or reference to other node
-                        value_manager_t value_manager(topology);
-                        auto& v = value_manager.view(payload, (dim_t)capacity)[index];
-                        assert(v.has_child() || v.has_data()); //otherwise Trie is corrupted
-                        return std::tuple_cat(prefix_info, std::make_tuple(v.get_child()));
-                    }
-                    //there since nav_type == string_end || nav_type == equals || nav_type == unequals
-                    return std::tuple_cat(prefix_info, std::make_tuple(FarAddress(/*no ref-down*/)));
-                }
+                }// end checking stem container
                 //no stems, just follow down
                 assert(!payload.is_null());
                 if (track_back)
@@ -123,8 +160,8 @@ namespace OP
                 }
                 value_manager_t value_manager(topology);
                 auto& term = value_manager.view(payload, (dim_t)capacity)[index];
-                return std::make_tuple(
-                    (begin == end) ? stem::StemCompareResult::equals : stem::StemCompareResult::stem_end,
+                return nav_result_t(
+                    (begin == end) ? unprocessed_result : stem::StemCompareResult::stem_end,
                     dim_t{ 1 },
                     (begin == end) ? FarAddress() : term.get_child()
                     );

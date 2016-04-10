@@ -295,6 +295,7 @@ namespace OP
                     const atom_t * begin = f_str;
                     callback(begin, begin + data_header->stem_length[key], *data_header);
                 }
+                /** access stem for writing */
                 template <class FBack>
                 void stemw(const ref_stems_t& st_address, atom_t key, FBack& callback) const
                 {
@@ -307,6 +308,13 @@ namespace OP
                     auto f_str = array_view<atom_t>(_topology, address, data_header->height);
                     const atom_t * begin = f_str;
                     callback(begin, begin + data_header->stem_length[key], *data_header);
+                }
+                inline dim_t stem_length(const ref_stems_t& st_address, atom_t key) const
+                {
+                    //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
+                    auto ro_access =
+                        view<StemData>(_topology, st_address.address);
+                    return ro_access->stem_length[key];
                 }
                 struct MoveProcessor
                 {
