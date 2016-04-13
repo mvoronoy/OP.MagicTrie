@@ -155,19 +155,20 @@ namespace OP
             iterator lower_bound(Atom& begin, Atom end) const
             {
                 auto pref_res = common_prefix(begin, end);
-                auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
-                if (kind == stem::StemCompareResult::equals //exact match
-                    || kind == stem::StemCompareResult::string_end //lower bound
+                
+                auto &nav_res = std::get<0>(pref_res);
+                auto &iter = std::get<1>(pref_res);
+                if (nav_res.compare_result == stem::StemCompareResult::equals //exact match
                     )
-                    return tuple_ref<iterator>(pref_res);
-                if (kind == stem::StemCompareResult::stem_end || 
-                    (kind==stem::StemCompareResult::unequals && !tuple_ref<iterator>(pref_res).is_end())
-                    )
+                    return iter;
+                if (nav_res.compare_result == stem::StemCompareResult::unequals && iter.is_end())
                 {
-                    next(tuple_ref<iterator>(pref_res));
-                    return tuple_ref<iterator>(pref_res);
+                    return iterator()
                 }
-                return iterator();// StemCompareResult::unequals or StemCompareResult::stem_end 
+                //when: stem::StemCompareResult::stem_end || stem::StemCompareResult::string_end ||
+                //   ( stem::StemCompareResult::unequals && !iter.is_end())
+                next(iter);
+                return tuple_ref<iterator>(pref_res);
             }
             template <class Atom>
             iterator find(Atom& begin, Atom end) const
@@ -219,29 +220,28 @@ namespace OP
 
                     atom_t key = *begin;
                     auto nav_res = node->navigate_over(*_topology_ptr, begin, end, &result.second);
-                    switch (tuple_ref<stem::StemCompareResult>(nav_res))
+                    switch (nav_res.compare_result)
                     {
                     case stem::StemCompareResult::equals:
                         op_g.rollback();
                         return result; //dupplicate found
                     case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
                     {
-                        auto next_addr = tuple_ref<FarAddress>(nav_res);
-                        if (next_addr.address == SegmentDef::far_null_c)
+                        node_addr = nav_res.child_node;
+                        if (node_addr.address == SegmentDef::far_null_c)
                         {  //no way down
-                            next_addr = new_node();
+                            node_addr = new_node();
                             auto wr_node_block =
                                 _topology_ptr->segment_manager().upgrade_to_writable_block(node);
                             auto wr_node = wr_node_block.at<node_t>(0);
-                            wr_node->set_child(*_topology_ptr, key, next_addr);
+                            wr_node->set_child(*_topology_ptr, key, node_addr);
                         }
-                        node_addr = next_addr;
                         break;
                     }
                     case stem::StemCompareResult::string_end:
                     {
                         //terminal is not there, otherwise it would be StemCompareResult::equals
-                        auto wr_node = tuple_ref<node_t*>(diversificate(node, key, tuple_ref<dim_t>(nav_res)));
+                        auto wr_node = tuple_ref<node_t*>(diversificate(node, key, nav_res.overlapped));
                         wr_node->set_value(*_topology_ptr, key, std::forward<Payload>(value));
                         op_g.commit();
                         result.first = true;
@@ -249,7 +249,6 @@ namespace OP
                     }
                     case stem::StemCompareResult::unequals:
                     {
-                        auto in_stem_pos = tuple_ref<dim_t>(nav_res);
                         if (origin_begin == begin)//no such entry at all
                         {
                             auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
@@ -272,7 +271,7 @@ namespace OP
                         }
                         else //entry in this node should be splitted on 2
                             node_addr = tuple_ref<FarAddress>(
-                                diversificate(node, key, in_stem_pos-1));
+                                diversificate(node, key, nav_res.overlapped - 1));
                         //continue in another node
                         break;
                     }
@@ -353,12 +352,13 @@ namespace OP
             }
             /**Return not fully valid iterator that matches common part specified by [begin, end)*/
             template <class Atom>
-            std::tuple<stem::StemCompareResult, iterator> common_prefix(Atom& begin, Atom end) const
+            std::tuple<typename node_t::nav_result_t, iterator> common_prefix(Atom& begin, Atom end) const
             {
-                auto retval = std::make_tuple(stem::StemCompareResult::unequals, iterator(this));
+                auto retval = std::make_tuple(node_t::nav_result_t(), iterator(this));
                 if (end == begin)
                     return retval;
-                
+                auto & nav_res = tuple_ref< typename node_t::nav_result_t>(retval);
+                auto & result_iter = tuple_ref<iterator>(retval);
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 for (;;)
@@ -367,19 +367,18 @@ namespace OP
                         view<node_t>(*_topology_ptr, node_addr);
 
                     atom_t key = *begin;
-                    auto & result_iter = tuple_ref<iterator>(retval);
-                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end, &result_iter);
-                    if (result_iter.deep() > 0) //!!!!!!!!!!!!!@@@@@@@@@@@ <=============
-                    {
+                    nav_res = node->navigate_over(*_topology_ptr, begin, end, &result_iter);
+                    if (result_iter.deep() > 0) //test that iterator is not the `end()`
+                    { 
                         auto &ibac = result_iter.back();
                         ibac.first._node_addr = node_addr;  //need correct address since navigate_over cannot set it
-                        ibac.second = tuple_ref<dim_t>(nav_res);
+                        ibac.second = nav_res.overlapped;
                     }
-                    tuple_ref<stem::StemCompareResult>(retval) = tuple_ref<stem::StemCompareResult>(nav_res);
+                    
                     // all cases excluding stem::StemCompareResult::stem_end mean that need return current iterator state
-                    if(stem::StemCompareResult::stem_end == tuple_ref<stem::StemCompareResult>(nav_res))
+                    if(stem::StemCompareResult::stem_end == nav_res.compare_result)
                     {
-                        node_addr = tuple_ref<FarAddress>(nav_res);
+                        node_addr = nav_res.child_node;
                         if (node_addr.address == SegmentDef::far_null_c)
                         {  //no way down, it is not valid result!!!!
                             return retval; //@! it is prefix that is not satisfied lower_bound
@@ -391,16 +390,15 @@ namespace OP
                 } //for(;;)
                 return retval;
             }
+            /**If iterator has been stopped inside stem then it should be positioned at stem end*/
+            void normalize_iterator(const typename node_t::nav_result_t& nav, iterator& i) const
+            {
+
+            }
             void sync_iterator(iterator & it) const
             {
 
             }
-            enum enter_resul_t
-            {
-                no_way,
-                continue_further,
-                terminal
-            };
             /**
             * @return   
             * \li get<0> - true if back of iterator contains data (terminal)
@@ -416,11 +414,6 @@ namespace OP
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.key());
                 assert(ridx < (dim_t)containers::HashTableCapacity::_256);
-                if (!ro_node->stems.is_nil())
-                {
-                    auto l = _stem_mngr.stem_length(ro_node->stems, (atom_t)ridx);
-
-                }
                 
                 auto values = _value_mngr.view(ro_node->payload, ro_node->capacity);
                 auto &v = values[ridx];

@@ -100,33 +100,32 @@ namespace OP
             *   \li get<2> address of further children to continue navigation
             */
             template <class TSegmentTopology, class Atom, class Iterator>
-            std::tuple<stem::StemCompareResult, dim_t, FarAddress> navigate_over(
+            nav_result_t navigate_over(
                 TSegmentTopology& topology, Atom& begin, Atom end, Iterator* track_back = nullptr) const
             {
                 typedef ValueArrayManager<TSegmentTopology, payload_t> value_manager_t;
 
                 assert(begin != end);
                 auto key = static_cast<atom_t>(*begin);
+                nav_result_t retval;
                 if (!presence.get(key)) //no such entry at all
-                    return nav_result_t();
+                    return retval;
                 //else detect how long common part is
                 ++begin; //first letter concidered in `presence`
                 auto origin_begin = begin;
 
                 atom_t index = this->reindex(topology, key);
-                stem::StemCompareResult unprocessed_result = stem::StemCompareResult::equals;
+                retval.compare_result = stem::StemCompareResult::equals;
                 if (!stems.is_null())
                 { //there is a stem
                     stem::StemStore<TSegmentTopology> stem_manager(topology);
                     if (begin != end)//string is not over 
                     {//let's cut prefix from stem container
 
-                        auto prefix_info = stem_manager.prefix_of(stems, index, begin, end);
-                        tuple_ref<dim_t>(prefix_info)++;//increase length of common string, because of ++begin
-
-                        nav_result_t retval(std::get<0>(prefix_info), std::get<1>(prefix_info));
+                        std::tie(retval.compare_result, retval.overlapped) = stem_manager.prefix_of(stems, index, begin, end);
+                        retval.overlapped++;//increase length of common string, because of ++begin
                         if (track_back)
-                        {
+                        { //optional iterator has been specified, so populate it
                             TriePosition pos(FarAddress(),//must be populated after exit 
                                 this->uid, key, this->version);
                             track_back->emplace(std::move(pos), origin_begin, begin);
@@ -144,7 +143,9 @@ namespace OP
                     }
                     else //there is a stem, but source string is over (begin==end)
                     {
-                        retval.compare_result = stem_manager.stem_length(stems, index) > 0
+                        auto stem_length = stem_manager.stem_length(stems, index);
+                        retval.stem_rest = stem_length; //how many bytes left in stem
+                        retval.compare_result = stem_length > 0
                             ? stem::StemCompareResult::string_end
                             : stem::StemCompareResult::equals;
                             
@@ -160,11 +161,14 @@ namespace OP
                 }
                 value_manager_t value_manager(topology);
                 auto& term = value_manager.view(payload, (dim_t)capacity)[index];
-                return nav_result_t(
-                    (begin == end) ? unprocessed_result : stem::StemCompareResult::stem_end,
-                    dim_t{ 1 },
-                    (begin == end) ? FarAddress() : term.get_child()
-                    );
+                retval.overlapped = 1;
+                if (begin != end)
+                {
+                    retval.compare_result = stem::StemCompareResult::stem_end;
+                    retval.child_node = term.get_child();
+                }
+                
+                return retval;
             }
             
             
