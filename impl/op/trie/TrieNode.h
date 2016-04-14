@@ -90,7 +90,7 @@ namespace OP
                 /**address of further children to continue navigation*/
                 FarAddress child_node;
                 /**how many bytes left in the node after string exhausted */
-                dim_t stem_rest;
+                atom_string_t stem_rest;
             };
             /**
             * @para track_back - optional pointer to iterator that is populated at exit. NOTE!! node has
@@ -112,6 +112,7 @@ namespace OP
                     return retval;
                 //else detect how long common part is
                 ++begin; //first letter concidered in `presence`
+                ++retval.overlapped;//increase length of common string, because of ++begin
                 auto origin_begin = begin;
 
                 atom_t index = this->reindex(topology, key);
@@ -119,11 +120,10 @@ namespace OP
                 if (!stems.is_null())
                 { //there is a stem
                     stem::StemStore<TSegmentTopology> stem_manager(topology);
-                    if (begin != end)//string is not over 
+                    //if (begin != end)//string is not over 
                     {//let's cut prefix from stem container
 
-                        std::tie(retval.compare_result, retval.overlapped) = stem_manager.prefix_of(stems, index, begin, end);
-                        retval.overlapped++;//increase length of common string, because of ++begin
+                        std::tie(retval.compare_result, retval.overlapped) = stem_manager.prefix_of(stems, index, begin, end, &retval.stem_rest);
                         if (track_back)
                         { //optional iterator has been specified, so populate it
                             TriePosition pos(FarAddress(),//must be populated after exit 
@@ -141,15 +141,15 @@ namespace OP
                         //there since nav_type == string_end || nav_type == equals || nav_type == unequals
                         return retval/*no ref-down*/;
                     }
-                    else //there is a stem, but source string is over (begin==end)
-                    {
-                        auto stem_length = stem_manager.stem_length(stems, index);
-                        retval.stem_rest = stem_length; //how many bytes left in stem
-                        retval.compare_result = stem_length > 0
-                            ? stem::StemCompareResult::string_end
-                            : stem::StemCompareResult::equals;
-                            
-                    }
+                    //else //there is a stem, but source string is over (begin==end)
+                    //{
+                    //    auto stem_length = stem_manager.stem_length(stems, index, );
+                    //    retval.stem_rest = stem_length; //how many bytes left in stem
+                    //    retval.compare_result = stem_length > 0
+                    //        ? stem::StemCompareResult::string_end
+                    //        : stem::StemCompareResult::equals;
+                    //        
+                    //}
                 }// end checking stem container
                 //no stems, just follow down
                 assert(!payload.is_null());

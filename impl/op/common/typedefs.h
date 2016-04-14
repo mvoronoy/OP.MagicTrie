@@ -4,6 +4,7 @@
 #include <cassert>
 #include <limits>
 #include <cstddef>
+#include <string>
 
 #define OP_EMPTY_ARG
 #ifdef _MSC_VER
@@ -26,6 +27,7 @@ namespace OP
     {
         typedef std::uint8_t atom_t;
         typedef std::pair<bool, atom_t> nullable_atom_t;
+        typedef std::basic_string<atom_t> atom_string_t;
         typedef std::uint16_t dim_t;
         typedef std::uint_fast16_t fast_dim_t;
         enum : dim_t

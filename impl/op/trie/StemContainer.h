@@ -226,36 +226,32 @@ namespace OP
                 }
                 /**
                 *   Detect substr contained in stem. 
+                * @param rest_of_str - optional string that is poupalated when return StemCompareResult::string_end - that means tail of string that goes after common part
                 * @return pair of comparison result and length of overlapped string.
+                *
                 */
                 template <class T>
-                inline std::tuple<StemCompareResult, dim_t> prefix_of(const ref_stems_t& st_address, atom_t key, T& begin, T end) const
+                inline std::tuple<StemCompareResult, dim_t> prefix_of(const ref_stems_t& st_address, atom_t key, T& begin, T end, atom_string_t * rest_of_str = nullptr) const
                 {
-                    //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
-                    auto ro_access = 
-                        view<StemData>(_topology, st_address.address);
-                    auto &data_header = *ro_access;
-
-                    assert(key < data_header.width);
-                    assert(begin != end);
-                    auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header.height * key };
-                    auto str_block = _topology.segment_manager().readonly_block(address, sizeof(atom_t)*data_header.height);
-                    auto f_str = str_block.at<atom_t>(0);
-                    dim_t i = 0;
-                    auto stem_len = data_header.stem_length[key];
-                    for (; i < stem_len && begin != end; ++i, ++begin)
-                    {
-                        if (f_str[i] != *begin)
-                        { //difference in sequence mean that stem should be splitted
-                            return std::make_tuple(StemCompareResult::unequals, i);
+                    auto result = std::make_tuple(StemCompareResult::unequals, 0);
+                    stem(st_address, key, [&](const atom_t *f_str, const atom_t *f_str_end, const StemData& stem_header) {
+                        for (; f_str != f_str_end && begin != end; ++std::get<1>(result), ++begin, ++f_str)
+                        {
+                            if (*f_str != *begin)
+                            { //difference in sequence mean that stem should be splitted
+                                return;//stop at: tuple(StemCompareResult::unequals, i);
+                            }
                         }
-                    }
-                    return std::make_tuple(
-                        i < stem_len
-                        ? (StemCompareResult::string_end)
-                        : (begin == end ? StemCompareResult::equals : StemCompareResult::stem_end)
-                        , i);
+                        //correct result type as one of string_end, equals, stem_end
+                        std::get<0>(result) = f_str != f_str_end
+                            ? (StemCompareResult::string_end)
+                            : (begin == end ? StemCompareResult::equals : StemCompareResult::stem_end);
+                        if (rest_of_str)
+                        {
+                            rest_of_str->append(f_str, f_str_end);
+                        }
+                    });
+                    return result;
                 }
                 /**Cut already existing string*/
                 inline void trunc_str(const ref_stems_t& st_address, atom_t key, dim_t shorten) const
