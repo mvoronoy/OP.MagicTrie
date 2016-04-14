@@ -135,10 +135,10 @@ namespace OP
                 auto pref_res = common_prefix(begin, aend);
                 if (begin != aend) //no such prefix
                     return range_container_t(end(), end());
-                auto kind = tuple_ref<stem::StemCompareResult>(pref_res);
+                auto nav = tuple_ref<typename node_t::nav_result_t>(pref_res);
                 auto& i = tuple_ref<iterator>(pref_res);
                 //find next position that doesn't matches to prefix
-                if (kind == stem::StemCompareResult::equals) //prefix matches to existing terminal
+                if (nav.compare_result == stem::StemCompareResult::equals) //prefix matches to existing terminal
                 {
                     auto n = view<node_t>(*_topology_ptr, i.back().first.address());
                     auto beg = i; //use copy
@@ -163,7 +163,7 @@ namespace OP
                     return iter;
                 if (nav_res.compare_result == stem::StemCompareResult::unequals && iter.is_end())
                 {
-                    return iterator()
+                    return iterator();
                 }
                 //when: stem::StemCompareResult::stem_end || stem::StemCompareResult::string_end ||
                 //   ( stem::StemCompareResult::unequals && !iter.is_end())
