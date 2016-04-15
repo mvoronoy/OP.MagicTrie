@@ -138,12 +138,16 @@ namespace OP
                 auto nav = tuple_ref<typename node_t::nav_result_t>(pref_res);
                 auto& i = tuple_ref<iterator>(pref_res);
                 //find next position that doesn't matches to prefix
-                if (nav.compare_result == stem::StemCompareResult::equals) //prefix matches to existing terminal
+                if (nav.compare_result == stem::StemCompareResult::equals) //prefix fully matches to existing terminal
                 {
                     auto n = view<node_t>(*_topology_ptr, i.back().first.address());
                     auto beg = i; //use copy
                     assert(_begin(n, beg, false));
                     return range_container_t(i, beg);
+                }
+                if (nav.compare_result == stem::StemCompareResult::string_end) //prefix partially matches to some prefix
+                { //correct string at back of iterator
+                    i.correct_suffix(nav.stem_rest.begin(), nav.stem_rest.end());
                 }
                 //
                 auto i_next = i; //use copy

@@ -9,6 +9,7 @@ namespace OP
 {
     namespace trie
     {
+        typedef std::basic_string<atom_t> atom_string_t;
         
         struct TriePosition
         {
@@ -168,6 +169,16 @@ namespace OP
                 auto cut_len = _position_stack.back().second;
                 _prefix.resize(_prefix.length() - cut_len);
                 _position_stack.pop_back();
+            }
+            template <class Iterator>
+            void correct_suffix(Iterator& new_suffix_begin, Iterator& new_suffix_end)
+            {
+                auto cut_len = _position_stack.back().second;
+                //_prefix.replace(_prefix.length() - cut_len, cut_len);
+                auto l = _prefix.length();
+                _prefix.append(new_suffix_begin, new_suffix_end);
+                _position_stack.back().second += (_prefix.length() - l);
+                //_position_stack.pop_back();
             }
             size_t deep() const
             {

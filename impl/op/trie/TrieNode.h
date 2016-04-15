@@ -85,11 +85,11 @@ namespace OP
 
                 /** result of comare string with node */
                 stem::StemCompareResult compare_result;
-                /** length of overlaped part of string with node*/
+                /** length of overlaped (equal) part of string with node*/
                 dim_t overlapped;
                 /**address of further children to continue navigation*/
                 FarAddress child_node;
-                /**how many bytes left in the node after string exhausted */
+                /** bytes that left in the node after string exhausted */
                 atom_string_t stem_rest;
             };
             /**
