@@ -9,7 +9,14 @@ namespace OP
     namespace trie
     {
         struct EmptyPayload{};
-
+        
+        enum Terminality: std::uint8_t
+        {
+            term_no = 0,
+            term_has_child = 0x1,
+            term_has_data = 0x2
+        };
+        
         template <class Payload>
         struct ValueArrayData
         {
@@ -23,7 +30,7 @@ namespace OP
                 , data(std::move(other.data)) //in hope that payload supports move
                 , presence(other.presence)
             {
-                other.presence = no_data_c; //clear previous
+                other.presence = term_no; //clear previous
             }
             ValueArrayData(const this_t & other) OP_NOEXCEPT
                 : child(other.child)
@@ -34,69 +41,62 @@ namespace OP
             ValueArrayData(payload_t && apayload = payload_t()) OP_NOEXCEPT
                 : child(SegmentDef::far_null_c)
                 , data(std::forward<payload_t>(apayload))
-                , presence(no_data_c)
+                , presence(term_no)
             {}
             ValueArrayData& operator = (this_t && other) OP_NOEXCEPT
             {
                 child = other.child;
                 data = std::move(other.data); //in hope that payload supports move
                 presence = other.presence;
-                other.presence = no_data_c; //clear previous
+                other.presence = term_no; //clear previous
                 return *this;
             }
             void clear()
             {
                 data.~Payload();
                 child = FarAddress();
-                presence = no_data_c;
+                presence = term_no;
             }
             FarAddress get_child() const
             {
-                return presence & has_child_c ? child : FarAddress();
+                return presence & term_has_child ? child : FarAddress();
             }
-            /**Set new child. This method also modifies flag #has_child_c if address is not SegmentDef::far_null_c */
+            /**Set new child. This method also modifies flag #term_has_child if address is not SegmentDef::far_null_c */
             void set_child(FarAddress address) 
             {
                 if (address.address == SegmentDef::far_null_c)
                 {
-                    presence &= ~has_child_c;
+                    presence &= ~term_has_child;
                 }
                 else
                 {
-                    presence |= has_child_c;
+                    presence |= term_has_child;
                 }
                 child = address;
             }
-            /**Set new value. This method also uncodintionally modifies flag #has_data_c. To clear data use #clear_data() */
+            /**Set new value. This method also uncodintionally modifies flag #term_has_data. To clear data use #clear_data() */
             void set_data(payload_t && apayload)
             {
                 data = std::move(apayload);
-                presence |= has_data_c;
+                presence |= term_has_data;
             }
             void clear_data()
             {
-                presence &= ~has_data_c;
+                presence &= ~term_has_data;
             }
 
             bool has_child() const
             {
-                return 0 != (presence & has_child_c);
+                return 0 != (presence & term_has_child);
             }
             bool has_data() const
             {
-                return 0 != (presence & has_data_c);
+                return 0 != (presence & term_has_data);
             }
-
-            enum : std::uint8_t
-            {
-                no_data_c   = 0,
-                has_child_c = 0x1,
-                has_data_c  = 0x2
-            };
 
             /**Reference to dependent children*/
             FarAddress child;
-            std::uint8_t presence;
+            Terminality presence;
             Payload data;
         };
 

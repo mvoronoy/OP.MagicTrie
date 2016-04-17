@@ -71,22 +71,18 @@ namespace OP
             {
                 nav_result_t()
                     : compare_result{ stem::StemCompareResult::unequals }
-                    , overlapped{ 0 }
                     , stem_rest{ 0 }
                 {}
 
-                nav_result_t(stem::StemCompareResult a_compare_result, dim_t a_overlapped, 
+                nav_result_t(stem::StemCompareResult a_compare_result, 
                     FarAddress a_child_node = FarAddress(), dim_t a_stem_rest = 0)
                     : compare_result{a_compare_result}
-                    , overlapped{ a_overlapped }
                     , child_node{ a_child_node }
                     , stem_rest{ a_stem_rest }
                 {}
 
                 /** result of comare string with node */
                 stem::StemCompareResult compare_result;
-                /** length of overlaped (equal) part of string with node*/
-                dim_t overlapped;
                 /**address of further children to continue navigation*/
                 FarAddress child_node;
                 /** bytes that left in the node after string exhausted */
@@ -101,7 +97,7 @@ namespace OP
             */
             template <class TSegmentTopology, class Atom, class Iterator>
             nav_result_t navigate_over(
-                TSegmentTopology& topology, Atom& begin, Atom end, Iterator* track_back = nullptr) const
+                TSegmentTopology& topology, Atom& begin, Atom end, Iterator& track_back ) const
             {
                 typedef ValueArrayManager<TSegmentTopology, payload_t> value_manager_t;
 
@@ -112,34 +108,36 @@ namespace OP
                     return retval;
                 //else detect how long common part is
                 ++begin; //first letter concidered in `presence`
-                ++retval.overlapped;//increase length of common string, because of ++begin
                 auto origin_begin = begin;
 
                 atom_t index = this->reindex(topology, key);
+                value_manager_t value_manager(topology);
+                auto& term = value_manager.view(payload, (dim_t)capacity)[index];
+                TriePosition pos(FarAddress(),//must be populated after exit 
+                    this->uid, key, 1, this->version);
+
                 retval.compare_result = stem::StemCompareResult::equals;
                 if (!stems.is_null())
                 { //there is a stem
                     stem::StemStore<TSegmentTopology> stem_manager(topology);
                     //if (begin != end)//string is not over 
                     {//let's cut prefix from stem container
+                        dim_t deep = 0;
+                        std::tie(retval.compare_result, deep) = stem_manager.prefix_of(stems, index, begin, end, &retval.stem_rest);
+                        pos._deep += deep;
 
-                        std::tie(retval.compare_result, retval.overlapped) = stem_manager.prefix_of(stems, index, begin, end, &retval.stem_rest);
-                        if (track_back)
-                        { //optional iterator has been specified, so populate it
-                            TriePosition pos(FarAddress(),//must be populated after exit 
-                                this->uid, key, this->version);
-                            track_back->emplace(std::move(pos), origin_begin, begin);
-                        }
                         if (retval.compare_result == stem::StemCompareResult::stem_end)
                         { //stem ended, this mean either this is terminal or reference to other node
-                            value_manager_t value_manager(topology);
-                            auto& v = value_manager.view(payload, (dim_t)capacity)[index];
-                            assert(v.has_child() || v.has_data()); //otherwise Trie is corrupted
-                            retval.child_node = v.get_child();
-                            return retval;
+                            assert(term.has_child() || term.has_data()); //otherwise Trie is corrupted
+                            retval.child_node = term.get_child();
+                            pos._terminality = term.presence;
                         }
-                        //there since nav_type == string_end || nav_type == equals || nav_type == unequals
-                        return retval/*no ref-down*/;
+                        else if (retval.compare_result == stem::StemCompareResult::equals)
+                        {
+                            assert(term.has_data()); //otherwise Trie is corrupted
+                            pos._terminality = term.presence;
+                        } //terminality there = term_no
+                        //populate iterator 
                     }
                     //else //there is a stem, but source string is over (begin==end)
                     //{
@@ -151,23 +149,16 @@ namespace OP
                     //        
                     //}
                 }// end checking stem container
-                //no stems, just follow down
-                assert(!payload.is_null());
-                if (track_back)
-                {
-                    TriePosition pos(FarAddress(),//must be populated after exit 
-                        this->uid, key, this->version);
-                    track_back->emplace(std::move(pos), origin_begin, begin);
+                else 
+                {//no stems, just follow down
+                    assert(!payload.is_null());
+                    if (begin != end)
+                    {
+                        retval.compare_result = stem::StemCompareResult::stem_end;
+                        retval.child_node = term.get_child();
+                    }
                 }
-                value_manager_t value_manager(topology);
-                auto& term = value_manager.view(payload, (dim_t)capacity)[index];
-                retval.overlapped = 1;
-                if (begin != end)
-                {
-                    retval.compare_result = stem::StemCompareResult::stem_end;
-                    retval.child_node = term.get_child();
-                }
-                
+                track_back.emplace(std::move(pos), origin_begin, begin);
                 return retval;
             }
             

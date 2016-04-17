@@ -110,7 +110,7 @@ namespace OP
                 bool way_down = true;
                 while (!i.is_end())
                 {
-                    auto ro_node = view<node_t>(*_topology_ptr, i.back().first.address());
+                    auto ro_node = view<node_t>(*_topology_ptr, i.back().address());
                     if (way_down)
                     {
                         if (_begin(ro_node, i, true))
@@ -223,7 +223,7 @@ namespace OP
                     auto origin_begin = begin;
 
                     atom_t key = *begin;
-                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end, &result.second);
+                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end, result.second);
                     switch (nav_res.compare_result)
                     {
                     case stem::StemCompareResult::equals:
@@ -371,7 +371,7 @@ namespace OP
                         view<node_t>(*_topology_ptr, node_addr);
 
                     atom_t key = *begin;
-                    nav_res = node->navigate_over(*_topology_ptr, begin, end, &result_iter);
+                    nav_res = node->navigate_over(*_topology_ptr, begin, end, result_iter);
                     if (result_iter.deep() > 0) //test that iterator is not the `end()`
                     { 
                         auto &ibac = result_iter.back();
@@ -433,12 +433,13 @@ namespace OP
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, pos.second); 
 
-                navigator_t root_pos(ro_node.address(), ro_node->uid, pos.second, ro_node->version);
+                navigator_t root_pos(ro_node.address(), ro_node->uid, pos.second, 0, ro_node->version);
 
                 if (!ro_node->stems.is_null())
                 {//if stem exists should be placed to iterator
                     _stem_mngr.stem(ro_node->stems, ridx, 
                         [&](const atom_t* begin, const atom_t* end, const stem::StemData& stem_header){
+                            root_pos._deep = static_cast<decltype(root_pos._deep)>((end - begin) + 1);//+1 means value reserved for key
                             (dest.*iterator_update)(std::move(root_pos), begin, end);
                         }
                     );
