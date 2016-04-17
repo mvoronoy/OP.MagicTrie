@@ -231,7 +231,8 @@ namespace OP
                 *
                 */
                 template <class T>
-                inline std::tuple<StemCompareResult, dim_t> prefix_of(const ref_stems_t& st_address, atom_t key, T& begin, T end, atom_string_t * rest_of_str = nullptr) const
+                inline std::tuple<StemCompareResult, dim_t> prefix_of(
+                    const ref_stems_t& st_address, atom_t key, T& begin, T end, atom_string_t * rest_of_str = nullptr) const
                 {
                     auto result = std::make_tuple(StemCompareResult::unequals, 0);
                     stem(st_address, key, [&](const atom_t *f_str, const atom_t *f_str_end, const StemData& stem_header) {
