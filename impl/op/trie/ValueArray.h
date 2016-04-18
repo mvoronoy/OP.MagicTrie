@@ -96,7 +96,7 @@ namespace OP
 
             /**Reference to dependent children*/
             FarAddress child;
-            Terminality presence;
+            std::uint8_t presence;
             Payload data;
         };
 

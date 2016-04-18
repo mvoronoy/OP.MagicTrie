@@ -158,11 +158,12 @@ namespace OP
             {
                 if (position.key() >= std::numeric_limits<atom_t>::max())
                     throw std::out_of_range("Range must be in [0..255]");
-                size_t length = end - begin;
+                auto length = static_cast<dim_t>(end - begin);
                 _prefix.append(1, (atom_t)position.key());
                 _prefix.append(begin, end);
+                position._deep = length;
                 _position_stack.emplace_back(
-                    std::move(std::make_pair(std::move(position), length+1)));
+                    std::move(position));
             }
             void emplace(TriePosition&& position, const atom_t* begin, const atom_t* end)
             {
@@ -195,11 +196,11 @@ namespace OP
             template <class Iterator>
             void correct_suffix(Iterator& new_suffix_begin, Iterator& new_suffix_end)
             {
-                auto cut_len = _position_stack.back().second;
+                auto cut_len = _position_stack.back()._deep;
                 //_prefix.replace(_prefix.length() - cut_len, cut_len);
                 auto l = _prefix.length();
                 _prefix.append(new_suffix_begin, new_suffix_end);
-                _position_stack.back().second += (_prefix.length() - l);
+                _position_stack.back()._deep += static_cast<dim_t>((_prefix.length()) - l);
                 //_position_stack.pop_back();
             }
             size_t deep() const

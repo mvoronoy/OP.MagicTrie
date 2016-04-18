@@ -130,12 +130,12 @@ namespace OP
                         { //stem ended, this mean either this is terminal or reference to other node
                             assert(term.has_child() || term.has_data()); //otherwise Trie is corrupted
                             retval.child_node = term.get_child();
-                            pos._terminality = term.presence;
+                            pos._terminality = (Terminality)term.presence;
                         }
                         else if (retval.compare_result == stem::StemCompareResult::equals)
                         {
                             assert(term.has_data()); //otherwise Trie is corrupted
-                            pos._terminality = term.presence;
+                            pos._terminality = (Terminality)(term.presence);
                         } //terminality there = term_no
                         //populate iterator 
                     }
