@@ -176,7 +176,7 @@ namespace OP
                 auto &back = _position_stack.back();
                 _prefix.resize(_prefix.length() - back.deep()+1);
 
-                size_t length = end - begin;
+                auto length = static_cast<decltype(position._deep)>(end - begin);
                 _prefix.back() = (atom_t)position.key();
                 _prefix.append(begin, end);
                 _position_stack.back() = std::move(position);

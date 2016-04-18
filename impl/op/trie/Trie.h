@@ -245,7 +245,7 @@ namespace OP
                     case stem::StemCompareResult::string_end:
                     {
                         //terminal is not there, otherwise it would be StemCompareResult::equals
-                        auto wr_node = tuple_ref<node_t*>(diversificate(node, key, nav_res.overlapped));
+                        auto wr_node = tuple_ref<node_t*>(diversificate(node, key, result.second.back().deep()));
                         wr_node->set_value(*_topology_ptr, key, std::forward<Payload>(value));
                         op_g.commit();
                         result.first = true;
@@ -257,9 +257,11 @@ namespace OP
                         {
                             auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
                             auto local_begin = begin;
-                            wr_node->insert(*_topology_ptr, begin, end, std::forward<payload_t>(value));
+                            wr_node->insert(*_topology_ptr, begin, end, [&value]() { return value; });
+                            auto deep = static_cast<dim_t>(begin - local_begin) - 1;
                             result.second.emplace(
-                                TriePosition(node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, wr_node->version),
+                                TriePosition(node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version, 
+                                (begin == end) ? ),
                                 local_begin +1, begin
                                 );
                             if (begin == end) //fully fit to this node
@@ -302,7 +304,7 @@ namespace OP
             };
             static nullable_atom_t _resolve_next (const node_t& node, iterator* i) 
             {
-                return node.next((atom_t)i->back().first.key());
+                return node.next((atom_t)i->back().key());
             };
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments)
