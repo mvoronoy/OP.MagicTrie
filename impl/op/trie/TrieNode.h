@@ -164,16 +164,16 @@ namespace OP
             
             
             /** 
-            *  @param payload - may or not be used (if source string too long and should be placed to other page)
+            *  @param payload_factory - may or not be used (if source string too long and should be placed to other page)
             */
-            template <class TSegmentTopology, class Atom>
-            void insert(TSegmentTopology& topology, Atom& begin, const Atom end, payload_t&& payload)
+            template <class TSegmentTopology, class Atom, class ProducePayload>
+            void insert(TSegmentTopology& topology, Atom& begin, const Atom end, ProducePayload& payload_factory)
             {
                 auto reindex_res = insert_stem(topology, begin, end);
                 if (begin == end)
                 { //source fully fit to stem
                     ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-                    value_manager.accessor(this->payload, this->capacity)[reindex_res].set_data(std::move(payload));
+                    value_manager.accessor(this->payload, this->capacity)[reindex_res].set_data(std::move(payload_factory()));
                 }
             }
             template <class TSegmentTopology>
