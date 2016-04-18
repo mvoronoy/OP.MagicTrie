@@ -140,7 +140,7 @@ namespace OP
                 //find next position that doesn't matches to prefix
                 if (nav.compare_result == stem::StemCompareResult::equals) //prefix fully matches to existing terminal
                 {
-                    auto n = view<node_t>(*_topology_ptr, i.back().first.address());
+                    auto n = view<node_t>(*_topology_ptr, i.back().address());
                     auto beg = i; //use copy
                     assert(_begin(n, beg, false));
                     return range_container_t(i, beg);
@@ -261,7 +261,7 @@ namespace OP
                             auto deep = static_cast<dim_t>(begin - local_begin) - 1;
                             result.second.emplace(
                                 TriePosition(node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version, 
-                                (begin == end) ? ),
+                                (begin == end) ? term_has_data : term_has_child),
                                 local_begin +1, begin
                                 );
                             if (begin == end) //fully fit to this node
@@ -277,7 +277,7 @@ namespace OP
                         }
                         else //entry in this node should be splitted on 2
                             node_addr = tuple_ref<FarAddress>(
-                                diversificate(node, key, nav_res.overlapped - 1));
+                                diversificate(node, key, result.second.back().deep() - 1));
                         //continue in another node
                         break;
                     }
@@ -376,9 +376,7 @@ namespace OP
                     nav_res = node->navigate_over(*_topology_ptr, begin, end, result_iter);
                     if (result_iter.deep() > 0) //test that iterator is not the `end()`
                     { 
-                        auto &ibac = result_iter.back();
-                        ibac.first._node_addr = node_addr;  //need correct address since navigate_over cannot set it
-                        ibac.second = nav_res.overlapped;
+                        result_iter.back()._node_addr = node_addr;  //need correct address since navigate_over cannot set it
                     }
                     
                     // all cases excluding stem::StemCompareResult::stem_end mean that need return current iterator state
@@ -415,7 +413,7 @@ namespace OP
             template <class NodeView>
             std::tuple<bool, bool, FarAddress> classify_back(NodeView& ro_node, iterator& dest) const
             {
-                navigator_t& pos = dest.back().first;
+                navigator_t& pos = dest.back();
                 assert(pos.key() < (dim_t)containers::HashTableCapacity::_256);
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.key());
