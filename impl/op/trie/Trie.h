@@ -277,7 +277,7 @@ namespace OP
                         }
                         else //entry in this node should be splitted on 2
                             node_addr = tuple_ref<FarAddress>(
-                                diversificate(node, key, result.second.back().deep() - 1));
+                                diversificate(node, key, result.second.back().deep()));
                         //continue in another node
                         break;
                     }

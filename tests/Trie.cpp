@@ -49,17 +49,18 @@ template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
 {
     auto mi = std::begin(map);
-    /*for (auto xp : map)
+    for (auto xp : map)
     {
-        tresult.info() << xp.first << '=' << xp.second << '\n';
-    }*/
+        print_hex(tresult.info(), xp.first );
+        tresult.info() << /*xp.first << */'=' << xp.second << '\n';
+    }
     auto ti = trie.begin();
     int n = 0;
     //order must be the same
     for (; ti != trie.end(); ++ti, ++mi, ++n)
     {
-        //print_hex(tresult.info() << "1)", ti.prefix());
-        //print_hex(tresult.info() << "2)", mi->first);
+        print_hex(tresult.info() << "1)", ti.prefix());
+        print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
             OP_CODE_DETAILS(<<"step#"<< n << "has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
         tresult.assert_true(
