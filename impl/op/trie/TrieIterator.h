@@ -161,7 +161,6 @@ namespace OP
                 auto length = static_cast<dim_t>(end - begin);
                 _prefix.append(1, (atom_t)position.key());
                 _prefix.append(begin, end);
-                position._deep = length;
                 _position_stack.emplace_back(
                     std::move(position));
             }

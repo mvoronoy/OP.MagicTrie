@@ -263,17 +263,7 @@ namespace OP
                 assert((pos.offset + size) <= this->segment_size());
                 return MemoryChunk(size, std::move(pos), std::move(this->get_segment(pos.segment)));
             }
-            /*
-            template <class T>
-            WritableAccess<T> writable_access(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
-            {
-                return WritableAccess<T>(std::move(writable_block(pos, memory_requirement<T>::requirement, hint)));
-            }
-            template <class T>
-            WritableAccess<T> writable_access(FarAddress pos, segment_pos_t array_size, WritableBlockHint hint = WritableBlockHint::update_c)
-            {
-                return WritableAccess<T>(std::move(writable_block(pos, array_size*memory_requirement<T>::requirement, hint)));
-            }*/
+
             /**
             * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
             */
@@ -285,33 +275,12 @@ namespace OP
             /** Shorthand for \code
                 readonly_block(pos, sizeof(T)).at<T>(0)
             \endcode
-            *   Removed as dangerous code - if RO block destroyed reference is in unpredictable state
-            */
-            //template <class T>
-            //const T* ro_at(FarAddress pos, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
-            //{
-            //    return this->readonly_block(pos, sizeof(T), hint).at<T>(0);
-            //}
-
-            /** Shorthand for \code
-                readonly_block(pos, sizeof(T)).at<T>(0)
-            \endcode
             */
             template <class T>
             T* wr_at(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
                 return this->writable_block(pos, memory_requirement<T>::requirement, hint).at<T>(0);
             }
-            /**
-            *   It is very slow (!)  method. Prefer to use #to_far(segment_idx_t, const void *address) instead
-            *   @throws std::invalid_argument if address is not in the scope of existing mapped segments
-            */
-            /*virtual far_pos_t to_far(const void * address) const
-            {
-                auto pair = this->get_index_by_address(address);
-                auto diff = reinterpret_cast<const std::uint8_t*>(address)-pair.first.pos();
-                return _far(pair.second, static_cast<segment_pos_t>(diff));
-            }*/
             /**
             *  By the given memory pointer tries to restore origin far-pos.
             *   @param segment - where pointer should reside

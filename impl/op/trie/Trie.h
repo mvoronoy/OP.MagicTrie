@@ -132,11 +132,10 @@ namespace OP
             range_container_t subrange(IterateAtom begin, IterateAtom aend) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto pref_res = common_prefix(begin, aend);
+                iterator i (this);
+                auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix
                     return range_container_t(end(), end());
-                auto nav = tuple_ref<typename node_t::nav_result_t>(pref_res);
-                auto& i = tuple_ref<iterator>(pref_res);
                 //find next position that doesn't matches to prefix
                 if (nav.compare_result == stem::StemCompareResult::equals) //prefix fully matches to existing terminal
                 {
@@ -158,10 +157,9 @@ namespace OP
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom end) const
             {
-                auto pref_res = common_prefix(begin, end);
+                auto iter = iterator(this);
+                auto nav_res = common_prefix(begin, end, iter);
                 
-                auto &nav_res = std::get<0>(pref_res);
-                auto &iter = std::get<1>(pref_res);
                 if (nav_res.compare_result == stem::StemCompareResult::equals //exact match
                     )
                     return iter;
@@ -172,7 +170,7 @@ namespace OP
                 //when: stem::StemCompareResult::stem_end || stem::StemCompareResult::string_end ||
                 //   ( stem::StemCompareResult::unequals && !iter.is_end())
                 next(iter);
-                return tuple_ref<iterator>(pref_res);
+                return iter;
             }
             template <class Atom>
             iterator find(Atom& begin, Atom end) const
@@ -211,10 +209,85 @@ namespace OP
             template <class Atom>
             std::pair<bool, iterator> insert(Atom& begin, Atom end, Payload value)
             {
-                auto result = std::make_pair(false, iterator());
+                auto result = std::make_pair(false, iterator(this));
                 if (begin == end)
                     return result; //empty string cannot be inserted
+                auto &iter = std::get<1>(result);
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); 
+                Atom b1 = begin;
+                auto pref_res = common_prefix(b1, end, iter);
+                switch (pref_res.compare_result)
+                {
+                case stem::StemCompareResult::equals:
+                    op_g.rollback();
+                    return result; //dupplicate found
+                case stem::StemCompareResult::unequals:
+                {
+                    auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                    if (!iter.is_end())
+                    {
+                        auto wr_node = accessor<node_t>(*_topology_ptr, iter.back().address());
+                        node_addr = tuple_ref<FarAddress>(
+                            diversificate(*wr_node, *begin, result.second.back().deep()));
+                    }
+                    for (;;)
+                    {
+                        auto key = *begin;
+                        auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                        auto local_begin = begin;
+                        wr_node->insert(*_topology_ptr, begin, end, [&value]() { return value; });
+                        auto deep = static_cast<dim_t>(begin - local_begin) ;
+                        result.second.emplace(
+                            TriePosition(wr_node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
+                            (begin == end) ? term_has_data : term_has_child),
+                            local_begin + 1, begin
+                        );
+                        if (begin == end) //fully fit to this node
+                        {
+                            _topology_ptr->slot<TrieResidence>().increase_count(+1);
+                            op_g.commit();
+                            result.first = true;
+                            return result;
+                        }
+                        //some suffix have to be accomodated yet
+                        node_addr = new_node();
+                        wr_node->set_child(*_topology_ptr, key, node_addr);
+                    }
+                //    for (;;)
+                //    {
+                //        if (origin_begin == begin)//no such entry at all
+                //        {
+                //            auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
+                //            auto local_begin = begin;
+                //            wr_node->insert(*_topology_ptr, begin, end, [&value]() { return value; });
+                //            auto deep = static_cast<dim_t>(begin - local_begin) - 1;
+                //            result.second.emplace(
+                //                TriePosition(node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
+                //                (begin == end) ? term_has_data : term_has_child),
+                //                local_begin + 1, begin
+                //            );
+                //            if (begin == end) //fully fit to this node
+                //            {
+                //                _topology_ptr->slot<TrieResidence>().increase_count(+1);
+                //                op_g.commit();
+                //                result.first = true;
+                //                return result;
+                //            }
+                //            //some suffix have to be accomodated yet
+                //            node_addr = new_node();
+                //            wr_node->set_child(*_topology_ptr, key, node_addr);
+                //        }
+                //    }
+                //    else //entry in this node should be splitted on 2
+                //        node_addr = tuple_ref<FarAddress>(
+                //            diversificate(node, key, result.second.back().deep()));
+                //    //continue in another node
+                //    break;
+                }
+                default:
+                    break;
+                }
+
                 auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 for (;;)
                 {
@@ -346,26 +419,28 @@ namespace OP
             * @return pair of:
             * \li current node in write-mode (matched to `node_addr`);
             * \li address of new node where the tail was placed.
+            * \tparam RAccess - ReadonlyAccess<node_t> or  
             */
             std::tuple<node_t*, FarAddress> diversificate(ReadonlyAccess<node_t>& node, atom_t key, dim_t in_stem_pos)
             {
                 auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
+                return diversificate(*wr_node, key, in_stem_pos);
+            }
+            std::tuple<node_t*, FarAddress> diversificate(node_t& wr_node, atom_t key, dim_t in_stem_pos)
+            {
                 //create new node to place result
                 FarAddress new_node_addr = new_node();
-                wr_node->move_to(*_topology_ptr, key, in_stem_pos, new_node_addr);
-                wr_node->set_child(*_topology_ptr, key, new_node_addr);
-                return std::make_tuple(wr_node, new_node_addr);
+                wr_node.move_to(*_topology_ptr, key, in_stem_pos, new_node_addr);
+                wr_node.set_child(*_topology_ptr, key, new_node_addr);
+                return std::make_tuple(&wr_node, new_node_addr);
             }
             /**Return not fully valid iterator that matches common part specified by [begin, end)*/
             template <class Atom>
-            std::tuple<typename node_t::nav_result_t, iterator> common_prefix(Atom& begin, Atom end) const
+            typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter) const
             {
-                auto retval = std::make_tuple(node_t::nav_result_t(), iterator(this));
+                auto retval = node_t::nav_result_t();
                 if (end == begin)
                     return retval;
-                auto & nav_res = tuple_ref< typename node_t::nav_result_t>(retval);
-                auto & result_iter = tuple_ref<iterator>(retval);
-                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 for (;;)
                 {
@@ -373,16 +448,16 @@ namespace OP
                         view<node_t>(*_topology_ptr, node_addr);
 
                     atom_t key = *begin;
-                    nav_res = node->navigate_over(*_topology_ptr, begin, end, result_iter);
+                    retval = node->navigate_over(*_topology_ptr, begin, end, result_iter);
                     if (result_iter.deep() > 0) //test that iterator is not the `end()`
                     { 
                         result_iter.back()._node_addr = node_addr;  //need correct address since navigate_over cannot set it
                     }
                     
                     // all cases excluding stem::StemCompareResult::stem_end mean that need return current iterator state
-                    if(stem::StemCompareResult::stem_end == nav_res.compare_result)
+                    if(stem::StemCompareResult::stem_end == retval.compare_result)
                     {
-                        node_addr = nav_res.child_node;
+                        node_addr = retval.child_node;
                         if (node_addr.address == SegmentDef::far_null_c)
                         {  //no way down, it is not valid result!!!!
                             return retval; //@! it is prefix that is not satisfied lower_bound
