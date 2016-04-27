@@ -97,7 +97,7 @@ namespace OP
             */
             template <class TSegmentTopology, class Atom, class Iterator>
             nav_result_t navigate_over(
-                TSegmentTopology& topology, Atom& begin, Atom end, Iterator& track_back ) const
+                TSegmentTopology& topology, Atom& begin, Atom end, FarAddress this_node_addr, Iterator& track_back ) const
             {
                 typedef ValueArrayManager<TSegmentTopology, payload_t> value_manager_t;
 
@@ -113,7 +113,7 @@ namespace OP
                 atom_t index = this->reindex(topology, key);
                 value_manager_t value_manager(topology);
                 auto& term = value_manager.view(payload, (dim_t)capacity)[index];
-                TriePosition pos(FarAddress(),//must be populated after exit 
+                TriePosition pos(this_node_addr, 
                     this->uid, key, 1, this->version);
 
                 retval.compare_result = stem::StemCompareResult::equals;
@@ -235,6 +235,8 @@ namespace OP
             template <class TSegmentTopology>
             void move_to(TSegmentTopology& topology, atom_t key, dim_t in_stem_pos, FarAddress target)
             {
+                assert(in_stem_pos > 0); //in_stem_pos - cannot be == 0 because 0 dedicated for hash-table (reindexer), stem always coded from 1
+                --in_stem_pos;
                 stem::StemStore<TSegmentTopology> stem_manager(topology);
                 containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
                 atom_t ridx = reindex(topology, key);

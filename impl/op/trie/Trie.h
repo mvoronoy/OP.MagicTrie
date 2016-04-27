@@ -55,7 +55,7 @@ namespace OP
             typedef std::unique_ptr<suffix_range_t> suffix_range_ptr;
             typedef payload_t value_type;
             typedef TrieNode<payload_t> node_t;
-            typedef TriePosition navigator_t;
+            typedef TriePosition poistion_t;
 
             virtual ~Trie()
             {
@@ -183,7 +183,7 @@ namespace OP
                     return tuple_ref<iterator>(pref_res);
                 return iterator();// StemCompareResult::unequals or StemCompareResult::stem_end or stem::StemCompareResult::string_end
             }
-            value_type value_of(navigator_t pos) const
+            value_type value_of(poistion_t pos) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto node = view<node_t>(*_topology_ptr, pos.address());
@@ -197,7 +197,7 @@ namespace OP
             * \li `first` - has child
             * \li `second` - has value (is terminal)
             */
-            std::pair<bool, bool> get_presence(navigator_t position) const
+            std::pair<bool, bool> get_presence(poistion_t position) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto node = view<node_t>(*_topology_ptr, position.address());
@@ -206,16 +206,16 @@ namespace OP
                 op_g.rollback();
                 throw std::invalid_argument("position has no value associated");
             }
-            template <class Atom>
-            std::pair<bool, iterator> insert(Atom& begin, Atom end, Payload value)
+            template <class AtomIterator>
+            std::pair<bool, iterator> insert(AtomIterator& begin, AtomIterator end, Payload value)
             {
                 auto result = std::make_pair(false, iterator(this));
                 if (begin == end)
                     return result; //empty string cannot be inserted
+                auto origin_begin = begin;
                 auto &iter = std::get<1>(result);
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); 
-                Atom b1 = begin;
-                auto pref_res = common_prefix(b1, end, iter);
+                auto pref_res = common_prefix(begin, end, iter);
                 switch (pref_res.compare_result)
                 {
                 case stem::StemCompareResult::equals:
@@ -223,12 +223,16 @@ namespace OP
                     return result; //dupplicate found
                 case stem::StemCompareResult::unequals:
                 {
-                    auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                    auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();  //just a default value, will be overriden if common_prefix not empty
                     if (!iter.is_end())
                     {
-                        auto wr_node = accessor<node_t>(*_topology_ptr, iter.back().address());
-                        node_addr = tuple_ref<FarAddress>(
-                            diversificate(*wr_node, *begin, result.second.back().deep()));
+                        node_addr = iter.back().address();
+                        //if (origin_begin != begin)
+                        {  //entry should exists
+                            auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                            node_addr = tuple_ref<FarAddress>(
+                                diversificate(*wr_node, (atom_t)result.second.back().key(), result.second.back().deep()));
+                        }
                     }
                     for (;;)
                     {
@@ -296,7 +300,7 @@ namespace OP
                     auto origin_begin = begin;
 
                     atom_t key = *begin;
-                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end, result.second);
+                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end, node_addr, result.second);
                     switch (nav_res.compare_result)
                     {
                     case stem::StemCompareResult::equals:
@@ -448,11 +452,7 @@ namespace OP
                         view<node_t>(*_topology_ptr, node_addr);
 
                     atom_t key = *begin;
-                    retval = node->navigate_over(*_topology_ptr, begin, end, result_iter);
-                    if (result_iter.deep() > 0) //test that iterator is not the `end()`
-                    { 
-                        result_iter.back()._node_addr = node_addr;  //need correct address since navigate_over cannot set it
-                    }
+                    retval = node->navigate_over(*_topology_ptr, begin, end, node_addr, result_iter);
                     
                     // all cases excluding stem::StemCompareResult::stem_end mean that need return current iterator state
                     if(stem::StemCompareResult::stem_end == retval.compare_result)
@@ -488,7 +488,7 @@ namespace OP
             template <class NodeView>
             std::tuple<bool, bool, FarAddress> classify_back(NodeView& ro_node, iterator& dest) const
             {
-                navigator_t& pos = dest.back();
+                poistion_t& pos = dest.back();
                 assert(pos.key() < (dim_t)containers::HashTableCapacity::_256);
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.key());
@@ -508,7 +508,7 @@ namespace OP
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, pos.second); 
 
-                navigator_t root_pos(ro_node.address(), ro_node->uid, pos.second, 0, ro_node->version);
+                poistion_t root_pos(ro_node.address(), ro_node->uid, pos.second, 0, ro_node->version);
 
                 if (!ro_node->stems.is_null())
                 {//if stem exists should be placed to iterator

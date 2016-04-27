@@ -143,7 +143,7 @@ private:
             it = first; 
             step = count / 2; 
             it+= step;
-            if (_traits.less(1 << it, k)) {
+            if (_traits.less(1ULL << it, k)) {
                 first = ++it; 
                 count -= step + 1; 
             }
