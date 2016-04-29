@@ -105,7 +105,10 @@ namespace OP
                 auto key = static_cast<atom_t>(*begin);
                 nav_result_t retval;
                 if (!presence.get(key)) //no such entry at all
+                {
+                    retval.compare_result = stem::StemCompareResult::stem_end;
                     return retval;
+                }
                 //else detect how long common part is
                 ++begin; //first letter concidered in `presence`
                 auto origin_begin = begin;
