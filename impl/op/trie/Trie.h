@@ -216,11 +216,37 @@ namespace OP
                 auto &iter = std::get<1>(result);
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); 
                 auto pref_res = common_prefix(begin, end, iter);
+                FarAddress node_addr;
                 switch (pref_res.compare_result)
                 {
                 case stem::StemCompareResult::equals:
                     op_g.rollback();
                     return result; //dupplicate found
+                case stem::StemCompareResult::unequals:
+                {
+                    assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
+                    node_addr = iter.back().address();
+                    {  //entry should exists
+                        auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                        node_addr = tuple_ref<FarAddress>(
+                            diversificate(*wr_node, (atom_t)result.second.back().key(), result.second.back().deep()));
+                    }
+
+                }
+                //no break there!
+                case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
+                {
+                    node_addr = pref_res.child_node;
+                    if (node_addr.address == SegmentDef::far_null_c)
+                    {  //no way down
+                        node_addr = new_node();
+                        auto wr_node_block =
+                            _topology_ptr->segment_manager().upgrade_to_writable_block(node);
+                        auto wr_node = wr_node_block.at<node_t>(0);
+                        wr_node->set_child(*_topology_ptr, key, node_addr);
+                    }
+                    break;
+                }
                 case stem::StemCompareResult::unequals:
                 {
                     auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();  //just a default value, will be overriden if common_prefix not empty
@@ -438,13 +464,41 @@ namespace OP
                 wr_node.set_child(*_topology_ptr, key, new_node_addr);
                 return std::make_tuple(&wr_node, new_node_addr);
             }
+            template <class AtomIterator>
+            void unconditional_insert(FarAddress node_addr, AtomIterator& begin, AtomIterator end, iterator& result)
+            {
+                for (;;)
+                {
+                    auto key = *begin;
+                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                    auto local_begin = begin;
+                    wr_node->insert(*_topology_ptr, begin, end, [&value]() { return value; });
+                    auto deep = static_cast<dim_t>(begin - local_begin);
+                    result.second.emplace(
+                        TriePosition(wr_node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
+                        (begin == end) ? term_has_data : term_has_child),
+                        local_begin + 1, begin
+                    );
+                    if (begin == end) //fully fit to this node
+                    {
+                        _topology_ptr->slot<TrieResidence>().increase_count(+1);
+                        return;
+                    }
+                    //some suffix have to be accomodated yet
+                    node_addr = new_node();
+                    wr_node->set_child(*_topology_ptr, key, node_addr);
+                }
+
+            }
             /**Return not fully valid iterator that matches common part specified by [begin, end)*/
             template <class Atom>
             typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter) const
             {
                 auto retval = node_t::nav_result_t();
                 if (end == begin)
+                {
                     return retval;
+                }
                 auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 for (;;)
                 {
@@ -458,8 +512,8 @@ namespace OP
                     if(stem::StemCompareResult::stem_end == retval.compare_result)
                     {
                         node_addr = retval.child_node;
-                        if (node_addr.address == SegmentDef::far_null_c)
-                        {  //no way down, it is not valid result!!!!
+                        if (node_addr.address == SegmentDef::far_null_c )
+                        {  //no way down, 
                             return retval; //@! it is prefix that is not satisfied lower_bound
                         }
                     }
