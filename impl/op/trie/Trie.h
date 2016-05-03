@@ -213,111 +213,65 @@ namespace OP
                 if (begin == end)
                     return result; //empty string cannot be inserted
                 auto origin_begin = begin;
-                auto &iter = std::get<1>(result);
+                auto &iter = result.second;
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); 
+                auto value_assigner = [&]() { 
+                    _topology_ptr->slot<TrieResidence>().increase_count(+1);
+                    result.first = true;
+                    return value;
+                };
                 auto pref_res = common_prefix(begin, end, iter);
-                FarAddress node_addr;
                 switch (pref_res.compare_result)
                 {
                 case stem::StemCompareResult::equals:
                     op_g.rollback();
                     return result; //dupplicate found
+                case stem::StemCompareResult::no_entry:
+                {
+                    unconditional_insert(pref_res.child_node, begin, end, iter, value_assigner);
+                    return result;
+                }
+                case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
+                {
+                    assert(!iter.is_end());
+                    auto &back = iter.back();
+                    FarAddress node_addr = back.address();
+                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                        
+                    node_addr = new_node();
+                    wr_node->set_child(*_topology_ptr, static_cast<atom_t>(back.key()), node_addr);
+                    unconditional_insert(node_addr, begin, end, iter, value_assigner);
+                    return result;
+                }
                 case stem::StemCompareResult::unequals:
                 {
                     assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
-                    node_addr = iter.back().address();
-                    {  //entry should exists
-                        auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-                        node_addr = tuple_ref<FarAddress>(
-                            diversificate(*wr_node, (atom_t)result.second.back().key(), result.second.back().deep()));
-                    }
-
+                    FarAddress node_addr = iter.back().address();
+                    //entry should exists
+                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                    node_addr = 
+                        diversificate(*wr_node, iter);
+                    unconditional_insert(node_addr, begin, end, iter, value_assigner);
+                    return result;
                 }
-                //no break there!
-                case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
+                case stem::StemCompareResult::string_end:
                 {
-                    node_addr = pref_res.child_node;
-                    if (node_addr.address == SegmentDef::far_null_c)
-                    {  //no way down
-                        node_addr = new_node();
-                        auto wr_node_block =
-                            _topology_ptr->segment_manager().upgrade_to_writable_block(node);
-                        auto wr_node = wr_node_block.at<node_t>(0);
-                        wr_node->set_child(*_topology_ptr, key, node_addr);
-                    }
-                    break;
-                }
-                case stem::StemCompareResult::unequals:
-                {
-                    auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();  //just a default value, will be overriden if common_prefix not empty
-                    if (!iter.is_end())
-                    {
-                        node_addr = iter.back().address();
-                        //if (origin_begin != begin)
-                        {  //entry should exists
-                            auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-                            node_addr = tuple_ref<FarAddress>(
-                                diversificate(*wr_node, (atom_t)result.second.back().key(), result.second.back().deep()));
-                        }
-                    }
-                    for (;;)
-                    {
-                        auto key = *begin;
-                        auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-                        auto local_begin = begin;
-                        wr_node->insert(*_topology_ptr, begin, end, [&value]() { return value; });
-                        auto deep = static_cast<dim_t>(begin - local_begin) ;
-                        result.second.emplace(
-                            TriePosition(wr_node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
-                            (begin == end) ? term_has_data : term_has_child),
-                            local_begin + 1, begin
-                        );
-                        if (begin == end) //fully fit to this node
-                        {
-                            _topology_ptr->slot<TrieResidence>().increase_count(+1);
-                            op_g.commit();
-                            result.first = true;
-                            return result;
-                        }
-                        //some suffix have to be accomodated yet
-                        node_addr = new_node();
-                        wr_node->set_child(*_topology_ptr, key, node_addr);
-                    }
-                //    for (;;)
-                //    {
-                //        if (origin_begin == begin)//no such entry at all
-                //        {
-                //            auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
-                //            auto local_begin = begin;
-                //            wr_node->insert(*_topology_ptr, begin, end, [&value]() { return value; });
-                //            auto deep = static_cast<dim_t>(begin - local_begin) - 1;
-                //            result.second.emplace(
-                //                TriePosition(node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
-                //                (begin == end) ? term_has_data : term_has_child),
-                //                local_begin + 1, begin
-                //            );
-                //            if (begin == end) //fully fit to this node
-                //            {
-                //                _topology_ptr->slot<TrieResidence>().increase_count(+1);
-                //                op_g.commit();
-                //                result.first = true;
-                //                return result;
-                //            }
-                //            //some suffix have to be accomodated yet
-                //            node_addr = new_node();
-                //            wr_node->set_child(*_topology_ptr, key, node_addr);
-                //        }
-                //    }
-                //    else //entry in this node should be splitted on 2
-                //        node_addr = tuple_ref<FarAddress>(
-                //            diversificate(node, key, result.second.back().deep()));
-                //    //continue in another node
-                //    break;
+                    assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
+                    auto &back = iter.back();
+                    FarAddress node_addr = back.address();
+                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                    //terminal is not there, otherwise it would be StemCompareResult::equals
+                    diversificate(*wr_node, iter);
+                    wr_node->set_value(*_topology_ptr, (atom_t)back.key(), std::forward<Payload>(value_assigner()));
+                    reinterpret_cast<std::uint8_t&>(iter.back()._terminality) |= Terminality::term_has_data;
+                    return result;
                 }
                 default:
-                    break;
+                    assert(false);
+                    return result; //fail stub
                 }
 
+#if 0                
                 auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 for (;;)
                 {
@@ -388,6 +342,7 @@ namespace OP
                         assert(false);
                     }
                 } //for(;;)
+#endif            
             }
             
             
@@ -451,42 +406,46 @@ namespace OP
             * \li address of new node where the tail was placed.
             * \tparam RAccess - ReadonlyAccess<node_t> or  
             */
-            std::tuple<node_t*, FarAddress> diversificate(ReadonlyAccess<node_t>& node, atom_t key, dim_t in_stem_pos)
+            /*std::tuple<node_t*, FarAddress> diversificate(ReadonlyAccess<node_t>& node, atom_t key, dim_t in_stem_pos)
             {
                 auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
                 return diversificate(*wr_node, key, in_stem_pos);
-            }
-            std::tuple<node_t*, FarAddress> diversificate(node_t& wr_node, atom_t key, dim_t in_stem_pos)
+            }*/
+            FarAddress diversificate(node_t& wr_node, iterator &break_position)
             {
+                auto& back = break_position.back();
                 //create new node to place result
                 FarAddress new_node_addr = new_node();
+                atom_t key = static_cast<atom_t>(back.key());
+                dim_t in_stem_pos = back.deep();
                 wr_node.move_to(*_topology_ptr, key, in_stem_pos, new_node_addr);
                 wr_node.set_child(*_topology_ptr, key, new_node_addr);
-                return std::make_tuple(&wr_node, new_node_addr);
+               ///////@@@@@ back._node_addr = new_node_addr;
+                reinterpret_cast<std::uint8_t&> (back._terminality) |= Terminality::term_has_child;
+
+                return new_node_addr;
             }
-            template <class AtomIterator>
-            void unconditional_insert(FarAddress node_addr, AtomIterator& begin, AtomIterator end, iterator& result)
+            template <class AtomIterator, class FValueAssigner>
+            void unconditional_insert(FarAddress node_addr, AtomIterator& begin, AtomIterator end, iterator& result, FValueAssigner& fassign)
             {
-                for (;;)
+                while(begin != end)
                 {
                     auto key = *begin;
                     auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
                     auto local_begin = begin;
-                    wr_node->insert(*_topology_ptr, begin, end, [&value]() { return value; });
+                    wr_node->insert(*_topology_ptr, begin, end, fassign);
                     auto deep = static_cast<dim_t>(begin - local_begin);
-                    result.second.emplace(
+                    result.emplace(
                         TriePosition(wr_node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
                         (begin == end) ? term_has_data : term_has_child),
                         local_begin + 1, begin
                     );
-                    if (begin == end) //fully fit to this node
+                    if (begin != end) //not fully fit to this node
                     {
-                        _topology_ptr->slot<TrieResidence>().increase_count(+1);
-                        return;
+                        //some suffix have to be accomodated yet
+                        node_addr = new_node();
+                        wr_node->set_child(*_topology_ptr, key, node_addr);
                     }
-                    //some suffix have to be accomodated yet
-                    node_addr = new_node();
-                    wr_node->set_child(*_topology_ptr, key, node_addr);
                 }
 
             }
@@ -516,6 +475,11 @@ namespace OP
                         {  //no way down, 
                             return retval; //@! it is prefix that is not satisfied lower_bound
                         }
+                    }
+                    else if (stem::StemCompareResult::no_entry == retval.compare_result)
+                    {
+                        retval.child_node = node_addr;
+                        return retval;
                     }
                     else 
                         break;

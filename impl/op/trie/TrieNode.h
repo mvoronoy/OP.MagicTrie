@@ -106,7 +106,7 @@ namespace OP
                 nav_result_t retval;
                 if (!presence.get(key)) //no such entry at all
                 {
-                    retval.compare_result = stem::StemCompareResult::stem_end;
+                    retval.compare_result = stem::StemCompareResult::no_entry;
                     return retval;
                 }
                 //else detect how long common part is
@@ -168,16 +168,19 @@ namespace OP
             
             /** 
             *  @param payload_factory - may or not be used (if source string too long and should be placed to other page)
+            *  @return true when end of iteration was reached and value assigned, false mean no value inserted
             */
             template <class TSegmentTopology, class Atom, class ProducePayload>
-            void insert(TSegmentTopology& topology, Atom& begin, const Atom end, ProducePayload& payload_factory)
+            bool insert(TSegmentTopology& topology, Atom& begin, const Atom end, ProducePayload& payload_factory)
             {
                 auto reindex_res = insert_stem(topology, begin, end);
                 if (begin == end)
                 { //source fully fit to stem
                     ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                     value_manager.accessor(this->payload, this->capacity)[reindex_res].set_data(std::move(payload_factory()));
+                    return true;
                 }
+                return false;
             }
             template <class TSegmentTopology>
             void set_child(TSegmentTopology& topology, atom_t key, FarAddress address)
