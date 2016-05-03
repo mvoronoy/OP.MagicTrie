@@ -44,7 +44,8 @@ namespace OP
                 /**Stem part is fully equal to string, but string is longer*/
                 stem_end,
                 /**Stem and string not fully matches*/
-                unequals
+                unequals,
+                no_entry
             };
             template <dim_t Max = max_stem_length_c>
             struct StemString

@@ -49,18 +49,18 @@ template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
 {
     auto mi = std::begin(map);
-    for (auto xp : map)
-    {
-        print_hex(tresult.info(), xp.first );
-        tresult.info() << /*xp.first << */'=' << xp.second << '\n';
-    }
+    //for (auto xp : map)
+    //{
+    //    print_hex(tresult.info(), xp.first );
+    //    tresult.info() << /*xp.first << */'=' << xp.second << '\n';
+    //}
     auto ti = trie.begin();
     int n = 0;
     //order must be the same
     for (; ti != trie.end(); ++ti, ++mi, ++n)
     {
-        print_hex(tresult.info() << "1)", ti.prefix());
-        print_hex(tresult.info() << "2)", mi->first);
+        //print_hex(tresult.info() << "1)", ti.prefix());
+        //print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
             OP_CODE_DETAILS(<<"step#"<< n << "has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
         tresult.assert_true(
@@ -142,6 +142,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
         std::begin(stem3), std::end(stem3)
         ));
+    tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
     compare_containers(tresult, *trie, standard);
     //now make iteration back over stem3 and create diversification in 
     //std::cout << "***";
@@ -170,9 +171,45 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
     tresult.assert_true(ir5.first, OP_CODE_DETAILS());
     standard[stem4] = v_order++;
-    tresult.assert_true(261 == trie->nodes_count(), "262 nodes must exists in the system");
+    tresult.assert_true(261 == trie->nodes_count(), "261 nodes must exists in the system");
     compare_containers(tresult, *trie, standard);
-
+    stem4 += "zzzzz";
+    ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
+    standard[stem4] = v_order++;
+    tresult.assert_true(b1 == std::end(const_stem4));
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+        std::begin(stem4), std::end(stem4)
+    ));
+    tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
+    compare_containers(tresult, *trie, standard);
+    // test stem continuation
+    // Sequence: "k", "kaa..a", "ka"
+    stem4 = "k";
+    ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
+    standard[stem4] = v_order++;
+    tresult.assert_true(b1 == std::end(const_stem4));
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+        std::begin(stem4), std::end(stem4)
+    ));
+    tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
+    stem4 += std::string(256, 'a');
+    ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
+    standard[stem4] = v_order++;
+    tresult.assert_true(b1 == std::end(const_stem4));
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+        std::begin(stem4), std::end(stem4)
+    ));
+    tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
+    compare_containers(tresult, *trie, standard);
+    stem4 = "ka";
+    ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
+    standard[stem4] = v_order++;
+    tresult.assert_true(b1 == std::end(const_stem4));
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+        std::begin(stem4), std::end(stem4)
+    ));
+    tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
+    compare_containers(tresult, *trie, standard);
 }
 
 void test_TrieInsertGrow(OP::utest::TestResult &tresult)
