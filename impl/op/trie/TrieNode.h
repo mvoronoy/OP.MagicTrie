@@ -142,15 +142,6 @@ namespace OP
                         } //terminality there = term_no
                         //populate iterator 
                     }
-                    //else //there is a stem, but source string is over (begin==end)
-                    //{
-                    //    auto stem_length = stem_manager.stem_length(stems, index, );
-                    //    retval.stem_rest = stem_length; //how many bytes left in stem
-                    //    retval.compare_result = stem_length > 0
-                    //        ? stem::StemCompareResult::string_end
-                    //        : stem::StemCompareResult::equals;
-                    //        
-                    //}
                 }// end checking stem container
                 else 
                 {//no stems, just follow down

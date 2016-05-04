@@ -16,7 +16,25 @@ namespace OP
             term_has_child = 0x1,
             term_has_data = 0x2
         };
-        
+        inline Terminality operator & (Terminality left, Terminality right)
+        {
+            return static_cast<Terminality>(  static_cast<std::uint8_t>(left) & static_cast<std::uint8_t>(right) );
+        }
+        inline Terminality operator | (Terminality left, Terminality right)
+        {
+            return static_cast<Terminality>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
+        }
+        inline Terminality& operator &= (Terminality& left, Terminality right)
+        {
+            left = left & right;
+            return left;
+        }
+        inline Terminality& operator |= (Terminality& left, Terminality right)
+        {
+            left = left | right;
+            return left;
+        }
+
         template <class Payload>
         struct ValueArrayData
         {

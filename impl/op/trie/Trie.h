@@ -146,7 +146,7 @@ namespace OP
                 }
                 if (nav.compare_result == stem::StemCompareResult::string_end) //prefix partially matches to some prefix
                 { //correct string at back of iterator
-                    i.correct_suffix(nav.stem_rest.begin(), nav.stem_rest.end());
+                    //i.correct_suffix(nav.stem_rest.begin(), nav.stem_rest.end());
                 }
                 //
                 auto i_next = i; //use copy
@@ -165,7 +165,7 @@ namespace OP
                     return iter;
                 if (nav_res.compare_result == stem::StemCompareResult::unequals && iter.is_end())
                 {
-                    return iterator();
+                    return iter;
                 }
                 //when: stem::StemCompareResult::stem_end || stem::StemCompareResult::string_end ||
                 //   ( stem::StemCompareResult::unequals && !iter.is_end())
@@ -263,7 +263,7 @@ namespace OP
                     //terminal is not there, otherwise it would be StemCompareResult::equals
                     diversificate(*wr_node, iter);
                     wr_node->set_value(*_topology_ptr, (atom_t)back.key(), std::forward<Payload>(value_assigner()));
-                    reinterpret_cast<std::uint8_t&>(iter.back()._terminality) |= Terminality::term_has_data;
+                    iter.back()._terminality |= Terminality::term_has_data;
                     return result;
                 }
                 default:
@@ -362,7 +362,7 @@ namespace OP
             };
             static nullable_atom_t _resolve_next (const node_t& node, iterator* i) 
             {
-                return node.next((atom_t)i->back().key());
+                return node.next((atom_t)i->back().key());           
             };
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments)
@@ -420,8 +420,7 @@ namespace OP
                 dim_t in_stem_pos = back.deep();
                 wr_node.move_to(*_topology_ptr, key, in_stem_pos, new_node_addr);
                 wr_node.set_child(*_topology_ptr, key, new_node_addr);
-               ///////@@@@@ back._node_addr = new_node_addr;
-                reinterpret_cast<std::uint8_t&> (back._terminality) |= Terminality::term_has_child;
+                back._terminality |= Terminality::term_has_child;
 
                 return new_node_addr;
             }
@@ -506,7 +505,7 @@ namespace OP
             template <class NodeView>
             std::tuple<bool, bool, FarAddress> classify_back(NodeView& ro_node, iterator& dest) const
             {
-                poistion_t& pos = dest.back();
+                auto& pos = dest.back();
                 assert(pos.key() < (dim_t)containers::HashTableCapacity::_256);
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.key());
@@ -541,6 +540,11 @@ namespace OP
                 {
                     (dest.*iterator_update)(std::move(root_pos), nullptr, nullptr);
                 }
+                auto values = _value_mngr.view(ro_node->payload, ro_node->capacity);
+                auto &v = values[ridx]; //take value regardless of deep
+                dest.back()._terminality =
+                    (v.has_data() ? Terminality::term_has_data : Terminality::term_no)
+                    | (v.has_child() ? Terminality::term_has_child : Terminality::term_no);
                 return true;
             }
             /**
@@ -550,17 +554,43 @@ namespace OP
             template <class NodeView>
             bool _begin(NodeView& ro_node, iterator& i, bool skip_first) const
             {
-                for (auto clb = classify_back(ro_node, i);
-                    skip_first || !std::get<0>(clb);)
+                auto& back = i.back();
+                auto ridx = ro_node->reindex(*_topology_ptr, (atom_t) back.key());
+                auto values = _value_mngr.view(ro_node->payload, ro_node->capacity);
+                auto &v = values[ridx]; //take value regardless of deep
+                
+                FarAddress next_addr = v.get_child();
+                //restore iterator if not complete
+                back._terminality =
+                    (v.has_data() ? Terminality::term_has_data : Terminality::term_no)
+                    | (v.has_child() ? Terminality::term_has_child : Terminality::term_no);
+
+                if (!ro_node->stems.is_null())
                 {
-                    skip_first = false;
-                    if (!std::get<1>(clb))
-                    {//assume that if no data, the child must present
-                        return false;
+                    _stem_mngr.stem(ro_node->stems, ridx,
+                        [&](const atom_t* begin, const atom_t* end, const stem::StemData& stem_header) {
+                        i.correct_suffix(begin, end);
                     }
-                    auto ro_node2 = view<node_t>(*_topology_ptr, std::get<2>(clb));
-                    assert(load_iterator(ro_node2, i, ro_node2->first(), &iterator::emplace)); //empty nodes are not allowed
-                    clb = std::move(classify_back(ro_node2, i));
+                    );
+                }
+                if (back.terminality() == Terminality::term_no) //it is error unpredictable state
+                    return false;
+
+                //if (skip_first || Terminality::term_has_data != (back.terminality() & Terminality::term_has_data))
+                //{
+                //    if (Terminality::term_has_child != (back.terminality() & Terminality::term_has_child))
+                //    {//if no data, the child should present (if not, try to seek over stem)
+
+                //    }
+                //}
+                while ( Terminality::term_has_data != (i.back().terminality() & Terminality::term_has_data) )
+                {
+                    auto ro_node2 = view<node_t>(*_topology_ptr, next_addr);
+                    auto lres = load_iterator(ro_node2, i, ro_node2->first(), &iterator::emplace);
+                    assert(lres); //empty nodes are not allowed
+                    //auto values = _value_mngr.view(ro_node2->payload, ro_node2->capacity);
+                    //auto &v = values[ridx]; //take value regardless of deep
+                    //clb = std::move(classify_back(ro_node2, i));
                 }
                 return true;
             }
