@@ -195,12 +195,12 @@ namespace OP
             template <class Iterator>
             void correct_suffix(Iterator& new_suffix_begin, Iterator& new_suffix_end)
             {
-                auto cut_len = _position_stack.back()._deep;
+                auto &back = _position_stack.back();
+                auto cut_len = back._deep;
                 //_prefix.replace(_prefix.length() - cut_len, cut_len);
                 auto l = _prefix.length();
                 _prefix.append(new_suffix_begin, new_suffix_end);
-                _position_stack.back()._deep += static_cast<dim_t>((_prefix.length()) - l);
-                //_position_stack.pop_back();
+                back._deep += static_cast<dim_t>((_prefix.length()) - l);
             }
             size_t deep() const
             {
