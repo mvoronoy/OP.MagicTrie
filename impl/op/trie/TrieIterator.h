@@ -197,10 +197,10 @@ namespace OP
             {
                 auto &back = _position_stack.back();
                 auto cut_len = back._deep;
-                //_prefix.replace(_prefix.length() - cut_len, cut_len);
+                _prefix.resize(_prefix.length() - back._deep);
                 auto l = _prefix.length();
                 _prefix.append(new_suffix_begin, new_suffix_end);
-                back._deep += static_cast<dim_t>((_prefix.length()) - l);
+                back._deep = static_cast<dim_t>((_prefix.length()) - l);
             }
             size_t deep() const
             {

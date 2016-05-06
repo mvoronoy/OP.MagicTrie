@@ -569,7 +569,10 @@ namespace OP
                 {
                     _stem_mngr.stem(ro_node->stems, ridx,
                         [&](const atom_t* begin, const atom_t* end, const stem::StemData& stem_header) {
-                        i.correct_suffix(begin, end);
+                        if ((i.back().deep()-1) != stem_header.stem_length[ridx])
+                        {
+                            i.correct_suffix(begin, end);
+                        }
                     }
                     );
                 }
@@ -583,8 +586,11 @@ namespace OP
 
                 //    }
                 //}
-                while ( Terminality::term_has_data != (i.back().terminality() & Terminality::term_has_data) )
+                while (skip_first || Terminality::term_has_data != (i.back().terminality() & Terminality::term_has_data) )
                 {
+                    skip_first = false;
+                    if (next_addr.address == SegmentDef::far_null_c)
+                        return false;
                     auto ro_node2 = view<node_t>(*_topology_ptr, next_addr);
                     auto lres = load_iterator(ro_node2, i, ro_node2->first(), &iterator::emplace);
                     assert(lres); //empty nodes are not allowed
