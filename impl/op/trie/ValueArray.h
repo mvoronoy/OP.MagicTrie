@@ -34,7 +34,16 @@ namespace OP
             left = left | right;
             return left;
         }
-
+        template <class T>
+        inline bool is_set(T value, Terminality test)
+        {
+            return (value & static_cast<T>(test)) == test;
+        }
+        template <class T>
+        inline bool is_not_set(T value, Terminality test)
+        {
+            return (value & static_cast<T>(test)) != test;
+        }
         template <class Payload>
         struct ValueArrayData
         {

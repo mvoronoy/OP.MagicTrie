@@ -169,18 +169,16 @@ namespace OP
                 emplace<decltype(begin)>(std::move(position), begin, end);
             }
             /**Add position to iterator*/
-            void update_back(TriePosition&& position, const atom_t* begin, const atom_t* end)
+            void update_back(const TriePosition& position, const atom_t* begin, const atom_t* end)
             {
                 if (position.key() >= std::numeric_limits<atom_t>::max())
                     throw std::out_of_range("Range must be in [0..255]");
                 auto &back = _position_stack.back();
                 _prefix.resize(_prefix.length() - back.deep()+1);
 
-                auto length = static_cast<decltype(position._deep)>(end - begin);
                 _prefix.back() = (atom_t)position.key();
                 _prefix.append(begin, end);
-                _position_stack.back() = std::move(position);
-                _position_stack.back()._deep = length+1;
+                back = position;
             }
             TriePosition& back()
             {

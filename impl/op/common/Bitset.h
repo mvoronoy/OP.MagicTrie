@@ -282,6 +282,22 @@ namespace OP
                 }
                 return nil_c;
             }
+            /**Return index of set bit that is equal or follow after 'prev'. May return `nil_c` if no bits are set.*/
+            inline dim_t next_set_or_this(dim_t prev) const
+            {
+                Int mask = (1ULL << (prev % bits_c));
+                mask -= 1;
+                for (auto i = prev / bits_c; i < N; ++i)
+                {
+                    auto x = _presence[i] & ~mask;
+                    if (x != 0) //test all bits are set
+                    {
+                        return ln2(x & (~x + 1)) + i*bits_c;
+                    }
+                    mask = Int(0); //reset mask for all other entries
+                }
+                return nil_c;
+            }
             /**Return index of bit that is set prior 'index' one. May return `nil_c` if no bits are set prior index.*/
             inline dim_t prev_set(dim_t index) const
             {

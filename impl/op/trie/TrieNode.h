@@ -137,7 +137,12 @@ namespace OP
                         }
                         else if (retval.compare_result == stem::StemCompareResult::equals)
                         {
-                            assert(term.has_data()); //otherwise Trie is corrupted
+                            if (!term.has_data())
+                            {   //case when string is over exactly on this node
+                                assert(term.has_child());
+                                retval.compare_result = stem::StemCompareResult::string_end;
+                            }
+                            retval.child_node = term.get_child();
                             pos._terminality = (Terminality)(term.presence);
                         } //terminality there = term_no
                         //populate iterator 
@@ -224,6 +229,11 @@ namespace OP
             nullable_atom_t next(atom_t previous) const
             {
                 return make_nullable( this->presence.next_set(previous) );
+            }
+            /**@return next or the same position where child or value exists, may return dim_nil_c if no more entries*/
+            nullable_atom_t next_or_this(atom_t previous) const
+            {
+                return make_nullable(this->presence.next_set_or_this(previous));
             }
             /**
             * Move entry from this specified by 'key' node that is started on 'in_stem_pos' to another one 
