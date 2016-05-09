@@ -156,6 +156,7 @@ namespace OP
             */
             void open(FarAddress start_address, SegmentManager& manager) override
             {
+                _segment_manager = &manager;
                 if (start_address.segment == 0)
                 {
                     _zero_header_address = start_address;
@@ -172,7 +173,7 @@ namespace OP
             static OP_CONSTEXPR(const) segment_pos_t entry_size_c =
                 memory_requirement<ZeroHeader>::requirement > memory_requirement<Payload>::requirement ?
                 memory_requirement<ZeroHeader>::requirement : memory_requirement<Payload>::requirement;
-            SegmentManager* _segment_manager;
+            SegmentManager* _segment_manager = nullptr;
             FarAddress _zero_header_address;
         };
     }

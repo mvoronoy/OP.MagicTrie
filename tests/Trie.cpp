@@ -62,7 +62,7 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
         //print_hex(tresult.info() << "1)", ti.prefix());
         //print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
-            OP_CODE_DETAILS(<<"step#"<< n << "has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
+            OP_CODE_DETAILS(<<"step#"<< n << " has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
         tresult.assert_true(
             std::equal(
             std::begin(ti.prefix()), std::end(ti.prefix()), std::begin(mi->first), [](atom_t left, atom_t right){return left == right; }),
@@ -80,6 +80,10 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     std::map<std::string, double> standard;
     double v_order = 0.0;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    std::string zero_ins { '_' };
+    auto ir0 = trie->insert(zero_ins, 0.0);
+    standard[zero_ins] = 0.0;
+
     const std::string stem1(260, 'a'); //total 260
     /*stem1_deviation1 - 1'a' for presence, 256'a' for exhausting stem container*/
     std::string stem1_deviation1{ std::string(257, 'a') + 'b'};
@@ -92,7 +96,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
         ));
     tresult.assert_true(2 == trie->nodes_count(), "2 nodes must be create for long stems");
     tresult.assert_true(b1 == std::end(stem1));
-    tresult.assert_true(trie->size() == 1);
+    tresult.assert_true(trie->size() == 2);
 
     standard[stem1] = v_order++;
     compare_containers(tresult, *trie, standard);
@@ -102,7 +106,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
         ir2.first, 
         OP_CODE_DETAILS("Duplicate insert must not be allowed"));
     tresult.assert_true(b1 == std::end(stem1));
-    tresult.assert_true(trie->size() == 1);
+    tresult.assert_true(trie->size() == 2);
     
     auto ir3 = trie->insert(b1 = stem1_deviation1.cbegin(), stem1_deviation1.cend(), v_order);
     tresult.assert_true(ir3.first, OP_CODE_DETAILS());
@@ -122,7 +126,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     standard[stem2] = v_order++;
     tresult.assert_true(3 == trie->nodes_count(), "3 nodes must exists in the system");
     tresult.assert_true(b1 == std::end(stem2));
-    tresult.assert_true(trie->size() == 3);
+    tresult.assert_true(trie->size() == 4);
     tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir4.second.prefix()), std::end(ir4.second.prefix()),
         std::begin(stem2), std::end(stem2)
         ));
@@ -301,10 +305,14 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
     const atom_t az[] = "az";  auto b1 = std::begin(az);
     tresult.assert_true(tools::container_equals(test_seq[1], trie->lower_bound(b1, std::end(az)).prefix(), tools::sign_tolerant_cmp));
 
-    const atom_t unexisting[] = "zzz";
-    np = std::begin(unexisting);
-    tresult.assert_true(trie->end() == trie->lower_bound(np, std::end(unexisting)));
+    const atom_t unexisting1[] = "zzz";
+    np = std::begin(unexisting1);
+    tresult.assert_true(trie->end() == trie->lower_bound(np, std::end(unexisting1)));
     
+    const atom_t unexisting2[] = "jkl";
+    np = std::begin(unexisting2);
+    tresult.assert_true(trie->find(test_seq[5]) == trie->lower_bound(np, std::end(unexisting2)));
+
     for (auto i = 0; i < std::extent<decltype(test_seq)>::value - 1; ++i, x += 1.0)
     {
         const std::string& test = test_seq[i];
@@ -321,10 +329,19 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
         tresult.assert_true(tools::container_equals(lbit2.prefix(), test_seq[i+1], &tools::sign_tolerant_cmp<atom_t>));
 
         auto lbit3 = trie->lower_bound(std::begin(test), std::end(test)-1);//take shorter key
-        tresult.assert_true(tools::container_equals(lbit3.prefix(), test.substr(0, 2), &tools::sign_tolerant_cmp<atom_t>));
+        tresult.assert_true(tools::container_equals(lbit3.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
         tresult.assert_true(x == *lbit);
     }
+    //handle case of stem_end
+
+    std::string test_long(258, 'k');
+    auto long_ins_res = trie->insert(test_long, 7.5);
+    test_long += "aa";
+    auto lbegin = std::begin(test_long);
+    auto llong_res = trie->lower_bound(lbegin, std::end(test_long));
+    tresult.assert_true(tools::container_equals(llong_res.prefix(), test_seq[5], &tools::sign_tolerant_cmp<atom_t>));
 }
+
 void test_TrieNoTran(OP::utest::TestResult &tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(test_file_name,
@@ -457,16 +474,16 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     atom_string_t query1 ((const atom_t*)"a");
     atom_string_t query2 ((const atom_t*)"ad");
     auto container1 = trie->subrange(std::begin(query1), std::end(query1));
-    for (auto i = container1.begin(); container1.in_range(i); container1.next(i))
-    {
-        print_hex(tresult.info(), i.prefix());
-    }
+    //for (auto i = container1.begin(); container1.in_range(i); container1.next(i))
+    //{
+    //    print_hex(tresult.info(), i.prefix());
+    //}
     auto container2 = trie->subrange(std::begin(query2), std::end(query2));
-    tresult.info() << "======\n";
-    for (auto i = container2.begin(); container2.in_range(i); container2.next(i))
-    {
-        print_hex(tresult.info(), i.prefix());
-    }
+    //tresult.info() << "======\n";
+    //for (auto i = container2.begin(); container2.in_range(i); container2.next(i))
+    //{
+    //    print_hex(tresult.info(), i.prefix());
+    //}
     auto r1 = container1.join(container2);
     auto i1 = r1.begin();
     tresult.assert_true(r1.in_range(i1));
