@@ -303,7 +303,7 @@ namespace OP
                     assert(key < data_header->width);
                     auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
                         + sizeof(atom_t)*data_header->height * key };
-                    auto f_str = array_view<atom_t>(_topology, address, data_header->height);
+                    auto f_str = array_accessor<atom_t>(_topology, address, data_header->height);
                     const atom_t * begin = f_str;
                     callback(begin, begin + data_header->stem_length[key], *data_header);
                 }
