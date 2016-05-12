@@ -327,12 +327,21 @@ namespace OP
                     auto &back = iter.back();
                     FarAddress node_addr = back.address();
                     auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-                    if (begin != end)
-                    {//empty iterator should not be diversificated, just set value
-                        //terminal is not there, otherwise it would be StemCompareResult::equals
-                        diversificate(*wr_node, iter);
+                    auto rindex = wr_node->reindex(*_topology_ptr, static_cast<atom_t>(back.key()));
+                    if (!wr_node->stems.is_null())
+                    {
+                        _stem_mngr.stemw(
+                            wr_node->stems,
+                            rindex,
+                            [&](const atom_t* sbegin, const atom_t* send, const stem::StemData& stem_header) {
+                            if (sbegin != send)
+                            {//empty iterator should not be diversificated, just set value
+                             //terminal is not there, otherwise it would be StemCompareResult::equals
+                                diversificate(*wr_node, iter);
+                            }
+                        });
                     }
-                    wr_node->set_value(*_topology_ptr, (atom_t)back.key(), std::forward<Payload>(value_assigner()));
+                    wr_node->set_value(*_topology_ptr, static_cast<atom_t>(back.key()), std::forward<Payload>(value_assigner()));
                     iter.back()._terminality |= Terminality::term_has_data;
                     return result;
                 }
