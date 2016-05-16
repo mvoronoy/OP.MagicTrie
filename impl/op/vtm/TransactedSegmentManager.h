@@ -368,7 +368,19 @@ namespace OP
                 {
                     return TransactionCode(_transaction_code.load());
                 }
-                
+                /**Mark this block as captured by RO LockDisposer, erasing from captured_blocks_t
+                should be allowed after releasing all disposers*/
+                void enter_ro_disposer()
+                {
+                    ++_ro_deletion_order;
+                }
+                /**Mark block as released by RO LockDisposer
+                @return true if erase from captured_blocks_t is allowed
+                */
+                bool release_ro_disposer() 
+                {
+                    return --_ro_deletion_order == 0;
+                }
             private:
                 
                 bool do_compare_exchange(std::uint64_t& expected, std::uint64_t desired)
@@ -377,7 +389,9 @@ namespace OP
                 }
                 std::atomic<std::uint64_t> _transaction_code;
                 std::uint8_t* _shadow_buffer;
-
+                /**Allows control deletion when several blocks sharesthe same captured_blocks_t::iterator position.
+                This shouldn't be atomic since accessed only inside lock access to captured_blocks_t*/
+                int _ro_deletion_order = 0;
             };
             typedef std::map<RWR, BlockUse> captured_blocks_t;
             struct TransactionImpl;
@@ -562,13 +576,18 @@ namespace OP
                 LockDisposer(transaction_impl_ptr_t& owner, captured_blocks_t::iterator& entry)
                     : _owner(owner)
                     , _entry(entry)
-                {}
+                {
+                    _entry->second.enter_ro_disposer();
+                }
                 void on_leave_scope(MemoryChunkBase& closing) OP_NOEXCEPT
                 {
-                    if (_owner->is_active()) //process only on active transactions (that have some open blocks)
+                    //transaction may purge all so check before dispose that transaction is still active
+                    if (_owner->is_active() //process only on active transactions (that have some open blocks)
+                        && _entry->second.release_ro_disposer()) 
                     {
                         _owner->_owner->release_ro_lock(_owner, _entry);
                     }
+                    
                 }
             private:
                 transaction_impl_ptr_t _owner;
