@@ -119,36 +119,7 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 sync_iterator(i);
-                bool way_down = true;
-                while (!i.is_end())
-                {
-                    //try enter deep
-                    if (way_down && (i.back().terminality() & Terminality::term_has_child) == Terminality::term_has_child)
-                    {   //get address of child
-                        auto ro_node = view<node_t>(*_topology_ptr, i.back().address());
-                        auto ridx = ro_node->reindex(*_topology_ptr, static_cast<atom_t>(i.back().key()));
-                        auto values = _value_mngr.view(ro_node->payload, ro_node->capacity);
-                        auto &v = values[ridx]; //take value regardless of deep
-                        enter_deep_until_terminal(v.get_child(), i);
-                        return;
-                    }
-                    //try navigate right from current position
-                    auto lres = load_iterator(i.back().address(), i,
-                        [&i](ReadonlyAccess<node_t>&ro_node) { return _resolve_next(*ro_node, &i);},
-                        &iterator::update_back);
-                    if (tuple_ref<bool>(lres))
-                    { //navigation right succeeded
-                        if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
-                        {//i already points to correct entry
-                            return;
-                        }
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), i);
-                        return;
-                    }
-                    //here since no way neither down nor right
-                    way_down = false;
-                    i.pop();
-                }
+                _next(true, i);
             }
             typedef IteratorsRange<iterator> range_container_t;
 
@@ -169,11 +140,17 @@ namespace OP
                 }
                 if (nav.compare_result == stem::StemCompareResult::string_end) //prefix partially matches to some prefix
                 { //correct string at back of iterator
-                    //i.correct_suffix(nav.stem_rest.begin(), nav.stem_rest.end());
+                    auto lres = load_iterator(i.back().address(), i,
+                        [&i](ReadonlyAccess<node_t>& ) { 
+                            return make_nullable(i.back().key());
+                        },
+                        &iterator::update_back);
+                    assert(std::get<0>(lres));//tail must exists
+                    enter_deep_until_terminal(std::get<1>(lres), i);
                 }
                 //
                 auto i_next = i; //use copy
-                next(i_next);
+                _next(false, i_next);
                 return range_container_t(i, i_next);
             }
 
@@ -657,6 +634,38 @@ namespace OP
                 assert(back.terminality() != Terminality::term_no); //it is error unpredictable state
                 enter_deep_until_terminal(std::get<1>(lres), i);
                 return true;
+            }
+            void _next(bool way_down, iterator &i) const
+            {
+                while (!i.is_end())
+                {
+                    //try enter deep
+                    if (way_down && (i.back().terminality() & Terminality::term_has_child) == Terminality::term_has_child)
+                    {   //get address of child
+                        auto ro_node = view<node_t>(*_topology_ptr, i.back().address());
+                        auto ridx = ro_node->reindex(*_topology_ptr, static_cast<atom_t>(i.back().key()));
+                        auto values = _value_mngr.view(ro_node->payload, ro_node->capacity);
+                        auto &v = values[ridx]; //take value regardless of deep
+                        enter_deep_until_terminal(v.get_child(), i);
+                        return;
+                    }
+                    //try navigate right from current position
+                    auto lres = load_iterator(i.back().address(), i,
+                        [&i](ReadonlyAccess<node_t>&ro_node) { return _resolve_next(*ro_node, &i);},
+                        &iterator::update_back);
+                    if (tuple_ref<bool>(lres))
+                    { //navigation right succeeded
+                        if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
+                        {//i already points to correct entry
+                            return;
+                        }
+                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), i);
+                        return;
+                    }
+                    //here since no way neither down nor right
+                    way_down = false;
+                    i.pop();
+                }
             }
             void enter_deep_until_terminal(FarAddress start_from, iterator& i) const
             {
