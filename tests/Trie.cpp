@@ -441,6 +441,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
             tresult.assert_true(begin_test.prefix() == strain_str);
             tresult.assert_true(*begin_test == (double)strain_str.length());
         }
+        tresult.assert_true(a == sorted_checks.end());
     }
 }
 void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
