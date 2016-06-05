@@ -139,6 +139,17 @@ namespace OP
 
                 return _position_stack.back() == other._position_stack.back();
             }
+            inline bool operator < (const this_t& other) const
+            {
+                if (is_end())
+                    return false; //even if other is 'end' too it is not less
+                if (other.is_end())
+                {
+                    return true;  //when other is end then this less anyway
+                }
+                return _prefix < other._prefix;
+            }
+
             inline bool operator != (const this_t& other) const
             {
                 return !operator == (other);

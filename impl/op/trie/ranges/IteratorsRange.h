@@ -14,28 +14,24 @@ namespace OP
         struct IteratorsRange : public SuffixRange<Iterator>
         {
             typedef Iterator iterator;
-            IteratorsRange(iterator prefix, iterator begin) 
+            IteratorsRange(iterator begin, iterator end) 
                 : _begin(begin) 
-                , _prefix(prefix)
+                , _end(end)
             {
             }
             iterator begin() const override
             {
                 return _begin;
             }
-            iterator prefix() const
+            iterator end() const
             {
-                return _prefix;
+                return _end;
             }
             bool in_range(const iterator& check) const override
             {
-                if (check.is_end() ||
-                    check.prefix().length() < _prefix.prefix().length())
+                if ( check.is_end() )
                     return false;
-                const atom_string_t& prefix_str = _prefix.prefix();
-                auto m_pos = std::mismatch(
-                    prefix_str.begin(), prefix_str.end(), check.prefix().begin());
-                return (m_pos.first == _prefix.prefix().end());
+                return check < _end && !(check < _begin);
             }
             void next(iterator& pos) const override
             {
@@ -43,7 +39,7 @@ namespace OP
             }
             
         private:
-            iterator _begin, _prefix;
+            iterator _begin, _end;
         };        
     }//ns:trie
 }//ns:OP

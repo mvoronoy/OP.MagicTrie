@@ -131,27 +131,25 @@ namespace OP
                 auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix
                     return range_container_t(end(), end());
+                auto i_beg = i, i_end = i;
                 //find next position that doesn't matches to prefix
-                if (nav.compare_result == stem::StemCompareResult::equals) //prefix fully matches to existing terminal
-                {
-                    auto beg = i; //use copy
-                    assert(_begin(i.back().address(), beg));
-                    return range_container_t(i, beg);
-                }
-                if (nav.compare_result == stem::StemCompareResult::string_end) //prefix partially matches to some prefix
+                //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
+                if(nav.compare_result == stem::StemCompareResult::string_end) //prefix partially matches to some prefix
                 { //correct string at back of iterator
-                    auto lres = load_iterator(i.back().address(), i,
+                    auto lres = load_iterator(i_beg.back().address(), i_beg,
                         [&i](ReadonlyAccess<node_t>& ) { 
                             return make_nullable(i.back().key());
                         },
                         &iterator::update_back);
                     assert(std::get<0>(lres));//tail must exists
-                    enter_deep_until_terminal(std::get<1>(lres), i);
+                    if ((i_beg.back().terminality() & Terminality::term_has_data) != Terminality::term_has_data)
+                    {
+                        enter_deep_until_terminal(std::get<1>(lres), i_beg);
+                    }
                 }
                 //
-                auto i_next = i; //use copy
-                _next(false, i_next);
-                return range_container_t(i, i_next);
+                _next(false, i_end);
+                return range_container_t(i_beg, i_end);
             }
 
             template <class Atom>
@@ -617,7 +615,7 @@ namespace OP
             /**
             * @param skip_first - true if once current iterator position should be ignored, and new value loaded (used by ::next).
             *                     false mean that current iterator position have to be checked if enter deep is allowed (used by ::begin)
-            * @return false if iterator cannot be positioned (obvious trie is empty)
+            * @return false if iterator cannot be positioned (eg. trie is empty)
             */
             bool _begin(const FarAddress& node_addr, iterator& i) const
             {
