@@ -433,7 +433,8 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
             container_ptr.next(begin_test);
         }
         auto a = std::begin(sorted_checks);
-        for (; container_ptr.in_range(begin_test); container_ptr.next(begin_test), ++a)
+        auto cnt = 0;
+        for (; container_ptr.in_range(begin_test); container_ptr.next(begin_test), ++a, ++cnt)
         {
             auto strain_str = (test + *a);
             //print_hex(std::cout << "1)", strain_str);
@@ -442,6 +443,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
             tresult.assert_true(*begin_test == (double)strain_str.length());
         }
         tresult.assert_true(a == sorted_checks.end());
+        tresult.assert_true(cnt > 0);
     }
 }
 void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
