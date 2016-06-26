@@ -84,13 +84,16 @@ namespace OP
             typename Container::value_type
         >
         {
+        public:
+            typedef atom_string_t prefix_string_t;
+        private:
             friend typename Container;
             friend typename Container::node_t;
 
             typedef std::vector<TriePosition> node_stack_t;
             node_stack_t _position_stack;
             const Container * _container;
-            atom_string_t _prefix;
+            prefix_string_t _prefix;
         public:
             typedef typename Container::value_type value_type;
             typedef TrieIterator<Container> this_t;
@@ -158,7 +161,7 @@ namespace OP
             {
                 return _position_stack.empty();
             }
-            const atom_string_t& prefix() const
+            const prefix_string_t& prefix() const
             {
                 return _prefix;
             }
