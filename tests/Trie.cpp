@@ -57,10 +57,10 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
     auto ti = trie.begin();
     int n = 0;
     //order must be the same
-    for (; ti != trie.end(); ++ti, ++mi, ++n)
+    for (; trie.in_range(ti); ++ti, ++mi, ++n)
     {
-        //print_hex(tresult.info() << "1)", ti.prefix());
-        //print_hex(tresult.info() << "2)", mi->first);
+        print_hex(tresult.info() << "1)", ti.prefix());
+        print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
             OP_CODE_DETAILS(<<"step#"<< n << " has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
         tresult.assert_true(
@@ -446,6 +446,15 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         tresult.assert_true(cnt > 0);
     }
 }
+template <class R, class Sample>
+void test_join(
+    OP::utest::TestResult &tresult, const R& r1, const R& r2, const Sample& expected)
+{
+    auto result1 = r1.join(r2);
+    compare_containers(tresult, result1, expected);
+    auto result2 = r2.join(r1);
+    compare_containers(tresult, result2, expected);
+}
 void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
@@ -453,7 +462,6 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
         .segment_size(0x110000));
     typedef Trie<TransactedSegmentManager, double> trie_t;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
-    std::map<atom_string_t, double> test_values;
     // Populate trie with unique strings in range from [0..255]
     // this must cause grow of root node
     const atom_string_t stems[] = { 
@@ -470,10 +478,10 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
         tresult.assert_true(ins_res.first);
         tresult.assert_true(tools::container_equals(ins_res.second.prefix(), i, &tools::sign_tolerant_cmp<atom_t>));
 
-        test_values.emplace(i, (double)i.length());
         //std::cout << std::setfill('0') << std::setbase(16) << std::setw(2) << (unsigned)i << "\n";
     }
-    compare_containers(tresult, *trie, test_values);
+
+    std::map<atom_string_t, double> test_values;
     atom_string_t query1 ((const atom_t*)"a");
     atom_string_t query2 ((const atom_t*)"ad");
     auto container1 = trie->subrange(std::begin(query1), std::end(query1));
@@ -487,12 +495,47 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     //{
     //    print_hex(tresult.info(), i.prefix());
     //}
-    auto r1 = container1.join(container2);
-    auto i1 = r1.begin();
-    tresult.assert_true(r1.in_range(i1));
-//    tresult.assert_true(tools::container_equals(i1.prefix(), stems[0], &tools::sign_tolerant_cmp<atom_t>));
+    test_values.emplace(stems[0], 3.);
+    test_join(tresult, container1, container2, test_values);
 
+    //
+    //  Test empty
+    //
+    test_values.clear();
+    atom_string_t query3((const atom_t*)"x");
+    test_join(tresult, container1, trie->subrange(std::begin(query3), std::end(query3)), test_values);
+
+    const atom_string_t stem_diver[] = {
+
+        (atom_t*)"ma",
+        (atom_t*)"madc",
+        (atom_t*)"mb",
+        (atom_t*)"mdef",
+        (atom_t*)"mg",
+        (atom_t*)"na",
+        (atom_t*)"nad", //missed
+        (atom_t*)"nadc",
+        (atom_t*)"nb",
+        (atom_t*)"ndef",
+        (atom_t*)"nh",
+        (atom_t*)"x",
+    };
+    std::for_each(std::begin(stem_diver), std::end(stem_diver), [&trie](const atom_string_t& s) {
+        trie->insert(s, (double)s.length());
+    });
+
+    test_values.emplace((atom_t*)("a"), 1);
+    test_values.emplace((atom_t*)"adc", 3);
+    test_values.emplace((atom_t*)"b", 1);
+    test_values.emplace((atom_t*)"def", 3);
+
+    atom_string_t query4((const atom_t*)"m"), query5((const atom_t*)"n");
+    test_join(tresult, 
+        trie->subrange(std::begin(query4), std::end(query4)).map(),
+        trie->subrange(std::begin(query5), std::end(query5)), 
+        test_values);
 }
+
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
     ->declare(test_TrieInsert, "insertion")

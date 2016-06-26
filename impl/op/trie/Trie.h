@@ -115,6 +115,11 @@ namespace OP
             {
                 return iterator();
             }
+            bool in_range(const iterator& check) const 
+            {
+                return check != end();
+            }
+
             void next(iterator& i) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope

@@ -17,6 +17,7 @@ namespace OP
             typedef Iterator iterator;
             typedef JoinRangeIterator<Iterator, OwnerRange> this_t;
             typedef typename Iterator::value_type value_type;
+            typedef typename iterator::prefix_string_t prefix_string_t;
             friend OwnerRange;
             JoinRangeIterator(const OwnerRange& owner_range, iterator left, iterator right)
                 : _owner_range(owner_range)
@@ -34,14 +35,15 @@ namespace OP
                 _owner_range.next(*this);
                 return result;
             }
-            value_type& operator* ()
+            value_type operator* () const
             {
-                return *_left;
+                return *left();
             }
-            const value_type& operator* () const
+            const prefix_string_t& prefix() const
             {
-                return *_left;
+                return _left.prefix();
             }
+
         private:
             const iterator& left() const
             {
@@ -64,8 +66,8 @@ namespace OP
             /**
             * @param iterator_comparator - binary predicate `bool(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
             */
-            template <class BinaryPredicate>
-            JoinRange(const SourceRange1 & r1, const SourceRange2 & r2, BinaryPredicate iterator_comparator)
+            template <class BinaryComparator>
+            JoinRange(const SourceRange1 & r1, const SourceRange2 & r2, BinaryComparator iterator_comparator)
                 : _left(r1)
                 , _right(r2)
                 , _iterator_comparator(iterator_comparator)
@@ -84,6 +86,7 @@ namespace OP
             }
             void next(iterator& pos) const override
             {
+                ++pos._left;
                 seek(pos);
             }
         private:
@@ -91,11 +94,12 @@ namespace OP
             {
                 while (in_range(pos))
                 {
-                    if (_iterator_comparator(pos._left, pos._right)) {
+                    auto diff = _iterator_comparator(pos._left, pos._right);
+                    if (diff < 0) {
                         ++pos._left;
                     }
                     else {
-                        if (!_iterator_comparator(pos._right, pos._left)) {
+                        if (diff == 0) {
                             return;
                         }
                         ++pos._right;
@@ -107,7 +111,7 @@ namespace OP
             const SourceRange2& _right;
             typedef typename SourceRange1::iterator i1;
             typedef typename SourceRange2::iterator i2;
-            const std::function<bool(const i1&, const i2&)> _iterator_comparator;
+            const std::function<int(const i1&, const i2&)> _iterator_comparator;
         };
     } //ns: trie
 } //ns: OP
