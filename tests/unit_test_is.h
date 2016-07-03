@@ -10,18 +10,43 @@
 namespace OP
 {
     namespace utest{
-        namespace is{
-
-            template <class T1, class T2>
-            inline std::function< bool() > equals(
-                T1 && t1, 
-                T2 && t2)
+        /** Marker specifies equality operation between two arguments */
+        struct equals {};
+        namespace details {
+            
+            struct bool_result
             {
-                return [=](){
-                    return t1 == t2;
-                };
-            }
-            inline std::function< bool() > equals(
+                bool_result(bool r)
+                    : test_that(r) {}
+                const bool test_that;
+            };
+
+            template <class Left, class Right, class Rule>
+            struct that : bool_result
+            {
+                that(Left&& left, Right&& right)
+                    : bool_result(false)
+                {
+                }
+
+            };
+            template <class Left, class Right>
+            struct that<Left, Right, equals> : bool_result
+            {
+                that(Left&& left, Right&& right)
+                    : bool_result(left == right)
+                {
+                }
+            };
+        }
+
+        template <class Marker, class Left, class Right>
+        inline bool that(Left&& left, Right&& right)
+        {
+            return details::that<Left, Right, Marker>(std::forward<Left>(left), std::forward<Right>(right));
+        }
+
+        inline std::function< bool() > equals(
                 const char* t1, 
                 const char* t2)
             {

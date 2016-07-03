@@ -63,9 +63,8 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
         print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
             OP_CODE_DETAILS(<<"step#"<< n << " has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
-        tresult.assert_true(
-            std::equal(
-            std::begin(ti.prefix()), std::end(ti.prefix()), std::begin(mi->first), [](atom_t left, atom_t right){return left == right; }),
+        tresult.assert_that(
+            OP::utest::is::equals(ti.prefix(), mi->first),
             OP_CODE_DETAILS(<<"step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.prefix().c_str()));
         tresult.assert_that(OP::utest::is::equals(*ti, mi->second), OP_CODE_DETAILS(<<"Associated value error, has:" << *ti << ", expected:" << mi->second ));
     }
@@ -446,9 +445,9 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         tresult.assert_true(cnt > 0);
     }
 }
-template <class R, class Sample>
+template <class R1, class R2, class Sample>
 void test_join(
-    OP::utest::TestResult &tresult, const R& r1, const R& r2, const Sample& expected)
+    OP::utest::TestResult &tresult, const R1& r1, const R2& r2, const Sample& expected)
 {
     auto result1 = r1.join(r2);
     compare_containers(tresult, result1, expected);
@@ -531,8 +530,12 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
 
     atom_string_t query4((const atom_t*)"m"), query5((const atom_t*)"n");
     test_join(tresult, 
-        trie->subrange(std::begin(query4), std::end(query4)).map(),
-        trie->subrange(std::begin(query5), std::end(query5)), 
+        trie->subrange(std::begin(query4), std::end(query4)).map([](auto const& it) {
+            return it.prefix().substr(1);
+        }),
+        trie->subrange(std::begin(query5), std::end(query5)).map([](auto const& it) {
+            return it.prefix().substr(1);
+        }),
         test_values);
 }
 
