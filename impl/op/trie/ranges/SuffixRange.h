@@ -2,14 +2,16 @@
 #define _OP_TRIE_RANGES_SUFFIX_RANGE__H_
 
 #include <op/trie/TrieIterator.h>
-#include <op/common/func_iter.h>
+#include <op/trie/ranges/FunctionalRange.h>
+
+#ifdef _MSC_VER
+#pragma warning(disable : 4503)
+#endif
 
 namespace OP
 {
     namespace trie
     {
-        template <class SourceRange, class UnaryFunction>
-        struct MappedRange;
 
         template <class SourceRange, class UnaryPredicate>
         struct FilteredRange;
@@ -42,7 +44,7 @@ namespace OP
             *   \code std::result_of<UnaryFunction(typename iterator::value_type)>::type >::type
             */
             template <class UnaryFunction>
-            inline MappedRange<this_t, UnaryFunction> map(UnaryFunction && f) const;
+            inline FunctionalRange<this_t, UnaryFunction> map(UnaryFunction && f) const;
             
             template <class UnaryPredicate>
             inline FilteredRange<this_t, UnaryPredicate> filter(UnaryPredicate && f) const;
@@ -51,33 +53,9 @@ namespace OP
             inline JoinRange<this_t, OtherRange> join(const OtherRange & f) const;
         };
 
-        template <class SourceRange, class UnaryFunction>
-        struct MappedRange : public SuffixRange<func_iterator<typename SourceRange::iterator, UnaryFunction> > /*Surjection?*/
-        {
-            MappedRange(const SourceRange & source_range, UnaryFunction && func)
-                : _source_range(source_range)
-                , _func(std::forward<UnaryFunction>(func))
-            {}
-
-            virtual iterator begin() const
-            {
-                return make_func_iterator(_source_range.begin(), _func);
-            }
-            virtual bool in_range(const iterator& check) const
-            {
-                return _source_range.in_range(check.origin());
-            }
-            virtual void next(iterator& pos) const
-            {
-                return _source_range.next(pos.origin());
-            }
-        private:
-            const SourceRange & _source_range;
-            UnaryFunction _func;
-        };
         
         template <class SourceRange, class UnaryPredicate>
-        struct FilteredRange : public SuffixRange<func_iterator<typename SourceRange::iterator, UnaryPredicate> > 
+        struct FilteredRange : public SuffixRange<typename SourceRange::iterator > 
         {
             FilteredRange(const SourceRange & source_range, UnaryPredicate && predicate)
                 : _source_range(source_range)
@@ -116,9 +94,9 @@ namespace OP
 
         template<class Iterator>
         template<class UnaryFunction>
-        inline MappedRange<typename SuffixRange<Iterator>, UnaryFunction> SuffixRange<Iterator>::map(UnaryFunction && f) const
+        inline FunctionalRange<typename SuffixRange<Iterator>, UnaryFunction> SuffixRange<Iterator>::map(UnaryFunction && f) const
         {
-            return MappedRange<this_t, UnaryFunction>(*this, std::forward<UnaryFunction>(f));
+            return FunctionalRange<this_t, UnaryFunction>(*this, std::forward<UnaryFunction>(f));
         }
         template<class Iterator>
         template<class UnaryPredicate>
@@ -158,8 +136,9 @@ namespace OP{
             return JoinRange<this_t, OtherRange>(
                 *this, 
                 other, 
-                [](const iterator& left, const iterator& right)->int {
-                    return str_lexico_comparator(left.prefix().begin(), left.prefix().end(), right.prefix().begin(), right.prefix().end());
+                [](const this_t::iterator& left, const OtherRange::iterator& right)->int {
+                    return str_lexico_comparator(left.prefix().begin(), left.prefix().end(), 
+                        right.prefix().begin(), right.prefix().end());
             });
         }
 

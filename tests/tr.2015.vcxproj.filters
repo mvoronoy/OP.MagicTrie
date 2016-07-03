@@ -126,6 +126,9 @@
     <ClInclude Include="..\impl\op\trie\ranges\JoinRange.h">
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\FunctionalRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />

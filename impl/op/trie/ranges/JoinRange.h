@@ -7,22 +7,25 @@ namespace OP
 {
     namespace trie
     {
-        template <class Iterator, class OwnerRange>
+        template <class OwnerRange>
         struct JoinRangeIterator :
             public std::iterator<
             std::forward_iterator_tag,
-            typename Iterator::value_type
+            typename OwnerRange::left_iterator::value_type
             >
         {
-            typedef Iterator iterator;
-            typedef JoinRangeIterator<Iterator, OwnerRange> this_t;
-            typedef typename Iterator::value_type value_type;
-            typedef typename iterator::prefix_string_t prefix_string_t;
+            typedef JoinRangeIterator<OwnerRange> this_t;
+            typedef typename OwnerRange::left_iterator::value_type value_type;
+            typedef typename OwnerRange::left_iterator::key_type key_type;
+            typedef typename OwnerRange::left_iterator::prefix_string_t prefix_string_t;
+            
             friend OwnerRange;
-            JoinRangeIterator(const OwnerRange& owner_range, iterator left, iterator right)
+            JoinRangeIterator(const OwnerRange& owner_range, 
+                typename OwnerRange::left_iterator && left, 
+                typename OwnerRange::right_iterator && right)
                 : _owner_range(owner_range)
-                , _left(left)
-                , _right(right)
+                , _left(std::move(left))
+                , _right(std::move(right))
             {}
             this_t& operator ++()
             {
@@ -39,32 +42,36 @@ namespace OP
             {
                 return *left();
             }
-            const prefix_string_t& prefix() const
+            key_type prefix() const
             {
                 return _left.prefix();
             }
 
         private:
-            const iterator& left() const
+            const typename OwnerRange::left_iterator& left() const
             {
                 return _left;
             }
-            const iterator& right() const
+            const typename OwnerRange::right_iterator& right() const
             {
                 return _right;
             }
 
             const OwnerRange& _owner_range;
-            iterator _left, _right;
+            typename OwnerRange::left_iterator _left;
+            typename OwnerRange::right_iterator _right;
         };
         template <class SourceRange1, class SourceRange2>
         struct JoinRange : public SuffixRange< 
-                JoinRangeIterator<typename SourceRange1::iterator, JoinRange<SourceRange1, SourceRange2> > >
+                JoinRangeIterator< JoinRange<SourceRange1, SourceRange2> > >
         {
             typedef JoinRange<SourceRange1, SourceRange2> this_t;
-            typedef JoinRangeIterator<typename SourceRange1::iterator, typename this_t> iterator;
+            typedef typename SourceRange1::iterator left_iterator;
+            typedef typename SourceRange2::iterator right_iterator;
+
+            typedef JoinRangeIterator<this_t> iterator;
             /**
-            * @param iterator_comparator - binary predicate `bool(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
+            * @param iterator_comparator - binary predicate `int(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
             */
             template <class BinaryComparator>
             JoinRange(const SourceRange1 & r1, const SourceRange2 & r2, BinaryComparator iterator_comparator)
@@ -86,7 +93,7 @@ namespace OP
             }
             void next(iterator& pos) const override
             {
-                ++pos._left;
+                _left.next(pos._left);
                 seek(pos);
             }
         private:
@@ -96,22 +103,20 @@ namespace OP
                 {
                     auto diff = _iterator_comparator(pos._left, pos._right);
                     if (diff < 0) {
-                        ++pos._left;
+                        _left.next(pos._left);
                     }
                     else {
                         if (diff == 0) {
                             return;
                         }
-                        ++pos._right;
+                        _right.next(pos._right);
                     }
                 }
 
             }
             const SourceRange1& _left;
             const SourceRange2& _right;
-            typedef typename SourceRange1::iterator i1;
-            typedef typename SourceRange2::iterator i2;
-            const std::function<int(const i1&, const i2&)> _iterator_comparator;
+            const std::function<int(const left_iterator&, const right_iterator&)> _iterator_comparator;
         };
     } //ns: trie
 } //ns: OP
