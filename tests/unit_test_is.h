@@ -17,17 +17,13 @@ namespace OP
             struct bool_result
             {
                 bool_result(bool r)
-                    : test_that(r) {}
-                const bool test_that;
+                    : test_result(r) {}
+                const bool test_result;
             };
 
             template <class Left, class Right, class Rule>
             struct that : bool_result
             {
-                that(Left&& left, Right&& right)
-                    : bool_result(false)
-                {
-                }
 
             };
             template <class Left, class Right>
@@ -38,51 +34,28 @@ namespace OP
                 {
                 }
             };
-        }
+            template <>
+            struct that<const char*, const char*, equals> : bool_result
+            {
+                that(const char* left, const char* right)
+                    : bool_result(strcmp(left, right) == 0)
+                {
+                }
+            };
+        } //ns:details
 
         template <class Marker, class Left, class Right>
         inline bool that(Left&& left, Right&& right)
         {
-            return details::that<Left, Right, Marker>(std::forward<Left>(left), std::forward<Right>(right));
+            return details::that<Left, Right, Marker>(std::forward<Left>(left), std::forward<Right>(right)).test_result;
         }
 
-        inline std::function< bool() > equals(
-                const char* t1, 
-                const char* t2)
-            {
-                return [t1, t2](){
-                    return strcmp(t1, t2) == 0;
-                };
-            }
-            inline std::function< bool() > equals(
-                const std::uint8_t* t1, 
-                const std::uint8_t* t2,
-                size_t size)
-            {
-                auto f = [t1, t2, size](){
-                    return memcmp(t1, t2, size) == 0;
-                };
-                return f;
-            }
-            template <class T1, class T2>
-            inline std::function< bool() > less(
-                const T1& t1, 
-                const T2& t2)
-            {
-                return [t1, t2](){
-                    return t1 < t2;
-                };
-            }
-
-            inline std::function< bool() > less(
-                const char* t1, 
-                const char* t2)
-            {
-                return [t1, t2](){
-                    return strcmp(t1, t2) < 0;
-                };
-            }
+        template <class Left, class Right, class Comparator>
+        inline bool that(Left&& left, Right&& right, Comparator & cmp)
+        {
+            return cmp(std::forward<Left>(left), std::forward<Right>(right));
         }
+
         
     } //utest
 }//OP
