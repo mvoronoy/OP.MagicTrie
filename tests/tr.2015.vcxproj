@@ -182,6 +182,9 @@
     <ClInclude Include="..\impl\op\common\Utils.h" />
     <ClInclude Include="..\impl\op\trie\ValueArray.h" />
     <ClInclude Include="GenericMemoryTest.h" />
+    <ClInclude Include="test_comparators.h" />
+    <ClInclude Include="unit_test.h" />
+    <ClInclude Include="unit_test_is.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BgWorkerTest.cpp" />

@@ -366,6 +366,22 @@ namespace OP
                     fail(std::forward<Xetails>(details));
                 }
             }
+            template<class Marker, class Left, class Right, class Xetails>
+            void assert_that(Left&& left, Right&& right, Xetails &&details)
+            {
+                if (!OP::utest::that<Marker>(std::forward<Left>(left), std::forward<Right>(right)))
+                {
+                    fail(std::forward<Xetails>(details));
+                }
+            }
+            template<class Left, class Right, class Cmp, class Xetails>
+            void assert_thax(Left&& left, Right&& right, Cmp cmp, Xetails &&details)
+            {
+                if (!cmp(std::forward<Left>(left), std::forward<Right>(right)))
+                {
+                    fail(std::forward<Xetails>(details));
+                }
+            }
             /**Unconditional fail*/
             template<typename ...Xetails>
             void fail(Xetails&& ...details)

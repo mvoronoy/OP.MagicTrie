@@ -3,6 +3,10 @@
 #include <iterator>
 #include <op/trie/ranges/SuffixRange.h>
 
+#if _MSC_VER > 1000
+#pragma warning(disable:4503)
+#endif // _MSC_VER > 1000
+
 namespace OP
 {
     namespace trie

@@ -5,6 +5,7 @@
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/TransactedSegmentManager.h>
 #include <algorithm>
+#include "test_comparators.h"
 
 using namespace OP::trie;
 using namespace OP::utest;
@@ -63,10 +64,10 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
         print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_true(ti.prefix().length() == mi->first.length(), 
             OP_CODE_DETAILS(<<"step#"<< n << " has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
-        tresult.assert_that(
-            OP::utest::is::equals(ti.prefix(), mi->first),
+        tresult.assert_true(tools::container_equals(ti.prefix(), mi->first),
             OP_CODE_DETAILS(<<"step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.prefix().c_str()));
-        tresult.assert_that(OP::utest::is::equals(*ti, mi->second), OP_CODE_DETAILS(<<"Associated value error, has:" << *ti << ", expected:" << mi->second ));
+        tresult.assert_that<equals>(*ti, mi->second,
+            OP_CODE_DETAILS(<<"Associated value error, has:" << *ti << ", expected:" << mi->second ));
     }
     tresult.assert_true(mi == std::end(map), OP_CODE_DETAILS());
 }
@@ -438,7 +439,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
             auto strain_str = (test + *a);
             //print_hex(std::cout << "1)", strain_str);
             //print_hex(std::cout << "2)", begin_test.prefix());
-            tresult.assert_true(begin_test.prefix() == strain_str);
+            tresult.assert_true(tools::container_equals(begin_test.prefix(), strain_str), "! strain == prefix");
             tresult.assert_true(*begin_test == (double)strain_str.length());
         }
         tresult.assert_true(a == sorted_checks.end());

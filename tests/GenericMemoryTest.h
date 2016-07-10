@@ -153,7 +153,8 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     {
         auto ro_ptr = segmentMngr3->readonly_block(stripes[i], sizeof(seq)).at<std::uint8_t>(0);
             
-        result.assert_that(is::equals(seq, ro_ptr, sizeof(seq)), "striped block corrupted");
+        result.assert_true(tools::range_equals(
+            seq, seq+ sizeof(seq), ro_ptr, ro_ptr+sizeof(seq)), "striped block corrupted");
 
         if (!has_block_compression)
             test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);

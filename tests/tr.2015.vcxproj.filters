@@ -129,6 +129,9 @@
     <ClInclude Include="..\impl\op\trie\ranges\FunctionalRange.h">
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
+    <ClInclude Include="test_comparators.h" />
+    <ClInclude Include="unit_test.h" />
+    <ClInclude Include="unit_test_is.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
