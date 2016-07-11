@@ -137,8 +137,10 @@ namespace OP{
                 *this, 
                 other, 
                 [](const this_t::iterator& left, const OtherRange::iterator& right)->int {
-                    return str_lexico_comparator(left.prefix().begin(), left.prefix().end(), 
-                        right.prefix().begin(), right.prefix().end());
+                    auto&&left_prefix = left.prefix(); //may be return by const-ref or by value
+                    auto&&right_prefix = right.prefix();//may be return by const-ref or by value
+                    return str_lexico_comparator(left_prefix.begin(), left_prefix.end(), 
+                        right_prefix.begin(), right_prefix.end());
             });
         }
 

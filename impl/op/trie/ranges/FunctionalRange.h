@@ -71,7 +71,7 @@ namespace OP
             friend OwnerRange;
             FunctionalRangeIterator(const OwnerRange& owner_range, source_iterator_t source, key_eval_policy_t && key_eval)
                 : _owner_range(owner_range)
-                , _source(_source)
+                , _source(source)
                 , _key_eval_policy(std::forward<key_eval_policy_t>(key_eval))
             {}
             this_t& operator ++()
@@ -117,7 +117,7 @@ namespace OP
 
             FunctionalRange(const SourceRange & source, UnaryFunction && transform)
                 : _source_range(source)
-                , _transform(transform)
+                , _transform(std::forward<UnaryFunction >(transform))
             {
             }
 
