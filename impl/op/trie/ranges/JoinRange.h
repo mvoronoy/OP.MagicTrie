@@ -30,6 +30,7 @@ namespace OP
                 : _owner_range(owner_range)
                 , _left(std::move(left))
                 , _right(std::move(right))
+                , _optimize_right_forward(false)
             {}
             this_t& operator ++()
             {
@@ -60,10 +61,11 @@ namespace OP
             {
                 return _right;
             }
-
             const OwnerRange& _owner_range;
             typename OwnerRange::left_iterator _left;
             typename OwnerRange::right_iterator _right;
+            /**Very special case when right == left, then ::next must be called for both iterators (not only for left)*/
+            bool _optimize_right_forward;
         };
         template <class SourceRange1, class SourceRange2>
         struct JoinRange : public SuffixRange< 
@@ -98,19 +100,27 @@ namespace OP
             void next(iterator& pos) const override
             {
                 _left.next(pos._left);
+                if (pos._optimize_right_forward)
+                {
+                    _right.next(pos._right);
+                }
                 seek(pos);
             }
         private:
             void seek(iterator &pos) const
             {
+                pos._optimize_right_forward = false;
                 while (in_range(pos))
                 {
                     auto diff = _iterator_comparator(pos._left, pos._right);
-                    if (diff < 0) {
+                    if (diff < 0) 
+                    {
                         _left.next(pos._left);
                     }
                     else {
-                        if (diff == 0) {
+                        if (diff == 0) 
+                        {
+                            pos._optimize_right_forward = true;
                             return;
                         }
                         _right.next(pos._right);
