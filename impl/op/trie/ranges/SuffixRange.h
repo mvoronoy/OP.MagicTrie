@@ -127,7 +127,7 @@ namespace OP{
             { //left is longer
                 return 1;
             }
-            return first_right == end_right ? 0 : 1;
+            return first_right == end_right ? 0 : -1;
         }
         template<class Iterator>
         template<class OtherRange>

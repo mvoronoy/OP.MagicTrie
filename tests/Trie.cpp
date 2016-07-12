@@ -446,12 +446,25 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         tresult.assert_true(cnt > 0);
     }
 }
+template <class Stream, class Co>
+inline void print_co(Stream& os, const Co& co)
+{
+    for (auto i = co.begin(); co.in_range(i); co.next(i))
+    {
+        auto && k = i.prefix();
+        print_hex(os, k);
+        os << '=' << *i << '\n';
+    }
+}
 template <class R1, class R2, class Sample>
 void test_join(
     OP::utest::TestResult &tresult, const R1& r1, const R2& r2, const Sample& expected)
 {
     auto result1 = r1.join(r2);
+    print_co(std::cout << "===========>", r1);
     compare_containers(tresult, result1, expected);
+    print_co(std::cout << "===========>", r2);
+    std::cout <<"<<<<<<<<<<<\n";
     auto result2 = r2.join(r1);
     compare_containers(tresult, result2, expected);
 }
@@ -524,10 +537,10 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
         trie->insert(s, (double)s.length());
     });
 
-    test_values.emplace((atom_t*)("a"), 1);
-    test_values.emplace((atom_t*)"adc", 3);
-    test_values.emplace((atom_t*)"b", 1);
-    test_values.emplace((atom_t*)"def", 3);
+    test_values.emplace((atom_t*)("a"), 2);
+    test_values.emplace((atom_t*)"adc", 4);
+    test_values.emplace((atom_t*)"b", 2);
+    test_values.emplace((atom_t*)"def", 4);
 
     atom_string_t query4((const atom_t*)"m"), query5((const atom_t*)"n");
     test_join(tresult, 
