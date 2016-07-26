@@ -9,6 +9,7 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/TransactedSegmentManager.h>
+#include <op/trie/ranges/FlattenRange.h>
 #include <algorithm>
 #include "test_comparators.h"
 
@@ -618,6 +619,9 @@ void test_Flatten(OP::utest::TestResult &tresult)
         std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
     });
     //-->>>>
+    FlattenRange< decltype(suffixes_range), [&trie](const auto& i) {
+        return trie->subrange(i.key());
+    });
     //auto _1_flatten = trie->flatten_range(suffixes_range);
     //std::map<atom_string_t, double> strain1 = {
 
