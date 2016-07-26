@@ -133,7 +133,7 @@ namespace OP
                 using store_type = TreeSetStorage< applicator_result_t, iterator_comparator_t >;
                 auto store = std::make_unique< store_type >();
                 _source_range.for_each([&store](const auto& i) {
-                    
+                    //store->push(std::make_shared(i->key()));
                 });
                 return iterator(*this, _source_range.begin(), key_eval_policy_t());
             }
@@ -158,6 +158,18 @@ namespace OP
 
         };
 
+        template <class SourceRange, class DeflateFunction >
+        inline FlattenRange<SourceRange, DeflateFunction > make_flatten_range(const SourceRange& src, DeflateFunction && f)
+        {
+            return FlattenRange<SourceRange, DeflateFunction >(src, std::forward<DeflateFunction>(f), [](const auto& left, const auto& right) {
+                if (left.key() < right.key())
+                    return -1;
+                if (right.key() < left.key())
+                    return 1;
+                else return 0;
+            })
+            iterator_comparator_t && iterator_comparator
+        }
     } //ns:trie
 }//ns:OP
 #endif //_OP_TRIE_RANGES_FLATTEN_RANGE__H_
