@@ -154,11 +154,16 @@
     <ClInclude Include="..\impl\op\common\Bitset.h" />
     <ClInclude Include="..\impl\op\common\func_iter.h" />
     <ClInclude Include="..\impl\op\trie\HashTable.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\FlattenRange.h" />
     <ClInclude Include="..\impl\op\trie\ranges\FunctionalRange.h" />
     <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h" />
     <ClInclude Include="..\impl\op\trie\ranges\JoinRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\RangeUtils.h" />
     <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\UnionAllRange.h" />
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
+    <ClInclude Include="..\impl\op\utest\unit_test.h" />
+    <ClInclude Include="..\impl\op\utest\unit_test_is.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryBlock.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryChunks.h" />
     <ClInclude Include="..\impl\op\vtm\NamedObjects.h" />
@@ -183,14 +188,13 @@
     <ClInclude Include="..\impl\op\trie\ValueArray.h" />
     <ClInclude Include="GenericMemoryTest.h" />
     <ClInclude Include="test_comparators.h" />
-    <ClInclude Include="unit_test.h" />
-    <ClInclude Include="unit_test_is.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BgWorkerTest.cpp" />
     <ClCompile Include="BitsetTest.cpp" />
     <ClCompile Include="ContainersTest.cpp" />
     <ClCompile Include="FixedSizeMemoryManagerTest.cpp" />
+    <ClCompile Include="ranges\CommonRangesOpTest.cpp" />
     <ClCompile Include="RangeTest.cpp" />
     <ClCompile Include="SegmentManagerTest.cpp" />
     <ClCompile Include="SegmentToplogyTest.cpp" />

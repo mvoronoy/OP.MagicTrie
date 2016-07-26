@@ -17,14 +17,16 @@ namespace OP
         struct FunctionResultCachedPolicy
         {
             typedef FunctionResultCachedPolicy<OriginIterator, UnaryFunction> this_t;
-            typedef typename std::result_of<UnaryFunction(const OriginIterator&)>::type applicator_result_t;
-            typedef typename std::decay<applicator_result_t>::type key_t;
+            typedef typename std::result_of<UnaryFunction(const OriginIterator&)>::type key_t;
+            typedef const key_t& applicator_result_t;
+            //typedef decltype(UnaryFunction(const OriginIterator&)) applicator_result_t;
+            //typedef typename std::decay<applicator_result_t>::type key_t;
             
             void on_after_change(OriginIterator& pos, const UnaryFunction& transform)
             {
                 _cached = transform(pos);
             }
-            const key_t& get(const OriginIterator& /*ignored*/, const UnaryFunction& /*ignored*/) const
+            applicator_result_t get(const OriginIterator& /*ignored*/, const UnaryFunction& /*ignored*/) const
             {
                 return _cached;
             }
@@ -35,7 +37,7 @@ namespace OP
         };
 
         /**Declares the policy what to do if function applied twice to the same origin iterator position.
-        * This iterator caches result in internal storage. \see FunctionResultCachedPolicy
+        * This iterator always re-invoke function to evaluate new result. \see FunctionResultCachedPolicy
         */
         template <class OriginIterator, class UnaryFunction>
         struct FunctionResultNoCachePolicy
@@ -52,9 +54,6 @@ namespace OP
             {
                 return transform(pos);
             }
-            //typedef decltype(std::declval<this_t>().*get) applicator_result_t;
-            //typedef typename std::result_of<decltype(&this_t::get)(this_t, const OriginIterator&, const UnaryFunction&)>::type 
-            //    applicator_result_t;
         };
 
         template <class SourceIterator, class OwnerRange>
@@ -66,7 +65,7 @@ namespace OP
             typedef typename OwnerRange::key_eval_policy_t key_eval_policy_t;
             typedef typename key_eval_policy_t::applicator_result_t key_type;
             typedef typename SourceIterator::value_type value_type;
-            typedef typename source_iterator_t::prefix_string_t prefix_string_t;
+
             typedef typename key_eval_policy_t::applicator_result_t applicator_result_t;
             friend OwnerRange;
             FunctionalRangeIterator(const OwnerRange& owner_range, source_iterator_t source, key_eval_policy_t && key_eval)
@@ -89,7 +88,7 @@ namespace OP
             {
                 return *_source;
             }
-            key_type prefix() const
+            applicator_result_t key() const
             {
                 return _key_eval_policy.get(_source, _owner_range.transform());
             }

@@ -1,11 +1,17 @@
-#include "unit_test.h"
-#include "unit_test_is.h"
+#if _MSC_VER > 1000
+#pragma warning(disable:4503)
+#endif // _MSC_VER > 1000
+
+#include <op/utest/unit_test.h>
+#include <op/utest/unit_test_is.h>
+
 #include <op/trie/Trie.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/TransactedSegmentManager.h>
 #include <algorithm>
 #include "test_comparators.h"
+
 
 using namespace OP::trie;
 using namespace OP::utest;
@@ -44,7 +50,7 @@ void print_hex(O& os, const T& t)
     auto b = std::begin(t), e = std::end(t);
     for (; b != e; ++b)
         os << std::setbase(16) << std::setw(2) << std::setfill('0') << (unsigned int)(unsigned char)*b;
-    std::cout << '\n';
+    os << '\n';
 }
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
@@ -60,12 +66,12 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
     //order must be the same
     for (; trie.in_range(ti); ++ti, ++mi, ++n)
     {
-        print_hex(tresult.info() << "1)", ti.prefix());
-        print_hex(tresult.info() << "2)", mi->first);
-        tresult.assert_true(ti.prefix().length() == mi->first.length(), 
-            OP_CODE_DETAILS(<<"step#"<< n << " has:" << ti.prefix().length() << ", while expected:" << mi->first.length()));
-        tresult.assert_true(tools::container_equals(ti.prefix(), mi->first),
-            OP_CODE_DETAILS(<<"step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.prefix().c_str()));
+        //print_hex(tresult.info() << "1)", ti.key());
+        //print_hex(tresult.info() << "2)", mi->first);
+        tresult.assert_true(ti.key().length() == mi->first.length(), 
+            OP_CODE_DETAILS(<<"step#"<< n << " has:" << ti.key().length() << ", while expected:" << mi->first.length()));
+        tresult.assert_true(tools::container_equals(ti.key(), mi->first, &tools::sign_tolerant_cmp<atom_t>),
+            OP_CODE_DETAILS(<<"step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.key().c_str()));
         tresult.assert_that<equals>(*ti, mi->second,
             OP_CODE_DETAILS(<<"Associated value error, has:" << *ti << ", expected:" << mi->second ));
     }
@@ -91,7 +97,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     auto b1 = std::begin(stem1);
     auto ir1 = trie->insert(b1, std::end(stem1), v_order);
     tresult.assert_true(ir1.first, OP_CODE_DETAILS());
-    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir1.second.prefix()), std::end(ir1.second.prefix()),
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir1.second.key()), std::end(ir1.second.key()),
         std::begin(stem1), std::end(stem1)
         ));
     tresult.assert_true(2 == trie->nodes_count(), "2 nodes must be create for long stems");
@@ -112,9 +118,9 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     tresult.assert_true(ir3.first, OP_CODE_DETAILS());
     tresult.assert_true(b1 == std::end(stem1_deviation1));
     //print_hex(std::cout << "1)", stem1_deviation1);
-    //print_hex(std::cout << "2)", ir3.second.prefix());
+    //print_hex(std::cout << "2)", ir3.second.key());
 
-    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir3.second.prefix()), std::end(ir3.second.prefix()),
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir3.second.key()), std::end(ir3.second.key()),
         std::begin(stem1_deviation1), std::end(stem1_deviation1)
         ));
     standard[stem1_deviation1] = v_order++;
@@ -127,7 +133,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     tresult.assert_true(3 == trie->nodes_count(), "3 nodes must exists in the system");
     tresult.assert_true(b1 == std::end(stem2));
     tresult.assert_true(trie->size() == 4);
-    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir4.second.prefix()), std::end(ir4.second.prefix()),
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir4.second.key()), std::end(ir4.second.key()),
         std::begin(stem2), std::end(stem2)
         ));
 
@@ -143,7 +149,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     standard[stem3] = v_order++;
     tresult.assert_true(4 == trie->nodes_count(), "4 nodes must exists in the system");
     tresult.assert_true(b1 == std::end(stem3));
-    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.key()), std::end(ir5.second.key()),
         std::begin(stem3), std::end(stem3)
         ));
     tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
@@ -160,7 +166,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
         standard[stem3] = (double)stem3.length();
         stem3.resize(stem3.length() - 1);
     }//
-    std::cout << trie->nodes_count()<< "\n";
+    //std::cout << trie->nodes_count()<< "\n";
     compare_containers(tresult, *trie, standard);
     //
     tresult.status_details() << "test diversification#2\n";
@@ -181,7 +187,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
     standard[stem4] = v_order++;
     tresult.assert_true(b1 == std::end(const_stem4));
-    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.key()), std::end(ir5.second.key()),
         std::begin(stem4), std::end(stem4)
     ));
     tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
@@ -192,7 +198,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
     standard[stem4] = v_order++;
     tresult.assert_true(b1 == std::end(const_stem4));
-    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.key()), std::end(ir5.second.key()),
         std::begin(stem4), std::end(stem4)
     ));
     tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
@@ -200,7 +206,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
     standard[stem4] = v_order++;
     tresult.assert_true(b1 == std::end(const_stem4));
-    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.key()), std::end(ir5.second.key()),
         std::begin(stem4), std::end(stem4)
     ));
     tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
@@ -209,7 +215,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
     standard[stem4] = v_order++;
     tresult.assert_true(b1 == std::end(const_stem4));
-    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.prefix()), std::end(ir5.second.prefix()),
+    tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.second.key()), std::end(ir5.second.key()),
         std::begin(stem4), std::end(stem4)
     ));
     tresult.assert_true(*ir5.second == (v_order - 1), "Wrong iterator value");
@@ -237,7 +243,7 @@ void test_TrieInsertGrow(OP::utest::TestResult &tresult)
             stems[rand() % std::extent< decltype(stems) >::value];
         auto ins_res = trie->insert(std::begin(test), std::end(test), (double)test.length());
         tresult.assert_true(ins_res.first);
-        tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+        tresult.assert_true(tools::container_equals(ins_res.second.key(), test, &tools::sign_tolerant_cmp<atom_t>));
         test_values[test] = (double)test.length();
     }
     compare_containers(tresult, *trie, test_values);
@@ -261,7 +267,7 @@ void test_TrieGrowAfterUpdate(OP::utest::TestResult &tresult)
         const std::string& test = i;
         auto ins_res = trie->insert(std::begin(test), std::end(test), x);
         tresult.assert_true(ins_res.first);
-        tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+        tresult.assert_true(tools::container_equals(ins_res.second.key(), test, &tools::sign_tolerant_cmp<atom_t>));
 
         test_values[test] = x;
         x += 1.0;
@@ -290,7 +296,7 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
         const std::string& test = i;
         auto ins_res = trie->insert(std::begin(test), std::end(test), x);
         tresult.assert_true(ins_res.first);
-        tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+        tresult.assert_true(tools::container_equals(ins_res.second.key(), test, &tools::sign_tolerant_cmp<atom_t>));
 
         test_values[test] = x;
         x += 1.0;
@@ -303,7 +309,7 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
     const atom_t *np = nullptr;
     tresult.assert_true(trie->end() == trie->lower_bound(np, np));
     const atom_t az[] = "az";  auto b1 = std::begin(az);
-    tresult.assert_true(tools::container_equals(test_seq[1], trie->lower_bound(b1, std::end(az)).prefix(), tools::sign_tolerant_cmp));
+    tresult.assert_true(tools::container_equals(test_seq[1], trie->lower_bound(b1, std::end(az)).key(), tools::sign_tolerant_cmp));
 
     const atom_t unexisting1[] = "zzz";
     np = std::begin(unexisting1);
@@ -318,18 +324,18 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
         const std::string& test = test_seq[i];
         auto lbit = trie->lower_bound(std::begin(test), std::end(test));
 
-        tresult.assert_true(tools::container_equals(lbit.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+        tresult.assert_true(tools::container_equals(lbit.key(), test, &tools::sign_tolerant_cmp<atom_t>));
         tresult.assert_true(x == *lbit);
 
         auto query = test_seq[i] + "a";
         auto lbit2 = trie->lower_bound(std::begin(query), std::end(query));
 
         //print_hex(std::cout << "1)", test_seq[i + 1]);
-        //print_hex(std::cout << "2)", lbit2.prefix());
-        tresult.assert_true(tools::container_equals(lbit2.prefix(), test_seq[i+1], &tools::sign_tolerant_cmp<atom_t>));
+        //print_hex(std::cout << "2)", lbit2.key());
+        tresult.assert_true(tools::container_equals(lbit2.key(), test_seq[i+1], &tools::sign_tolerant_cmp<atom_t>));
 
         auto lbit3 = trie->lower_bound(std::begin(test), std::end(test)-1);//take shorter key
-        tresult.assert_true(tools::container_equals(lbit3.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+        tresult.assert_true(tools::container_equals(lbit3.key(), test, &tools::sign_tolerant_cmp<atom_t>));
         tresult.assert_true(x == *lbit);
     }
     //handle case of stem_end
@@ -339,7 +345,7 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
     test_long += "aa";
     auto lbegin = std::begin(test_long);
     auto llong_res = trie->lower_bound(lbegin, std::end(test_long));
-    tresult.assert_true(tools::container_equals(llong_res.prefix(), test_seq[5], &tools::sign_tolerant_cmp<atom_t>));
+    tresult.assert_true(tools::container_equals(llong_res.key(), test_seq[5], &tools::sign_tolerant_cmp<atom_t>));
 }
 
 void test_TrieNoTran(OP::utest::TestResult &tresult)
@@ -405,7 +411,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
             //std::cout << n++ << std::endl;
             auto ins_res = trie->insert(std::begin(test), std::end(test), (double)test.length());
             tresult.assert_true(ins_res.first);
-            tresult.assert_true(tools::container_equals(ins_res.second.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+            tresult.assert_true(tools::container_equals(ins_res.second.key(), test, &tools::sign_tolerant_cmp<atom_t>));
             test_values[test] = (double)test.length();
         }
         //std::cout << std::setfill('0') << std::setbase(16) << std::setw(2) << (unsigned)i << "\n";
@@ -422,12 +428,12 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         atom_string_t test = atom_string_t(1, (std::string::value_type)i);
         decltype(test.begin()) b1;
         auto container_ptr = trie->subrange(b1 = test.begin(), test.end());
-        trie_t::iterator begin_test = container_ptr.begin();
+        auto begin_test = container_ptr.begin();
 
-        if ((i & 1) != 0) //odd entries nust have a terminal
+        if ((i & 1) != 0) //odd entries must have a terminal
         {
             tresult.assert_true(
-                tools::container_equals(begin_test.prefix(), test, &tools::sign_tolerant_cmp<atom_t>));
+                tools::container_equals(begin_test.key(), test, &tools::sign_tolerant_cmp<atom_t>));
 
             tresult.assert_true(*begin_test == (double)i);
             container_ptr.next(begin_test);
@@ -438,8 +444,8 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         {
             auto strain_str = (test + *a);
             //print_hex(std::cout << "1)", strain_str);
-            //print_hex(std::cout << "2)", begin_test.prefix());
-            tresult.assert_true(tools::container_equals(begin_test.prefix(), strain_str), "! strain == prefix");
+            //print_hex(std::cout << "2)", begin_test.key());
+            tresult.assert_true(tools::container_equals(begin_test.key(), strain_str), "! strain == prefix");
             tresult.assert_true(*begin_test == (double)strain_str.length());
         }
         tresult.assert_true(a == sorted_checks.end());
@@ -451,21 +457,28 @@ inline void print_co(Stream& os, const Co& co)
 {
     for (auto i = co.begin(); co.in_range(i); co.next(i))
     {
-        auto && k = i.prefix();
+        auto && k = i.key();
         print_hex(os, k);
         os << '=' << *i << '\n';
     }
 }
+
 template <class R1, class R2, class Sample>
 void test_join(
     OP::utest::TestResult &tresult, const R1& r1, const R2& r2, const Sample& expected)
 {
-    auto result1 = r1.join(r2);
-    print_co(std::cout << "===========>", r1);
+    auto comparator = [](const auto& left, const auto& right)->int {
+        auto&&left_prefix = left.key(); //may be return by const-ref or by value
+        auto&&right_prefix = right.key();//may be return by const-ref or by value
+        return OP::trie::str_lexico_comparator(left_prefix.begin(), left_prefix.end(),
+            right_prefix.begin(), right_prefix.end());
+    };
+    auto result1 = r1.join(r2, comparator);
+    //print_co(std::cout << "===========>", r1);
     compare_containers(tresult, result1, expected);
-    print_co(std::cout << "===========>", r2);
-    std::cout <<"<<<<<<<<<<<\n";
-    auto result2 = r2.join(r1);
+    //print_co(std::cout << "===========>", r2);
+    //std::cout <<"<<<<<<<<<<<\n";
+    auto result2 = r2.join(r1, comparator);
     compare_containers(tresult, result2, expected);
 }
 void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
@@ -489,7 +502,7 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     {
         auto ins_res = trie->insert(std::begin(i), std::end(i), (double)i.length());
         tresult.assert_true(ins_res.first);
-        tresult.assert_true(tools::container_equals(ins_res.second.prefix(), i, &tools::sign_tolerant_cmp<atom_t>));
+        tresult.assert_true(tools::container_equals(ins_res.second.key(), i, &tools::sign_tolerant_cmp<atom_t>));
 
         //std::cout << std::setfill('0') << std::setbase(16) << std::setw(2) << (unsigned)i << "\n";
     }
@@ -498,15 +511,15 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     atom_string_t query1 ((const atom_t*)"a");
     atom_string_t query2 ((const atom_t*)"ad");
     auto container1 = trie->subrange(std::begin(query1), std::end(query1));
-    //for (auto i = container1.begin(); container1.in_range(i); container1.next(i))
-    //{
-    //    print_hex(tresult.info(), i.prefix());
-    //}
+    //container1.for_each([&tresult](auto& i) {
+    //    print_hex(tresult.info(), i.key());
+    //});
+    
     auto container2 = trie->subrange(std::begin(query2), std::end(query2));
     //tresult.info() << "======\n";
     //for (auto i = container2.begin(); container2.in_range(i); container2.next(i))
     //{
-    //    print_hex(tresult.info(), i.prefix());
+    //    print_hex(tresult.info(), i.key());
     //}
     test_values.emplace(stems[0], 3.);
     test_join(tresult, container1, container2, test_values);
@@ -545,12 +558,75 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     atom_string_t query4((const atom_t*)"m"), query5((const atom_t*)"n");
     test_join(tresult, 
         trie->subrange(std::begin(query4), std::end(query4)).map([](auto const& it) {
-            return it.prefix().substr(1);
+            return it.key().substr(1);
         }),
         trie->subrange(std::begin(query5), std::end(query5)).map([](auto const& it) {
-            return it.prefix().substr(1);
+            return it.key().substr(1);
         }),
         test_values);
+}
+
+void test_Flatten(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+    /*Test data organized as group of prefixes each owns by 3 suffixes that intersect and have corresponding suffixes as well*/
+    const p_t ini_data[] = {
+        p_t((atom_t*)"1.abc", 10.0),
+        p_t((atom_t*)"1.bcd", 10.0),
+        p_t((atom_t*)"1.def", 10.0),
+
+        p_t((atom_t*)"2.def", 20.0),
+        p_t((atom_t*)"2.fgh", 20.0),
+        p_t((atom_t*)"2.hij", 20.0),
+
+        p_t((atom_t*)"3.hij", 30.0),
+        p_t((atom_t*)"3.jkl", 30.0),
+        p_t((atom_t*)"3.lmn", 30.0),
+
+        p_t((atom_t*)"4.lmn", 0.0),
+        p_t((atom_t*)"4.", -1.),//empty suffix
+
+        //block of suffixes
+        p_t((atom_t*)"abc", 1.0),
+        p_t((atom_t*)"bcd", 1.0),
+        p_t((atom_t*)"def", 1.5), //common suffix
+
+        p_t((atom_t*)"fgh", 2.0),
+        p_t((atom_t*)"hij", 2.5), //common suffix
+
+        p_t((atom_t*)"jkl", 3.0),
+        p_t((atom_t*)"lmn", 3.5) //common suffix for 3. & 4.
+    };
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&trie](const p_t& s) {
+        trie->insert(s.first, s.second);
+    });
+    auto _1_range = trie->subrange(atom_string_t((atom_t*)"1."));
+    _1_range.for_each([](const auto& i) {
+        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+    });
+    auto suffixes_range = _1_range.map([](const auto& i) {
+        return i.key().substr(2/*"1."*/);
+    });
+    suffixes_range.for_each([](const auto& i) {
+        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+    });
+    //-->>>>
+    //auto _1_flatten = trie->flatten_range(suffixes_range);
+    //std::map<atom_string_t, double> strain1 = {
+
+    //    decltype(strain1)::value_type((atom_t*)"abc", 1.0),
+    //    decltype(strain1)::value_type((atom_t*)"bcd", 1.0),
+    //    decltype(strain1)::value_type((atom_t*)"def", 1.5),
+    //}
+    //tresult.assert_equals(
+    //    OP::trie::utils::key_equals(_1_flatten, strain1), OP_CODE_DETAILS(<< "Simple flatten failed"));
 }
 
 static auto module_suite = OP::utest::default_test_suite("Trie")
@@ -562,4 +638,5 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieSubtree, "subtree of prefix")
     ->declare(test_TrieSubtreeLambdaOperations, "lambda on subtree")
     ->declare(test_TrieNoTran, "trie no tran")
+    ->declare(test_Flatten, "flatten")
     ;

@@ -4,6 +4,7 @@
 #include <OP/common/typedefs.h>
 #include <OP/vtm/SegmentManager.h>
 #include <OP/vtm/PersistedReference.h>
+#include <OP/trie/Containers.h>
 #include <unordered_map>
 namespace OP
 {

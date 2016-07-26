@@ -163,7 +163,7 @@ namespace OP
             {
                 return _position_stack.empty();
             }
-            const prefix_string_t& prefix() const
+            const prefix_string_t& key() const
             {
                 return _prefix;
             }

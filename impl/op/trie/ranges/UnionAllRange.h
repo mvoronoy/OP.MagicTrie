@@ -1,5 +1,5 @@
-#ifndef _OP_TRIE_RANGES_PREFIX_RANGE__H_
-#define _OP_TRIE_RANGES_PREFIX_RANGE__H_
+#ifndef _OP_TRIE_RANGES_UNION_ALL_RANGE__H_
+#define _OP_TRIE_RANGES_UNION_ALL_RANGE__H_
 #include <iterator>
 #include <op/trie/ranges/SuffixRange.h>
 
@@ -11,27 +11,27 @@ namespace OP
 {
     namespace trie
     {
+        
         template <class OwnerRange>
-        struct JoinRangeIterator :
+        struct UnionAllRangeIterator :
             public std::iterator<
             std::forward_iterator_tag,
             typename OwnerRange::left_iterator::value_type
             >
+
         {
-            typedef JoinRangeIterator<OwnerRange> this_t;
+            typedef UnionAllRangeIterator<OwnerRange> this_t;
             typedef typename OwnerRange::left_iterator::value_type value_type;
             typedef typename OwnerRange::left_iterator::key_type key_type;
             typedef decltype(std::declval<OwnerRange::left_iterator>().key()) application_key_t;
-            //typedef typename OwnerRange::left_iterator::prefix_string_t prefix_string_t;
-            
+
             friend OwnerRange;
-            JoinRangeIterator(const OwnerRange& owner_range, 
-                typename OwnerRange::left_iterator && left, 
+            UnionAllRangeIterator(const OwnerRange& owner_range,
+                typename OwnerRange::left_iterator && left,
                 typename OwnerRange::right_iterator && right)
                 : _owner_range(owner_range)
                 , _left(std::move(left))
                 , _right(std::move(right))
-                , _optimize_right_forward(false)
             {}
             this_t& operator ++()
             {
@@ -46,49 +46,47 @@ namespace OP
             }
             value_type operator* () const
             {
-                return *left();
+                return _left_less ? *_left : *_right;
             }
             application_key_t key() const
             {
-                return _left.key();
+                return _left_less ? _left.key() : _right.key();
             }
 
         private:
-            const typename OwnerRange::left_iterator& left() const
-            {
-                return _left;
-            }
-            const typename OwnerRange::right_iterator& right() const
-            {
-                return _right;
-            }
+            
+
             const OwnerRange& _owner_range;
+            bool _left_less = false;
             typename OwnerRange::left_iterator _left;
             typename OwnerRange::right_iterator _right;
-            /**Very special case when right == left, then ::next must be called for both iterators (not only for left)*/
-            bool _optimize_right_forward;
         };
-        
+
         template <class SourceRange1, class SourceRange2>
-        struct JoinRange : public SuffixRange< 
-                JoinRangeIterator< JoinRange<SourceRange1, SourceRange2> > >
+        struct UnionAllRange : public SuffixRange<
+            UnionAllRangeIterator< UnionAllRange<SourceRange1, SourceRange2> > >
         {
-            typedef JoinRange<SourceRange1, SourceRange2> this_t;
+            typedef UnionAllRange<SourceRange1, SourceRange2> this_t;
             typedef typename SourceRange1::iterator left_iterator;
             typedef typename SourceRange2::iterator right_iterator;
+            static_assert(
+                std::is_convertible<typename right_iterator::key_type, typename left_iterator::key_type>::value
+                && std::is_convertible<typename right_iterator::value_type, typename left_iterator::value_type>::value
+                , "Right iterator of merge must have convertible key/value type to left iterator");
+
             typedef std::function<int(const left_iterator&, const right_iterator&)> iterator_comparator_t;
-            typedef JoinRangeIterator<this_t> iterator;
+            typedef UnionAllRangeIterator<this_t> iterator;
             /**
             * @param iterator_comparator - binary predicate `int(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
             */
-            
-            JoinRange(const SourceRange1 & r1, const SourceRange2 & r2, iterator_comparator_t && iterator_comparator)
+
+            UnionAllRange(const SourceRange1 & r1, const SourceRange2 & r2, iterator_comparator_t && iterator_comparator)
                 : _left(r1)
                 , _right(r2)
-                , _iterator_comparator(std::forward<iterator_comparator_t> (iterator_comparator))
+                , _iterator_comparator(std::forward<iterator_comparator_t>(iterator_comparator))
             {
             }
-            JoinRange() = delete;
+            UnionAllRange() = delete;
             iterator begin() const override
             {
                 iterator result(*this, _left.begin(), _right.begin());
@@ -97,44 +95,31 @@ namespace OP
             }
             bool in_range(const iterator& check) const override
             {
-                return _left.in_range(check.left()) && _right.in_range(check.right());
+                return _left.in_range(check._left) || _right.in_range(check._right);
             }
             void next(iterator& pos) const override
             {
-                _left.next(pos._left);
-                if (pos._optimize_right_forward)
-                {
-                    _right.next(pos._right);
-                }
+                pos._left_less ? _left.next(pos._left):_right.next(pos._right);
                 seek(pos);
             }
         private:
             void seek(iterator &pos) const
             {
-                pos._optimize_right_forward = false;
-                while (in_range(pos))
+                bool good_left = _left.in_range(pos._left), good_right = _right.in_range(pos._right); 
+                if(good_right || good_left)
                 {
-                    auto diff = _iterator_comparator(pos._left, pos._right);
-                    if (diff < 0) 
-                    {
-                        _left.next(pos._left);
-                    }
-                    else {
-                        if (diff == 0) 
-                        {
-                            pos._optimize_right_forward = true;
-                            return;
-                        }
-                        _right.next(pos._right);
-                    }
+                    auto diff = (good_right && good_left) 
+                        ? _iterator_comparator(pos._left, pos._right)
+                        : (good_right ? 1 : -1);
+                    pos._left_less = diff <= 0;
                 }
-
             }
             const SourceRange1& _left;
             const SourceRange2& _right;
             const iterator_comparator_t _iterator_comparator;
         };
-        
+
     } //ns: trie
 } //ns: OP
-#endif //_OP_TRIE_RANGES_PREFIX_RANGE__H_
+#endif //_OP_TRIE_RANGES_UNION_ALL_RANGE__H_
+
