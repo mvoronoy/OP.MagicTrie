@@ -18,6 +18,56 @@ namespace OP
 
         template <class SourceRange1, class SourceRange2>
         struct JoinRange;
+
+        template <class SourceRange1, class SourceRange2>
+        struct UnionAllRange;
+
+        namespace details {
+
+            template<class T,
+                class D = void>
+                struct DiscoverIteratorKeyType
+            {   // default definition
+                typedef D key_t;
+            };
+
+            template<class T>
+            struct DiscoverIteratorKeyType<T, std::void_t< decltype(std::declval<typename T::reference>().first)> >
+            {   // defined if iterator declared as std::map????::iterator and key-type detected as decltype of reference::first
+                typedef typename std::remove_reference< decltype( std::declval<typename T::reference>().first) >::type key_t;
+            };
+
+            template<class T>
+            struct DiscoverIteratorKeyType<T, std::void_t<typename T::key_type> >
+            {   // defined if iterator contains explicit definition of key_type
+                typedef typename T::key_type key_t;
+            };
+
+        } //ns:details
+        namespace policy
+        {
+            /**Policy for SuffixRange::map that always evaluate new key for single iterator position. Result always uses 
+            copy by value (or if available rvalue optimization)*/
+            struct no_cache {};
+            /**Policy for SuffixRange::map that evaluate new key for single iterator position only once, all other calls
+            return cached value. Result of iterator::key is const reference type*/
+            struct cached {};
+
+            namespace details
+            {
+                template <class Iter, class Func, class Policy>
+                using effective_policy_t = typename std::conditional< 
+                        std::is_same<Policy, policy::cached> ::value,
+                        FunctionResultCachedPolicy<Iter, Func>,
+                        typename std::conditional< 
+                            std::is_same<Policy, policy::no_cache> ::value,
+                            FunctionResultNoCachePolicy<Iter, Func>,
+                            Policy
+                        >::type >
+                    ::type
+                ;
+            }
+        } //ns:policy
         /**
         *
         */
@@ -28,29 +78,48 @@ namespace OP
             typedef SuffixRange<Iterator> this_t;
 
             virtual ~SuffixRange() = default;
-            /**start lexicographical ascending iteration over trie content. Following is a sequence of iteration:
-            *   - a
-            *   - aaaaaaaaaa
-            *   - abcdef
-            *   - b
-            *   - ...
-            */
-            //virtual std::unique_ptr<this_t> subtree(PrefixQuery& query) const = 0;
+
             virtual iterator begin() const = 0;
             virtual bool in_range(const iterator& check) const = 0;
             virtual void next(iterator& pos) const = 0;
 
+            template <class UnaryFunction, class KeyPolicy>
+            using functional_range_t = FunctionalRange<this_t, UnaryFunction, policy::details::effective_policy_t<iterator, UnaryFunction, KeyPolicy> >;
             /**
             *   \code std::result_of<UnaryFunction(typename iterator::value_type)>::type >::type
             */
-            template <class UnaryFunction>
-            inline FunctionalRange<this_t, UnaryFunction> map(UnaryFunction && f) const;
+            template <class KeyPolicy, class UnaryFunction>
+            inline functional_range_t<UnaryFunction, KeyPolicy > map(UnaryFunction && f) const
+            {
+                return functional_range_t<UnaryFunction, KeyPolicy >(*this, std::forward<UnaryFunction>(f));
+            }
             
+            template <class UnaryFunction>
+            inline functional_range_t<UnaryFunction, policy::no_cache> map(UnaryFunction && f) const
+            {
+                return map<policy::no_cache>(std::forward<UnaryFunction>(f));
+            }
             template <class UnaryPredicate>
             inline FilteredRange<this_t, UnaryPredicate> filter(UnaryPredicate && f) const;
 
             template <class OtherRange>
-            inline JoinRange<this_t, OtherRange> join(const OtherRange & f) const;
+            inline JoinRange<this_t, OtherRange> join(const OtherRange & range, 
+                typename JoinRange<this_t, OtherRange>::iterator_comparator_t && cmp) const;
+
+            template <class OtherRange>
+            inline UnionAllRange<this_t, OtherRange> merge_all(const OtherRange & range,
+                typename UnionAllRange<this_t, OtherRange>::iterator_comparator_t && cmp) const;
+
+            template <class Operation>
+            size_t for_each(Operation && f) const
+            {
+                size_t n = 0;
+                for (auto i = begin(); in_range(i); next(i), ++n)
+                {
+                    f(i);
+                }
+                return n;
+            }
         };
 
         
@@ -70,7 +139,7 @@ namespace OP
             }
             virtual bool in_range(const iterator& check) const
             {
-                return _source_range.in_range(check.origin());
+                return _source_range.in_range(check);
             }
             virtual void next(iterator& pos) const
             {
@@ -93,12 +162,6 @@ namespace OP
         };
 
         template<class Iterator>
-        template<class UnaryFunction>
-        inline FunctionalRange<typename SuffixRange<Iterator>, UnaryFunction> SuffixRange<Iterator>::map(UnaryFunction && f) const
-        {
-            return FunctionalRange<this_t, UnaryFunction>(*this, std::forward<UnaryFunction>(f));
-        }
-        template<class Iterator>
         template<class UnaryPredicate>
         inline FilteredRange<SuffixRange<Iterator>, UnaryPredicate> SuffixRange<Iterator>::filter(UnaryPredicate && f) const
         {
@@ -107,6 +170,7 @@ namespace OP
 }//ns:trie
 }//ns:OP
 #include <op/trie/ranges/JoinRange.h>
+#include <op/trie/ranges/UnionAllRange.h>
 namespace OP{
     namespace trie{
         /**@return \li 0 if left range equals to right;
@@ -131,19 +195,29 @@ namespace OP{
         }
         template<class Iterator>
         template<class OtherRange>
-        inline JoinRange<SuffixRange<typename Iterator>, OtherRange> SuffixRange<Iterator>::join(const OtherRange & other) const
+        inline JoinRange<SuffixRange<Iterator>, OtherRange> SuffixRange<Iterator>::join(
+            const OtherRange & other, typename JoinRange<this_t, OtherRange>::iterator_comparator_t && cmp) const
         {
-            return JoinRange<this_t, OtherRange>(
+            typedef JoinRange<SuffixRange<typename Iterator>, OtherRange> join_t;
+            return join_t(
                 *this, 
-                other, 
-                [](const this_t::iterator& left, const OtherRange::iterator& right)->int {
-                    auto&&left_prefix = left.prefix(); //may be return by const-ref or by value
-                    auto&&right_prefix = right.prefix();//may be return by const-ref or by value
-                    return str_lexico_comparator(left_prefix.begin(), left_prefix.end(), 
-                        right_prefix.begin(), right_prefix.end());
-            });
+                other,
+                std::forward<typename join_t::iterator_comparator_t>(cmp)
+                );
         }
-
+        template<class Iterator>
+        template<class OtherRange>
+        inline UnionAllRange<SuffixRange<Iterator>, OtherRange> SuffixRange<Iterator>::merge_all(
+            const OtherRange & other, typename UnionAllRange<SuffixRange<Iterator>, OtherRange>::iterator_comparator_t && cmp) const
+        {
+            
+            typedef UnionAllRange<SuffixRange<typename Iterator>, OtherRange> merge_all_t;
+            return merge_all_t(
+                *this,
+                other,
+                std::forward<typename merge_all_t::iterator_comparator_t>(cmp)
+            );
+        }
 }//ns:trie
 }//ns:OP
 #endif //_OP_TRIE_RANGES_SUFFIX_RANGE__H_

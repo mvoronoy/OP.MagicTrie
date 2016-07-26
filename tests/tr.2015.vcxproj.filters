@@ -37,6 +37,9 @@
     <ClCompile Include="BitsetTest.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="ranges\CommonRangesOpTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GenericMemoryTest.h" />
@@ -130,8 +133,21 @@
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
     <ClInclude Include="test_comparators.h" />
-    <ClInclude Include="unit_test.h" />
-    <ClInclude Include="unit_test_is.h" />
+    <ClInclude Include="..\impl\op\utest\unit_test_is.h">
+      <Filter>OP\utest</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\utest\unit_test.h">
+      <Filter>OP\utest</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\RangeUtils.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\FlattenRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\UnionAllRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -157,6 +173,9 @@
     </Filter>
     <Filter Include="OP\trie\ranges">
       <UniqueIdentifier>{44b1ef9b-5a05-4ecc-a162-ad7d03940ef9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\utest">
+      <UniqueIdentifier>{f5cda71a-88c6-409d-872d-fff39bdcb179}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

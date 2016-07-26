@@ -32,17 +32,7 @@ namespace OP
             /**Maximal length of stem*/
             static const dim_t max_stem_length_c = 255;
         };
-        struct PrefixQuery
-        {
-            virtual ~PrefixQuery() = default;
-
-            virtual const atom_t* end() const = 0;
-            /**Advance prefix iteration by 1 symbol. return actual state of iteration*/
-            virtual const atom_t* advance() = 0;
-            /**Return current state of iteration (the same value as #advance() returned*/
-            virtual atom_t current() const = 0;
-        };
-
+        
 
         template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 1024>
         struct Trie
@@ -156,6 +146,19 @@ namespace OP
                 _next(false, i_end);
                 return range_container_t(i_beg, i_end);
             }
+            /**
+            *   Just shorthand for: 
+            *   \code
+            *   subrange(std::begin(container), std::end(container))
+            *   \endcode
+            * @param container any string of bytes that supports std::begin/ std::end functions
+            */
+            template <class AtomContainer>
+            range_container_t subrange(const AtomContainer& container) const
+            {
+                return this->subrange(std::begin(container), std::end(container));
+            }
+            
 
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom aend) const
@@ -230,6 +233,7 @@ namespace OP
                 auto b = std::begin(container);
                 return find(b, std::end(container));
             }
+
             value_type value_of(poistion_t pos) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
@@ -463,17 +467,10 @@ namespace OP
                 return node_pos;
             }
             /**
-            *
-            * @return pair of:
-            * \li current node in write-mode (matched to `node_addr`);
-            * \li address of new node where the tail was placed.
-            * \tparam RAccess - ReadonlyAccess<node_t> or
+            *  On insert to `break_position` stem may contain chain to split. This method breaks the chain
+            *  and place the rest to a new children node.
+            * @return address of new node
             */
-            /*std::tuple<node_t*, FarAddress> diversificate(ReadonlyAccess<node_t>& node, atom_t key, dim_t in_stem_pos)
-            {
-                auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
-                return diversificate(*wr_node, key, in_stem_pos);
-            }*/
             FarAddress diversificate(node_t& wr_node, iterator &break_position)
             {
                 auto& back = break_position.back();
@@ -654,7 +651,7 @@ namespace OP
                     }
                     //try navigate right from current position
                     auto lres = load_iterator(i.back().address(), i,
-                        [&i](ReadonlyAccess<node_t>&ro_node) { return _resolve_next(*ro_node, &i);},
+                        [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
                         &iterator::update_back);
                     if (tuple_ref<bool>(lres))
                     { //navigation right succeeded
