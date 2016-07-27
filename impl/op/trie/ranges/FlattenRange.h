@@ -37,11 +37,11 @@ namespace OP
                     _item_set.erase(b);
                     return result;
                 }
-                flat_item_ptr smallest() override override
+                flat_item_ptr smallest() const override
                 {
                     return *_item_set.begin();
                 }
-                virtual bool is_empty()override const
+                bool is_empty() const override
                 {
                     return _item_set.empty();
                 }
@@ -65,20 +65,21 @@ namespace OP
                 const IteratorComparator& _comparator;
                 flat_item_set_t _item_set = flat_item_set_t(_comparator);
             };
-        }
+        } //ns:storage_policy
 
-        template <class TStoragePolicy, class OwnerRange>
+        template <class OwnerRange>
         struct FlattenRangeIterator :
-            public std::iterator<std::forward_iterator_tag, typename SourceIterator::value_type>
+            public std::iterator<std::forward_iterator_tag, typename OwnerRange::iterator::value_type>
         {
-            typedef SourceIterator source_iterator_t;
-            typedef FlattenRangeIterator<SourceIterator, OwnerRange> this_t;
-            typedef typename SourceIterator::value_type value_type;
-
+            typedef typename OwnerRange::iterator source_iterator_t;
+            typedef FlattenRangeIterator<OwnerRange> this_t;
+            typedef typename source_iterator_t value_type;
+            typedef typename OwnerRange::key_t key_type;
+            typedef typename OwnerRange::store_t store_t;
             friend OwnerRange;
-            FlattenRangeIterator(const OwnerRange& owner_range, source_iterator_t source)
+            FlattenRangeIterator(const OwnerRange& owner_range, std::unique_ptr<store_t> store)
                 : _owner_range(owner_range)
-                , _source(source)
+                , _store(std::move(store))
             {}
             this_t& operator ++()
             {
@@ -91,17 +92,16 @@ namespace OP
             }
             value_type operator* () const
             {
-                return *_source;
+                return *_store->smallest()->second;
             }
-            applicator_result_t key() const
+            key_type key() const
             {
-                return _key_eval_policy.get(_source, _owner_range.transform());
+                return *_store->smallest()->second.key();
             }
 
         private:
             const OwnerRange& _owner_range;
-            source_iterator_t _source;
-            key_eval_policy_t _key_eval_policy;
+            std::unique_ptr<store_t> _store;
         };
         /**
         * \tparam DeflateFunction functor that has spec: SuffixRange(const OriginIterator& )
@@ -109,52 +109,44 @@ namespace OP
         template <class SourceRange, class DeflateFunction >
         struct FlattenRange : public SuffixRange<
             FlattenRangeIterator<
-            typename SourceRange::iterator,
-            FlattenRange<OriginIterator, DeflateFunction>
+            FlattenRange<SourceRange, DeflateFunction>
         > >
         {
-            typedef FlattenRange<OriginIterator, DeflateFunction> this_t;
-            typedef FlattenRangeIterator<
-                typename SourceRange::iterator,
-                typename this_t
-            > iterator;
+            typedef FlattenRange<SourceRange, DeflateFunction> this_t;
+            typedef FlattenRangeIterator<this_t> iterator;
+            typedef typename SourceRange::iterator source_iterator_t;
             //need ensure that applicator_result_t is kind of SuffixRange
-            typedef typename std::result_of<DeflateFunction(const typename SourceRange::iterator&)>::type applicator_result_t;
-            typedef std::function<int(const left_iterator&, const right_iterator&)> iterator_comparator_t;
+            typedef typename std::result_of<DeflateFunction(const source_iterator_t&)>::type applicator_result_t;
+            typedef std::function<int(const source_iterator_t&, const source_iterator_t&)> iterator_comparator_t;
+            typedef storage_policy::TreeSetStorage< applicator_result_t, iterator_comparator_t > store_t;
 
             FlattenRange(const SourceRange & source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator)
                 : _source_range(source)
-                , _transform(std::forward<UnaryFunction >(deflate))
+                , _deflate(std::forward<DeflateFunction >(deflate))
                 , _iterator_comparator(std::forward<iterator_comparator_t>(iterator_comparator))
             {
             }
             iterator begin() const override
             {
-                using store_type = TreeSetStorage< applicator_result_t, iterator_comparator_t >;
-                auto store = std::make_unique< store_type >();
+                auto store = std::make_unique< store_t >();
                 _source_range.for_each([&store](const auto& i) {
                     //store->push(std::make_shared(i->key()));
                 });
-                return iterator(*this, _source_range.begin(), key_eval_policy_t());
+                return iterator(std::move(store));
             }
             bool in_range(const iterator& check) const override
             {
-                return _source_range.in_range(check._source);
+                return false; //_source_range.in_range(check._source);
             }
             void next(iterator& pos) const override
             {
-                _source_range.next(pos._source);
-
-                if (in_range(pos))
-                {//notify policy that key was changed
-                    pos._key_eval_policy.on_after_change(pos._source, _transform);
-                }
+                //_source_range.next(pos._source);
             }
 
         private:
             const SourceRange& _source_range;
-            UnaryFunction _transform;
             const iterator_comparator_t _iterator_comparator;
+            const DeflateFunction _deflate;
 
         };
 

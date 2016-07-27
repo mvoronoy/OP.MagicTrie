@@ -619,7 +619,7 @@ void test_Flatten(OP::utest::TestResult &tresult)
         std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
     });
     //-->>>>
-    FlattenRange< decltype(suffixes_range), [&trie](const auto& i) {
+    make_flatten_range(suffixes_range, [&trie](const auto& i) {
         return trie->subrange(i.key());
     });
     //auto _1_flatten = trie->flatten_range(suffixes_range);
