@@ -26,6 +26,9 @@ namespace OP
             template <class Range, class IteratorComparator>
             struct TreeSetStorage : public StoragePolicy<Range>
             {
+                TreeSetStorage(const IteratorComparator& comparator)
+                    :_comparator(comparator)
+                {}
                 void push(flat_item_ptr& item) override
                 {
                     _item_set.emplace(item);
@@ -69,11 +72,11 @@ namespace OP
 
         template <class OwnerRange>
         struct FlattenRangeIterator :
-            public std::iterator<std::forward_iterator_tag, typename OwnerRange::iterator::value_type>
+            public std::iterator<std::forward_iterator_tag, typename OwnerRange::value_type>
         {
             typedef typename OwnerRange::iterator source_iterator_t;
             typedef FlattenRangeIterator<OwnerRange> this_t;
-            typedef typename source_iterator_t value_type;
+            typedef source_iterator_t value_type;
             typedef typename OwnerRange::key_t key_type;
             typedef typename OwnerRange::store_t store_t;
             friend OwnerRange;
@@ -109,15 +112,20 @@ namespace OP
         template <class SourceRange, class DeflateFunction >
         struct FlattenRange : public SuffixRange<
             FlattenRangeIterator<
-            FlattenRange<SourceRange, DeflateFunction>
-        > >
+                FlattenRange<SourceRange, DeflateFunction>
+            > 
+        >
         {
             typedef FlattenRange<SourceRange, DeflateFunction> this_t;
             typedef FlattenRangeIterator<this_t> iterator;
             typedef typename SourceRange::iterator source_iterator_t;
             //need ensure that applicator_result_t is kind of SuffixRange
             typedef typename std::result_of<DeflateFunction(const source_iterator_t&)>::type applicator_result_t;
-            typedef std::function<int(const source_iterator_t&, const source_iterator_t&)> iterator_comparator_t;
+            typedef typename applicator_result_t::key_type key_type;
+            typedef key_type key_t;
+            typedef typename applicator_result_t::iterator::value_type value_type;
+
+            typedef std::function<int(const typename applicator_result_t::iterator&, const typename applicator_result_t::iterator&)> iterator_comparator_t;
             typedef storage_policy::TreeSetStorage< applicator_result_t, iterator_comparator_t > store_t;
 
             FlattenRange(const SourceRange & source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator)
@@ -128,11 +136,11 @@ namespace OP
             }
             iterator begin() const override
             {
-                auto store = std::make_unique< store_t >();
+                auto store = std::make_unique< store_t >(_iterator_comparator);
                 _source_range.for_each([&store](const auto& i) {
                     //store->push(std::make_shared(i->key()));
                 });
-                return iterator(std::move(store));
+                return iterator(*this, std::move(store));
             }
             bool in_range(const iterator& check) const override
             {
@@ -154,13 +162,16 @@ namespace OP
         inline FlattenRange<SourceRange, DeflateFunction > make_flatten_range(const SourceRange& src, DeflateFunction && f)
         {
             return FlattenRange<SourceRange, DeflateFunction >(src, std::forward<DeflateFunction>(f), [](const auto& left, const auto& right) {
-                if (left.key() < right.key())
+                /*if (left.key() < right.key())
                     return -1;
                 if (right.key() < left.key())
                     return 1;
-                else return 0;
-            })
-            iterator_comparator_t && iterator_comparator
+                else return 0;*/
+                auto* x = &left;
+                assert(x != nullptr);
+                return -1;
+            });
+            
         }
     } //ns:trie
 }//ns:OP
