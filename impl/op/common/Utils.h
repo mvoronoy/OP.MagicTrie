@@ -118,25 +118,26 @@ namespace OP
             return std::get< tuple_ref_index<T, Tuple>::value >(tuple);
         }
 
-        template <typename Base, typename Tuple, std::size_t I = 0>
-        struct tuple_ref_hierarchy_index;
+        //template <typename Base, typename Tuple, std::size_t I = 0>
+        //struct tuple_ref_hierarchy_index {};
 
-        template <typename Base, typename Head, typename... Tail, std::size_t I>
-        struct tuple_ref_hierarchy_index<Base, std::tuple<Head, Tail...>, I>  
-            : std::conditional<std::is_base_of<Base, Head>::value
-                             , std::integral_constant<std::size_t, I>
-                             , tuple_ref_hierarchy_index<Base, std::tuple<Tail...>, I+1>
-                             >::type
-        {
-        };
-        template <typename Base, typename Tuple>
-        auto tuple_ref_by_inheritance(Tuple&& tuple)
-            -> decltype(std::get<tuple_ref_hierarchy_index<Base, typename std::decay<Tuple>::type>::value>(std::forward<Tuple>(tuple)))
-        {
-            return std::get<
-                tuple_ref_hierarchy_index<Base, typename std::decay<Tuple>::type>::value>(
-                    std::forward<Tuple>(tuple));
-        }
+        //template <typename Base, typename Head, typename... Tail, std::size_t I>
+        //struct tuple_ref_hierarchy_index<Base, std::tuple<Head, Tail...>, I>  
+        //    : std::conditional<std::is_base_of<Base, Head>::value
+        //                     , std::integral_constant<std::size_t, I>
+        //                     , tuple_ref_hierarchy_index<Base, std::tuple<Tail...>, I+1>
+        //                     >::type
+        //{
+        //};
+        //template <typename Base, typename Tuple>
+        //auto tuple_ref_by_inheritance(Tuple&& tuple)
+        //    -> decltype(std::get<tuple_ref_hierarchy_index<Base, typename std::decay<Tuple>::type>::value>(std::forward<Tuple>(tuple)))
+        //{
+        //    return std::get<
+        //        tuple_ref_hierarchy_index<Base, typename std::decay<Tuple>::type>::value>(
+        //            std::forward<Tuple>(tuple));
+        //}
+
         /**Allows to check if parameter T is defined from other template. Usage:
         *   \code
         *   typedef std::tuple<int, double> my_tuple; //sample type defined from template

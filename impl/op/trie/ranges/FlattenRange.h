@@ -76,7 +76,7 @@ namespace OP
         {
             typedef typename OwnerRange::iterator source_iterator_t;
             typedef FlattenRangeIterator<OwnerRange> this_t;
-            typedef source_iterator_t value_type;
+            typedef typename source_iterator_t::value_type value_type;
             typedef typename OwnerRange::key_t key_type;
             typedef typename OwnerRange::store_t store_t;
             friend OwnerRange;
@@ -99,7 +99,7 @@ namespace OP
             }
             key_type key() const
             {
-                return *_store->smallest()->second.key();
+                return _store->smallest()->second.key();
             }
 
         private:
@@ -137,8 +137,10 @@ namespace OP
             iterator begin() const override
             {
                 auto store = std::make_unique< store_t >(_iterator_comparator);
-                _source_range.for_each([&store](const auto& i) {
-                    //store->push(std::make_shared(i->key()));
+                _source_range.for_each([&](const auto& i) {
+                    auto range = _deflate(i);
+                    store_t::flat_item_ptr new_itm(new store_t::flat_item_t(std::move(range), range.begin()));
+                    store->push(new_itm);
                 });
                 return iterator(*this, std::move(store));
             }

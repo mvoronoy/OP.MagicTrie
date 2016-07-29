@@ -619,8 +619,13 @@ void test_Flatten(OP::utest::TestResult &tresult)
         std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
     });
     //-->>>>
-    make_flatten_range(suffixes_range, [&trie](const auto& i) {
+    auto frange1 = make_flatten_range(suffixes_range, [&trie](const auto& i) {
         return trie->subrange(i.key());
+    });
+    frange1.for_each([](const auto& i) {
+        i.key();
+        *i;
+        //std::cout <<  i << "}\n";
     });
     //auto _1_flatten = trie->flatten_range(suffixes_range);
     //std::map<atom_string_t, double> strain1 = {
