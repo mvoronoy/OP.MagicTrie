@@ -151,14 +151,25 @@ namespace OP
             *   \code
             *   subrange(std::begin(container), std::end(container))
             *   \endcode
-            * @param container any string of bytes that supports std::begin/ std::end functions
+            * @param string any string of bytes that supports std::begin/ std::end functions
             */
             template <class AtomContainer>
-            range_container_t subrange(const AtomContainer& container) const
+            range_container_t subrange(const AtomContainer& string) const
             {
-                return this->subrange(std::begin(container), std::end(container));
+                return this->subrange(std::begin(string), std::end(string));
             }
-            
+
+            /**
+            *   @return range that is flatten-range of all prefixes contained in param `container`.
+            */
+            template <class Range>
+            auto flatten_subrange(const Range& container) const
+            {
+                return make_flatten_range(container, [this](const auto& i) {
+                    return subrange(i.key());
+                });
+            }
+
 
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom aend) const

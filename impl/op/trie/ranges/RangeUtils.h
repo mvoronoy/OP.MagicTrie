@@ -34,6 +34,22 @@ namespace OP
                 }
                 return !range1.in_range(from1) && (from2 == to2);
             }
+            template <class Iterator1, class Container>
+            inline bool map_equals(const SuffixRange<Iterator1>& range1, const Container& range2)
+            {
+                auto from1 = range1.begin();
+                auto from2 = std::begin(range2);
+                auto to2 = std::end(range2);
+                for (; range1.in_range(from1) && from2 != to2; range1.next(from1), ++from2)
+                {
+                    if (from1.key() != from2->first)
+                        return false;
+                    if (*from1 != from2->second)
+                        return false;
+                
+                }
+                return !range1.in_range(from1) && (from2 == to2);
+            }
 
         } //ns:utils
     } //ns:trie

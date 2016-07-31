@@ -162,8 +162,6 @@
     <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h" />
     <ClInclude Include="..\impl\op\trie\ranges\UnionAllRange.h" />
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
-    <ClInclude Include="..\impl\op\utest\unit_test.h" />
-    <ClInclude Include="..\impl\op\utest\unit_test_is.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryBlock.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryChunks.h" />
     <ClInclude Include="..\impl\op\vtm\NamedObjects.h" />

@@ -6,6 +6,7 @@
 #include <op/utest/unit_test_is.h>
 
 #include <op/trie/Trie.h>
+#include <op/trie/ranges/RangeUtils.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/TransactedSegmentManager.h>
@@ -622,20 +623,19 @@ void test_Flatten(OP::utest::TestResult &tresult)
     auto frange1 = make_flatten_range(suffixes_range, [&trie](const auto& i) {
         return trie->subrange(i.key());
     });
+    std::cout << "Flatten result:\n";
     frange1.for_each([](const auto& i) {
-        i.key();
-        *i;
-        //std::cout <<  i << "}\n";
+        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
     });
-    //auto _1_flatten = trie->flatten_range(suffixes_range);
-    //std::map<atom_string_t, double> strain1 = {
+    auto _1_flatten = trie->flatten_subrange(suffixes_range);
+    std::map<atom_string_t, double> strain1 = {
 
-    //    decltype(strain1)::value_type((atom_t*)"abc", 1.0),
-    //    decltype(strain1)::value_type((atom_t*)"bcd", 1.0),
-    //    decltype(strain1)::value_type((atom_t*)"def", 1.5),
-    //}
-    //tresult.assert_equals(
-    //    OP::trie::utils::key_equals(_1_flatten, strain1), OP_CODE_DETAILS(<< "Simple flatten failed"));
+        decltype(strain1)::value_type((atom_t*)"abc", 1.0),
+        decltype(strain1)::value_type((atom_t*)"bcd", 1.0),
+        decltype(strain1)::value_type((atom_t*)"def", 1.5),
+    };
+    tresult.assert_true(
+        OP::trie::utils::map_equals(_1_flatten, strain1), OP_CODE_DETAILS(<< "Simple flatten failed"));
 }
 
 static auto module_suite = OP::utest::default_test_suite("Trie")
