@@ -139,18 +139,30 @@ namespace OP
                 auto store = std::make_unique< store_t >(_iterator_comparator);
                 _source_range.for_each([&](const auto& i) {
                     auto range = _deflate(i);
-                    store_t::flat_item_ptr new_itm(new store_t::flat_item_t(std::move(range), range.begin()));
+                    auto range_beg = range.begin();
+                    if (!range.in_range(range_beg)) //don't need add empty range
+                    {
+                        return;
+                    }
+                    store_t::flat_item_ptr new_itm(new store_t::flat_item_t(
+                        std::move(range), std::move(range_beg)
+                    ));
                     store->push(new_itm);
                 });
                 return iterator(*this, std::move(store));
             }
             bool in_range(const iterator& check) const override
             {
-                return false; //_source_range.in_range(check._source);
+                return !(*check._store).is_empty();
             }
             void next(iterator& pos) const override
             {
-                //_source_range.next(pos._source);
+                auto smallest = (*pos._store).pop();
+                smallest->first.next( smallest->second );
+                if (smallest->first.in_range(smallest->second))
+                { //if iter is not exhausted put it back
+                    (*pos._store).push(smallest);
+                }
             }
 
         private:
@@ -164,14 +176,8 @@ namespace OP
         inline FlattenRange<SourceRange, DeflateFunction > make_flatten_range(const SourceRange& src, DeflateFunction && f)
         {
             return FlattenRange<SourceRange, DeflateFunction >(src, std::forward<DeflateFunction>(f), [](const auto& left, const auto& right) {
-                /*if (left.key() < right.key())
-                    return -1;
-                if (right.key() < left.key())
-                    return 1;
-                else return 0;*/
-                auto* x = &left;
-                assert(x != nullptr);
-                return -1;
+                return OP::trie::str_lexico_comparator(std::begin(left.key()), std::end(left.key()),
+                    std::begin(right.key()), std::end(right.key()));
             });
             
         }
