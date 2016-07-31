@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+﻿﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -98,7 +98,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>BOOST_ALL_DYN_LINK;WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>BOOST_ALL_DYN_LINK;WIN32;_SCL_SECURE_NO_WARNINGS;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>C:\Program Files (x86)\Visual Leak Detector\include;%(AdditionalIncludeDirectories);$(BOOST_HOME);..\impl</AdditionalIncludeDirectories>
     </ClCompile>
@@ -134,7 +134,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>BOOST_ALL_DYN_LINK;WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>BOOST_ALL_DYN_LINK;WIN32;_SCL_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>C:\Program Files (x86)\Visual Leak Detector\include;%(AdditionalIncludeDirectories);$(BOOST_HOME);..\impl</AdditionalIncludeDirectories>
     </ClCompile>
@@ -150,25 +150,54 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\impl\op\trie\MemoryBlock.h" />
-    <ClInclude Include="..\impl\op\trie\MemoryManager.h" />
-    <ClInclude Include="..\impl\op\trie\NamedObjects.h" />
-    <ClInclude Include="..\impl\op\trie\Range.h" />
-    <ClInclude Include="..\impl\op\trie\SegmentManager.h" />
-    <ClInclude Include="..\impl\op\trie\CacheManager.h" />
+    <ClInclude Include="..\impl\op\service\BackgroundWorker.h" />
+    <ClInclude Include="..\impl\op\common\Bitset.h" />
+    <ClInclude Include="..\impl\op\common\func_iter.h" />
+    <ClInclude Include="..\impl\op\trie\HashTable.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\FlattenRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\FunctionalRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\JoinRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\RangeUtils.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\UnionAllRange.h" />
+    <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
+    <ClInclude Include="..\impl\op\vtm\MemoryBlock.h" />
+    <ClInclude Include="..\impl\op\vtm\MemoryChunks.h" />
+    <ClInclude Include="..\impl\op\vtm\NamedObjects.h" />
+    <ClInclude Include="..\impl\op\common\Range.h" />
+    <ClInclude Include="..\impl\op\vtm\SegmentHelper.h" />
+    <ClInclude Include="..\impl\op\vtm\SegmentManager.h" />
+    <ClInclude Include="..\impl\op\vtm\CacheManager.h" />
     <ClInclude Include="..\impl\op\trie\Containers.h" />
-    <ClInclude Include="..\impl\op\trie\Exceptions.h" />
-    <ClInclude Include="..\impl\op\trie\Node.h" />
-    <ClInclude Include="..\impl\op\trie\Skplst.h" />
-    <ClInclude Include="..\impl\op\trie\TransactedSegmentManager.h" />
-    <ClInclude Include="..\impl\op\trie\Transactional.h" />
+    <ClInclude Include="..\impl\op\common\Exceptions.h" />
+    <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h" />
+    <ClInclude Include="..\impl\op\vtm\HeapManager.h" />
+    <ClInclude Include="..\impl\op\vtm\Skplst.h" />
+    <ClInclude Include="..\impl\op\trie\StemContainer.h" />
+    <ClInclude Include="..\impl\op\vtm\TransactedSegmentManager.h" />
+    <ClInclude Include="..\impl\op\vtm\Transactional.h" />
     <ClInclude Include="..\impl\op\trie\Trie.h" />
-    <ClInclude Include="..\impl\op\trie\Utils.h" />
+    <ClInclude Include="..\impl\op\trie\TrieNode.h" />
+    <ClInclude Include="..\impl\op\trie\TrieResidence.h" />
+    <ClInclude Include="..\impl\op\common\typedefs.h" />
+    <ClInclude Include="..\impl\op\vtm\PersistedReference.h" />
+    <ClInclude Include="..\impl\op\common\Utils.h" />
+    <ClInclude Include="..\impl\op\trie\ValueArray.h" />
+    <ClInclude Include="GenericMemoryTest.h" />
+    <ClInclude Include="test_comparators.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="NodeTest.cpp" />
+    <ClCompile Include="BgWorkerTest.cpp" />
+    <ClCompile Include="BitsetTest.cpp" />
+    <ClCompile Include="ContainersTest.cpp" />
+    <ClCompile Include="FixedSizeMemoryManagerTest.cpp" />
+    <ClCompile Include="ranges\CommonRangesOpTest.cpp" />
     <ClCompile Include="RangeTest.cpp" />
+    <ClCompile Include="SegmentManagerTest.cpp" />
+    <ClCompile Include="SegmentToplogyTest.cpp" />
     <ClCompile Include="skplst.cpp" />
+    <ClCompile Include="StemContainer.cpp" />
     <ClCompile Include="tr.cpp">
       <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
       <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</PreprocessToFile>
@@ -176,6 +205,10 @@
       <PreprocessKeepComments Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</PreprocessKeepComments>
     </ClCompile>
     <ClCompile Include="Transacted.cpp" />
+    <ClCompile Include="Trie.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\projects\atom_str_view.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,6 +1,7 @@
-#include "unit_test.h"
-#include <op/trie/SegmentManager.h>
-#include <op/trie/MemoryManager.h>
+#include <op/utest/unit_test.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/MemoryChunks.h>
+#include <op/vtm/HeapManager.h>
 using namespace OP::trie;
 
 struct TestMemAlloc1
@@ -34,9 +35,9 @@ void test_SegmentTopology(OP::utest::TestResult& result)
         + align_on(sizeof(TestMemAlloc2) * 100, SegmentDef::align_c)
         + align_on(sizeof(assorted_t), SegmentDef::align_c) * 3) * 105) / 100;
     result.assert_true(control_size <= tst_size);
-    SegmentTopology<MemoryManager> mngrTopology = { mngr1 } ;
+    SegmentTopology<HeapManagerSlot> mngrTopology = { mngr1 } ;
     mngrTopology._check_integrity();
-    result.assert_true(mngrTopology.slot<MemoryManager>().available(0) < tst_size);
+    result.assert_true(mngrTopology.slot<HeapManagerSlot>().available(0) < tst_size);
 }
 
 //using std::placeholders;

@@ -1,8 +1,10 @@
-#include "unit_test.h"
-#include "unit_test_is.h"
+#include <op/utest/unit_test.h>
+#include <op/utest/unit_test_is.h>
 #include <op/trie/StemContainer.h>
+#include <op/common/typedefs.h>
 
 using namespace OP::trie::stem;
+using namespace OP::trie;
 
 void test_StemStoreSimple(OP::utest::TestResult &tresult)
 {
@@ -17,7 +19,7 @@ void test_StemStoreSimple(OP::utest::TestResult &tresult)
     //tresult.assert_true(tst1->length(0) == 1, OP_CODE_DETAILS());
     //tresult.assert_true(b_seq1 == std::end(seq1), OP_CODE_DETAILS());
     //auto r1 = tst1->chain_at(0);;
-    //tresult.assert_true( OP::utest::tools::range_equal(r1.first, r1.second, std::begin(seq1), std::end(seq1)) , OP_CODE_DETAILS());
+    //tresult.assert_true( OP::utest::tools::range_equals(r1.first, r1.second, std::begin(seq1), std::end(seq1)) , OP_CODE_DETAILS());
     //const OP::trie::StemStore::atom_t seq2[]  = { 'b', 'c' };
     //auto b_seq2 = std::begin(seq2);
     //tresult.assert_true(OP::trie::StemStore::nil_c == tst1->accommodate(b_seq2, std::end(seq2)), OP_CODE_DETAILS());

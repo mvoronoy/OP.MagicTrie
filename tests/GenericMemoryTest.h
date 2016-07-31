@@ -2,14 +2,14 @@
 #define _GENERICMEMORYTEST__H_
 
 
-#include "unit_test.h"
-#include "unit_test_is.h"
+#include <op/utest/unit_test.h>
+#include <op/utest/unit_test_is.h>
 using namespace OP::utest;
 
 template <class Sm>
 void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& result)
 {
-    result.info() << "test MemoryManager on" << typeid(Sm).name() << "..." << std::endl;
+    result.info() << "test HeapManagerSlot on" << typeid(Sm).name() << "..." << std::endl;
     std::uint32_t tst_size = -1;
     struct TestMemAlloc1
     {
@@ -39,22 +39,22 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
         auto options = OP::trie::SegmentOptions().segment_size(0x110000);
         auto mngr1 = Sm::create_new(seg_file_name, options);
         tst_size = mngr1->segment_size();
-        SegmentTopology<MemoryManager> mngrTopology = SegmentTopology<MemoryManager>(mngr1);
-        one_byte_pos = mngrTopology.slot<MemoryManager>().allocate(1);
+        SegmentTopology<HeapManagerSlot> mngrTopology (mngr1);
+        one_byte_pos = mngrTopology.slot<HeapManagerSlot>().allocate(1);
         one_byte_block = mngr1->readonly_block(one_byte_pos, 1).at<std::uint8_t>(0);
         mngr1->_check_integrity();
     }
     result.info() << "Test reopen existing...\n";
     auto segmentMngr2 = Sm::open(seg_file_name);
     result.assert_true(tst_size == segmentMngr2->segment_size(), OP_CODE_DETAILS());
-    SegmentTopology<MemoryManager>& mngr2 = *new SegmentTopology<MemoryManager>(segmentMngr2);
+    SegmentTopology<HeapManagerSlot>& mngr2 = *new SegmentTopology<HeapManagerSlot>(segmentMngr2);
 
-    auto half_block = mngr2.slot<MemoryManager>().allocate(tst_size / 2);
+    auto half_block = mngr2.slot<HeapManagerSlot>().allocate(tst_size / 2);
     mngr2._check_integrity();
     //try consume bigger than available
     //try
     {
-        mngr2.slot<MemoryManager>().allocate(mngr2.slot<MemoryManager>().available(0) + 1);
+        mngr2.slot<HeapManagerSlot>().allocate(mngr2.slot<HeapManagerSlot>().available(0) + 1);
         //new segment must be allocated
         result.assert_true(segmentMngr2->available_segments() == 2, OP_CODE_DETAILS());
     }
@@ -64,11 +64,11 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     //}
     mngr2._check_integrity();
     //consume allmost all
-    auto rest = mngr2.slot<MemoryManager>().allocate( mngr2.slot<MemoryManager>().available(0) - SegmentDef::align_c );
+    auto rest = mngr2.slot<HeapManagerSlot>().allocate( mngr2.slot<HeapManagerSlot>().available(0) - SegmentDef::align_c );
     mngr2._check_integrity();
     try
     {
-        mngr2.slot<MemoryManager>().deallocate(rest + 1);
+        mngr2.slot<HeapManagerSlot>().forcible_deallocate(rest + 1);
         result.assert_true(false, OP_CODE_DETAILS(<<"exception must be raised"));
     }
     catch (const OP::trie::Exception& e)
@@ -80,21 +80,21 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     //mngr2.segment_manager().ensure_segment(1);
     //try
     //{
-    //    mngr2.slot<MemoryManager>().deallocate((1ull<<32)| rest);
+    //    mngr2.slot<HeapManagerSlot>().forcible_deallocate((1ull<<32)| rest);
     //    result.assert_true(false);//exception must be raised
     //}
     //catch (const OP::trie::Exception& e)
     //{
     //    result.assert_true(e.code() == OP::trie::er_invalid_block);
     //}
-    mngr2.slot<MemoryManager>().deallocate(one_byte_pos);
+    mngr2.slot<HeapManagerSlot>().forcible_deallocate(one_byte_pos);
     mngr2._check_integrity();
-    mngr2.slot<MemoryManager>().deallocate(rest);
+    mngr2.slot<HeapManagerSlot>().forcible_deallocate(rest);
     mngr2._check_integrity();
-    mngr2.slot<MemoryManager>().deallocate(half_block);
+    mngr2.slot<HeapManagerSlot>().forcible_deallocate(half_block);
     mngr2._check_integrity();
-    auto bl_control = mngr2.slot<MemoryManager>().allocate(100);
-    auto test_size = mngr2.slot<MemoryManager>().available(0);
+    auto bl_control = mngr2.slot<HeapManagerSlot>().allocate(100);
+    auto test_size = mngr2.slot<HeapManagerSlot>().available(0);
     static const std::uint8_t seq[] = { 0x7A, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x00, 0x28, 0x00,
         0x00, 0x00, 0x0B, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x01, 0x00, 0x18, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x0B, 0x00, 0x00, 0x12, 0x0B, 0x00, 0x00, 0x00, 0x00,
@@ -123,7 +123,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     FarAddress stripes[7];
     for (size_t i = 0; i < 7; ++i)
     {
-        auto b_pos = mngr2.slot<MemoryManager>().allocate(sizeof(seq));
+        auto b_pos = mngr2.slot<HeapManagerSlot>().allocate(sizeof(seq));
         auto b = segmentMngr2->writable_block(b_pos, sizeof(seq)).at<std::uint8_t>(0);
         memcpy(b, seq, sizeof(seq));
         stripes[i] = b_pos;
@@ -134,8 +134,8 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     segmentMngr2.reset();
 
     auto segmentMngr3 = Sm::open(seg_file_name);
-    SegmentTopology<MemoryManager>* mngr3 = new SegmentTopology<MemoryManager>(segmentMngr3);
-    auto& mm = mngr3->slot<MemoryManager>();
+    SegmentTopology<HeapManagerSlot>* mngr3 = new SegmentTopology<HeapManagerSlot>(segmentMngr3);
+    auto& mm = mngr3->slot<HeapManagerSlot>();
     /**Flag must be set if memory management allows merging of free adjacent blocks*/
     const bool has_block_compression = mm.has_block_merging(); 
     mngr3->_check_integrity();
@@ -145,7 +145,7 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     {
         if (!has_block_compression)
             test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);
-        mm.deallocate(stripes[i]);
+        mm.forcible_deallocate(stripes[i]);
     }
     mngr3->_check_integrity();
     //now test merging of adjacency blocks
@@ -153,11 +153,12 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     {
         auto ro_ptr = segmentMngr3->readonly_block(stripes[i], sizeof(seq)).at<std::uint8_t>(0);
             
-        result.assert_that(is::equals(seq, ro_ptr, sizeof(seq)), "striped block corrupted");
+        result.assert_true(tools::range_equals(
+            seq, seq+ sizeof(seq), ro_ptr, ro_ptr+sizeof(seq)), "striped block corrupted");
 
         if (!has_block_compression)
             test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);
-        mm.deallocate(stripes[i]);
+        mm.forcible_deallocate(stripes[i]);
         mngr3->_check_integrity();
     }
     result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
@@ -165,11 +166,11 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     for (size_t i = 0; i < 7; ++i)
         stripes[i] = mm.allocate(sizeof(seq));
     for (size_t i = 0; i < 7; i+=2)
-        mm.deallocate(stripes[i]);
+        mm.forcible_deallocate(stripes[i]);
     mngr3->_check_integrity();
     for (size_t i = 1; i < 7; i += 2)
     {
-        mm.deallocate(stripes[i]);
+        mm.forcible_deallocate(stripes[i]);
         mngr3->_check_integrity();
     }
     result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
@@ -188,12 +189,12 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     }
     std::random_shuffle(std::begin(rnd_indexes), std::end(rnd_indexes));
     mngr3->_check_integrity();
-    std::chrono::system_clock::time_point now = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
     for (size_t i = 0; i < 1000; ++i)
     {
         auto p = rand_buf[rnd_indexes[i]];
-        mm.deallocate( p );
-        mngr3->_check_integrity();
+        mm.forcible_deallocate( p );
+        //mngr3->_check_integrity();
     }
     std::cout << "\tTook:" 
         << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() 

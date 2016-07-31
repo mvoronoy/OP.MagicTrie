@@ -9,17 +9,13 @@
 #include <type_traits>
 #include <algorithm>
 #include <array>
+#include <op/common/typedefs.h>
 namespace OP
 {
     namespace trie
     {
-        /**the smallest part of trie key*/
-        typedef std::uint8_t atom_t;
         /**unsigned size of single page(container) */
         typedef std::uint16_t node_size_t;
-
-        struct EmptyPayload
-        {};
 
         namespace _internal
         {
@@ -206,9 +202,15 @@ namespace OP
 
         enum NodePersense
         {
-            fpresence_c = 0x1,
-            faddress_c = 0x2,
-            fvalue_c = 0x4,
+            fpresence_c = 0x01,
+            faddress_c = 0x02,
+            fvalue_c = 0x04,
+            _f_userdefined_ = 0x08,
+            fdef_0  = _f_userdefined_,
+            fdef_1  = _f_userdefined_ << 1,
+            fdef_2  = _f_userdefined_ << 2,
+            fdef_3  = _f_userdefined_ << 3,
+            fdef_4  = _f_userdefined_ << 4
         };
 
         template <class Payload, node_size_t capacity>

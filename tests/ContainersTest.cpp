@@ -1,14 +1,15 @@
 
-#include "unit_test.h"
+#include <op/utest/unit_test.h>
 
 #include <op/trie/Containers.h>
 
 using namespace OP::trie;
 bool allow_long_test = false;
+struct TestEmpty{};
 template <node_size_t capacity_c>
-struct TestHashTable : public NodeHashTable< EmptyPayload, capacity_c >
+struct TestHashTable : public NodeHashTable< TestEmpty, capacity_c >
 {
-    typedef NodeHashTable < EmptyPayload, capacity_c > base_t;
+    typedef NodeHashTable < TestEmpty, capacity_c > base_t;
     TestHashTable() 
     {}
     ~TestHashTable()
@@ -189,9 +190,9 @@ void NodeHash_erase(OP::utest::TestResult &tresult)
     }
     tresult.info() << "\tpassed" << std::endl;
 }
-struct TestSortedArray : public NodeSortedArray < EmptyPayload, 16 >
+struct TestSortedArray : public NodeSortedArray < TestEmpty, 16 >
 {
-    typedef NodeSortedArray < EmptyPayload, 16 > base_t;
+    typedef NodeSortedArray < TestEmpty, 16 > base_t;
     TestSortedArray() 
     {}
     ~TestSortedArray()
@@ -248,7 +249,7 @@ void test_NodeArray_insert(OP::utest::TestResult &tresult)
         auto n = tbl.size();
         auto inspos = tbl.insert(p = templ, templ_end);
         auto v = *inspos;
-        tresult.assert_true(OP::utest::tools::range_equal(templ, templ_end, v.first, v.second));
+        tresult.assert_true(OP::utest::tools::range_equals(templ, templ_end, v.first, v.second));
     }
     const atom_t ustr[] = "abcde";
     p = std::begin(ustr);
@@ -257,7 +258,7 @@ void test_NodeArray_insert(OP::utest::TestResult &tresult)
     
     if (1 == 1)
     {
-        //NodeSortedArray<16, EmptyPayload> tbl;
+        //NodeSortedArray<16, TestEmpty> tbl;
         tbl.clear();
         tbl.insert(std::string("abc"));
         tbl.insert(std::string("ac"));
