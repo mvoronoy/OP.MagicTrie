@@ -5,9 +5,9 @@
 #include <iostream>
 #include <iomanip>
 #include <op/trie/Trie.h>
-#include <op/trie/SegmentManager.h>
-#include <op/trie/MemoryManager.h>
-#include <op/trie/CacheManager.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/MemoryChunks.h>
+#include <op/vtm/CacheManager.h>
 #include <op/trie/Containers.h>
 
 #include <set>
@@ -20,7 +20,7 @@
 #include <chrono>
 #include <regex>
 
-#include "unit_test.h"
+#include <op/utest/unit_test.h>
 
 using namespace OP::trie;
 

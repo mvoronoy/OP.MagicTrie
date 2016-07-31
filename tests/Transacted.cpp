@@ -2,16 +2,16 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif //_MSC_VER
 
-#include "unit_test.h"
-#include "unit_test_is.h"
+#include <op/utest/unit_test.h>
+#include <op/utest/unit_test_is.h>
 #include <iostream>
 #include <fstream>
 #include <iomanip>
 #include <op/trie/Trie.h>
-#include <op/trie/SegmentManager.h>
-#include <op/trie/CacheManager.h>
-#include <op/trie/TransactedSegmentManager.h>
-#include <op/trie/MemoryManager.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/CacheManager.h>
+#include <op/vtm/TransactedSegmentManager.h>
+#include <op/vtm/MemoryChunks.h>
 #include "GenericMemoryTest.h"
 
 using namespace OP::trie;
@@ -123,13 +123,13 @@ void test_TransactedSegmentManager(OP::utest::TestResult &tresult)
     tresult.assert_true(fdata_acc.good());
     
     //read out of tran must be permitted
-    ReadonlyMemoryRange ro_block1 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
+    ReadonlyMemoryChunk ro_block1 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     //the same should be returned for another thread
-    std::future<ReadonlyMemoryRange> future_block1_t1 = std::async(std::launch::async, [ tmngr1](){
+    std::future<ReadonlyMemoryChunk> future_block1_t1 = std::async(std::launch::async, [ tmngr1](){
         return tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     });
     auto ro_block1_t1 = future_block1_t1.get();
-    tresult.assert_true(0 == memcmp(&ro_block1, &ro_block1_t1, sizeof(ReadonlyMemoryRange)), OP_CODE_DETAILS( << "RO memory block from different thread must return same bytes"));
+    tresult.assert_true(0 == memcmp(&ro_block1, &ro_block1_t1, sizeof(ReadonlyMemoryChunk)), OP_CODE_DETAILS( << "RO memory block from different thread must return same bytes"));
     //check ro have same view
     fdata_acc.seekp(read_only_data_fpos);
     fdata_acc.write(tst_seq, sizeof(tst_seq));
@@ -146,7 +146,7 @@ void test_TransactedSegmentManager(OP::utest::TestResult &tresult)
         auto tx_rw = tmngr1->writable_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
         tresult.assert_true(0 == memcmp(tst_seq, tx_rw.pos(), sizeof(tst_seq)), OP_CODE_DETAILS( << "hello" ));
     }
-    std::future<ReadonlyMemoryRange> future_check_unlock = std::async(std::launch::async, [ tmngr1](){
+    std::future<ReadonlyMemoryChunk> future_check_unlock = std::async(std::launch::async, [ tmngr1](){
         return tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq)+10);
     });
     auto check_unlock = future_check_unlock.get();
@@ -154,10 +154,12 @@ void test_TransactedSegmentManager(OP::utest::TestResult &tresult)
 
     //do the check data from file for transactions
     auto tr1 = tmngr1->begin_transaction();
-    ReadonlyMemoryRange ro_block2 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
+    ReadonlyMemoryChunk ro_block2 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     tresult.assert_true(ro_block1.address() == ro_block2.address() && ro_block1.count() == ro_block2.count(), 
         OP_CODE_DETAILS( <<"RO block inside transaction must point the same memory"));
-    tresult.assert_that(is::equals((const std::uint8_t*)tst_seq, ro_block2.pos(), sizeof(tst_seq)), OP_CODE_DETAILS( << "RO block inside transaction must point the same memory"));
+    tresult.assert_true(tools::range_equals(
+        tst_seq, tst_seq + sizeof(tst_seq), ro_block2.pos(), ro_block2.pos()+sizeof(tst_seq)), 
+        OP_CODE_DETAILS( << "RO block inside transaction must point the same memory"));
 
     std::future<bool> future_t2 = std::async(std::launch::async, [tmngr1](){
         OP::vtm::TransactionGuard transaction2 (tmngr1->begin_transaction());
@@ -191,7 +193,7 @@ void test_TransactedSegmentManager(OP::utest::TestResult &tresult)
     //when all transaction closed, no overlapped exception anymore
     auto overlapped_block = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq)+10);
     tresult.assert_true(0 == memcmp(tst_seq, overlapped_block.pos(), sizeof(tst_seq)), OP_CODE_DETAILS( << "part of overlaped is not correct" ));
-
+    //test block inclusion
 }
 void test_FarAddress(OP::utest::TestResult &tresult)
 {
@@ -227,7 +229,7 @@ void test_FarAddress(OP::utest::TestResult &tresult)
     tresult.assert_true(ptr1 != block0.pos(), "Transaction must allocate new memory space for write operation");
     auto far_addr1 = tmngr1->to_far(0, ptr1);
     auto far_addr_test = tmngr1->to_far(0, block0.pos());
-    tresult.assert_that(is::equals(far_addr1, far_addr_test), "Far address must be the same");
+    tresult.assert_that<equals>(far_addr1, far_addr_test, "Far address must be the same");
     auto ro_block_seg1 = tmngr1->readonly_block(test_addr_seg1, 1);
     //ro must force use optimistic-write strategy, 
     auto wr_block_seg1 = tmngr1->writable_block(test_addr_seg1, 1);
@@ -299,7 +301,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
         .segment_size(0x110000));
     auto aa1 = tmngr1->segment_size();
     //tmngr1->ensure_segment(0);
-    SegmentTopology<MemoryManager> mngrToplogy (tmngr1);
+    SegmentTopology<HeapManagerSlot> mngrToplogy (tmngr1);
 
     struct TestAbc
     {
@@ -313,12 +315,12 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
             strncpy(this->c, c, sizeof(this->c));
         }
     };
-    auto & mm = mngrToplogy.slot<MemoryManager>();
+    auto & mm = mngrToplogy.slot<HeapManagerSlot>();
     auto test_avail = mm.available(0);
     auto abc1_off = mm.make_new<TestAbc>(1, 1.01, "abc");
     auto abc1_block = tmngr1->readonly_block(abc1_off, sizeof(TestAbc));
     auto abc1_ptr = abc1_block.at<TestAbc>(0);
-    tresult.assert_that(is::equals(abc1_ptr->c, "abc"), "wrong assign");
+    tresult.assert_true(strcmp(abc1_ptr->c, "abc") == 0, "wrong assign");
     try{
         tmngr1->wr_at<TestAbc>(abc1_off);
         OP_UTEST_FAIL(<< "Exception OP::trie::er_transaction_not_started must be raised");
@@ -368,7 +370,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
             {
             OP::vtm::TransactionGuard transaction2(tmngr1->begin_transaction());
                 lock_t g(m2);
-                mm.deallocate(managed_ptr[i]);
+                mm.forcible_deallocate(managed_ptr[i]);
             transaction2.commit();
             }
             //dealloc odd
@@ -376,7 +378,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
             {
             OP::vtm::TransactionGuard transaction3(tmngr1->begin_transaction());
                 lock_t g(m2);
-                mm.deallocate(managed_ptr[i]);
+                mm.forcible_deallocate(managed_ptr[i]);
             transaction3.commit();
             }
         }
@@ -405,6 +407,60 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestResu
     tmngr1.reset();
 }
 
+void test_TransactedMemmngrAllocDealloc(OP::utest::TestResult &tresult)
+{
+    tresult.info() << "Reproduce issue with dealloc-alloc in singel transaction..." << std::endl;
+    const char seg_file_name[] = "t-segementation.test";
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name, 
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    auto aa1 = tmngr1->segment_size();
+    //tmngr1->ensure_segment(0);
+    SegmentTopology<HeapManagerSlot> mngrToplogy (tmngr1);
+
+    auto & mm = mngrToplogy.slot<HeapManagerSlot>();
+    auto tran1 = tmngr1->begin_transaction();
+    auto block1 = mm.allocate(50);
+    tran1->commit();
+    auto test_avail = mm.available(0);
+    
+    //test that issue exists, do it twice to test that issue is not disappeared during rollback
+    /*  This test obsolete since: WritableBlockHint::allow_block_realloc
+    for (auto i = 0; i < 2; ++i)
+    {
+        auto tran2 = tmngr1->begin_transaction();
+        mm.forcible_deallocate(block1);
+        try{
+            mm.allocate(50);  // overlapped exception there
+            tresult.fail("Exception(er_overlapping_block) must be raised");
+        }
+        catch (const Exception& e)
+        {
+            tresult.assert_true(e.code() == er_overlapping_block);
+        }
+        tran2->rollback();
+    } */
+    for (auto i = 0; i < 2; ++i)
+    {
+        auto tran2 = tmngr1->begin_transaction();
+        mm.forcible_deallocate(block1);
+        mm.allocate(50);  // overlapped exception there
+
+        tran2->rollback();
+    }
+    //
+    tresult.assert_true(test_avail == mm.available(0));
+    //std::cout <<"0x"<<std::setbase(16) << mm.available(0) << '\n';
+    auto tran3 = tmngr1->begin_transaction();
+    mm.deallocate(block1);
+    mm.allocate(50);  //no overlapped exception there
+    tran3->commit();
+    //following 16 bytes are consumed by allocation new MemoryHeader, so include this to calc
+    tresult.assert_true((test_avail- aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c)) == mm.available(0));
+    
+    tmngr1->_check_integrity();
+    tmngr1.reset();
+}
 void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
 {
     tresult.info() << "Generic positive tests...\n";
@@ -433,7 +489,7 @@ void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
         //test we have ro available for all
         auto future1 = std::async(std::launch::async, [&]() -> bool {
             auto r1_no_tran = tmngr1->readonly_block(FarAddress(0, read_block_pos), wide_write_block_size); 
-            for (auto i = 0; i < (write_block_pos - read_block_pos); ++i)
+            for (auto i = 0u; i < (write_block_pos - read_block_pos); ++i)
                 if (test_byte != r1_no_tran.pos()[i])
                     return false;
             return 0 == memcmp(r1_no_tran.pos()+write_block_pos - read_block_pos, write_fill_seq1, sizeof(write_fill_seq1));
@@ -447,7 +503,7 @@ void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
         auto w1t3 = tmngr1->writable_block(FarAddress(0, read_block_pos), wide_write_block_size); 
         //it's work! No exception there
 
-        for (auto i = 0; i < (write_block_pos - read_block_pos); ++i)
+        for (auto i = 0u; i < (write_block_pos - read_block_pos); ++i)
             if (test_byte != w1t3.pos()[i])
                 return false;
         if (0 != memcmp(w1t3.pos() + write_block_pos-read_block_pos, write_fill_seq1, sizeof(write_fill_seq1)))
@@ -461,8 +517,10 @@ void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
     //check that current transaction sees changes
     auto ro1t2 = 
         tmngr1->readonly_block(FarAddress(0, read_block_pos), wide_write_block_size); //big overlapped chunk
-    tresult.assert_that(
-        OP::utest::is::equals(ro1t2.pos(), write_fill_seq2, sizeof(write_fill_seq2)), "Wrong data read for separate transaction");
+    tresult.assert_true(
+        tools::range_equals(
+            ro1t2.pos(), ro1t2.pos()+ sizeof(write_fill_seq2), 
+            write_fill_seq2, write_fill_seq2 + sizeof(write_fill_seq2)), "Wrong data read for separate transaction");
     tran2->commit();
     //
     // Retain behaviour
@@ -471,7 +529,7 @@ void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
     auto tran3 = tmngr1->begin_transaction();
     if (1 == 1)
     {   //this block will cause destroy, but not release
-        ReadonlyMemoryRange ro_keep_lock = 
+        ReadonlyMemoryChunk ro_keep_lock = 
             tmngr1->readonly_block(FarAddress(0, read_block_pos), 10, ReadonlyBlockHint::ro_keep_lock);
 
     }
@@ -497,7 +555,7 @@ void test_ReleaseReadBlock(OP::utest::TestResult &tresult)
     //  Stacked block is deleted later than originated transaction
     //
     tresult.info() << "Test stacked RO block behaviour...\n";
-    ReadonlyMemoryRange stacked;
+    ReadonlyMemoryChunk stacked;
     if (1 == 1)
     {
         auto local_tran = tmngr1->begin_transaction();
@@ -533,23 +591,27 @@ void test_NestedTransactions(OP::utest::TestResult &tresult)
             memcpy(wr2.pos(), write_fill_seq2, write_block_len);
             //check I see scope of 1st transaction
             auto t2_ro1 = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len);
-            tresult.assert_that(
-                is::equals(t2_ro1.pos(), write_fill_seq1, write_block_len), OP_CODE_DETAILS(<< "RO block inside transaction must point the same memory"));
+            tresult.assert_true(tools::range_equals(
+                t2_ro1.pos(), t2_ro1.pos()+ write_block_len,
+                write_fill_seq1, write_fill_seq1+write_block_len), OP_CODE_DETAILS(<< "RO block inside transaction must point the same memory"));
             g.commit();
         }
         //check that T1 sees inner changes
         auto t1_r1 = tmngr1->readonly_block(FarAddress(0, write_block_pos2), write_block_len);
-        tresult.assert_that(
-            is::equals(t1_r1.pos(), write_fill_seq2, write_block_len), OP_CODE_DETAILS(<< "RO block outside transaction must point the same memory"));
+        tresult.assert_true(tools::range_equals(
+            t1_r1.pos(), t1_r1.pos()+ write_block_len,
+            write_fill_seq2, write_fill_seq2+write_block_len), OP_CODE_DETAILS(<< "RO block outside transaction must point the same memory"));
         tran1->commit();
         auto case1_r = std::async(std::launch::async, [&](){ //start thread to see changes are visible
             auto tran2 = tmngr1->begin_transaction();
             auto tst_ro1 = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len);
-            tresult.assert_that(
-                is::equals(tst_ro1.pos(), write_fill_seq1, write_block_len), OP_CODE_DETAILS(<< "RO block inside transaction must point the same memory"));
+            tresult.assert_true(tools::range_equals(
+                tst_ro1.pos(), tst_ro1.pos()+ write_block_len,
+                write_fill_seq1, write_fill_seq1+write_block_len), OP_CODE_DETAILS(<< "RO block inside transaction must point the same memory"));
             auto tst_ro2 = tmngr1->readonly_block(FarAddress(0, write_block_pos2), write_block_len);
-            tresult.assert_that(
-                is::equals(tst_ro2.pos(), write_fill_seq2, write_block_len),
+            tresult.assert_true(tools::range_equals(
+                tst_ro2.pos(), tst_ro2.pos()+ write_block_len,
+                write_fill_seq2, write_fill_seq2+write_block_len),
                 OP_CODE_DETAILS(<< "RO block outside transaction must point the same memory"));
             tran2->rollback();
             return true;
@@ -572,27 +634,32 @@ void test_NestedTransactions(OP::utest::TestResult &tresult)
             memcpy(case_wr2.pos(), t2_write_block2, write_block_len);
             //check I see scope of 1st transaction
             auto t2_ro1 = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len);
-            tresult.assert_that(
-                is::equals(t2_ro1.pos(), t2_write_block1, write_block_len),
+            tresult.assert_true(
+                tools::range_equals(t2_ro1.pos(), t2_ro1.pos()+write_block_len, t2_write_block1, t2_write_block1+write_block_len),
                 OP_CODE_DETAILS(<< "RO block inside transaction must point the same memory"));
             g.rollback();
         }
 
         //test that same transaction doesn't see changes
         auto case2_ro2 = tmngr1->readonly_block(FarAddress(0, write_block_pos2), write_block_len);
-        tresult.assert_that(
-            is::equals(case2_ro2.pos(), write_fill_seq2, write_block_len),
+        tresult.assert_true(tools::range_equals(
+            case2_ro2.pos(), case2_ro2.pos()+ write_block_len, 
+            write_fill_seq2, write_fill_seq2+write_block_len),
             OP_CODE_DETAILS(<< "RO block outside transaction must contain old data"));
 
         tran2->commit();
         auto case2_r = std::async(std::launch::async, [&](){ //start thread to see changes are visible
             auto tran2 = tmngr1->begin_transaction();
             auto case2_tst_ro1 = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len);
-            tresult.assert_that(
-                is::equals(case2_tst_ro1.pos(), t2_write_block1, write_block_len), OP_CODE_DETAILS(<< "RO block after commit must contain valid sequence"));
+            tresult.assert_true(
+                tools::range_equals(
+                    case2_tst_ro1.pos(), case2_tst_ro1.pos()+ write_block_len,
+                    t2_write_block1, t2_write_block1+write_block_len), OP_CODE_DETAILS(<< "RO block after commit must contain valid sequence"));
             auto case2_tst_ro2 = tmngr1->readonly_block(FarAddress(0, write_block_pos2), write_block_len);
-            tresult.assert_that(
-                is::equals(case2_tst_ro2.pos(), write_fill_seq2, write_block_len),
+            tresult.assert_true(
+                tools::range_equals(
+                    case2_tst_ro2.pos(), case2_tst_ro2.pos()+write_block_len,
+                    write_fill_seq2, write_fill_seq2+write_block_len),
                 OP_CODE_DETAILS(<< "RO block outside transaction must contain old data"));
             tran2->rollback();
             return true;
@@ -628,16 +695,18 @@ void test_NestedTransactions(OP::utest::TestResult &tresult)
             memcpy(case_wr2.pos(), t3_write_block2, write_block_len);
             //check I see scope of 1st transaction
             auto t3_ro1 = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len);
-            tresult.assert_that(
-                is::equals(t3_ro1.pos(), t3_write_block1, write_block_len),
+            tresult.assert_true(tools::range_equals(
+                t3_ro1.pos(), t3_ro1.pos()+ write_block_len,
+                t3_write_block1, t3_write_block1+write_block_len),
                 OP_CODE_DETAILS(<< "RO block inside transaction must point the same memory"));
             g.commit();
         }
 
         //test that same transaction sees changes
         auto case3_ro2 = tmngr1->readonly_block(FarAddress(0, write_block_pos2), write_block_len);
-        tresult.assert_that(
-            is::equals(case3_ro2.pos(), t3_write_block2, write_block_len),
+        tresult.assert_true(tools::range_equals(
+            case3_ro2.pos(), case3_ro2.pos() + write_block_len,
+            t3_write_block2, t3_write_block2+write_block_len),
             OP_CODE_DETAILS(<< "RO block outside transaction must contain old data"));
 
         tran3->rollback();
@@ -645,11 +714,14 @@ void test_NestedTransactions(OP::utest::TestResult &tresult)
         auto case3_r = std::async(std::launch::async, [&](){ //start thread to see no changes
             auto tran2 = tmngr1->begin_transaction();
             auto case3_tst_ro1 = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len);
-            tresult.assert_that(
-                is::equals(case3_tst_ro1.pos(), write_fill_seq1, write_block_len), OP_CODE_DETAILS(<< "RO block after commit must contain valid sequence"));
+            tresult.assert_true(tools::range_equals(
+                case3_tst_ro1.pos(), case3_tst_ro1.pos() + write_block_len,
+                write_fill_seq1, write_fill_seq1+write_block_len), 
+                OP_CODE_DETAILS(<< "RO block after commit must contain valid sequence"));
             auto case3_tst_ro2 = tmngr1->readonly_block(FarAddress(0, write_block_pos2), write_block_len);
-            tresult.assert_that(
-                is::equals(case3_tst_ro2.pos(), write_fill_seq2, write_block_len),
+            tresult.assert_true(tools::range_equals(
+                case3_tst_ro2.pos(), case3_tst_ro2.pos()+write_block_len,
+                write_fill_seq2, write_fill_seq2+write_block_len),
                 OP_CODE_DETAILS(<< "RO block outside transaction must contain old data"));
             tran2->rollback();
             return true;
@@ -657,12 +729,58 @@ void test_NestedTransactions(OP::utest::TestResult &tresult)
         tresult.assert_true(case3_r.get());
     }
 }
+void test_TransactedBlockInclude(OP::utest::TestResult &tresult)
+{
+    tresult.info() << "test Transacted Segment Manager..." << std::endl;
+
+    const char seg_file_name[] = "t-segementation.test";
+
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(1024));
+    tmngr1->ensure_segment(0);
+    std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+    tresult.assert_true(fdata_acc.good());
+
+    //read out of tran must be permitted
+    OP::vtm::TransactionGuard g(tmngr1->begin_transaction());
+
+    auto outer_block = tmngr1->writable_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq1));
+    outer_block.byte_copy(write_fill_seq1, sizeof(write_fill_seq1));
+    const segment_pos_t inner_offset = segment_pos_t{ sizeof(write_fill_seq1) / 2 };
+    const segment_pos_t inner_size = sizeof(write_fill_seq2) / 4;
+    auto inner_block = tmngr1->writable_block(FarAddress(writable_data_fpos) + inner_offset, inner_size);
+    inner_block.byte_copy(write_fill_seq2, inner_size);
+    auto do_test_overlap = [&](){
+        using namespace OP::utest;
+        auto block1 = tmngr1->readonly_block(FarAddress(writable_data_fpos), inner_offset);
+        auto block2 = tmngr1->readonly_block(FarAddress(writable_data_fpos)+inner_offset, inner_size);
+        auto block3 = tmngr1->readonly_block(FarAddress(writable_data_fpos)+inner_offset+inner_size, sizeof(write_fill_seq1) - inner_offset-inner_size);
+        tresult.assert_true(tools::range_equals(
+            block1.pos(), block1.pos()+inner_offset, write_fill_seq1, write_fill_seq1+inner_offset),
+            OP_CODE_DETAILS(<< "Invalid overlapped data #1"));
+        tresult.assert_true(tools::range_equals(
+            block2.pos(), block2.pos()+ inner_size, write_fill_seq2, write_fill_seq2+inner_size),
+            OP_CODE_DETAILS(<< "Invalid overlapped data #2"));
+        auto effective_size = sizeof(write_fill_seq1) - inner_offset - inner_size;
+        auto strain_data_begin = write_fill_seq1 + inner_offset + inner_size;
+        tresult.assert_true(tools::range_equals(
+            block3.pos(), block3.pos()+ effective_size, strain_data_begin, strain_data_begin+effective_size),
+            OP_CODE_DETAILS(<< "Invalid overlapped data #3"));
+    };
+    do_test_overlap();
+    g.commit();
+    do_test_overlap();
+}
 //using std::placeholders;
 static auto module_suite = OP::utest::default_test_suite("TransactedSegmentManager")
 ->declare(test_TransactedSegmentManager, "general")
 ->declare(test_FarAddress, "far address conversion")
 ->declare(test_TransactedSegmentGenericMemoryAlloc, "memoryAlloc")
-->declare(test_TransactedSegmentManagerMultithreadMemoryAllocator, "multithread")
+->declare(test_TransactedSegmentManagerMultithreadMemoryAllocator, "multithreadAlloc")
+->declare(test_TransactedMemmngrAllocDealloc, "dealloc-alloc issue in single tran" )
 ->declare(test_ReleaseReadBlock, "release read block")
 ->declare(test_NestedTransactions, "nested transactions")
+->declare(test_TransactedBlockInclude, "test write-block include capability")
+
 ;

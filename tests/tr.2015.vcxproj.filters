@@ -1,0 +1,184 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="BgWorkerTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="ContainersTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="RangeTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="SegmentManagerTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="SegmentToplogyTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="StemContainer.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="tr.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Transacted.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="skplst.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Trie.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="FixedSizeMemoryManagerTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="BitsetTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="ranges\CommonRangesOpTest.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="GenericMemoryTest.h" />
+    <ClInclude Include="..\impl\op\service\BackgroundWorker.h">
+      <Filter>service</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\Containers.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Exceptions.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\HashTable.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Range.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\Skplst.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\StemContainer.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\Trie.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieNode.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ValueArray.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\func_iter.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieResidence.h" />
+    <ClInclude Include="..\impl\op\vtm\CacheManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryBlock.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\NamedObjects.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\PersistedReference.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\SegmentHelper.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\SegmentManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\TransactedSegmentManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\Transactional.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\typedefs.h">
+      <Filter>OP\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Utils.h">
+      <Filter>OP\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\Bitset.h">
+      <Filter>OP\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\HeapManager.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\vtm\MemoryChunks.h">
+      <Filter>OP\vtm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\JoinRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\FunctionalRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="test_comparators.h" />
+    <ClInclude Include="..\impl\op\utest\unit_test_is.h">
+      <Filter>OP\utest</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\utest\unit_test.h">
+      <Filter>OP\utest</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\RangeUtils.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\FlattenRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\UnionAllRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="service">
+      <UniqueIdentifier>{23b03923-be69-4c0e-ba50-849591de5a0c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests">
+      <UniqueIdentifier>{5bc008c7-46cd-40da-934e-9ce83fe33f55}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP">
+      <UniqueIdentifier>{c56eab2e-73a7-4ce4-aefa-71baca98d239}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\trie">
+      <UniqueIdentifier>{537c11de-522e-4307-954f-abcfca58bd02}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\vtm">
+      <UniqueIdentifier>{167a9afb-20e8-483b-b7e0-dd8f35739f2a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\common">
+      <UniqueIdentifier>{98cd2d51-239f-4e6f-a1db-0a7a182e371d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\trie\ranges">
+      <UniqueIdentifier>{44b1ef9b-5a05-4ecc-a162-ad7d03940ef9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OP\utest">
+      <UniqueIdentifier>{f5cda71a-88c6-409d-872d-fff39bdcb179}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\projects\atom_str_view.natvis" />
+  </ItemGroup>
+</Project>

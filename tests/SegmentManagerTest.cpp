@@ -1,8 +1,8 @@
-#include "unit_test.h"
+#include <op/utest/unit_test.h>
 #include <op/trie/Trie.h>
 
-#include <op/trie/SegmentManager.h>
-#include <op/trie/MemoryManager.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/MemoryChunks.h>
 #include <op/trie/Containers.h>
 #include "GenericMemoryTest.h"
 using namespace OP::trie;
@@ -16,5 +16,5 @@ void test_SegmentManager(OP::utest::TestResult& result)
 
 //using std::placeholders;
 static auto module_suite = OP::utest::default_test_suite("SegmentManager")
-->declare(test_SegmentManager, "memoryManager")
+->declare(test_SegmentManager, "HeapManagerSlot")
 ;

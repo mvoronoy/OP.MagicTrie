@@ -349,10 +349,35 @@ namespace OP
                     fail(std::forward<Xetails>(details));
                 }
             }
+            void assert_false(bool condition)
+            {
+                assert_true(!condition, "assert_false(true)");
+            }
+            template <class Xetails>
+            void assert_false(bool condition, Xetails&& details)
+            {
+                assert_true(!condition, std::forward<Xetails>(details));
+            }
             template<class Comparator, class Xetails>
             void assert_that(Comparator && cmp, Xetails &&details)
             {
                 if (!std::forward<Comparator>(cmp)())
+                {
+                    fail(std::forward<Xetails>(details));
+                }
+            }
+            template<class Marker, class Left, class Right, class Xetails>
+            void assert_that(Left&& left, Right&& right, Xetails &&details)
+            {
+                if (!OP::utest::that<Marker>(std::forward<Left>(left), std::forward<Right>(right)))
+                {
+                    fail(std::forward<Xetails>(details));
+                }
+            }
+            template<class Left, class Right, class Cmp, class Xetails>
+            void assert_thax(Left&& left, Right&& right, Cmp cmp, Xetails &&details)
+            {
+                if (!cmp(std::forward<Left>(left), std::forward<Right>(right)))
                 {
                     fail(std::forward<Xetails>(details));
                 }
@@ -813,15 +838,44 @@ namespace OP
                 }
                 return s1.empty();
             }
+
             template <class It1, class It2>
-            bool range_equal(It1 first1, It1 last1, It2 first2, It2 last2)
+            inline bool range_equals(It1 first1, It1 last1, It2 first2, It2 last2)
             {
                 for (; first1 != last1 && first2 != last2; ++first1, ++first2)
                     if (*first1 != *first2)
                         return false;
                 return first1 == last1 && first2 == last2;
             }
-
+            template <class It1, class It2, class Pred>
+            inline bool range_equals(It1 first1, It1 last1, It2 first2, It2 last2, Pred pred)
+            {
+                for (; first1 != last1 && first2 != last2; ++first1, ++first2)
+                    if (!pred(*first1,*first2))
+                        return false;
+                return first1 == last1 && first2 == last2;
+            }
+            template <class Co1, class Co2>
+            inline bool container_equals(const Co1& co1, const Co2& co2)
+            {
+                return range_equals(std::begin(co1), std::end(co1), std::begin(co2), std::end(co2));
+            }
+            template <class Co1, class Co2, class Pred>
+            inline bool container_equals(const Co1& co1, const Co2& co2, Pred pred)
+            {
+                return range_equals(std::begin(co1), std::end(co1), std::begin(co2), std::end(co2), pred);
+            }
+            // 
+            template <class A>
+            inline bool sign_tolerant_cmp(A left, A right)
+            {
+                return static_cast< std::make_unsigned<A>::type >(left) == 
+                    static_cast< std::make_unsigned<A>::type >(right);
+            }
+            inline bool sign_tolerant_cmp(char left, unsigned char right)
+            {
+                return (unsigned char)left == right;
+            }
         }
     } //utest
 }//OP

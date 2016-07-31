@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iterator>
+#include <assert.h>
 namespace OP
 {
     namespace trie
@@ -38,7 +39,6 @@ namespace OP
         template <size_t N, class Int>
         struct BitsetIterator : public std::iterator<std::random_access_iterator_tag, bool>
         {
-
             enum
             {
                 /**bits count in single entry*/
@@ -46,7 +46,6 @@ namespace OP
                 /**Total bit count managed by this container*/
                 bit_length_c = bits_c * N
             };
-
             using base_t = typename std::iterator<std::random_access_iterator_tag, bool>;
             using difference_type = typename base_t::difference_type;
             using this_t = typename BitsetIterator<N, Int>;
@@ -54,7 +53,7 @@ namespace OP
             BitsetIterator() : _ptr(nullptr), _offset{} {}
 
             BitsetIterator(const Int* rhs, size_t offset)
-                : _ptr(rhs),
+                : _ptr(rhs)
                 , _offset(offset) {}
 
             inline this_t& operator+=(difference_type rhs)
@@ -159,16 +158,82 @@ namespace OP
             const Int* _ptr;
             size_t _offset;
         };
+        
+        /**Allows iterate over Bitset only for entries that are set*/
+        template <class TBitset>
+        struct PresenceIterator : public std::iterator<std::forward_iterator_tag, typename TBitset::dim_t>
+        {
+            typedef PresenceIterator<TBitset> this_t;
 
+            PresenceIterator(const TBitset *owner)
+                : _owner(owner)
+                , _pos(owner->first_set())
+            {
+
+            }
+            PresenceIterator()
+                : _owner(nullptr)
+                , _pos(TBitset::nil_c)
+            {
+
+            }
+            inline typename TBitset::dim_t operator*() const
+            {
+                return _pos;
+            }
+            inline this_t& operator ++ ()
+            {
+                assert(_pos != TBitset::nil_c);
+                _pos = _owner->next_set(_pos);
+                return *this;
+            }
+            inline this_t operator ++ (int)
+            {
+                auto rv = *this;
+                this->operator++();
+                return rv;
+            }
+            inline bool operator==(const this_t& rhs) const
+            {
+                return _pos == rhs._pos;
+            }
+            inline bool operator!=(const this_t& rhs) const
+            {
+                return _pos != rhs._pos;
+            }
+            inline bool operator>(const this_t& rhs) const
+            {
+                return _pos > rhs._pos;
+            }
+            inline bool operator<(const this_t& rhs) const
+            {
+                return _pos < rhs._pos;
+            }
+            inline bool operator>=(const this_t& rhs) const
+            {
+                return _pos >= rhs._pos;
+            }
+            inline bool operator<=(const this_t& rhs) const
+            {
+                return _pos <= rhs._pos;
+            }
+        private:
+            typename TBitset::dim_t _pos;
+            const TBitset *_owner;
+        };
+        /**Represent bit-set.*/
         template <size_t N = 1, typename Int = std::uint64_t>
         struct Bitset
         {
             friend struct Bitset<N + 1, Int>;
+            using this_t = Bitset<N, Int>;
+
             using const_iterator = BitsetIterator<N, Int>;
-            
+            using const_presence_iterator = PresenceIterator<this_t>;
+
             typedef std::uint16_t dim_t;
             typedef std::uint8_t atom_t;
-
+            static const dim_t nil_c = dim_t(~0u);
             enum
             {
                 /**bits count in single entry*/
@@ -176,7 +241,7 @@ namespace OP
                 /**Total bit count managed by this container*/
                 bit_length_c = const_iterator::bit_length_c
             };
-            Bitset(std::uint64_t def = 0ULL)
+            Bitset(Int def = {0})
             {
                 std::fill_n(_presence, N, def);
             }
@@ -188,31 +253,95 @@ namespace OP
             {
                 return const_iterator(_presence, bit_length_c);
             }
+            const_presence_iterator presence_begin() const
+            {
+                return const_presence_iterator(this);
+            }
+            const_presence_iterator presence_end() const
+            {
+                return const_presence_iterator();
+            }
             /**Return index of first bit that is set*/
-            inline const_iterator first_set() const
+            inline dim_t first_set() const
             {
                 return presence_index(_presence);
+            }
+            /**Return index of bit that is set after 'prev' one. May return `nil_c` if no bits are set.*/
+            inline dim_t next_set(dim_t prev) const
+            {
+                Int mask = (1ULL << (prev % bits_c));
+                mask += mask - 1;
+                for (auto i = prev / bits_c; i < N; ++i)
+                {
+                    auto x = _presence[i] & ~mask;
+                    if (x != 0) //test all bits are set
+                    {
+                        return ln2(x & (~x + 1)) + i*bits_c;
+                    }
+                    mask = Int(0); //reset mask for all other entries
+                }
+                return nil_c;
+            }
+            /**Return index of set bit that is equal or follow after 'prev'. May return `nil_c` if no bits are set.*/
+            inline dim_t next_set_or_this(dim_t prev) const
+            {
+                Int mask = (1ULL << (prev % bits_c));
+                mask -= 1;
+                for (auto i = prev / bits_c; i < N; ++i)
+                {
+                    auto x = _presence[i] & ~mask;
+                    if (x != 0) //test all bits are set
+                    {
+                        return ln2(x & (~x + 1)) + i*bits_c;
+                    }
+                    mask = Int(0); //reset mask for all other entries
+                }
+                return nil_c;
+            }
+            /**Return index of bit that is set prior 'index' one. May return `nil_c` if no bits are set prior index.*/
+            inline dim_t prev_set(dim_t index) const
+            {
+                Int mask = (1ULL << (index % bits_c)) - 1;
+                for (int i = index / bits_c; i >=0; --i)
+                {
+                    auto x = _presence[i] & mask;
+                    if (x != 0) //test all bits are set
+                    {
+                        return ln2(x ) + i*bits_c;
+                    }
+                    mask = ~Int(0); //reset mask for all other entries
+                }
+                return nil_c;
             }
             /**Return index of first bit that is not set*/
             inline dim_t first_clear() const
             {
                 return clearence_index(_presence);
             }
+            inline bool get(dim_t index)const
+            {
+                assert(index < bit_length_c);
+                return 0 != (_presence[index / bits_c] & ( 1ULL << (index % bits_c) ));
+            }
             inline void set(dim_t index)
             {
                 assert(index < bit_length_c);
-                _presence[(N - 1) - index / bits_c] |= 1ULL << (index % bits_c);
+                _presence[index / bits_c] |= 1ULL << (index % bits_c);
             }
             inline void clear(dim_t index)
             {
                 assert(index < bit_length_c);
 
-                _presence[(N - 1) - index / bits_c] &= ~(1ULL << (index % bits_c));
+                _presence[index / bits_c] &= ~(1ULL << (index % bits_c));
             }
             inline void toggle(dim_t index)
             {
                 assert(index < bit_length_c);
-                _presence[(N - 1) - index / bits_c] ^= (1ULL << (index % bits_c));
+                _presence[index / bits_c] ^= (1ULL << (index % bits_c));
+            }
+            size_t capacity() const
+            {
+                return bit_length_c;
             }
         private:
             static inline dim_t ln2(std::uint_fast64_t value)
@@ -221,33 +350,34 @@ namespace OP
             }
             static inline dim_t presence_index(const std::uint64_t presence[N])
             {
-                return presence[0] == 0
-                    ? Presence256<N - 1>::presence_index(presence + 1)
-                    : ln2(presence[0]) + (N - 1)*bits_c;
+                //note 2: that ( x & (~(x) + 1) ) deletes all but the lowest set bit
+                for (auto i = 0; i < N; ++i)
+                {
+                    if (presence[i] != 0) //test all bits are set
+                    {
+                        return ln2(presence[i] & (~presence[i] + 1)) + i*bits_c;
+                    }
+                }
+                return nil_c;
             }
+            /**detect first un-set bit*/
             static inline dim_t clearence_index(const std::uint64_t presence[N])
-            {
-                return presence[0] == std::numeric_limits<uint64_t>::max()
-                    ? Presence256<N - 1>::clearence_index(presence + 1)
-                    : ln2(~presence[0]) + (N - 1)*bits_c;
+            {   
+                //note 1: to test first clear bit uses inversion (~) so first set bit is detected
+                //note 2: that ( x & (~(x) + 1) ) deletes all but the lowest set bit
+                for (auto i = 0; i < N; ++i)
+                {
+                    if (presence[i] != std::numeric_limits<std::uint64_t>::max()) //test all bits are set
+                    {
+                        return ln2(~presence[i] & (presence[i] + 1)) + i*bits_c;
+                    }
+                }
+                return nil_c;
             }
         private:
             Int _presence[N];
         };
-        template <>
-        inline Bitset<1>::dim_t Bitset<1>::presence_index(const std::uint64_t presence[1])
-        {
-            return presence[0] == 0
-                ? ~dim_t(0) //no entry
-                : ln2(presence[0]);
-        }
-        template <>
-        inline Bitset<1>::dim_t Bitset<1>::clearence_index(const std::uint64_t presence[1])
-        {
-            return presence[0] == std::numeric_limits<uint64_t>::max()
-                ? ~dim_t(0) //no entry
-                : ln2(~presence[0]);
-        }
+        
     } //ns: trie
 }//ns:OP
 #endif //_OP_TRIE_BITSET__H_
