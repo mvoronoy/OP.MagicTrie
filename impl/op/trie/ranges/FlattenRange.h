@@ -80,7 +80,7 @@ namespace OP
             typedef typename OwnerRange::key_t key_type;
             typedef typename OwnerRange::store_t store_t;
             friend OwnerRange;
-            FlattenRangeIterator(const OwnerRange& owner_range, std::unique_ptr<store_t> store)
+            FlattenRangeIterator(std::shared_ptr< const OwnerRange > & owner_range, std::unique_ptr<store_t> store)
                 : _owner_range(owner_range)
                 , _store(std::move(store))
             {}
@@ -120,7 +120,13 @@ namespace OP
             typedef FlattenRangeIterator<this_t> iterator;
             typedef typename SourceRange::iterator source_iterator_t;
             //need ensure that applicator_result_t is kind of SuffixRange
-            typedef typename std::result_of<DeflateFunction(const source_iterator_t&)>::type applicator_result_t;
+            typedef typename std::result_of<DeflateFunction(const source_iterator_t&)>::type pre_applicator_result_t;
+            /**Type of Range returned by DeflateFunction. Must be kind of SuffixRange
+            */
+            typedef typename std::conditional< //strip shared_ptr from pre_applicator_result_t if present
+                is_generic<pre_applicator_result_t, std::shared_ptr>::value,
+                    typename pre_applicator_result_t::element_type,
+                    pre_applicator_result_t>::type applicator_result_t; //type of 
             typedef typename applicator_result_t::key_type key_type;
             typedef key_type key_t;
             typedef typename applicator_result_t::iterator::value_type value_type;
@@ -128,7 +134,7 @@ namespace OP
             typedef std::function<int(const typename applicator_result_t::iterator&, const typename applicator_result_t::iterator&)> iterator_comparator_t;
             typedef storage_policy::TreeSetStorage< applicator_result_t, iterator_comparator_t > store_t;
 
-            FlattenRange(const SourceRange & source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator)
+            FlattenRange(std::shared_ptr<const SourceRange> & source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator)
                 : _source_range(source)
                 , _deflate(std::forward<DeflateFunction >(deflate))
                 , _iterator_comparator(std::forward<iterator_comparator_t>(iterator_comparator))
@@ -166,16 +172,18 @@ namespace OP
             }
 
         private:
-            const SourceRange& _source_range;
+            std::shared_ptr<SourceRange> _source_range;
             const iterator_comparator_t _iterator_comparator;
             const DeflateFunction _deflate;
 
         };
 
         template <class SourceRange, class DeflateFunction >
-        inline FlattenRange<SourceRange, DeflateFunction > make_flatten_range(const SourceRange& src, DeflateFunction && f)
+        inline std::shared_ptr< FlattenRange<SourceRange, DeflateFunction > > make_flatten_range(std::shared_ptr<const SourceRange> && src, DeflateFunction && f)
         {
-            return FlattenRange<SourceRange, DeflateFunction >(src, std::forward<DeflateFunction>(f), [](const auto& left, const auto& right) {
+            return FlattenRange<SourceRange, DeflateFunction >(
+                std::forward<std::shared_ptr<const SourceRange>>( src ), 
+                std::forward<DeflateFunction>(f), [](const auto& left, const auto& right) {
                 return OP::trie::str_lexico_comparator(std::begin(left.key()), std::end(left.key()),
                     std::begin(right.key()), std::end(right.key()));
             });

@@ -430,7 +430,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         atom_string_t test = atom_string_t(1, (std::string::value_type)i);
         decltype(test.begin()) b1;
         auto container_ptr = trie->subrange(b1 = test.begin(), test.end());
-        auto begin_test = container_ptr.begin();
+        auto begin_test = container_ptr->begin();
 
         if ((i & 1) != 0) //odd entries must have a terminal
         {
@@ -438,11 +438,11 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
                 tools::container_equals(begin_test.key(), test, &tools::sign_tolerant_cmp<atom_t>));
 
             tresult.assert_true(*begin_test == (double)i);
-            container_ptr.next(begin_test);
+            container_ptr->next(begin_test);
         }
         auto a = std::begin(sorted_checks);
         auto cnt = 0;
-        for (; container_ptr.in_range(begin_test); container_ptr.next(begin_test), ++a, ++cnt)
+        for (; container_ptr->in_range(begin_test); container_ptr->next(begin_test), ++a, ++cnt)
         {
             auto strain_str = (test + *a);
             //print_hex(std::cout << "1)", strain_str);
@@ -559,10 +559,10 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
 
     atom_string_t query4((const atom_t*)"m"), query5((const atom_t*)"n");
     test_join(tresult, 
-        trie->subrange(std::begin(query4), std::end(query4)).map([](auto const& it) {
+        trie->subrange(std::begin(query4), std::end(query4))->map([](auto const& it) {
             return it.key().substr(1);
         }),
-        trie->subrange(std::begin(query5), std::end(query5)).map([](auto const& it) {
+        trie->subrange(std::begin(query5), std::end(query5))->map([](auto const& it) {
             return it.key().substr(1);
         }),
         test_values);
@@ -610,10 +610,10 @@ void test_Flatten(OP::utest::TestResult &tresult)
         trie->insert(s.first, s.second);
     });
     auto _1_range = trie->subrange(atom_string_t((atom_t*)"1."));
-    _1_range.for_each([](const auto& i) {
+    _1_range->for_each([](const auto& i) {
         std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
     });
-    auto suffixes_range = _1_range.map([](const auto& i) {
+    auto suffixes_range = _1_range->map([](const auto& i) {
         return i.key().substr(2/*"1."*/);
     });
     suffixes_range.for_each([](const auto& i) {

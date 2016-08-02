@@ -158,6 +158,7 @@
     <ClInclude Include="..\impl\op\trie\ranges\FunctionalRange.h" />
     <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h" />
     <ClInclude Include="..\impl\op\trie\ranges\JoinRange.h" />
+    <ClInclude Include="..\impl\op\trie\ranges\PredicateRange.h" />
     <ClInclude Include="..\impl\op\trie\ranges\RangeUtils.h" />
     <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h" />
     <ClInclude Include="..\impl\op\trie\ranges\UnionAllRange.h" />
