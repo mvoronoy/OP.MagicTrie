@@ -20,6 +20,7 @@
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
 #include <op/trie/ranges/IteratorsRange.h>
+#include <op/trie/ranges/PredicateRange.h>
 
 namespace OP
 {
@@ -116,17 +117,19 @@ namespace OP
                 sync_iterator(i);
                 _next(true, i);
             }
-            typedef IteratorsRange<iterator> range_container_t;
+            typedef PredicateRange<iterator> range_container_t;
+            typedef std::shared_ptr<range_container_t> range_container_ptr;
 
             template <class IterateAtom>
-            range_container_t subrange(IterateAtom begin, IterateAtom aend) const
+            range_container_ptr subrange(IterateAtom begin, IterateAtom aend) const
             {
+                SubrangeEndPredicate<range_container_t::iterator> end_predicate(atom_string_t(begin, aend));
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 iterator i(this);
                 auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix
-                    return range_container_t(end(), end());
-                auto i_beg = i, i_end = i;
+                    return new range_container_t(end(), AlwaysFalseRangePredicate<range_container_t::iterator>());
+                auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
                 if(nav.compare_result == stem::StemCompareResult::string_end) //prefix partially matches to some prefix
@@ -143,8 +146,9 @@ namespace OP
                     }
                 }
                 //
-                _next(false, i_end);
-                return range_container_t(i_beg, i_end);
+                //_next(false, i_end);
+                //return range_container_t(i_beg, i_end);
+                return new range_container_t(i_beg, end_predicate);
             }
             /**
             *   Just shorthand for: 
@@ -154,7 +158,7 @@ namespace OP
             * @param string any string of bytes that supports std::begin/ std::end functions
             */
             template <class AtomContainer>
-            range_container_t subrange(const AtomContainer& string) const
+            range_container_ptr subrange(const AtomContainer& string) const
             {
                 return this->subrange(std::begin(string), std::end(string));
             }
@@ -163,7 +167,7 @@ namespace OP
             *   @return range that is flatten-range of all prefixes contained in param `container`.
             */
             template <class Range>
-            auto flatten_subrange(const Range& container) const
+            auto flatten_subrange(std::shared_ptr<Range>& container) const
             {
                 return make_flatten_range(container, [this](const auto& i) {
                     return subrange(i.key());
@@ -690,6 +694,24 @@ namespace OP
                     start_from = std::get<1>(lres);
                 } while (is_not_set(i.back().terminality(), Terminality::term_has_data));
             }
+            /**Implement functor for subrange method to implement predicate that detects end of range iteration*/
+            template <class Iterator>
+            struct SubrangeEndPredicate
+            {
+                SubrangeEndPredicate(atom_string_t && prefix)
+                    : _prefix(std::move(prefix))
+                {
+                }
+                bool operator()(const Iterator& check) const
+                {
+                    auto && str = check.key();
+                    if (str.length() < _prefix.length())
+                        return false;
+                    return std::equal(prefix.begin(), prefix.end(), str.begin());
+                }
+            private:
+                atom_string_t _prefix;
+            };
         };
     }
 }
