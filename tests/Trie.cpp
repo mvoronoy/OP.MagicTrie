@@ -467,7 +467,7 @@ inline void print_co(Stream& os, const Co& co)
 
 template <class R1, class R2, class Sample>
 void test_join(
-    OP::utest::TestResult &tresult, const R1& r1, const R2& r2, const Sample& expected)
+    OP::utest::TestResult &tresult, std::shared_ptr< R1> r1, std::shared_ptr< R2> r2, const Sample& expected)
 {
     auto comparator = [](const auto& left, const auto& right)->int {
         auto&&left_prefix = left.key(); //may be return by const-ref or by value
@@ -475,13 +475,13 @@ void test_join(
         return OP::trie::str_lexico_comparator(left_prefix.begin(), left_prefix.end(),
             right_prefix.begin(), right_prefix.end());
     };
-    auto result1 = r1.join(r2, comparator);
+    auto result1 = r1->join(r2, comparator);
     //print_co(std::cout << "===========>", r1);
-    compare_containers(tresult, result1, expected);
+    compare_containers(tresult, *result1, expected);
     //print_co(std::cout << "===========>", r2);
     //std::cout <<"<<<<<<<<<<<\n";
-    auto result2 = r2.join(r1, comparator);
-    compare_containers(tresult, result2, expected);
+    auto result2 = r2->join(r1, comparator);
+    compare_containers(tresult, *result2, expected);
 }
 void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
 {
@@ -616,7 +616,7 @@ void test_Flatten(OP::utest::TestResult &tresult)
     auto suffixes_range = _1_range->map([](const auto& i) {
         return i.key().substr(2/*"1."*/);
     });
-    suffixes_range.for_each([](const auto& i) {
+    suffixes_range->for_each([](const auto& i) {
         std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
     });
     //-->>>>
@@ -624,7 +624,7 @@ void test_Flatten(OP::utest::TestResult &tresult)
         return trie->subrange(i.key());
     });
     std::cout << "Flatten result:\n";
-    frange1.for_each([](const auto& i) {
+    frange1->for_each([](const auto& i) {
         std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
     });
     auto _1_flatten = trie->flatten_subrange(suffixes_range);
@@ -635,7 +635,7 @@ void test_Flatten(OP::utest::TestResult &tresult)
         decltype(strain1)::value_type((atom_t*)"def", 1.5),
     };
     tresult.assert_true(
-        OP::trie::utils::map_equals(_1_flatten, strain1), OP_CODE_DETAILS(<< "Simple flatten failed"));
+        OP::trie::utils::map_equals(*_1_flatten, strain1), OP_CODE_DETAILS(<< "Simple flatten failed"));
 }
 
 static auto module_suite = OP::utest::default_test_suite("Trie")

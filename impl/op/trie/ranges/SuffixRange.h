@@ -126,8 +126,8 @@ namespace OP
         template <class SourceRange, class UnaryPredicate>
         struct FilteredRange : public SuffixRange<typename SourceRange::iterator > 
         {
-            FilteredRange(std::shared_ptr< SourceRange > && source_range, UnaryPredicate && predicate)
-                : _source_range(std::forward<std::shared_ptr< SourceRange >>(source_range))
+            FilteredRange(std::shared_ptr<const SourceRange > && source_range, UnaryPredicate && predicate)
+                : _source_range(std::forward<std::shared_ptr<const SourceRange >>(source_range))
                 , _predicate(std::forward<UnaryPredicate>(predicate))
             {}
 
@@ -157,7 +157,7 @@ namespace OP
                     }
                 }
             }
-            std::shared_ptr<SourceRange> _source_range;
+            std::shared_ptr<const SourceRange> _source_range;
             UnaryPredicate _predicate;
         };
 
@@ -165,7 +165,8 @@ namespace OP
         template<class UnaryPredicate>
         inline std::shared_ptr< FilteredRange<SuffixRange<Iterator>, UnaryPredicate> > SuffixRange<Iterator>::filter(UnaryPredicate && f) const
         {
-            return std::make_shared<FilteredRange<this_t, UnaryPredicate>>(*this, std::forward<UnaryPredicate>(f));
+            return std::make_shared<FilteredRange<this_t, UnaryPredicate>>(
+                shared_from_this(), std::forward<UnaryPredicate>(f));
         }
 }//ns:trie
 }//ns:OP

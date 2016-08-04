@@ -13,7 +13,8 @@ namespace OP
             template <class Range>
             struct StoragePolicy
             {
-                typedef std::pair<Range, typename Range::iterator> flat_item_t;
+                typedef std::shared_ptr<const Range> range_ptr;
+                typedef std::pair<range_ptr, typename Range::iterator> flat_item_t;
                 typedef std::shared_ptr<flat_item_t> flat_item_ptr;
 
                 virtual ~StoragePolicy() = default;
@@ -57,8 +58,8 @@ namespace OP
                     {}
                     bool operator ()(const flat_item_ptr& left, const flat_item_ptr& right) const
                     {
-                        assert(left->first.in_range(left->second) &&
-                            right->first.in_range(right->second));
+                        assert(left->first->in_range(left->second) &&
+                            right->first->in_range(right->second));
                         auto test = _comparator(left->second, right->second);
                         return test < 0;
                     }
@@ -80,7 +81,7 @@ namespace OP
             typedef typename OwnerRange::key_t key_type;
             typedef typename OwnerRange::store_t store_t;
             friend OwnerRange;
-            FlattenRangeIterator(std::shared_ptr< const OwnerRange > & owner_range, std::unique_ptr<store_t> store)
+            FlattenRangeIterator(std::shared_ptr< const OwnerRange > owner_range, std::unique_ptr<store_t> store)
                 : _owner_range(owner_range)
                 , _store(std::move(store))
             {}
@@ -103,7 +104,7 @@ namespace OP
             }
 
         private:
-            const OwnerRange& _owner_range;
+            std::shared_ptr< const OwnerRange> _owner_range;
             std::unique_ptr<store_t> _store;
         };
         /**
@@ -134,7 +135,7 @@ namespace OP
             typedef std::function<int(const typename applicator_result_t::iterator&, const typename applicator_result_t::iterator&)> iterator_comparator_t;
             typedef storage_policy::TreeSetStorage< applicator_result_t, iterator_comparator_t > store_t;
 
-            FlattenRange(std::shared_ptr<const SourceRange> & source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator)
+            FlattenRange(std::shared_ptr<const SourceRange> source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator)
                 : _source_range(source)
                 , _deflate(std::forward<DeflateFunction >(deflate))
                 , _iterator_comparator(std::forward<iterator_comparator_t>(iterator_comparator))
@@ -143,19 +144,19 @@ namespace OP
             iterator begin() const override
             {
                 auto store = std::make_unique< store_t >(_iterator_comparator);
-                _source_range.for_each([&](const auto& i) {
+                _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
-                    auto range_beg = range.begin();
-                    if (!range.in_range(range_beg)) //don't need add empty range
+                    auto range_beg = range->begin();
+                    if (!range->in_range(range_beg)) //don't need add empty range
                     {
                         return;
                     }
-                    store_t::flat_item_ptr new_itm(new store_t::flat_item_t(
+                    auto new_itm = std::make_shared<store_t::flat_item_t> (
                         std::move(range), std::move(range_beg)
-                    ));
+                    );
                     store->push(new_itm);
                 });
-                return iterator(*this, std::move(store));
+                return iterator(std::static_pointer_cast<const this_t>(shared_from_this()), std::move(store));
             }
             bool in_range(const iterator& check) const override
             {
@@ -164,25 +165,25 @@ namespace OP
             void next(iterator& pos) const override
             {
                 auto smallest = (*pos._store).pop();
-                smallest->first.next( smallest->second );
-                if (smallest->first.in_range(smallest->second))
+                smallest->first->next( smallest->second );
+                if (smallest->first->in_range(smallest->second))
                 { //if iter is not exhausted put it back
                     (*pos._store).push(smallest);
                 }
             }
 
         private:
-            std::shared_ptr<SourceRange> _source_range;
+            std::shared_ptr<const SourceRange> _source_range;
             const iterator_comparator_t _iterator_comparator;
             const DeflateFunction _deflate;
 
         };
 
         template <class SourceRange, class DeflateFunction >
-        inline std::shared_ptr< FlattenRange<SourceRange, DeflateFunction > > make_flatten_range(std::shared_ptr<const SourceRange> && src, DeflateFunction && f)
+        inline std::shared_ptr< FlattenRange<SourceRange, DeflateFunction > > make_flatten_range(std::shared_ptr<SourceRange> src, DeflateFunction && f)
         {
-            return FlattenRange<SourceRange, DeflateFunction >(
-                std::forward<std::shared_ptr<const SourceRange>>( src ), 
+            return std::make_shared<FlattenRange<SourceRange, DeflateFunction > > (
+                src, 
                 std::forward<DeflateFunction>(f), [](const auto& left, const auto& right) {
                 return OP::trie::str_lexico_comparator(std::begin(left.key()), std::end(left.key()),
                     std::begin(right.key()), std::end(right.key()));

@@ -1,3 +1,8 @@
+
+#ifdef _MSC_VER
+#pragma warning(disable : 4503)
+#endif
+
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 #include <op/trie/ranges/IteratorsRange.h>
@@ -5,6 +10,7 @@
 #include <map>
 #include <utility>
 #include <unordered_set>
+
 using namespace OP::utest;
 
 struct lex_less
