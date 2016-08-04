@@ -25,7 +25,7 @@ namespace OP
             //typedef typename OwnerRange::left_iterator::prefix_string_t prefix_string_t;
             
             friend OwnerRange;
-            JoinRangeIterator(const OwnerRange& owner_range, 
+            JoinRangeIterator(std::shared_ptr<const OwnerRange> owner_range, 
                 typename OwnerRange::left_iterator && left, 
                 typename OwnerRange::right_iterator && right)
                 : _owner_range(owner_range)
@@ -35,13 +35,13 @@ namespace OP
             {}
             this_t& operator ++()
             {
-                _owner_range.next(*this);
+                _owner_range->next(*this);
                 return *this;
             }
             this_t operator ++(int)
             {
                 this_t result = *this;
-                _owner_range.next(*this);
+                _owner_range->next(*this);
                 return result;
             }
             value_type operator* () const
@@ -62,7 +62,7 @@ namespace OP
             {
                 return _right;
             }
-            const OwnerRange& _owner_range;
+            std::shared_ptr<const OwnerRange> _owner_range;
             typename OwnerRange::left_iterator _left;
             typename OwnerRange::right_iterator _right;
             /**Very special case when right == left, then ::next must be called for both iterators (not only for left)*/
@@ -82,7 +82,7 @@ namespace OP
             * @param iterator_comparator - binary predicate `int(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
             */
             
-            JoinRange(const SourceRange1 & r1, const SourceRange2 & r2, iterator_comparator_t && iterator_comparator)
+            JoinRange(std::shared_ptr<const SourceRange1> r1, std::shared_ptr<const SourceRange2> r2, iterator_comparator_t && iterator_comparator)
                 : _left(r1)
                 , _right(r2)
                 , _iterator_comparator(std::forward<iterator_comparator_t> (iterator_comparator))
@@ -91,20 +91,20 @@ namespace OP
             JoinRange() = delete;
             iterator begin() const override
             {
-                iterator result(*this, _left.begin(), _right.begin());
+                iterator result(std::static_pointer_cast<const this_t>(shared_from_this()), _left->begin(), _right->begin());
                 seek(result);
                 return result;
             }
             bool in_range(const iterator& check) const override
             {
-                return _left.in_range(check.left()) && _right.in_range(check.right());
+                return _left->in_range(check.left()) && _right->in_range(check.right());
             }
             void next(iterator& pos) const override
             {
-                _left.next(pos._left);
+                _left->next(pos._left);
                 if (pos._optimize_right_forward)
                 {
-                    _right.next(pos._right);
+                    _right->next(pos._right);
                 }
                 seek(pos);
             }
@@ -117,7 +117,7 @@ namespace OP
                     auto diff = _iterator_comparator(pos._left, pos._right);
                     if (diff < 0) 
                     {
-                        _left.next(pos._left);
+                        _left->next(pos._left);
                     }
                     else {
                         if (diff == 0) 
@@ -125,13 +125,13 @@ namespace OP
                             pos._optimize_right_forward = true;
                             return;
                         }
-                        _right.next(pos._right);
+                        _right->next(pos._right);
                     }
                 }
 
             }
-            const SourceRange1& _left;
-            const SourceRange2& _right;
+            std::shared_ptr<const SourceRange1> _left;
+            std::shared_ptr<const SourceRange2> _right;
             const iterator_comparator_t _iterator_comparator;
         };
         

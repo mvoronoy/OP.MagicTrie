@@ -123,12 +123,12 @@ namespace OP
             template <class IterateAtom>
             range_container_ptr subrange(IterateAtom begin, IterateAtom aend) const
             {
-                SubrangeEndPredicate<range_container_t::iterator> end_predicate(atom_string_t(begin, aend));
+                StartWithPredicate<range_container_t::iterator> end_predicate(atom_string_t(begin, aend));
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 iterator i(this);
                 auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix
-                    return new range_container_t(end(), AlwaysFalseRangePredicate<range_container_t::iterator>());
+                    return std::make_shared<range_container_t>(end(), AlwaysFalseRangePredicate<range_container_t::iterator>());
                 auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
@@ -148,7 +148,7 @@ namespace OP
                 //
                 //_next(false, i_end);
                 //return range_container_t(i_beg, i_end);
-                return new range_container_t(i_beg, end_predicate);
+                return std::make_shared<range_container_t>(i_beg, end_predicate);
             }
             /**
             *   Just shorthand for: 
@@ -696,9 +696,9 @@ namespace OP
             }
             /**Implement functor for subrange method to implement predicate that detects end of range iteration*/
             template <class Iterator>
-            struct SubrangeEndPredicate
+            struct StartWithPredicate
             {
-                SubrangeEndPredicate(atom_string_t && prefix)
+                StartWithPredicate(atom_string_t && prefix)
                     : _prefix(std::move(prefix))
                 {
                 }
@@ -707,7 +707,7 @@ namespace OP
                     auto && str = check.key();
                     if (str.length() < _prefix.length())
                         return false;
-                    return std::equal(prefix.begin(), prefix.end(), str.begin());
+                    return std::equal(_prefix.begin(), _prefix.end(), str.begin());
                 }
             private:
                 atom_string_t _prefix;
