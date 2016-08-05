@@ -109,6 +109,7 @@ namespace OP
             }
             void clear_data()
             {
+                data.~Payload();
                 presence &= ~term_has_data;
             }
 
