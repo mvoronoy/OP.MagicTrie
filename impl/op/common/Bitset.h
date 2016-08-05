@@ -261,7 +261,7 @@ namespace OP
             {
                 return const_presence_iterator();
             }
-            /**Return index of first bit that is set*/
+            /**@return index of first bit that is set, or `nil_c` if no bits*/
             inline dim_t first_set() const
             {
                 return presence_index(_presence);

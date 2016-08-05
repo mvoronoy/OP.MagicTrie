@@ -178,6 +178,25 @@ namespace OP
                 }
                 return false;
             }
+            template <class TSegmentTopology, class Atom, class ProducePayload>
+            bool erase(TSegmentTopology& topology, atom_t key)
+            {
+                dim_t reindexed = key;
+                if (!this->reindexer.is_null()) //reindex may absent for 256 table
+                {
+                    containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
+                    auto table_head = hash_mngr.table_head(this->reindexer);
+                    auto reindexed = hash_mngr.find(table_head, key);
+                    assert(reindexed != hash_mngr.nil_c);
+                    hash_mngr.erase(table_head, key);
+                }
+                assert(presence.get(key));
+                ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
+                value_manager.accessor(payload, capacity)[reindexed].clear_data();
+
+                presence.clear(key);
+
+            }
             template <class TSegmentTopology>
             void set_child(TSegmentTopology& topology, atom_t key, FarAddress address)
             {

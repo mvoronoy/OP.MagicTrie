@@ -349,84 +349,29 @@ namespace OP
                     return result; //fail stub
                 }
 
-#if 0                
-                auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                for (;;)
-                {
-                    auto node =
-                        view<node_t>(*_topology_ptr, node_addr);
-                    auto origin_begin = begin;
-
-                    atom_t key = *begin;
-                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end, node_addr, result.second);
-                    switch (nav_res.compare_result)
-                    {
-                    case stem::StemCompareResult::equals:
-                        op_g.rollback();
-                        return result; //dupplicate found
-                    case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
-                    {
-                        node_addr = nav_res.child_node;
-                        if (node_addr.address == SegmentDef::far_null_c)
-                        {  //no way down
-                            node_addr = new_node();
-                            auto wr_node_block =
-                                _topology_ptr->segment_manager().upgrade_to_writable_block(node);
-                            auto wr_node = wr_node_block.at<node_t>(0);
-                            wr_node->set_child(*_topology_ptr, key, node_addr);
-                        }
-                        break;
-                    }
-                    case stem::StemCompareResult::string_end:
-                    {
-                        //terminal is not there, otherwise it would be StemCompareResult::equals
-                        auto wr_node = tuple_ref<node_t*>(diversificate(node, key, result.second.back().deep()));
-                        wr_node->set_value(*_topology_ptr, key, std::forward<Payload>(value));
-                        op_g.commit();
-                        result.first = true;
-                        return result;
-                    }
-                    case stem::StemCompareResult::unequals:
-                    {
-                        if (origin_begin == begin)//no such entry at all
-                        {
-                            auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
-                            auto local_begin = begin;
-                            wr_node->insert(*_topology_ptr, begin, end, [&value]() { return value; });
-                            auto deep = static_cast<dim_t>(begin - local_begin) - 1;
-                            result.second.emplace(
-                                TriePosition(node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
-                                (begin == end) ? term_has_data : term_has_child),
-                                local_begin + 1, begin
-                            );
-                            if (begin == end) //fully fit to this node
-                            {
-                                _topology_ptr->slot<TrieResidence>().increase_count(+1);
-                                op_g.commit();
-                                result.first = true;
-                                return result;
-                            }
-                            //some suffix have to be accomodated yet
-                            node_addr = new_node();
-                            wr_node->set_child(*_topology_ptr, key, node_addr);
-                        }
-                        else //entry in this node should be splitted on 2
-                            node_addr = tuple_ref<FarAddress>(
-                                diversificate(node, key, result.second.back().deep()));
-                        //continue in another node
-                        break;
-                    }
-                    default:
-                        assert(false);
-                    }
-                } //for(;;)
-#endif            
             }
             template <class AtomContainer>
             std::pair<bool, iterator> insert(const AtomContainer& container, Payload value)
             {
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
+            }
+            size_t erase(iterator pos)
+            {
+                
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                sync_iterator(pos);
+                if (pos.is_end())
+                    return 0;
+                for (;pos.deep(); pos.pop())
+                {
+                    auto& back = pos.back();
+                    if (back.terminality()&Terminality::term_has_data)
+                    {
+
+                    }
+                }
+                return 1;
             }
         private:
             typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
