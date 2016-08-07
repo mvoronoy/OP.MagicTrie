@@ -637,7 +637,39 @@ void test_Flatten(OP::utest::TestResult &tresult)
     tresult.assert_true(
         OP::trie::utils::map_equals(*_1_flatten, strain1), OP_CODE_DETAILS(<< "Simple flatten failed"));
 }
+void test_Erase(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
 
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"1.abc", 10.0),
+        p_t((atom_t*)"2.abc", 10.0),
+        p_t((atom_t*)"3.abc", 10.0)
+    };
+    std::map<std::string, double> test_values;
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
+    });
+    //add enormous long string
+    atom_string_t lstr(270, 0);
+    //make str of: 0,1,..255,0,1..13
+    std::iota(lstr.begin(), lstr.end(), 0);
+    trie->insert(lstr, lstr.length()+0.0);
+    tresult.assert_true(trie->nodes_count() == 2, OP_CODE_DETAILS(<< "only 2 nodes must be allocated"));
+    auto f = trie->find(lstr);
+    tresult.assert_true(1 == trie->erase(f));
+
+    compare_containers(tresult, *trie, test_values);
+
+}
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
     ->declare(test_TrieInsert, "insertion")
@@ -648,4 +680,5 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieSubtreeLambdaOperations, "lambda on subtree")
     ->declare(test_TrieNoTran, "trie no tran")
     ->declare(test_Flatten, "flatten")
+    ->declare(test_Erase, "erase")
     ;

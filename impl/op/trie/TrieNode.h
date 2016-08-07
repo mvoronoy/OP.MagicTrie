@@ -178,24 +178,37 @@ namespace OP
                 }
                 return false;
             }
-            template <class TSegmentTopology, class Atom, class ProducePayload>
-            bool erase(TSegmentTopology& topology, atom_t key)
+            /**
+            * @return true if entire node should be deleted
+            */
+            template <class TSegmentTopology>
+            bool erase(TSegmentTopology& topology, atom_t key, bool force)
             {
+                containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
+                ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
+
                 dim_t reindexed = key;
-                if (!this->reindexer.is_null()) //reindex may absent for 256 table
+                auto has_reindexer = !this->reindexer.is_null();
+                if (has_reindexer) //reindex may absent for 256 table
                 {
-                    containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                     auto table_head = hash_mngr.table_head(this->reindexer);
                     auto reindexed = hash_mngr.find(table_head, key);
                     assert(reindexed != hash_mngr.nil_c);
-                    hash_mngr.erase(table_head, key);
                 }
                 assert(presence.get(key));
-                ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 value_manager.accessor(payload, capacity)[reindexed].clear_data();
-
+                if (!force && value_manager.accessor(payload, capacity)[reindexed].has_child())
+                { //when child presented need keep sequence in tis node
+                    return false;
+                }
+                //no child, so wipe content
+                if (has_reindexer)
+                {
+                    hash_mngr.erase(this->reindexer, static_cast<atom_t>(reindexed));
+                }
                 presence.clear(key);
-
+                //@! think to reduce space of hashtable
+                return presence.first_set() == presence_t::nil_c; //erase entire node if no more entries
             }
             template <class TSegmentTopology>
             void set_child(TSegmentTopology& topology, atom_t key, FarAddress address)
@@ -378,7 +391,7 @@ namespace OP
 
                 data_copy_future.get();
 
-                hash_manager.destroy(this->reindexer.address); //delete old
+                hash_manager.destroy(this->reindexer); //delete old
                 this->reindexer = ref_reindex_hash_t(remap.new_address);
                 
                 
