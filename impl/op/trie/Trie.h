@@ -358,18 +358,24 @@ namespace OP
             }
             size_t erase(iterator pos)
             {
-                
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 sync_iterator(pos);
                 if (pos.is_end())
                     return 0;
-                for (;pos.deep(); pos.pop())
+                const auto root_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                for (bool first = true; pos.deep() ; pos.pop(), first = false)
                 {
                     auto& back = pos.back();
-                    if (back.terminality()&Terminality::term_has_data)
-                    {
-
+                    auto wr_node = accessor<node_t>(*_topology_ptr, back.address());
+                    
+                    //previous node may left reference to child
+                    if (!wr_node->erase(*_topology_ptr, static_cast<atom_t>(back.key()), !first))
+                    { //don't continue if exists child node
+                        break;
                     }
+                    //remove node if not root
+                    if(back.address() != root_addr)
+                        remove_node(back.address(), *wr_node);
                 }
                 return 1;
             }
@@ -425,6 +431,15 @@ namespace OP
                 auto g = boost::uuids::random_generator()();
                 memcpy(node->uid.uid, g.begin(), g.size());
                 return node_pos;
+            }
+            void remove_node(FarAddress addr, node_t& node)
+            {
+                _hash_mngr.destroy(node.reindexer);
+                _stem_mngr.destroy(node.stems);
+                _value_mngr.destroy(node.payload);
+                _topology_ptr->slot<node_manager_t>().deallocate(addr);
+                auto &res = _topology_ptr->slot<TrieResidence>();
+                res.increase_nodes_allocated(-1);
             }
             /**
             *  On insert to `break_position` stem may contain chain to split. This method breaks the chain
