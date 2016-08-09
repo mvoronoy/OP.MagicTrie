@@ -669,6 +669,38 @@ void test_Erase(OP::utest::TestResult &tresult)
 
     compare_containers(tresult, *trie, test_values);
 
+    const p_t seq_data[] = {
+        p_t((atom_t*)"4.abc", 2.0),
+        p_t((atom_t*)"4.ab", 3.0),
+        p_t((atom_t*)"4.a", 4.0),
+        p_t((atom_t*)"4", 1.0)
+    };
+    std::for_each(std::begin(seq_data), std::end(seq_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
+    });
+    const atom_string_t avg_key((const atom_t*)"4.ab");
+    f = trie->find(avg_key);
+    tresult.assert_true(1 == trie->erase(f));
+    test_values.erase(std::string((const char*)avg_key.c_str()));
+    //
+    compare_containers(tresult, *trie, test_values);
+
+    const atom_string_t no_entry_key((const atom_t*)"no-entry");
+    f = trie->find(no_entry_key);
+    tresult.assert_true(0 == trie->erase(f));
+
+    const atom_string_t edge_key((const atom_t*)"4.abc");
+    f = trie->find(edge_key);
+    tresult.assert_true(1 == trie->erase(f));
+    test_values.erase(std::string((const char*)edge_key.c_str()));
+    compare_containers(tresult, *trie, test_values);
+
+    const atom_string_t short_key((const atom_t*)"4");
+    f = trie->find(short_key);
+    tresult.assert_true(1 == trie->erase(f));
+    test_values.erase(std::string((const char*)short_key.c_str()));
+    compare_containers(tresult, *trie, test_values);
 }
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")

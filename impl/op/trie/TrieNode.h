@@ -192,13 +192,13 @@ namespace OP
                 if (has_reindexer) //reindex may absent for 256 table
                 {
                     auto table_head = hash_mngr.table_head(this->reindexer);
-                    auto reindexed = hash_mngr.find(table_head, key);
+                    reindexed = hash_mngr.find(table_head, key);
                     assert(reindexed != hash_mngr.nil_c);
                 }
                 assert(presence.get(key));
                 value_manager.accessor(payload, capacity)[reindexed].clear_data();
                 if (!force && value_manager.accessor(payload, capacity)[reindexed].has_child())
-                { //when child presented need keep sequence in tis node
+                { //when child presented need keep sequence in this node
                     return false;
                 }
                 //no child, so wipe content
