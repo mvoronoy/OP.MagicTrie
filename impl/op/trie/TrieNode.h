@@ -186,7 +186,7 @@ namespace OP
             {
                 containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-
+                //no need to operate by stem
                 dim_t reindexed = key;
                 auto has_reindexer = !this->reindexer.is_null();
                 if (has_reindexer) //reindex may absent for 256 table
