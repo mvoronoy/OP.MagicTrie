@@ -34,6 +34,10 @@ namespace OP
             left = left | right;
             return left;
         }
+        inline Terminality operator ~ (Terminality v)
+        {
+            return static_cast<Terminality>(~static_cast<std::uint8_t>(v));
+        }
         template <class T>
         inline bool is_set(T value, Terminality test)
         {
@@ -121,7 +125,10 @@ namespace OP
             {
                 return 0 != (presence & term_has_data);
             }
-
+            bool has_something() const
+            {
+                return 0 != (presence & (term_has_child | term_has_data));
+            }
             /**Reference to dependent children*/
             FarAddress child;
             std::uint8_t presence;

@@ -343,7 +343,7 @@ namespace OP
                 std::pair<dim_t, bool> do_insert(
                     WritableAccess<HashTableData>& head, WritableAccess<HashTableData::content_t>& hash_data, atom_t key)
                 {
-                    unsigned hash = static_cast<unsigned>(key) & (head->capacity - 1); //assuming that capacity is ^ 2
+                    unsigned hash = static_cast<unsigned>(key) & details::bitmask((HashTableCapacity)head->capacity); //assuming that capacity is ^ 2
                     for (unsigned i = 0; i < head->neighbor_width && head->size < head->capacity; ++i)
                     {
                         if (!HashTableData::has_flag(hash_data, hash, fpresence_c))
@@ -364,7 +364,7 @@ namespace OP
                 unsigned restore_on_erase(WritableAccess<HashTableData>& table_head,
                     WritableAccess<HashTableData::content_t>& hash_data, unsigned erase_pos)
                 {
-                    const unsigned bitmask = (table_head->capacity - 1);//assuming that capacity is ^ 2
+                    const unsigned bitmask = details::bitmask((HashTableCapacity)table_head->capacity);//assuming that capacity is ^ 2
 
                     unsigned erased_hash =  
                     static_cast<unsigned>(HashTableData::get_value(hash_data, erase_pos)) & bitmask;

@@ -684,6 +684,7 @@ void test_Erase(OP::utest::TestResult &tresult)
     tresult.assert_true(1 == trie->erase(f));
     test_values.erase(std::string((const char*)avg_key.c_str()));
     //
+    std::cout << '\n';
     compare_containers(tresult, *trie, test_values);
 
     const atom_string_t no_entry_key((const atom_t*)"no-entry");
@@ -700,6 +701,42 @@ void test_Erase(OP::utest::TestResult &tresult)
     f = trie->find(short_key);
     tresult.assert_true(1 == trie->erase(f));
     test_values.erase(std::string((const char*)short_key.c_str()));
+    compare_containers(tresult, *trie, test_values);
+    //do random test
+    for (auto i = 0; i < 1024; ++i)
+    {
+        atom_string_t long_base(270, 0);
+        std::iota(long_base.begin(), long_base.end(), static_cast<std::uint8_t>(i));
+        std::random_shuffle(long_base.begin(), long_base.end());
+        std::vector<atom_string_t> chunks;
+        auto lim = ++std::cbegin(long_base);
+        for (;lim != std::cend(long_base); ++lim)
+        {
+            atom_string_t prefix(std::cbegin(long_base), lim);
+            chunks.emplace_back(prefix);
+        }
+        std::random_shuffle(chunks.begin(), chunks.end());
+        int order = 0;
+        std::for_each(chunks.begin(), chunks.end(), [&trie, &order](const atom_string_t& pref) {
+            //std::cout << order++ << '\n';
+            trie->insert(pref, pref.length()+0.0);
+        });
+        //take half of chunks vector
+        auto n = chunks.size() / 2;
+        for (auto s : chunks)
+        {
+            if (n == 0)
+            {
+                test_values.emplace(std::string((const char*)s.c_str()), s.length() + 0.0);
+            }
+            else
+            {
+                auto found = trie->find(s);
+                trie->erase(found);
+                --n;
+            }
+        }
+    }
     compare_containers(tresult, *trie, test_values);
 }
 static auto module_suite = OP::utest::default_test_suite("Trie")

@@ -267,7 +267,7 @@ namespace OP
                 {
                     assert(key < data.width);
                     //assert that can't make str longer
-                    assert(data.stem_length[key] > shorten);
+                    assert(data.stem_length[key] >= shorten);
 
                     data.summary_length = data.summary_length - data.stem_length[key] + shorten;
                     data.stem_length[key] = shorten;

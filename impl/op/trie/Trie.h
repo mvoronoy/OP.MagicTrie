@@ -363,19 +363,28 @@ namespace OP
                 if (pos.is_end())
                     return 0;
                 const auto root_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                bool erase_child_and_exit = false; //flag mean stop iteration
                 for (bool first = true; pos.deep() ; pos.pop(), first = false)
                 {
                     auto& back = pos.back();
                     auto wr_node = accessor<node_t>(*_topology_ptr, back.address());
+                    if (erase_child_and_exit)
+                    {//previous node may left reference to child
+                        wr_node->set_child(*_topology_ptr, static_cast<atom_t>(back.key()), FarAddress());
+                        back._terminality &= ~Terminality::term_has_child;
+                    }
                     
-                    //previous node may left reference to child
-                    if (!wr_node->erase(*_topology_ptr, static_cast<atom_t>(back.key()), !first))
+                    if (!wr_node->erase(*_topology_ptr, static_cast<atom_t>(back.key()), first))
                     { //don't continue if exists child node
+                        back._terminality &= ~Terminality::term_has_data;
                         break;
                     }
                     //remove node if not root
-                    if(back.address() != root_addr)
+                    if (back.address() != root_addr)
+                    {
                         remove_node(back.address(), *wr_node);
+                        erase_child_and_exit = true;
+                    }
                 }
                 return 1;
             }
