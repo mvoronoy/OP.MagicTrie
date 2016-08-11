@@ -705,16 +705,16 @@ void test_Erase(OP::utest::TestResult &tresult)
     //do random test
     for (auto i = 0; i < 1024; ++i)
     {
-        atom_string_t long_base(270, 0);
+        atom_string_t long_base(268, 0);
         std::iota(long_base.begin(), long_base.end(), static_cast<std::uint8_t>(i));
         std::random_shuffle(long_base.begin(), long_base.end());
         std::vector<atom_string_t> chunks;
-        auto lim = ++std::cbegin(long_base);
-        for (;lim != std::cend(long_base); ++lim)
+        for (auto i = 1; i < 268; i *= 4)
         {
-            atom_string_t prefix(std::cbegin(long_base), lim);
+            atom_string_t prefix = long_base.substr(0, i);
             chunks.emplace_back(prefix);
         }
+
         std::random_shuffle(chunks.begin(), chunks.end());
         int order = 0;
         std::for_each(chunks.begin(), chunks.end(), [&trie, &order](const atom_string_t& pref) {
@@ -727,7 +727,7 @@ void test_Erase(OP::utest::TestResult &tresult)
         {
             if (n == 0)
             {
-                test_values.emplace(std::string((const char*)s.c_str()), s.length() + 0.0);
+                test_values.emplace(std::string(s.begin(), s.end()), s.length() + 0.0);
             }
             else
             {
