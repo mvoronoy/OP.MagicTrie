@@ -182,7 +182,7 @@ namespace OP
             * @return true if entire node should be deleted
             */
             template <class TSegmentTopology>
-            bool erase(TSegmentTopology& topology, atom_t key, bool force)
+            bool erase(TSegmentTopology& topology, atom_t key, bool erase_data)
             {
                 containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
@@ -196,8 +196,11 @@ namespace OP
                     assert(reindexed != hash_mngr.nil_c);
                 }
                 assert(presence.get(key));
-                value_manager.accessor(payload, capacity)[reindexed].clear_data();
-                if (!force && value_manager.accessor(payload, capacity)[reindexed].has_child())
+                if (erase_data)
+                {
+                    value_manager.accessor(payload, capacity)[reindexed].clear_data();
+                }
+                if (value_manager.accessor(payload, capacity)[reindexed].has_something())
                 { //when child presented need keep sequence in this node
                     return false;
                 }
@@ -210,6 +213,7 @@ namespace OP
                 //@! think to reduce space of hashtable
                 return presence.first_set() == presence_t::nil_c; //erase entire node if no more entries
             }
+            
             template <class TSegmentTopology>
             void set_child(TSegmentTopology& topology, atom_t key, FarAddress address)
             {
@@ -284,7 +288,7 @@ namespace OP
                 dim_t reindex_target;
                 //extract stem from current node
                 stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stem::StemData& stem_header) -> void{
-                    assert(in_stem_pos < (src_end - src_begin));
+                    assert(in_stem_pos <= (src_end - src_begin));
                     auto start = src_begin + in_stem_pos;
                     reindex_target = target_node->insert_stem(topology, start, src_end);
                     //truncate stem in current node

@@ -172,7 +172,7 @@ namespace OP
             template <class Iterator>
             void emplace(TriePosition&& position, Iterator begin, Iterator end)
             {
-                if (position.key() >= std::numeric_limits<atom_t>::max())
+                if (position.key() > std::numeric_limits<atom_t>::max())
                     throw std::out_of_range("Range must be in [0..255]");
                 auto length = static_cast<dim_t>(end - begin);
                 _prefix.append(1, (atom_t)position.key());
