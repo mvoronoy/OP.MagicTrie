@@ -108,12 +108,12 @@ namespace OP
                 std::get< tuple_ref_index<T, Tuple>::value >(std::forward<Tuple>(tuple)) );
         }
         template <class T, class Tuple>
-        inline T& tuple_ref(Tuple& tuple)
+        inline constexpr T& tuple_ref(Tuple& tuple) OP_NOEXCEPT
         {
             return std::get< tuple_ref_index<T, Tuple>::value >(tuple);
         }
         template <class T, class Tuple>
-        inline const T& tuple_ref(const Tuple& tuple)
+        inline constexpr const T& tuple_ref(const Tuple& tuple) OP_NOEXCEPT
         {
             return std::get< tuple_ref_index<T, Tuple>::value >(tuple);
         }

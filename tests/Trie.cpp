@@ -716,10 +716,10 @@ void test_Erase(OP::utest::TestResult &tresult)
         }
 
         std::random_shuffle(chunks.begin(), chunks.end());
-        int order = 0;
-        std::for_each(chunks.begin(), chunks.end(), [&trie, &order](const atom_string_t& pref) {
-            //std::cout << order++ << '\n';
+        std::for_each(chunks.begin(), chunks.end(), [&trie, &test_values](const atom_string_t& pref) {
             trie->insert(pref, pref.length()+0.0);
+            std::string signed_str(pref.begin(), pref.end());
+            test_values.emplace(signed_str, pref.length() + 0.0);
         });
         //take half of chunks vector
         auto n = chunks.size() / 2;
@@ -727,12 +727,14 @@ void test_Erase(OP::utest::TestResult &tresult)
         {
             if (n == 0)
             {
-                test_values.emplace(std::string(s.begin(), s.end()), s.length() + 0.0);
+                break;
             }
             else
             {
                 auto found = trie->find(s);
                 trie->erase(found);
+                std::string signed_str(s.begin(), s.end());
+                tresult.assert_true( test_values.erase(signed_str) != 0 );
                 --n;
             }
         }
