@@ -273,17 +273,17 @@ namespace OP
                 throw std::invalid_argument("position has no value associated");
             }
             template <class AtomIterator>
-            std::pair<bool, iterator> insert(AtomIterator& begin, AtomIterator end, Payload value)
+            std::pair<iterator, bool> insert(AtomIterator& begin, AtomIterator end, Payload value)
             {
-                auto result = std::make_pair(false, iterator(this));
+                auto result = std::make_pair(iterator(this), false);
                 if (begin == end)
                     return result; //empty string cannot be inserted
                 auto origin_begin = begin;
-                auto &iter = result.second;
+                auto &iter = result.first;
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto value_assigner = [&]() {
                     _topology_ptr->slot<TrieResidence>().increase_count(+1);
-                    result.first = true;
+                    result.second = true;
                     return value;
                 };
                 auto pref_res = common_prefix(begin, end, iter);
@@ -351,7 +351,7 @@ namespace OP
 
             }
             template <class AtomContainer>
-            std::pair<bool, iterator> insert(const AtomContainer& container, Payload value)
+            std::pair<iterator, bool> insert(const AtomContainer& container, Payload value)
             {
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
