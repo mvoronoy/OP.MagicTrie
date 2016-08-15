@@ -94,9 +94,9 @@ namespace OP
             KeyDiscover _key_discover;
         }; 
         template <class Container, class KeyDiscover = details::DiscoverIteratorKey<Container::const_iterator> >
-        inline IteratorsRange<typename Container::const_iterator> make_iterators_range(const Container& co)
+        inline std::shared_ptr< IteratorsRange<typename Container::const_iterator, KeyDiscover> > make_iterators_range(const Container& co)
         {
-            return IteratorsRange<Container::const_iterator, KeyDiscover>(co);
+            return std::make_shared<IteratorsRange<typename Container::const_iterator, KeyDiscover>>(co);
         }
     }//ns:trie
 }//ns:OP

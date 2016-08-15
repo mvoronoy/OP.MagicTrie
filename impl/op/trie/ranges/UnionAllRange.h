@@ -26,7 +26,7 @@ namespace OP
             typedef decltype(std::declval<OwnerRange::left_iterator>().key()) application_key_t;
 
             friend OwnerRange;
-            UnionAllRangeIterator(const OwnerRange& owner_range,
+            UnionAllRangeIterator(std::shared_ptr<const OwnerRange> owner_range,
                 typename OwnerRange::left_iterator && left,
                 typename OwnerRange::right_iterator && right)
                 : _owner_range(owner_range)
@@ -55,8 +55,7 @@ namespace OP
 
         private:
             
-
-            const OwnerRange& _owner_range;
+            std::shared_ptr<const OwnerRange> _owner_range;
             bool _left_less = false;
             typename OwnerRange::left_iterator _left;
             typename OwnerRange::right_iterator _right;
@@ -80,7 +79,7 @@ namespace OP
             * @param iterator_comparator - binary predicate `int(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
             */
 
-            UnionAllRange(const SourceRange1 & r1, const SourceRange2 & r2, iterator_comparator_t && iterator_comparator)
+            UnionAllRange(std::shared_ptr<const SourceRange1> r1, std::shared_ptr<const SourceRange2> r2, iterator_comparator_t && iterator_comparator)
                 : _left(r1)
                 , _right(r2)
                 , _iterator_comparator(std::forward<iterator_comparator_t>(iterator_comparator))
@@ -89,23 +88,23 @@ namespace OP
             UnionAllRange() = delete;
             iterator begin() const override
             {
-                iterator result(*this, _left.begin(), _right.begin());
+                iterator result(std::static_pointer_cast<const this_t>(shared_from_this()), _left->begin(), _right->begin());
                 seek(result);
                 return result;
             }
             bool in_range(const iterator& check) const override
             {
-                return _left.in_range(check._left) || _right.in_range(check._right);
+                return _left->in_range(check._left) || _right->in_range(check._right);
             }
             void next(iterator& pos) const override
             {
-                pos._left_less ? _left.next(pos._left):_right.next(pos._right);
+                pos._left_less ? _left->next(pos._left):_right->next(pos._right);
                 seek(pos);
             }
         private:
             void seek(iterator &pos) const
             {
-                bool good_left = _left.in_range(pos._left), good_right = _right.in_range(pos._right); 
+                bool good_left = _left->in_range(pos._left), good_right = _right->in_range(pos._right); 
                 if(good_right || good_left)
                 {
                     auto diff = (good_right && good_left) 
@@ -114,8 +113,8 @@ namespace OP
                     pos._left_less = diff <= 0;
                 }
             }
-            const SourceRange1& _left;
-            const SourceRange2& _right;
+            std::shared_ptr<const SourceRange1> _left;
+            std::shared_ptr<const SourceRange2> _right;
             const iterator_comparator_t _iterator_comparator;
         };
 

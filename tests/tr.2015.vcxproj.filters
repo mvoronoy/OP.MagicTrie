@@ -133,12 +133,6 @@
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
     <ClInclude Include="test_comparators.h" />
-    <ClInclude Include="..\impl\op\utest\unit_test_is.h">
-      <Filter>OP\utest</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\utest\unit_test.h">
-      <Filter>OP\utest</Filter>
-    </ClInclude>
     <ClInclude Include="..\impl\op\trie\ranges\RangeUtils.h">
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
@@ -146,6 +140,9 @@
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\trie\ranges\UnionAllRange.h">
+      <Filter>OP\trie\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\ranges\PredicateRange.h">
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
   </ItemGroup>
