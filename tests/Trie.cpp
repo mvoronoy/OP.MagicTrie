@@ -703,24 +703,21 @@ void test_Erase(OP::utest::TestResult &tresult)
     test_values.erase(std::string((const char*)short_key.c_str()));
     compare_containers(tresult, *trie, test_values);
     //do random test
-    for (auto i = 0; i < 223; ++i)
+    constexpr int str_limit = 513;
+    for (auto i = 0; i < 1024; ++i)
     {
-        atom_string_t long_base(268, 0);
+        atom_string_t long_base(str_limit, 0);
         std::iota(long_base.begin(), long_base.end(), static_cast<std::uint8_t>(i));
         std::random_shuffle(long_base.begin(), long_base.end());
         std::vector<atom_string_t> chunks;
-        for (auto k = 1; k < 268; k *= 4)
+        for (auto k = 1; k < str_limit; k *= (i & 1 ? 4:3))
         {
             atom_string_t prefix = long_base.substr(0, k);
             chunks.emplace_back(prefix);
         }
 
         std::random_shuffle(chunks.begin(), chunks.end());
-        if (i == 222)
-        {
-            compare_containers(tresult, *trie, test_values);
-            chunks.erase(chunks.begin() + 3, chunks.end());
-        }
+
         std::for_each(chunks.begin(), chunks.end(), [&](const atom_string_t& pref) {
             auto t = trie->insert(pref, pref.length()+0.0);
             std::string signed_str(pref.begin(), pref.end());
@@ -728,36 +725,22 @@ void test_Erase(OP::utest::TestResult &tresult)
             tresult.assert_that<equals>(t.second, m.second, OP_CODE_DETAILS(<<" Wrong insert result"));
             tresult.assert_true(tools::container_equals(t.first.key(), m.first->first, &tools::sign_tolerant_cmp<atom_t>),
                 OP_CODE_DETAILS(<< " for key=" << m.first->first << ", while obtained:" << (const char*)t.first.key().c_str()));
-            if (i == 222)
-            {
-                compare_containers(tresult, *trie, test_values);
-            }
-
         });
         //take half of chunks vector
         auto n = chunks.size() / 2;
-        if (i == 222) 
-        {
-            compare_containers(tresult, *trie, test_values);
+        //compare_containers(tresult, *trie, test_values);
 
-            for (auto s : chunks)
-            {
-                if (n == 0)
-                {
-                    break;
-                }
-                else
-                {
-                    print_hex(std::cout << "[" << s.length() << "]", s);
-                    auto found = trie->find(s);
-                    tresult.assert_true(trie->erase(found) > 0);
-                    std::string signed_str(s.begin(), s.end());
-                    tresult.assert_true(test_values.erase(signed_str) != 0);
-                    --n;
-                    std::cout << "~=>" << n << '\n';
-                    compare_containers(tresult, *trie, test_values);
-                }
-            }
+        for (auto s : chunks)
+        {
+            //print_hex(std::cout << "[" << s.length() << "]", s);
+            auto found = trie->find(s);
+            tresult.assert_true(trie->erase(found) > 0);
+            std::string signed_str(s.begin(), s.end());
+            tresult.assert_true(test_values.erase(signed_str) != 0);
+            if (!(--n))
+                break;
+            //std::cout << "~=>" << n << '\n';
+            //compare_containers(tresult, *trie, test_values);
         }
     }
     compare_containers(tresult, *trie, test_values);

@@ -60,11 +60,12 @@ namespace OP
             MemoryChunk writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
             {
                 RWR search_range(pos, size);
-                guard_t g2(_map_lock); //trick - capture ownership in this thread, but delegate find in other one
-                //@! need hard test to ensure this parallelism has a benefit in compare with _captured_blocks.emplace/.insert
-                std::future<captured_blocks_t::iterator> real_mem_future = std::async(std::launch::async, [&](){ 
-                    return _captured_blocks.lower_bound(search_range);
-                });
+                guard_t g2(_map_lock); 
+                //@! guard_t g2(_map_lock); //trick - capture ownership in this thread, but delegate find in other one
+                //@! //@! need hard test to ensure this parallelism has a benefit in compare with _captured_blocks.emplace/.insert
+                //@! std::future<captured_blocks_t::iterator> real_mem_future = std::async(std::launch::async, [&](){ 
+                //@!     return _captured_blocks.lower_bound(search_range);
+                //@! });
                 transaction_impl_ptr_t current;
                 if (true)
                 {  //extract current transaction in safe way
@@ -77,11 +78,12 @@ namespace OP
                 }
                 if (!current)//no current transaction at all
                 {
-                    real_mem_future.wait();
+                    //@! real_mem_future.wait();
                     throw Exception(er_transaction_not_started, "write allowed only inside transaction");
                 }
                 auto super_res = SegmentManager::writable_block(pos, size, hint);
-                auto found_res = real_mem_future.get();
+                //@!auto found_res = real_mem_future.get();
+                auto found_res = _captured_blocks.lower_bound(search_range);
                 if (found_res != _captured_blocks.end() && !(_captured_blocks.key_comp()(search_range, found_res->first)))
                 {//block already have associated transaction(s)
                     // don't allow transactions on overlapped memory blocks
