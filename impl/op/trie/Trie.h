@@ -4,7 +4,6 @@
 #if defined(_MSC_VER)
 #define _SCL_SECURE_NO_WARNINGS 1
 #endif //_MSC_VER
-#include <boost/uuid/random_generator.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -20,6 +19,7 @@
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
 #include <op/trie/ranges/IteratorsRange.h>
+#include <op/trie/ranges/PredicateRange.h>
 
 namespace OP
 {
@@ -116,17 +116,19 @@ namespace OP
                 sync_iterator(i);
                 _next(true, i);
             }
-            typedef IteratorsRange<iterator> range_container_t;
+            typedef PredicateRange<iterator> range_container_t;
+            typedef std::shared_ptr<range_container_t> range_container_ptr;
 
             template <class IterateAtom>
-            range_container_t subrange(IterateAtom begin, IterateAtom aend) const
+            range_container_ptr subrange(IterateAtom begin, IterateAtom aend) const
             {
+                StartWithPredicate<range_container_t::iterator> end_predicate(atom_string_t(begin, aend));
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 iterator i(this);
                 auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix
-                    return range_container_t(end(), end());
-                auto i_beg = i, i_end = i;
+                    return std::make_shared<range_container_t>(end(), AlwaysFalseRangePredicate<range_container_t::iterator>());
+                auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
                 if(nav.compare_result == stem::StemCompareResult::string_end) //prefix partially matches to some prefix
@@ -143,8 +145,9 @@ namespace OP
                     }
                 }
                 //
-                _next(false, i_end);
-                return range_container_t(i_beg, i_end);
+                //_next(false, i_end);
+                //return range_container_t(i_beg, i_end);
+                return std::make_shared<range_container_t>(i_beg, end_predicate);
             }
             /**
             *   Just shorthand for: 
@@ -154,7 +157,7 @@ namespace OP
             * @param string any string of bytes that supports std::begin/ std::end functions
             */
             template <class AtomContainer>
-            range_container_t subrange(const AtomContainer& string) const
+            range_container_ptr subrange(const AtomContainer& string) const
             {
                 return this->subrange(std::begin(string), std::end(string));
             }
@@ -163,7 +166,7 @@ namespace OP
             *   @return range that is flatten-range of all prefixes contained in param `container`.
             */
             template <class Range>
-            auto flatten_subrange(const Range& container) const
+            auto flatten_subrange(std::shared_ptr<Range>& container) const
             {
                 return make_flatten_range(container, [this](const auto& i) {
                     return subrange(i.key());
@@ -269,17 +272,17 @@ namespace OP
                 throw std::invalid_argument("position has no value associated");
             }
             template <class AtomIterator>
-            std::pair<bool, iterator> insert(AtomIterator& begin, AtomIterator end, Payload value)
+            std::pair<iterator, bool> insert(AtomIterator& begin, AtomIterator end, Payload value)
             {
-                auto result = std::make_pair(false, iterator(this));
+                auto result = std::make_pair(iterator(this), false);
                 if (begin == end)
                     return result; //empty string cannot be inserted
                 auto origin_begin = begin;
-                auto &iter = result.second;
+                auto &iter = result.first;
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto value_assigner = [&]() {
                     _topology_ptr->slot<TrieResidence>().increase_count(+1);
-                    result.first = true;
+                    result.second = true;
                     return value;
                 };
                 auto pref_res = common_prefix(begin, end, iter);
@@ -332,7 +335,16 @@ namespace OP
                             if (sbegin != send)
                             {//empty iterator should not be diversificated, just set value
                              //terminal is not there, otherwise it would be StemCompareResult::equals
-                                diversificate(*wr_node, iter);
+                                if ((back.deep()-1) == stem_header.stem_length[rindex])
+                                {
+                                    //it is allowed only to have child, if 'has_data' set - then `common_prefix` works wrong
+                                    assert(!(back.terminality()&Terminality::term_has_data));
+                                    //don't do anything, wait until wr_node->set_value
+                                }
+                                else 
+                                {
+                                    diversificate(*wr_node, iter);
+                                }
                             }
                         });
                     }
@@ -345,84 +357,44 @@ namespace OP
                     return result; //fail stub
                 }
 
-#if 0                
-                auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                for (;;)
-                {
-                    auto node =
-                        view<node_t>(*_topology_ptr, node_addr);
-                    auto origin_begin = begin;
-
-                    atom_t key = *begin;
-                    auto nav_res = node->navigate_over(*_topology_ptr, begin, end, node_addr, result.second);
-                    switch (nav_res.compare_result)
-                    {
-                    case stem::StemCompareResult::equals:
-                        op_g.rollback();
-                        return result; //dupplicate found
-                    case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
-                    {
-                        node_addr = nav_res.child_node;
-                        if (node_addr.address == SegmentDef::far_null_c)
-                        {  //no way down
-                            node_addr = new_node();
-                            auto wr_node_block =
-                                _topology_ptr->segment_manager().upgrade_to_writable_block(node);
-                            auto wr_node = wr_node_block.at<node_t>(0);
-                            wr_node->set_child(*_topology_ptr, key, node_addr);
-                        }
-                        break;
-                    }
-                    case stem::StemCompareResult::string_end:
-                    {
-                        //terminal is not there, otherwise it would be StemCompareResult::equals
-                        auto wr_node = tuple_ref<node_t*>(diversificate(node, key, result.second.back().deep()));
-                        wr_node->set_value(*_topology_ptr, key, std::forward<Payload>(value));
-                        op_g.commit();
-                        result.first = true;
-                        return result;
-                    }
-                    case stem::StemCompareResult::unequals:
-                    {
-                        if (origin_begin == begin)//no such entry at all
-                        {
-                            auto wr_node = _topology_ptr->segment_manager().upgrade_to_writable_block(node).at<node_t>(0);
-                            auto local_begin = begin;
-                            wr_node->insert(*_topology_ptr, begin, end, [&value]() { return value; });
-                            auto deep = static_cast<dim_t>(begin - local_begin) - 1;
-                            result.second.emplace(
-                                TriePosition(node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
-                                (begin == end) ? term_has_data : term_has_child),
-                                local_begin + 1, begin
-                            );
-                            if (begin == end) //fully fit to this node
-                            {
-                                _topology_ptr->slot<TrieResidence>().increase_count(+1);
-                                op_g.commit();
-                                result.first = true;
-                                return result;
-                            }
-                            //some suffix have to be accomodated yet
-                            node_addr = new_node();
-                            wr_node->set_child(*_topology_ptr, key, node_addr);
-                        }
-                        else //entry in this node should be splitted on 2
-                            node_addr = tuple_ref<FarAddress>(
-                                diversificate(node, key, result.second.back().deep()));
-                        //continue in another node
-                        break;
-                    }
-                    default:
-                        assert(false);
-                    }
-                } //for(;;)
-#endif            
             }
             template <class AtomContainer>
-            std::pair<bool, iterator> insert(const AtomContainer& container, Payload value)
+            std::pair<iterator, bool> insert(const AtomContainer& container, Payload value)
             {
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
+            }
+            size_t erase(iterator pos)
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                sync_iterator(pos);
+                if (pos.is_end())
+                    return 0;
+                const auto root_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                bool erase_child_and_exit = false; //flag mean stop iteration
+                for (bool first = true; pos.deep() ; pos.pop(), first = false)
+                {
+                    auto& back = pos.back();
+                    auto wr_node = accessor<node_t>(*_topology_ptr, back.address());
+                    if (erase_child_and_exit)
+                    {//previous node may left reference to child
+                        wr_node->set_child(*_topology_ptr, static_cast<atom_t>(back.key()), FarAddress());
+                        back._terminality &= ~Terminality::term_has_child;
+                    }
+                    
+                    if (!wr_node->erase(*_topology_ptr, static_cast<atom_t>(back.key()), first))
+                    { //don't continue if exists child node
+                        back._terminality &= ~Terminality::term_has_data;
+                        break;
+                    }
+                    //remove node if not root
+                    if (back.address() != root_addr)
+                    {
+                        remove_node(back.address(), *wr_node);
+                        erase_child_and_exit = true;
+                    }
+                }
+                return 1;
             }
         private:
             typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
@@ -472,10 +444,18 @@ namespace OP
                 node->payload = _value_mngr.create((dim_t)capacity);
 
                 auto &res = _topology_ptr->slot<TrieResidence>();
+                node->uid.uid = res.generate_node_id();
                 res.increase_nodes_allocated(+1);
-                auto g = boost::uuids::random_generator()();
-                memcpy(node->uid.uid, g.begin(), g.size());
                 return node_pos;
+            }
+            void remove_node(FarAddress addr, node_t& node)
+            {
+                _hash_mngr.destroy(node.reindexer);
+                _stem_mngr.destroy(node.stems);
+                _value_mngr.destroy(node.payload);
+                _topology_ptr->slot<node_manager_t>().deallocate(addr);
+                auto &res = _topology_ptr->slot<TrieResidence>();
+                res.increase_nodes_allocated(-1);
             }
             /**
             *  On insert to `break_position` stem may contain chain to split. This method breaks the chain
@@ -690,6 +670,24 @@ namespace OP
                     start_from = std::get<1>(lres);
                 } while (is_not_set(i.back().terminality(), Terminality::term_has_data));
             }
+            /**Implement functor for subrange method to implement predicate that detects end of range iteration*/
+            template <class Iterator>
+            struct StartWithPredicate
+            {
+                StartWithPredicate(atom_string_t && prefix)
+                    : _prefix(std::move(prefix))
+                {
+                }
+                bool operator()(const Iterator& check) const
+                {
+                    auto && str = check.key();
+                    if (str.length() < _prefix.length())
+                        return false;
+                    return std::equal(_prefix.begin(), _prefix.end(), str.begin());
+                }
+            private:
+                atom_string_t _prefix;
+            };
         };
     }
 }

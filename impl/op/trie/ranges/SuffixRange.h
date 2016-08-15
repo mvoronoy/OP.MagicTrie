@@ -72,7 +72,7 @@ namespace OP
         *
         */
         template <class Iterator>
-        struct SuffixRange
+        struct SuffixRange : std::enable_shared_from_this< SuffixRange<Iterator> >
         {
             typedef Iterator iterator;
             typedef SuffixRange<Iterator> this_t;
@@ -89,25 +89,25 @@ namespace OP
             *   \code std::result_of<UnaryFunction(typename iterator::value_type)>::type >::type
             */
             template <class KeyPolicy, class UnaryFunction>
-            inline functional_range_t<UnaryFunction, KeyPolicy > map(UnaryFunction && f) const
+            inline std::shared_ptr< functional_range_t<UnaryFunction, KeyPolicy > > map(UnaryFunction && f) const
             {
-                return functional_range_t<UnaryFunction, KeyPolicy >(*this, std::forward<UnaryFunction>(f));
+                return std::make_shared<functional_range_t<UnaryFunction, KeyPolicy >>(*this, std::forward<UnaryFunction>(f));
             }
             
             template <class UnaryFunction>
-            inline functional_range_t<UnaryFunction, policy::no_cache> map(UnaryFunction && f) const
+            inline std::shared_ptr< functional_range_t<UnaryFunction, policy::no_cache> > map(UnaryFunction && f) const
             {
                 return map<policy::no_cache>(std::forward<UnaryFunction>(f));
             }
             template <class UnaryPredicate>
-            inline FilteredRange<this_t, UnaryPredicate> filter(UnaryPredicate && f) const;
+            inline std::shared_ptr< FilteredRange<this_t, UnaryPredicate> > filter(UnaryPredicate && f) const;
 
             template <class OtherRange>
-            inline JoinRange<this_t, OtherRange> join(const OtherRange & range, 
+            inline std::shared_ptr< JoinRange<this_t, OtherRange> > join(std::shared_ptr< OtherRange > & range,
                 typename JoinRange<this_t, OtherRange>::iterator_comparator_t && cmp) const;
 
             template <class OtherRange>
-            inline UnionAllRange<this_t, OtherRange> merge_all(const OtherRange & range,
+            inline std::shared_ptr< UnionAllRange<this_t, OtherRange> > merge_all(std::shared_ptr< OtherRange > & range,
                 typename UnionAllRange<this_t, OtherRange>::iterator_comparator_t && cmp) const;
 
             template <class Operation>
@@ -126,30 +126,30 @@ namespace OP
         template <class SourceRange, class UnaryPredicate>
         struct FilteredRange : public SuffixRange<typename SourceRange::iterator > 
         {
-            FilteredRange(const SourceRange & source_range, UnaryPredicate && predicate)
-                : _source_range(source_range)
+            FilteredRange(std::shared_ptr<const SourceRange > && source_range, UnaryPredicate && predicate)
+                : _source_range(std::forward<std::shared_ptr<const SourceRange >>(source_range))
                 , _predicate(std::forward<UnaryPredicate>(predicate))
             {}
 
             virtual iterator begin() const
             {
-                auto i = _source_range.begin();
+                auto i = _source_range->begin();
                 seek(i);
                 return i;
             }
             virtual bool in_range(const iterator& check) const
             {
-                return _source_range.in_range(check);
+                return _source_range->in_range(check);
             }
             virtual void next(iterator& pos) const
             {
-                _source_range.next(pos);
+                _source_range->next(pos);
                 seek(pos);
             }
         private:
             void seek(iterator& i)const
             {
-                for (; _source_range.in_range(i); _source_range.next(i))
+                for (; _source_range->in_range(i); _source_range->next(i))
                 {
                     if (_predicate(i))
                     {
@@ -157,15 +157,16 @@ namespace OP
                     }
                 }
             }
-            const SourceRange & _source_range;
+            std::shared_ptr<const SourceRange> _source_range;
             UnaryPredicate _predicate;
         };
 
         template<class Iterator>
         template<class UnaryPredicate>
-        inline FilteredRange<SuffixRange<Iterator>, UnaryPredicate> SuffixRange<Iterator>::filter(UnaryPredicate && f) const
+        inline std::shared_ptr< FilteredRange<SuffixRange<Iterator>, UnaryPredicate> > SuffixRange<Iterator>::filter(UnaryPredicate && f) const
         {
-            return FilteredRange<this_t, UnaryPredicate>(*this, std::forward<UnaryPredicate>(f));
+            return std::make_shared<FilteredRange<this_t, UnaryPredicate>>(
+                shared_from_this(), std::forward<UnaryPredicate>(f));
         }
 }//ns:trie
 }//ns:OP
@@ -195,25 +196,25 @@ namespace OP{
         }
         template<class Iterator>
         template<class OtherRange>
-        inline JoinRange<SuffixRange<Iterator>, OtherRange> SuffixRange<Iterator>::join(
-            const OtherRange & other, typename JoinRange<this_t, OtherRange>::iterator_comparator_t && cmp) const
+        inline std::shared_ptr<JoinRange<SuffixRange<Iterator>, OtherRange>> SuffixRange<Iterator>::join(
+            std::shared_ptr< OtherRange > & other, typename JoinRange<this_t, OtherRange>::iterator_comparator_t && cmp) const
         {
             typedef JoinRange<SuffixRange<typename Iterator>, OtherRange> join_t;
-            return join_t(
-                *this, 
+            return std::make_shared<join_t>(
+                shared_from_this(),
                 other,
                 std::forward<typename join_t::iterator_comparator_t>(cmp)
                 );
         }
         template<class Iterator>
         template<class OtherRange>
-        inline UnionAllRange<SuffixRange<Iterator>, OtherRange> SuffixRange<Iterator>::merge_all(
-            const OtherRange & other, typename UnionAllRange<SuffixRange<Iterator>, OtherRange>::iterator_comparator_t && cmp) const
+        inline std::shared_ptr<UnionAllRange<SuffixRange<Iterator>, OtherRange>> SuffixRange<Iterator>::merge_all(
+            std::shared_ptr< OtherRange> & other, typename UnionAllRange<SuffixRange<Iterator>, OtherRange>::iterator_comparator_t && cmp) const
         {
             
             typedef UnionAllRange<SuffixRange<typename Iterator>, OtherRange> merge_all_t;
-            return merge_all_t(
-                *this,
+            return std::make_shared<merge_all_t>(
+                shared_from_this(),
                 other,
                 std::forward<typename merge_all_t::iterator_comparator_t>(cmp)
             );

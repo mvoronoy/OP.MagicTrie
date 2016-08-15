@@ -166,10 +166,10 @@ namespace OP
                     
                     return result;
                 }
-                void destroy(FarAddress htbl)
+                void destroy(const trie::PersistedReference<HashTableData>& htbl)
                 {
                     auto& memmngr = _topology.slot<HeapManagerSlot>();
-                    memmngr.deallocate(htbl);
+                    memmngr.deallocate(htbl.address);
                 }
                 /**
                 *   @return insert position or #end() if no more capacity
@@ -188,14 +188,13 @@ namespace OP
                 /**@return number of erased - 0 or 1*/
                 unsigned erase(const trie::PersistedReference<HashTableData>& ref_data, atom_t key)
                 {
-                    const unsigned key_hash = static_cast<unsigned>(key) & bitmask_c;
-                    unsigned hash = key_hash;
                     auto table_head = accessor<HashTableData>(_topology, ref_data.address);
+                    unsigned hash = static_cast<unsigned>(key) & (table_head->capacity - 1); //assuming that capacity is ^ 2
                     auto hash_data = array_accessor<HashTableData::content_t>(_topology,
                         content_item_address(ref_data.address, 0),
                         table_head->capacity);
 
-                    for (unsigned i = 0; i < table_head->neighbor_width_c; ++i)
+                    for (unsigned i = 0; i < table_head->neighbor_width; ++i)
                     {
                         if (0 == (fpresence_c & HashTableData::get_flag(hash_data, hash)))
                         { //nothing at this pos
@@ -203,7 +202,7 @@ namespace OP
                         }
                         if (HashTableData::get_value(hash_data, hash) == key)
                         {//make erase
-                            table_head->_count--;
+                            table_head->size--;
                             //may be rest of neighbors sequence may be shifted by 1, so scan in backward
 
                             hash = restore_on_erase(table_head, hash_data, hash);
@@ -211,7 +210,7 @@ namespace OP
                             HashTableData::set_value(hash_data, hash, 0);
                             return 1;
                         }
-                        ++hash %= capacity(); //keep in boundary
+                        ++hash %= table_head->capacity; //keep in boundary
                     }
                     return ~0u;
                 }
@@ -305,7 +304,7 @@ namespace OP
                             auto ins_res = do_insert(table_head, hash_data, static_cast<atom_t>(*i));
                             if (!ins_res.second)//bad case - after grow conflict is still there
                             {
-                                this->destroy(retval.new_address);
+                                this->destroy(trie::PersistedReference<HashTableData>(retval.new_address));
                                 retval.new_address = FarAddress();
                                 break; //go to new loop of grow
                             }
@@ -344,7 +343,7 @@ namespace OP
                 std::pair<dim_t, bool> do_insert(
                     WritableAccess<HashTableData>& head, WritableAccess<HashTableData::content_t>& hash_data, atom_t key)
                 {
-                    unsigned hash = static_cast<unsigned>(key) & (head->capacity - 1); //assuming that capacity is ^ 2
+                    unsigned hash = static_cast<unsigned>(key) & details::bitmask((HashTableCapacity)head->capacity); //assuming that capacity is ^ 2
                     for (unsigned i = 0; i < head->neighbor_width && head->size < head->capacity; ++i)
                     {
                         if (!HashTableData::has_flag(hash_data, hash, fpresence_c))
@@ -362,28 +361,32 @@ namespace OP
                 /** Optimize space before some item is removed
                 * @return - during optimization this method may change origin param 'erase_pos', so to real erase use index returned
                 */
-                unsigned restore_on_erase(WritableAccess<HashTableData>& table_head, 
+                unsigned restore_on_erase(WritableAccess<HashTableData>& table_head,
                     WritableAccess<HashTableData::content_t>& hash_data, unsigned erase_pos)
                 {
-                    unsigned erased_hash = static_cast<unsigned>(HashTableData::get_value(hash_data, erase_pos)) & bitmask_c;
-                    unsigned limit = (erase_pos + neighbor_width_c) % capacity(); //start from last available neighbor
+                    const unsigned bitmask = details::bitmask((HashTableCapacity)table_head->capacity);//assuming that capacity is ^ 2
 
-                    for (unsigned i = (erase_pos + 1) % capacity(); i != limit; ++i %= capacity())
+                    unsigned erased_hash =  
+                    static_cast<unsigned>(HashTableData::get_value(hash_data, erase_pos)) & bitmask;
+
+                    unsigned limit = (erase_pos + table_head->neighbor_width) % table_head->capacity; //start from last available neighbor
+
+                    for (unsigned i = (erase_pos + 1) % table_head->capacity; i != limit; ++i %= table_head->capacity)
                     {
                         if (!HashTableData::has_flag(hash_data, i, fpresence_c))
                             return erase_pos; //stop optimization and erase item at pos
                         unsigned local_hash = 
-                            static_cast<unsigned>(HashTableData::get_value(hash_data, i)) & bitmask_c;
+                            static_cast<unsigned>(HashTableData::get_value(hash_data, i)) & bitmask;
                         bool item_in_right_place = i == local_hash;
                         if (item_in_right_place)
                             continue;
-                        unsigned x = less_pos(erased_hash, erase_pos) ? erase_pos : erased_hash;
-                        if (!less_pos(x, local_hash)/*equivalent of <=*/)
+                        unsigned x = less_pos(erased_hash, erase_pos, table_head->capacity) ? erase_pos : erased_hash;
+                        if (!less_pos(x, local_hash, table_head->capacity)/*equivalent of <=*/)
                         {
                             copy_to(hash_data, erase_pos, i);
                             erase_pos = i;
                             erased_hash = local_hash;
-                            limit = (erase_pos + neighbor_width_c) % capacity();
+                            limit = (erase_pos + table_head->neighbor_width) % table_head->capacity;
                         }
                     }
                     return erase_pos;
@@ -397,11 +400,11 @@ namespace OP
                     less(0x5, 0xF) == true
                     less(0xF, 0x5) == false
                 */
-                bool less_pos(unsigned tst_min, unsigned tst_max) const
+                bool less_pos(unsigned tst_min, unsigned tst_max, unsigned capacity) const
                 {
                     int dif = static_cast<int>(tst_min) - static_cast<int>(tst_max);
                     unsigned a = std::abs(dif);
-                    if (a > (static_cast<unsigned>(capacity()) / 2)) //use inversion of signs
+                    if (a > (static_cast<unsigned>(capacity) / 2)) //use inversion of signs
                         return dif > 0;
                     return dif < 0;
                 }

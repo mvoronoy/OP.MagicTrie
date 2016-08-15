@@ -14,15 +14,11 @@ namespace OP
         typedef std::uint32_t node_version_t;
         struct NodeUid
         {
-            enum
-            {
-                size_c = 16
-            };
-            std::uint8_t uid[size_c];
+            std::uint64_t uid;
         };
         inline bool operator == (const NodeUid& left, const NodeUid& right)
         {
-            return memcmp(left.uid, right.uid, NodeUid::size_c) == 0;
+            return left.uid == right.uid;
         }
         inline bool operator != (const NodeUid& left, const NodeUid& right)
         {
@@ -178,6 +174,42 @@ namespace OP
                 }
                 return false;
             }
+            /**
+            * @return true if entire node should be deleted
+            */
+            template <class TSegmentTopology>
+            bool erase(TSegmentTopology& topology, atom_t key, bool erase_data)
+            {
+                containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
+                ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
+                //no need to operate by stem
+                dim_t reindexed = key;
+                auto has_reindexer = !this->reindexer.is_null();
+                if (has_reindexer) //reindex may absent for 256 table
+                {
+                    auto table_head = hash_mngr.table_head(this->reindexer);
+                    reindexed = hash_mngr.find(table_head, key);
+                    assert(reindexed != hash_mngr.nil_c);
+                }
+                assert(presence.get(key));
+                if (erase_data)
+                {
+                    value_manager.accessor(payload, capacity)[reindexed].clear_data();
+                }
+                if (value_manager.accessor(payload, capacity)[reindexed].has_something())
+                { //when child presented need keep sequence in this node
+                    return false;
+                }
+                //no child, so wipe content
+                if (has_reindexer)
+                {
+                    hash_mngr.erase(this->reindexer, static_cast<atom_t>(reindexed));
+                }
+                presence.clear(key);
+                //@! think to reduce space of hashtable
+                return presence.first_set() == presence_t::nil_c; //erase entire node if no more entries
+            }
+            
             template <class TSegmentTopology>
             void set_child(TSegmentTopology& topology, atom_t key, FarAddress address)
             {
@@ -252,7 +284,7 @@ namespace OP
                 dim_t reindex_target;
                 //extract stem from current node
                 stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stem::StemData& stem_header) -> void{
-                    assert(in_stem_pos < (src_end - src_begin));
+                    assert(in_stem_pos <= (src_end - src_begin));
                     auto start = src_begin + in_stem_pos;
                     reindex_target = target_node->insert_stem(topology, start, src_end);
                     //truncate stem in current node
@@ -359,7 +391,7 @@ namespace OP
 
                 data_copy_future.get();
 
-                hash_manager.destroy(this->reindexer.address); //delete old
+                hash_manager.destroy(this->reindexer); //delete old
                 this->reindexer = ref_reindex_hash_t(remap.new_address);
                 
                 
