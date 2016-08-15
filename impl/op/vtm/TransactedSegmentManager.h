@@ -702,9 +702,9 @@ namespace OP
                 RWR search_range(pos, size);
                 guard_t g2(_map_lock); //trick - capture ownership in this thread, but delegate find in other one
                 //@! need hard test to ensure this parallelism has a benefit in compare with _captured_blocks.emplace/.insert
-                std::future<captured_blocks_t::iterator> real_mem_future = std::async(std::launch::async, [&](){ 
-                    return _captured_blocks.lower_bound(search_range);
-                });
+                //@! std::future<captured_blocks_t::iterator> real_mem_future = std::async(std::launch::async, [&](){ 
+                //@!     return _captured_blocks.lower_bound(search_range);
+                //@! });
 
                 if (true)
                 {  //extract current transaction in safe way
@@ -715,10 +715,11 @@ namespace OP
                         current_transaction = found->second;
                     }
                 }
+                found_res = _captured_blocks.lower_bound(search_range);
                 if (!current_transaction) //no current transaction at all
                 {
                     //check presence of queried range in shadow buffers
-                    found_res = real_mem_future.get();
+                    //@! found_res = real_mem_future.get();
                     if(found_res != _captured_blocks.end() && !(_captured_blocks.key_comp()(search_range, found_res->first))) 
                     {
                         // range exists. 
@@ -746,7 +747,7 @@ namespace OP
                     return SegmentManager::readonly_block(pos, size, hint);
                 }
                 
-                found_res = real_mem_future.get();
+                //@! found_res = real_mem_future.get();
                 if (found_res != _captured_blocks.end() && !(_captured_blocks.key_comp()(search_range, found_res->first)))
                 {//result found
                     if (!found_res->first.is_included(search_range))// don't allow transactions on overlapped memory blocks

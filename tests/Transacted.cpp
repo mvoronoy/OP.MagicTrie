@@ -129,7 +129,7 @@ void test_TransactedSegmentManager(OP::utest::TestResult &tresult)
         return tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
     });
     auto ro_block1_t1 = future_block1_t1.get();
-    tresult.assert_true(0 == memcmp(&ro_block1, &ro_block1_t1, sizeof(ReadonlyMemoryChunk)), OP_CODE_DETAILS( << "RO memory block from different thread must return same bytes"));
+    tresult.assert_true(0 == memcmp(ro_block1.at<char>(0), ro_block1_t1.at<char>(0), sizeof(ReadonlyMemoryChunk)), "RO memory block from different thread must return same bytes");
     //check ro have same view
     fdata_acc.seekp(read_only_data_fpos);
     fdata_acc.write(tst_seq, sizeof(tst_seq));
