@@ -14,19 +14,19 @@ namespace OP
             template <class TSegmentManager, class Payload, std::uint32_t initial_node_count>
             friend struct Trie;
             /**Keep address of root node of Trie*/
-            FarAddress get_root_addr()
+            FarAddress get_root_addr() const
             {
                 auto ro_block = get_header_block();
                 return ro_block.at<TrieHeader>(0)->_root;
             }
             /**Total count of items in Trie*/
-            std::uint64_t count()
+            std::uint64_t count() const
             {
                 auto ro_block = get_header_block();
                 return ro_block.at<TrieHeader>(0)->_count;
             }
             /**Total number of nodes (pags) allocated in Trie*/
-            std::uint64_t nodes_allocated()
+            std::uint64_t nodes_allocated() const
             {
                 auto ro_block = get_header_block();
                 return ro_block.at<TrieHeader>(0)->_nodes_allocated;
@@ -38,6 +38,7 @@ namespace OP
                     : _root{}
                     , _count(0)
                     , _nodes_allocated(0)
+                    , _nodes_uid_gen(0)
                 {}
                 /**Where root resides*/
                 FarAddress _root;
@@ -45,6 +46,7 @@ namespace OP
                 std::uint64_t _count;
                 /**Number of nodes (pages) allocated*/
                 std::uint64_t _nodes_allocated;
+                std::uint64_t _nodes_uid_gen;
             };
             ReadonlyMemoryChunk get_header_block() const
             {
@@ -80,6 +82,10 @@ namespace OP
             {
                 _segment_manager->wr_at<TrieHeader>(_segment_address)->_nodes_allocated += delta;
                 return *this;
+            }
+            std::uint64_t generate_node_id()
+            {
+                return _segment_manager->wr_at<TrieHeader>(_segment_address)->_nodes_uid_gen ++;
             }
             //
             //  Overrides

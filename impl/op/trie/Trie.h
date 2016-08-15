@@ -4,7 +4,6 @@
 #if defined(_MSC_VER)
 #define _SCL_SECURE_NO_WARNINGS 1
 #endif //_MSC_VER
-#include <boost/uuid/random_generator.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -336,7 +335,16 @@ namespace OP
                             if (sbegin != send)
                             {//empty iterator should not be diversificated, just set value
                              //terminal is not there, otherwise it would be StemCompareResult::equals
-                                diversificate(*wr_node, iter);
+                                if ((back.deep()-1) == stem_header.stem_length[rindex])
+                                {
+                                    //it is allowed only to have child, if 'has_data' set - then `common_prefix` works wrong
+                                    assert(!(back.terminality()&Terminality::term_has_data));
+                                    //don't do anything, wait until wr_node->set_value
+                                }
+                                else 
+                                {
+                                    diversificate(*wr_node, iter);
+                                }
                             }
                         });
                     }
@@ -436,9 +444,8 @@ namespace OP
                 node->payload = _value_mngr.create((dim_t)capacity);
 
                 auto &res = _topology_ptr->slot<TrieResidence>();
+                node->uid.uid = res.generate_node_id();
                 res.increase_nodes_allocated(+1);
-                auto g = boost::uuids::random_generator()();
-                memcpy(node->uid.uid, g.begin(), g.size());
                 return node_pos;
             }
             void remove_node(FarAddress addr, node_t& node)

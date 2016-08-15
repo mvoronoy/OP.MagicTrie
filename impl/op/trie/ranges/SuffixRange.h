@@ -215,7 +215,7 @@ namespace OP{
             typedef UnionAllRange<SuffixRange<typename Iterator>, OtherRange> merge_all_t;
             return std::make_shared<merge_all_t>(
                 shared_from_this(),
-                std::forward<std::shared_ptr<OtherRange>>( other ),
+                other,
                 std::forward<typename merge_all_t::iterator_comparator_t>(cmp)
             );
         }

@@ -14,15 +14,11 @@ namespace OP
         typedef std::uint32_t node_version_t;
         struct NodeUid
         {
-            enum
-            {
-                size_c = 16
-            };
-            std::uint8_t uid[size_c];
+            std::uint64_t uid;
         };
         inline bool operator == (const NodeUid& left, const NodeUid& right)
         {
-            return memcmp(left.uid, right.uid, NodeUid::size_c) == 0;
+            return left.uid == right.uid;
         }
         inline bool operator != (const NodeUid& left, const NodeUid& right)
         {
