@@ -216,6 +216,7 @@ namespace OP
                 atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 value_manager.accessor(payload, capacity)[ reindexed ].set_child(address);
+                version++;
             }
             /**Get child address if present, otherwise return null-pos*/
             template <class TSegmentTopology>
@@ -243,6 +244,7 @@ namespace OP
                 atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 value_manager.accessor(payload, capacity)[ reindexed ].set_data(std::move(value));
+                version++;
             }
             template <class TSegmentTopology>
             std::pair<bool, bool> get_presence(TSegmentTopology& topology, atom_t key) const
@@ -296,6 +298,7 @@ namespace OP
                 auto& src_val = value_manager.accessor(this->payload, this->capacity) [ridx];
                 auto& target_val = value_manager.accessor(target_node->payload, target_node->capacity)[reindex_target];
                 target_val = std::move(src_val);// move clears previous data/addr in source 
+                version++;
             }
             /**
             *   Taken a byte key, return index where corresponding key should reside for stem_manager and value_manager
@@ -355,7 +358,7 @@ namespace OP
                     
                 }
                 presence.set(key);
-
+                version++;
                 return reindex_res;
             }
             
@@ -397,6 +400,7 @@ namespace OP
                 
                 value_manager.destroy(this->payload);
                 this->payload = value_grow_res.dest_addr();
+                version++;
             }
             /**Apply `move_callback` to each existing item to move from previous container to new container (like a value- or stem- containers) */
             template <class Remap, class MoveCallback>

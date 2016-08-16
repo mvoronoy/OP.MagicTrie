@@ -544,7 +544,10 @@ namespace OP
             }
             void sync_iterator(iterator & it) const
             {
-
+                for (auto i = it._position_stack.begin(); i != it._position_stack.end(); ++i)
+                {
+                    
+                }
             }
             /**
             * @return
