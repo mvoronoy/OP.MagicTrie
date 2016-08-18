@@ -177,6 +177,7 @@ namespace OP
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom aend) const
             {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto iter = iterator(this);
                 auto nav_res = common_prefix(begin, aend, iter);
 
@@ -247,7 +248,50 @@ namespace OP
                 auto b = std::begin(container);
                 return find(b, std::end(container));
             }
-
+            /**
+            *   Get first child element resided below position specified by @param `of_this`. 
+            *   For example having entries in trie: \code
+            *       abc, abc.1, abc.123, abc.2, abc.3
+            *   \endcode
+            *   you may use `first_child(find("abc"))` to locate entry "abc.1" (compare with lower_bound that have to return "abc.123")
+            *   \see last_child
+            *   @return iterator to some child of_this or `end()` if no entry.
+            */
+            iterator first_child(iterator& of_this) const
+            {
+                
+            }
+            /**
+            *   Get last child element resided below position specified by `of_this`.
+            *   For example having entries in trie: \code
+            *       abc, abc.1, abc.2, abc.3, abc.333
+            *   \endcode
+            *   you may use `first_child(find("abc"))` to locate entry "abc.3" (compare with upper_bound that have to return "abc.333")
+            *   \see last_child
+            *   @param iterator that points to some prefix. After exit may be updated to reflect current state of trie
+            *   @return iterator to some child of_this or `end()` if no entry.
+            */
+            iterator last_child(iterator& of_this) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                this->sync_iterator(of_this);
+                if (of_this == end() ||
+                    is_not_set(i.back().terminality(), Terminality::term_has_child))
+                {
+                    return end(); //no way down
+                }
+                iterator result(of_this);
+                do
+                {
+                    auto lres = load_iterator(result.back().address(), result,
+                        [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); },
+                        &iterator::emplace);
+                    assert(std::get<0>(lres)); //empty nodes are not allowed
+                    start_from = std::get<1>(lres);
+                } while (is_not_set(result.back().terminality(), Terminality::term_has_data));
+                    
+                return result;
+            }
             value_type value_of(poistion_t pos) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
