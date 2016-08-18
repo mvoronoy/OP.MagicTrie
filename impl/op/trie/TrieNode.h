@@ -259,6 +259,11 @@ namespace OP
             {
                 return make_nullable( this->presence.first_set() );
             }
+            /**@return last position where child or value exists, may return dim_nil_c if node empty*/
+            inline nullable_atom_t last() const
+            {
+                return make_nullable(this->presence.last_set());
+            }
             /**@return next position where child or value exists, may return dim_nil_c if no more entries*/
             nullable_atom_t next(atom_t previous) const
             {

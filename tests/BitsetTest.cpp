@@ -59,15 +59,18 @@ void test_Finds(OP::utest::TestResult &tresult)
     tresult.assert_true(b3_t.nil_c == b3_t.next_set_or_this(0));
     tresult.assert_true(b3_t.nil_c == b3_t.prev_set(b3_t.bit_length_c -1u));
     tresult.assert_true(b3_t.nil_c == b3_t.prev_set(0));
+    tresult.assert_true(b3_t.nil_c == b3_t.last_set());
 
     b3_t.set(0);
     tresult.assert_true(0 == b3_t.first_set());
+    tresult.assert_true(0 == b3_t.last_set());
     tresult.assert_true(b3_t.nil_c == b3_t.next_set(0));
     tresult.assert_true(0 == b3_t.next_set_or_this(0));
     b3_t.clear(0);
 
     b3_t.set(1);
     tresult.assert_true(1 == b3_t.first_set());
+    tresult.assert_true(1 == b3_t.last_set());
     tresult.assert_true(0 == b3_t.first_clear());
     tresult.assert_true(1 == b3_t.next_set(0));
     tresult.assert_true(1 == b3_t.next_set_or_this(0));
@@ -75,6 +78,7 @@ void test_Finds(OP::utest::TestResult &tresult)
     b3_t.set(2);//keep 1 set
     tresult.assert_true(1 == b3_t.first_set());
     tresult.assert_true(0 == b3_t.first_clear());
+    tresult.assert_true(2 == b3_t.last_set());
     tresult.assert_true(2 == b3_t.next_set(1));
     tresult.assert_true(1 == b3_t.next_set_or_this(1));
     tresult.assert_true(2 == b3_t.next_set_or_this(2));
@@ -84,10 +88,13 @@ void test_Finds(OP::utest::TestResult &tresult)
 
     b3_t.set(b3_t.bit_length_c - 1);
     tresult.assert_true((b3_t.bit_length_c - 1) == b3_t.next_set(2));
+    tresult.assert_true((b3_t.bit_length_c - 1) == b3_t.last_set());
+
     b3_t.set(0);
     tresult.assert_true(0 == b3_t.prev_set(1));
 
     OP::trie::Bitset<1> b1_t2(0xFFFFFFFFFFFFFFFFULL);
+    tresult.assert_true(63 == b1_t2.last_set());
     tresult.assert_true(b1_t2.nil_c == b1_t2.first_clear());
     tresult.assert_true(0 == b1_t2.first_set());
     for (auto i = 0; i < b1_t2.bit_length_c; ++i)

@@ -35,7 +35,25 @@ namespace OP
                 : log2_32(static_cast<std::uint32_t>(v))
                 ;
         }
-
+        /**
+        *   Origin from http://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightMultLookup
+        */
+        inline std::uint32_t count_trailing_zero_32(std::uint32_t v)
+        {
+            static const std::uint8_t MultiplyDeBruijnBitPosition[32] =
+            {
+                0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
+                31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+            };
+            return MultiplyDeBruijnBitPosition[static_cast<std::uint32_t>(((v & (~v+1)) * 0x077CB531U)) >> 27];
+        }
+        inline std::uint32_t count_trailing_zero_64(std::uint64_t v)
+        {
+            return (v & 0x00000000FFFFFFFFul)
+                ? count_trailing_zero_32(static_cast<std::uint32_t>(v))
+                : count_trailing_zero_32(static_cast<std::uint32_t>(v >> 32)) + 32
+                ;
+        }
         template <size_t N, class Int>
         struct BitsetIterator : public std::iterator<std::random_access_iterator_tag, bool>
         {
@@ -266,17 +284,21 @@ namespace OP
             {
                 return presence_index(_presence);
             }
+            inline dim_t last_set() const
+            {
+                return revert_presence_index(_presence);
+            }
             /**Return index of bit that is set after 'prev' one. May return `nil_c` if no bits are set.*/
             inline dim_t next_set(dim_t prev) const
             {
                 Int mask = (1ULL << (prev % bits_c));
-                mask += mask - 1;
+                mask |= mask - 1;
                 for (auto i = prev / bits_c; i < N; ++i)
                 {
                     auto x = _presence[i] & ~mask;
                     if (x != 0) //test all bits are set
                     {
-                        return ln2(x & (~x + 1)) + i*bits_c;
+                        return static_cast<dim_t>(count_trailing_zero_64(x) + i*bits_c);
                     }
                     mask = Int(0); //reset mask for all other entries
                 }
@@ -285,14 +307,13 @@ namespace OP
             /**Return index of set bit that is equal or follow after 'prev'. May return `nil_c` if no bits are set.*/
             inline dim_t next_set_or_this(dim_t prev) const
             {
-                Int mask = (1ULL << (prev % bits_c));
-                mask -= 1;
+                Int mask = (1ULL << (prev % bits_c)) - 1;
                 for (auto i = prev / bits_c; i < N; ++i)
                 {
                     auto x = _presence[i] & ~mask;
                     if (x != 0) //test all bits are set
                     {
-                        return ln2(x & (~x + 1)) + i*bits_c;
+                        return static_cast<dim_t>(count_trailing_zero_64(x) + i*bits_c);
                     }
                     mask = Int(0); //reset mask for all other entries
                 }
@@ -307,7 +328,7 @@ namespace OP
                     auto x = _presence[i] & mask;
                     if (x != 0) //test all bits are set
                     {
-                        return ln2(x ) + i*bits_c;
+                        return static_cast<dim_t>(ln2(x) + i*bits_c);
                     }
                     mask = ~Int(0); //reset mask for all other entries
                 }
@@ -350,12 +371,24 @@ namespace OP
             }
             static inline dim_t presence_index(const std::uint64_t presence[N])
             {
-                //note 2: that ( x & (~(x) + 1) ) deletes all but the lowest set bit
                 for (auto i = 0; i < N; ++i)
                 {
                     if (presence[i] != 0) //test all bits are set
                     {
-                        return ln2(presence[i] & (~presence[i] + 1)) + i*bits_c;
+                        return static_cast<dim_t>(count_trailing_zero_64(presence[i]) + i*bits_c);
+                    }
+                }
+                return nil_c;
+            }
+            /**Find position of lowest bit-set*/
+            static inline dim_t revert_presence_index(const std::uint64_t presence[N])
+            {
+                for (auto i = N; i > 0; --i)
+                {
+                    auto j = i - 1u;
+                    if (presence[j] != 0) //test all bits are set
+                    {
+                        return static_cast<dim_t>(ln2(presence[j]) + j*bits_c);
                     }
                 }
                 return nil_c;
