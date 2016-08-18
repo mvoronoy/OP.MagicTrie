@@ -276,18 +276,19 @@ namespace OP
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 this->sync_iterator(of_this);
                 if (of_this == end() ||
-                    is_not_set(i.back().terminality(), Terminality::term_has_child))
+                    is_not_set(of_this.back().terminality(), Terminality::term_has_child))
                 {
                     return end(); //no way down
                 }
                 iterator result(of_this);
+                auto addr = result.back().address();
                 do
                 {
-                    auto lres = load_iterator(result.back().address(), result,
+                    auto lres = load_iterator(addr, result,
                         [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); },
                         &iterator::emplace);
                     assert(std::get<0>(lres)); //empty nodes are not allowed
-                    start_from = std::get<1>(lres);
+                    addr = std::get<1>(lres);
                 } while (is_not_set(result.back().terminality(), Terminality::term_has_data));
                     
                 return result;

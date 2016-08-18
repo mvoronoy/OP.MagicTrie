@@ -745,6 +745,33 @@ void test_Erase(OP::utest::TestResult &tresult)
     }
     compare_containers(tresult, *trie, test_values);
 }
+void test_ChildSelector(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"abc", 1.),
+        p_t((atom_t*)"abc.1", 1.),
+        p_t((atom_t*)"abc.2", 1.),
+        p_t((atom_t*)"abc.3", 1.),
+        p_t((atom_t*)"abc.333", 1.)
+    };
+    std::map<std::string, double> test_values;
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
+    });
+    auto i1 = trie->find(std::string("abc"));
+    auto ch1 = trie->last_child(i1);
+    tresult.assert_true(ch1.key() == (const atom_t*)"abc.3");
+}
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
     ->declare(test_TrieInsert, "insertion")
@@ -756,4 +783,5 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieNoTran, "trie no tran")
     ->declare(test_Flatten, "flatten")
     ->declare(test_Erase, "erase")
+    ->declare(test_ChildSelector, "child")
     ;
