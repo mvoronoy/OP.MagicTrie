@@ -760,17 +760,31 @@ void test_ChildSelector(OP::utest::TestResult &tresult)
         p_t((atom_t*)"abc", 1.),
         p_t((atom_t*)"abc.1", 1.),
         p_t((atom_t*)"abc.2", 1.),
-        p_t((atom_t*)"abc.3", 1.),
-        p_t((atom_t*)"abc.333", 1.)
+        p_t((atom_t*)"abc.3", 1.3),
+        p_t((atom_t*)"abc.333", 1.33)
     };
     std::map<std::string, double> test_values;
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
         trie->insert(s.first, s.second);
         test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
     });
-    auto i1 = trie->find(std::string("abc"));
-    auto ch1 = trie->last_child(i1);
-    tresult.assert_true(ch1.key() == (const atom_t*)"abc.3");
+    auto i_root = trie->find(std::string("abc"));
+    auto last_ch1 = trie->last_child(i_root);
+    tresult.assert_that<equals>(last_ch1.key(), (const atom_t*)"abc.3", "key mismatch");
+    tresult.assert_that<equals>(*last_ch1, 1.3, "value mismatch");
+    auto last_ch1_3 = trie->last_child(last_ch1);
+    tresult.assert_that<equals>((++last_ch1).key(), (const atom_t*)"abc.333", "origin iterator must not be changed while `last_child`");
+    tresult.assert_that<equals>(last_ch1_3.key(), (const atom_t*)"abc.333", "next key mismatch");
+    tresult.assert_that<equals>(*last_ch1_3, 1.33, "value mismatch");
+    //check no-child case
+    auto i_2 = trie->find(std::string("abc.2"));
+    auto last_ch2 = trie->last_child(i_2);
+    tresult.assert_that<equals>(last_ch2, trie->end(), "no-child case failed");
+    //check end() case
+    auto i_3 = trie->find(std::string("x"));
+    auto last_ch_end = trie->last_child(i_3);
+    tresult.assert_that<equals>(last_ch_end, trie->end(), "end() case failed");
+
 }
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
