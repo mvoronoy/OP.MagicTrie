@@ -281,7 +281,9 @@ namespace OP
                     return end(); //no way down
                 }
                 iterator result(of_this);
-                auto addr = result.back().address();
+                auto node = view<node_t>(*_topology_ptr, result.back().address());
+                auto cls = classify_back(node, result);
+                auto addr = std::get<FarAddress>(cls);
                 do
                 {
                     auto lres = load_iterator(addr, result,
