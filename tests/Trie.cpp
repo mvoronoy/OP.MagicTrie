@@ -66,7 +66,7 @@ void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
     auto ti = trie.begin();
     int n = 0;
     //order must be the same
-    for (; trie.in_range(ti); ++ti, ++mi, ++n)
+    for (; trie.in_range(ti); trie.next(ti), ++mi, ++n)
     {
         //print_hex(tresult.info() << "1)", ti.key());
         //print_hex(tresult.info() << "2)", mi->first);
@@ -348,6 +348,39 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
     auto lbegin = std::begin(test_long);
     auto llong_res = trie->lower_bound(lbegin, std::end(test_long));
     tresult.assert_true(tools::container_equals(llong_res.key(), test_seq[5], &tools::sign_tolerant_cmp<atom_t>));
+}
+void test_PrefixedFind(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"abc", 1.),
+        p_t((atom_t*)"abc.1", 1.),
+        p_t((atom_t*)"abc.12", 1.),
+        p_t((atom_t*)"abc.123456789", 1.9),
+        p_t((atom_t*)"abc.2", 1.),
+        p_t((atom_t*)"abc.3", 1.3),
+        p_t((atom_t*)"abc.333", 1.33),
+        p_t((atom_t*)"def.", 2.0)
+    };
+    std::map<std::string, double> test_values;
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
+    });
+    tresult.info() << "first/last child\n";
+    auto i_root = trie->find(std::string("abc"));
+    auto lw_ch1 = trie->lower_bound(i_root, std::string(".1"));
+    tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
+    tresult.assert_that<equals>(*lw_ch1, 1.9, "value mismatch");
+    
 }
 
 void test_TrieNoTran(OP::utest::TestResult &tresult)
@@ -745,6 +778,48 @@ void test_Erase(OP::utest::TestResult &tresult)
     }
     compare_containers(tresult, *trie, test_values);
 }
+void test_Siblings(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"abc", 1.),
+        p_t((atom_t*)"abc.1", 1.),
+        p_t((atom_t*)"abc.1.2", 1.12),
+        p_t((atom_t*)"abc.2", 1.2),
+        p_t((atom_t*)"abc.3", 1.3),
+        p_t((atom_t*)"abc.333", 1.33)
+    };
+    std::map<std::string, double> test_values;
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
+    });
+    auto i_root = trie->find(std::string("abc.1"));
+    trie->next_sibling(i_root);
+    tresult.assert_that<equals>(i_root.key(), (const atom_t*)"abc.2", "key mismatch");
+    tresult.assert_that<equals>(*i_root, 1.2, "value mismatch");
+    trie->next_sibling(i_root);
+    tresult.assert_that<equals>(i_root.key(), (const atom_t*)"abc.3", "key mismatch");
+    tresult.assert_that<equals>(*i_root, 1.3, "value mismatch");
+    trie->next_sibling(i_root);
+    tresult.assert_that<equals>(i_root, trie->end(), "run end failed");
+
+    auto i_sub = trie->find(std::string("abc.1.2"));
+    trie->next_sibling(i_sub);
+    tresult.assert_that<equals>(i_sub, trie->end(), "run end failed");
+
+    auto i_sup = trie->find(std::string("abc"));
+    trie->next_sibling(i_sup);
+    tresult.assert_that<equals>(i_sup, trie->end(), "run end failed");
+}
 void test_ChildSelector(OP::utest::TestResult &tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
@@ -768,10 +843,15 @@ void test_ChildSelector(OP::utest::TestResult &tresult)
         trie->insert(s.first, s.second);
         test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
     });
+    tresult.info() << "first/last child\n";
     auto i_root = trie->find(std::string("abc"));
     auto last_ch1 = trie->last_child(i_root);
     tresult.assert_that<equals>(last_ch1.key(), (const atom_t*)"abc.3", "key mismatch");
     tresult.assert_that<equals>(*last_ch1, 1.3, "value mismatch");
+    auto first_ch1 = trie->first_child(i_root);//of 'abc'
+    tresult.assert_that<equals>(first_ch1.key(), (const atom_t*)"abc.1", "key mismatch");
+    tresult.assert_that<equals>(*first_ch1, 1., "value mismatch");
+
     auto last_ch1_3 = trie->last_child(last_ch1);
     tresult.assert_that<equals>((++last_ch1).key(), (const atom_t*)"abc.333", "origin iterator must not be changed while `last_child`");
     tresult.assert_that<equals>(last_ch1_3.key(), (const atom_t*)"abc.333", "next key mismatch");
@@ -780,10 +860,32 @@ void test_ChildSelector(OP::utest::TestResult &tresult)
     auto i_2 = trie->find(std::string("abc.2"));
     auto last_ch2 = trie->last_child(i_2);
     tresult.assert_that<equals>(last_ch2, trie->end(), "no-child case failed");
+    auto first_ch2 = trie->first_child(i_2);
+    tresult.assert_that<equals>(first_ch2, trie->end(), "no-child case failed");
     //check end() case
     auto i_3 = trie->find(std::string("x"));
     auto last_ch_end = trie->last_child(i_3);
     tresult.assert_that<equals>(last_ch_end, trie->end(), "end() case failed");
+    auto first_ch_end = trie->first_child(i_3);
+    tresult.assert_that<equals>(first_ch_end, trie->end(), "end() case failed");
+
+    auto f_root = trie->find(std::string("abc.1"));
+    auto first_ch1_end = trie->first_child(f_root);
+    tresult.assert_that<equals>(first_ch1_end, trie->end(), "end() case failed");
+
+    tresult.info() << "children ranges\n";
+    auto r1 = trie->children_range(i_root);
+
+    std::map<std::string, double> r1_test;
+    r1_test.emplace(std::string(ini_data[1].first.begin(), ini_data[1].first.end()), ini_data[1].second);
+    r1_test.emplace(std::string(ini_data[2].first.begin(), ini_data[2].first.end()), ini_data[2].second);
+    r1_test.emplace(std::string(ini_data[3].first.begin(), ini_data[3].first.end()), ini_data[3].second);
+
+    compare_containers(tresult, *r1, r1_test);
+
+    r1 = trie->children_range(i_3);  //end()
+    std::map<std::string, double> r1_empty;
+    compare_containers(tresult, *r1, r1_empty);
 
 }
 static auto module_suite = OP::utest::default_test_suite("Trie")
@@ -792,10 +894,12 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieInsertGrow, "insertion-grow")
     //->declare(test_TrieGrowAfterUpdate, "grow-after-update")
     ->declare(test_TrieLowerBound, "lower_bound")
+    ->declare(test_PrefixedFind, "prefixed find")
     ->declare(test_TrieSubtree, "subtree of prefix")
     ->declare(test_TrieSubtreeLambdaOperations, "lambda on subtree")
     ->declare(test_TrieNoTran, "trie no tran")
     ->declare(test_Flatten, "flatten")
     ->declare(test_Erase, "erase")
+    ->declare(test_Siblings, "siblings")
     ->declare(test_ChildSelector, "child")
     ;
