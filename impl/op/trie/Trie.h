@@ -39,7 +39,8 @@ namespace OP
         {
         public:
             typedef Payload payload_t;
-            typedef Trie<TSegmentManager, payload_t, initial_node_count> this_t;
+            typedef Trie<TSegmentManager, payload_t, initial_node_count> trie_t;
+            typedef trie_t this_t;
             typedef TrieIterator<this_t> iterator;
             typedef SuffixRange<typedef iterator> suffix_range_t;
             typedef std::unique_ptr<suffix_range_t> suffix_range_ptr;
@@ -116,6 +117,26 @@ namespace OP
                 sync_iterator(i);
                 _next(true, i);
             }
+            void next_sibling(iterator& i) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                sync_iterator(i);
+                if (i.is_end())
+                    return;
+                auto lres = load_iterator(i.back().address(), i,
+                        [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
+                        &iterator::update_back);
+                if (tuple_ref<bool>(lres))
+                { //navigation right succeeded
+                    if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
+                    {//i already points to correct entry
+                        return;
+                    }
+                    enter_deep_until_terminal(tuple_ref<FarAddress>(lres), i);
+                    return;
+                }
+                i.clear();
+            }
             typedef PredicateRange<iterator> range_container_t;
             typedef std::shared_ptr<range_container_t> range_container_ptr;
 
@@ -178,68 +199,25 @@ namespace OP
             iterator lower_bound(Atom& begin, Atom aend) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto iter = iterator(this);
-                auto nav_res = common_prefix(begin, aend, iter);
-
-                switch (nav_res.compare_result)
-                {
-                case stem::StemCompareResult::equals: //exact match
-                    return iter;
-                case stem::StemCompareResult::unequals:
-                {
-                    if (iter.is_end())
-                    {
-                        return iter;
-                    }
-                    next(iter);
-                    return iter;
-                }
-                case stem::StemCompareResult::no_entry:
-                {
-                    auto start_from = iter.is_end()
-                        ? _topology_ptr->slot<TrieResidence>().get_root_addr()
-                        : iter.back().address();
-                    auto lres = load_iterator(//need reload since after common_prefix may not be complete
-                        start_from, iter,
-                        [&](ReadonlyAccess<node_t>& ro_node) {
-                            return ro_node->next_or_this(*begin);
-                        },
-                        &iterator::emplace);
-                    if (!tuple_ref<bool>(lres))
-                    {
-                        return end();
-                    }
-                    if (is_not_set(iter.back().terminality(), Terminality::term_has_data))
-                    {
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), iter);
-                    }
-                    return iter;
-                }
-                case stem::StemCompareResult::string_end:
-                {
-                    auto lres = load_iterator(//need reload since after common_prefix may not be complete
-                        iter.back().address(), iter,
-                        [&](ReadonlyAccess<node_t>& ro_node) {
-                            return make_nullable( iter.back().key() );
-                        },
-                        &iterator::update_back);
-                    assert(tuple_ref<bool>(lres));
-                    if (is_not_set(iter.back().terminality(), Terminality::term_has_data))
-                    {
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), iter);
-                    }
-                    return iter;
-                }
-                }
-                //when: stem::StemCompareResult::stem_end || stem::StemCompareResult::string_end ||
-                //   ( stem::StemCompareResult::unequals && !iter.is_end())
-                next(iter);
-                return iter;
+                return lower_bound_impl(begin, aend);
+            }
+            template <class Atom>
+            iterator lower_bound(iterator& of_prefix, Atom& begin, Atom aend) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                return lower_bound_impl(begin, aend, &of_prefix);
+            }
+            template <class AtomContainer>
+            iterator lower_bound(iterator& of_prefix, const AtomContainer& container) const
+            {
+                auto b = std::begin(container);
+                return lower_bound(of_prefix, b, std::end(container));
             }
             template <class Atom>
             iterator find(Atom& begin, Atom aend) const
             {
-                auto iter = lower_bound(begin, aend);
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                auto iter = lower_bound_impl(begin, aend);
                 return begin == aend ? iter : end();// StemCompareResult::unequals or StemCompareResult::stem_end or stem::StemCompareResult::string_end
             }
             template <class AtomContainer>
@@ -248,21 +226,32 @@ namespace OP
                 auto b = std::begin(container);
                 return find(b, std::end(container));
             }
+            template <class AtomContainer>
+            iterator find(iterator& of_prefix, const AtomContainer& container) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                auto iter = lower_bound_impl(begin, aend, &of_prefix);
+                return begin == aend ? iter : end();// StemCompareResult::unequals or StemCompareResult::stem_end or stem::StemCompareResult::string_end
+            }
             /**
-            *   Get first child element resided below position specified by @param `of_this`. 
+            *   Get first child element resided below position specified by @param `of_this`. Since all values in Trie are lexicographically 
+            *   ordred the return iterator indicate smallest immediate children
             *   For example having entries in trie: \code
             *       abc, abc.1, abc.123, abc.2, abc.3
             *   \endcode
             *   you may use `first_child(find("abc"))` to locate entry "abc.1" (compare with lower_bound that have to return "abc.123")
             *   \see last_child
-            *   @return iterator to some child of_this or `end()` if no entry.
+            *   @return iterator to some child of_this or `end()` if no entry. 
             */
             iterator first_child(iterator& of_this) const
             {
-                
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                return position_child(of_this,
+                    [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
             }
             /**
-            *   Get last child element resided below position specified by `of_this`.
+            *   Get last child element resided below position specified by `of_this`. Since all values in Trie are lexicographically 
+            *   ordred the return iterator indicate largest immediate children
             *   For example having entries in trie: \code
             *       abc, abc.1, abc.2, abc.3, abc.333
             *   \endcode
@@ -274,27 +263,16 @@ namespace OP
             iterator last_child(iterator& of_this) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                this->sync_iterator(of_this);
-                if (of_this == end() ||
-                    is_not_set(of_this.back().terminality(), Terminality::term_has_child))
-                {
-                    return end(); //no way down
-                }
-                iterator result(of_this);
-                auto node = view<node_t>(*_topology_ptr, result.back().address());
-                auto cls = classify_back(node, result);
-                auto addr = std::get<FarAddress>(cls);
-                do
-                {
-                    auto lres = load_iterator(addr, result,
-                        [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); },
-                        &iterator::emplace);
-                    assert(std::get<0>(lres)); //empty nodes are not allowed
-                    addr = std::get<1>(lres);
-                } while (is_not_set(result.back().terminality(), Terminality::term_has_data));
-                    
+                return position_child(of_this,
+                    [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
+            }
+            /**Return range that allows iterate all immediate childrens of specified prefix*/
+            range_container_ptr children_range(iterator& of_this)
+            {
+                range_container_ptr result(new ChildRange(*this, first_child(of_this)));
                 return result;
             }
+
             value_type value_of(poistion_t pos) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
@@ -411,7 +389,7 @@ namespace OP
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
             }
-            size_t erase(iterator pos)
+            size_t erase(iterator& pos)
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 sync_iterator(pos);
@@ -460,6 +438,22 @@ namespace OP
             static nullable_atom_t _resolve_next(const node_t& node, iterator* i)
             {
                 return node.next((atom_t)i->back().key());
+            };
+            /**Used to iterate over immediate children*/
+            struct ChildRange : public PredicateRange<iterator>
+            {
+                typedef typename trie_t::iterator super_iter_t;
+                typedef PredicateRange<super_iter_t> super_t;
+                ChildRange(const trie_t &owner, const super_iter_t& begin)
+                    : super_t(begin, [](const auto& iter_check) {return !iter_check.is_end();})
+                    , _owner(owner)
+                {}
+                void next(iterator& pos) const override
+                {
+                    _owner.next_sibling(pos);
+                }
+            private:
+                const trie_t &_owner;
             };
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments)
@@ -548,21 +542,24 @@ namespace OP
             }
             /**Return not fully valid iterator that matches common part specified by [begin, end)*/
             template <class Atom>
-            typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter) const
+            typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter, iterator * prefix_iter = nullptr) const
             {
                 auto retval = node_t::nav_result_t();
                 if (end == begin)
                 {
                     return retval;
                 }
-                auto node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
-                for (;;)
+                auto node_addr = prefix_iter ? prefix_iter->back().address() : _topology_ptr->slot<TrieResidence>().get_root_addr();
+                dim_t start_from = prefix_iter ? prefix_iter->back().deep() : 0;
+                for (;; start_from = 0)
                 {
                     auto node =
                         view<node_t>(*_topology_ptr, node_addr);
 
                     atom_t key = *begin;
-                    retval = node->navigate_over(*_topology_ptr, begin, end, node_addr, result_iter);
+                    retval = start_from ?
+                        node
+                        node->navigate_over(*_topology_ptr, begin, end, node_addr, result_iter);
 
                     // all cases excluding stem::StemCompareResult::stem_end mean that need return current iterator state
                     if (stem::StemCompareResult::stem_end == retval.compare_result)
@@ -583,6 +580,90 @@ namespace OP
 
                 } //for(;;)
                 return retval;
+            }
+            template <class ChildLocator>
+            iterator position_child(iterator& of_this, ChildLocator& locator) const
+            {
+                this->sync_iterator(of_this);
+                if (of_this == end() ||
+                    is_not_set(of_this.back().terminality(), Terminality::term_has_child))
+                {
+                    return end(); //no way down
+                }
+                iterator result(of_this);
+                auto node = view<node_t>(*_topology_ptr, result.back().address());
+                auto cls = classify_back(node, result);
+                auto addr = std::get<FarAddress>(cls);
+                do
+                {
+                    auto lres = load_iterator(addr, result,
+                        locator,
+                        &iterator::emplace);
+                    assert(std::get<0>(lres)); //empty nodes are not allowed
+                    addr = std::get<1>(lres);
+                } while (is_not_set(result.back().terminality(), Terminality::term_has_data));
+                return result;
+            }
+            template <class Atom>
+            iterator lower_bound_impl(Atom& begin, Atom aend, iterator * prefix = nullptr) const
+            {
+                auto iter = iterator(this);
+                auto nav_res = common_prefix(begin, aend, iter, prefix);
+
+                switch (nav_res.compare_result)
+                {
+                case stem::StemCompareResult::equals: //exact match
+                    return iter;
+                case stem::StemCompareResult::unequals:
+                {
+                    if (iter.is_end())
+                    {
+                        return iter;
+                    }
+                    next(iter);
+                    return iter;
+                }
+                case stem::StemCompareResult::no_entry:
+                {
+                    auto start_from = iter.is_end()
+                        ? _topology_ptr->slot<TrieResidence>().get_root_addr()
+                        : iter.back().address();
+                    auto lres = load_iterator(//need reload since after common_prefix may not be complete
+                        start_from, iter,
+                        [&](ReadonlyAccess<node_t>& ro_node) {
+                        return ro_node->next_or_this(*begin);
+                    },
+                        &iterator::emplace);
+                    if (!tuple_ref<bool>(lres))
+                    {
+                        return end();
+                    }
+                    if (is_not_set(iter.back().terminality(), Terminality::term_has_data))
+                    {
+                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), iter);
+                    }
+                    return iter;
+                }
+                case stem::StemCompareResult::string_end:
+                {
+                    auto lres = load_iterator(//need reload since after common_prefix may not be complete
+                        iter.back().address(), iter,
+                        [&](ReadonlyAccess<node_t>& ro_node) {
+                        return make_nullable(iter.back().key());
+                    },
+                        &iterator::update_back);
+                    assert(tuple_ref<bool>(lres));
+                    if (is_not_set(iter.back().terminality(), Terminality::term_has_data))
+                    {
+                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), iter);
+                    }
+                    return iter;
+                }
+                }
+                //when: stem::StemCompareResult::stem_end || stem::StemCompareResult::string_end ||
+                //   ( stem::StemCompareResult::unequals && !iter.is_end())
+                next(iter);
+                return iter;
             }
             /**If iterator has been stopped inside stem then it should be positioned at stem end*/
             void normalize_iterator(const typename node_t::nav_result_t& nav, iterator& i) const
@@ -622,7 +703,7 @@ namespace OP
             * @return pair
             */
             template <class FFindEntry, class FIteratorUpdate>
-            std::tuple<bool, FarAddress> load_iterator(const FarAddress& node_addr, iterator& dest, FFindEntry pos_locator, FIteratorUpdate iterator_update) const
+            std::tuple<bool, FarAddress> load_iterator(const FarAddress& node_addr, iterator& dest, FFindEntry& pos_locator, FIteratorUpdate iterator_update) const
             {
                 auto ro_node = view<node_t>(*_topology_ptr, node_addr);
                 nullable_atom_t pos = pos_locator(ro_node);

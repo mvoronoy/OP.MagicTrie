@@ -220,6 +220,12 @@ namespace OP
             {
                 return _position_stack.size();
             }
+            /**Set iterator equal to end()*/
+            void clear()
+            {
+                _position_stack.clear();
+                _prefix.clear();
+            }
         };
     } //ns:trie
 } //ns:OP

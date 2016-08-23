@@ -61,7 +61,7 @@ namespace OP
         {
             typedef typename KeyDiscover::key_t key_type;
             typedef Iterator origin_iter_t;
-            IteratorsRange(origin_iter_t begin, origin_iter_t end, KeyDiscover key_discover = KeyDiscover() )
+            IteratorsRange(const origin_iter_t& begin, const origin_iter_t& end, KeyDiscover key_discover = KeyDiscover() )
                 : _begin(begin) 
                 , _end(end)
                 , _key_discover(key_discover)
