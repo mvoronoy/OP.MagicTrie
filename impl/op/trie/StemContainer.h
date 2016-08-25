@@ -227,13 +227,12 @@ namespace OP
                 }
                 /**
                 *   Detect substr contained in stem. 
-                * @param rest_of_str - optional string that is poupalated when return StemCompareResult::string_end - that means tail of string that goes after common part
                 * @return pair of comparison result and length of overlapped string.
                 *
                 */
                 template <class T>
                 inline std::tuple<StemCompareResult, dim_t> prefix_of(
-                    const ref_stems_t& st_address, atom_t key, T& begin, T end, atom_string_t * rest_of_str = nullptr) const
+                    const ref_stems_t& st_address, atom_t key, T& begin, T end) const
                 {
                     auto result = std::make_tuple(StemCompareResult::unequals, 0);
                     stem(st_address, key, [&](const atom_t *f_str, const atom_t *f_str_end, const StemData& stem_header) {
@@ -248,10 +247,6 @@ namespace OP
                         std::get<0>(result) = f_str != f_str_end
                             ? (StemCompareResult::string_end)
                             : (begin == end ? StemCompareResult::equals : StemCompareResult::stem_end);
-                        if (rest_of_str)
-                        {
-                            rest_of_str->append(f_str, f_str_end);
-                        }
                     });
                     return result;
                 }

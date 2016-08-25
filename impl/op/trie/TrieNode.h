@@ -67,14 +67,14 @@ namespace OP
             {
                 nav_result_t()
                     : compare_result{ stem::StemCompareResult::unequals }
-                    , stem_rest{ 0 }
+                    //, stem_rest{ 0 }
                 {}
 
                 nav_result_t(stem::StemCompareResult a_compare_result, 
                     FarAddress a_child_node = FarAddress(), dim_t a_stem_rest = 0)
                     : compare_result{a_compare_result}
                     , child_node{ a_child_node }
-                    , stem_rest{ a_stem_rest }
+                    //, stem_rest{ a_stem_rest }
                 {}
 
                 /** result of comare string with node */
@@ -82,8 +82,36 @@ namespace OP
                 /**address of further children to continue navigation*/
                 FarAddress child_node;
                 /** bytes that left in the node after string exhausted */
-                atom_string_t stem_rest;
+                //atom_string_t stem_rest;
             };
+
+            template <class TSegmentTopology, class Iterator>
+            nav_result_t sync_tail(
+                TSegmentTopology& topology, atom_t key, Atom& begin, Atom end, Iterator& track_back) const
+            {
+                assert(presence.get(key));
+                nav_result_t retval;
+                atom_t index = this->reindex(topology, key);
+                if (!stems.is_null())
+                { //there is a stem
+                    auto& back = track_back.back();
+                    stem::StemStore<TSegmentTopology> stem_manager(topology);
+                    stem_manager.stem(stems, key, [&](const atom_t *f_str, const atom_t *f_str_end, const StemData& stem_header) {
+                        for (; f_str != f_str_end && begin != end; ++back.deep, ++begin, ++f_str)
+                        {
+                            if (*f_str != *begin)
+                            { //difference in sequence mean that stem should be splitted
+                                retval.compare_result = stem::StemCompareResult::unequals;
+                                return;//stop at: tuple(StemCompareResult::unequals, i);
+                            }
+                        }
+                        //correct result type as one of string_end, equals, stem_end
+                        retval.compare_result = f_str != f_str_end
+                            ? (StemCompareResult::string_end)
+                            : (begin == end ? StemCompareResult::equals : StemCompareResult::stem_end);
+                    });
+                }
+            }
             /**
             * @para track_back - optional pointer to iterator that is populated at exit. NOTE!! node has
             *                   no information about address, so modify it at exit to reflect correct value
@@ -113,7 +141,7 @@ namespace OP
                 value_manager_t value_manager(topology);
                 auto& term = value_manager.view(payload, (dim_t)capacity)[index];
                 TriePosition pos(this_node_addr, 
-                    this->uid, key, 1, this->version);
+                    this->uid, key, 1/*dedicated for presence*/, this->version);
 
                 retval.compare_result = stem::StemCompareResult::equals;
                 if (!stems.is_null())
@@ -122,7 +150,7 @@ namespace OP
                     //if (begin != end)//string is not over 
                     {//let's cut prefix from stem container
                         dim_t deep = 0;
-                        std::tie(retval.compare_result, deep) = stem_manager.prefix_of(stems, index, begin, end, &retval.stem_rest);
+                        std::tie(retval.compare_result, deep) = stem_manager.prefix_of(stems, index, begin, end/*, &retval.stem_rest*/);
                         pos._deep += deep;
 
                         if (retval.compare_result == stem::StemCompareResult::stem_end)
