@@ -697,6 +697,12 @@ namespace OP
                 auto &v = values[ridx];
                 return std::make_tuple(v.has_data(), v.has_child(), v.get_child());
             }
+            /**When iterator ends at stem this allows check if */
+            template <class AtomIter>
+            node_t::nav_result_t sync_tail(iterator& dest, AtomIter& begin, AtomIter aend)
+            {
+                
+            }
             /**
             * \tparam FFindEntry - function `nullable_atom_t (ReadonlyAccess<node_t>&)` that resolve index inside node
             * \tparam FIteratorUpdate - pointer to one of iterator members - either to update 'back' position or insert new one to iterator
