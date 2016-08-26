@@ -85,16 +85,17 @@ namespace OP
                 //atom_string_t stem_rest;
             };
 
-            template <class TSegmentTopology, class Iterator>
+            template <class TSegmentTopology, class Atom, class Iterator>
             nav_result_t sync_tail(
-                TSegmentTopology& topology, atom_t key, Atom& begin, Atom end, Iterator& track_back) const
+                TSegmentTopology& topology, Atom& begin, Atom end, Iterator& track_back) const
             {
+                auto& back = track_back.back();
+                atom_t key = back.key();
                 assert(presence.get(key));
                 nav_result_t retval;
                 atom_t index = this->reindex(topology, key);
                 if (!stems.is_null())
                 { //there is a stem
-                    auto& back = track_back.back();
                     stem::StemStore<TSegmentTopology> stem_manager(topology);
                     stem_manager.stem(stems, key, [&](const atom_t *f_str, const atom_t *f_str_end, const StemData& stem_header) {
                         for (; f_str != f_str_end && begin != end; ++back.deep, ++begin, ++f_str)
@@ -110,6 +111,10 @@ namespace OP
                             ? (StemCompareResult::string_end)
                             : (begin == end ? StemCompareResult::equals : StemCompareResult::stem_end);
                     });
+                }
+                else 
+                { 
+                    assert(back.deep() == 1);
                 }
             }
             /**

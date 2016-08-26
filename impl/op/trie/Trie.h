@@ -545,20 +545,34 @@ namespace OP
             typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter, iterator * prefix_iter = nullptr) const
             {
                 auto retval = node_t::nav_result_t();
-                if (end == begin)
+                if (end == begin || (prefix_iter && prefix_iter->is_end()))
                 {
                     return retval;
                 }
-                auto node_addr = prefix_iter ? prefix_iter->back().address() : _topology_ptr->slot<TrieResidence>().get_root_addr();
-                dim_t start_from = prefix_iter ? prefix_iter->back().deep() : 0;
-                for (;; start_from = 0)
+                FarAddress node_addr;
+                if (prefix_iter) //discover from previously positioned iterator
+                {
+
+                    auto node = view<node_t>(*_topology_ptr, prefix_iter->back().address());
+                    auto cls = classify_back(node, *prefix_iter);
+                    if (!std::get<1>(cls)) //no way down
+                    {
+                        return retval;//end()
+                    }
+                    node_addr = std::get<FarAddress>(cls);
+                    result_iter = *prefix_iter;
+                }
+                else
+                { //start from root node
+                    node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                }
+                for (;;)
                 {
                     auto node =
                         view<node_t>(*_topology_ptr, node_addr);
 
                     atom_t key = *begin;
-                    retval = start_from ?
-                        node
+                    retval = 
                         node->navigate_over(*_topology_ptr, begin, end, node_addr, result_iter);
 
                     // all cases excluding stem::StemCompareResult::stem_end mean that need return current iterator state
@@ -697,12 +711,7 @@ namespace OP
                 auto &v = values[ridx];
                 return std::make_tuple(v.has_data(), v.has_child(), v.get_child());
             }
-            /**When iterator ends at stem this allows check if */
-            template <class AtomIter>
-            node_t::nav_result_t sync_tail(iterator& dest, AtomIter& begin, AtomIter aend)
-            {
-                
-            }
+            
             /**
             * \tparam FFindEntry - function `nullable_atom_t (ReadonlyAccess<node_t>&)` that resolve index inside node
             * \tparam FIteratorUpdate - pointer to one of iterator members - either to update 'back' position or insert new one to iterator
