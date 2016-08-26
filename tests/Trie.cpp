@@ -377,7 +377,7 @@ void test_PrefixedFind(OP::utest::TestResult &tresult)
     });
     tresult.info() << "first/last child\n";
     auto i_root = trie->find(std::string("abc"));
-    auto lw_ch1 = trie->lower_bound(i_root, std::string(".1"));
+    auto lw_ch1 = trie->lower_bound(i_root, std::string(".123"));
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
     tresult.assert_that<equals>(*lw_ch1, 1.9, "value mismatch");
     
