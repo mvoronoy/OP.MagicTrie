@@ -144,20 +144,25 @@ void NodeHash_erase(OP::utest::TestResult &tresult)
         tresult.assert_true(2 == tbl.insert(16).first._debug()); //force place
         tresult.assert_true(1 == tbl.erase(1));
         tresult.assert_true(tbl.size() == 2);
-        auto p = tbl.begin();
-        tresult.assert_true(0 == *p++);
-        tresult.assert_true(16 == *p++);
+        {
+            auto p = tbl.begin();
+            tresult.assert_true(0 == *p++);
+            tresult.assert_true(16 == *p++);
+        }
         tbl.erase(0);
         tbl.erase(16);
         //erase test on range cases
-        tresult.assert_true(14 == tbl.insert(0xe).first._debug()); 
-        tresult.assert_true(15 == tbl.insert(0xf).first._debug()); 
-        tresult.assert_true(0 == tbl.insert(0x1e).first._debug()); 
+        tresult.assert_true(14 == tbl.insert(0xe).first._debug());
+        tresult.assert_true(15 == tbl.insert(0xf).first._debug());
+        tresult.assert_true(0 == tbl.insert(0x1e).first._debug());
         tresult.assert_true(1 == tbl.erase(0xf));
         tresult.assert_true(tbl.size() == 2);
-        p = tbl.begin();
-        tresult.assert_true(14 == *p++);
-        tresult.assert_true(0x1e == *p++);
+        
+        {
+            auto p = tbl.begin();
+            tresult.assert_true(14 == *p++);
+            tresult.assert_true(0x1e == *p++);
+        }
         tbl.erase(14);
         tbl.erase(0x1e);
         //
@@ -167,11 +172,12 @@ void NodeHash_erase(OP::utest::TestResult &tresult)
         tresult.assert_true(1 == tbl.insert(0).first._debug()); 
         tresult.assert_true(1 == tbl.erase(0xe));
         tresult.assert_true(tbl.size() == 3);
-        p = tbl.begin();
-        tresult.assert_true(0 == *p++);
-        tresult.assert_true(0x1e == *p++);
-        tresult.assert_true(0xf == *p++);
-
+        {
+            auto p = tbl.begin();
+            tresult.assert_true(0 == *p++);
+            tresult.assert_true(0x1e == *p++);
+            tresult.assert_true(0xf == *p++);
+        }
     }
     if (allow_long_test)
     {

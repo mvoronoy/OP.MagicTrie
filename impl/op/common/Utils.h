@@ -36,7 +36,7 @@ namespace OP
             typedef std::tuple<Ts...> tuple_t;
 
             template <class ...Args>
-            ext_tuple(Args&& ... args):
+            explicit ext_tuple(Args&& ... args):
                 _instance(std::forward<Args>(args)...)
             {
             }

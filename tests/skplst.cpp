@@ -14,7 +14,7 @@ struct Nav
     typedef std::shared_ptr<Nav> nav_ptr;
     nav_ptr _next;
     Nav():key(~0u), entries(0){}
-    Nav(int key):key(key), entries(1){}
+    explicit Nav(int key):key(key), entries(1){}
     bool operator < (const Nav& right) const
     {
         return this->key < right.key;
@@ -87,7 +87,7 @@ struct Log2SkipList
     
     typedef Log2SkipList<T, Traits, bitmask_size_c> this_t;
 
-    Log2SkipList(Traits&& traits = Traits()):
+    explicit Log2SkipList(Traits&& traits = Traits()):
         _traits(std::move(traits))
     {
     }
@@ -137,11 +137,11 @@ private:
     size_t key_slot(K& k)
     {
         auto count = bitmask_size_c;
-        size_t it, step, first = 0;
+        size_t first = 0;
         while (count > 0) 
         {
-            it = first; 
-            step = count / 2; 
+            size_t it = first; 
+            size_t step = count / 2; 
             it+= step;
             if (_traits.less(1ULL << it, k)) {
                 first = ++it; 
@@ -295,7 +295,7 @@ struct TestTrait
     {
         return nullptr;
     }
-    static bool is_eos(ptr_t pt)
+    static bool is_eos(const ptr_t& pt)
     {
         return pt == nullptr;
     }

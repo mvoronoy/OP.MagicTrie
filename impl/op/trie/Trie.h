@@ -73,6 +73,10 @@ namespace OP
             {
                 return _topology_ptr->slot<TrieResidence>().count();
             }
+            node_version_t version() const
+            {
+                return _topology_ptr->slot<TrieResidence>().current_version();
+            }
             /**Number of allocated nodes*/
             std::uint64_t nodes_count()
             {
@@ -199,26 +203,41 @@ namespace OP
             iterator lower_bound(Atom& begin, Atom aend) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                return lower_bound_impl(begin, aend);
+                iterator it(this);
+                lower_bound_impl(begin, aend, it);
+                return it;
+            }
+            template <class Container>
+            iterator lower_bound(const Container& container) const
+            {
+                auto beg = std::begin(container);
+                return lower_bound(beg, std::end(container));
             }
             template <class Atom>
-            iterator lower_bound(iterator& of_prefix, Atom& begin, Atom aend) const
+            iterator& lower_bound(iterator& of_prefix, Atom& begin, Atom aend) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                return lower_bound_impl(begin, aend, &of_prefix);
+                sync_iterator(of_prefix);
+                lower_bound_impl(begin, aend, of_prefix);
+                return of_prefix;
             }
             template <class AtomContainer>
-            iterator lower_bound(iterator& of_prefix, const AtomContainer& container) const
+            iterator& lower_bound(iterator& of_prefix, const AtomContainer& container) const
             {
                 auto b = std::begin(container);
-                return lower_bound(of_prefix, b, std::end(container));
+                lower_bound(of_prefix, b, std::end(container));
+                return of_prefix;
             }
             template <class Atom>
             iterator find(Atom& begin, Atom aend) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto iter = lower_bound_impl(begin, aend);
-                return begin == aend ? iter : end();// StemCompareResult::unequals or StemCompareResult::stem_end or stem::StemCompareResult::string_end
+                iterator it(this);
+                if (lower_bound_impl(begin, aend, it))
+                {
+                    return begin == aend ? it : end();// StemCompareResult::unequals or StemCompareResult::stem_end or stem::StemCompareResult::string_end
+                }
+                return end();
             }
             template <class AtomContainer>
             iterator find(const AtomContainer& container) const
@@ -227,11 +246,16 @@ namespace OP
                 return find(b, std::end(container));
             }
             template <class AtomContainer>
-            iterator find(iterator& of_prefix, const AtomContainer& container) const
+            iterator& find(iterator& of_prefix, const AtomContainer& container) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto iter = lower_bound_impl(begin, aend, &of_prefix);
-                return begin == aend ? iter : end();// StemCompareResult::unequals or StemCompareResult::stem_end or stem::StemCompareResult::string_end
+                sync_iterator(of_prefix);
+                if (lower_bound_impl(begin, aend, &of_prefix) && begin == aend)
+                {
+                    return iter;
+                }
+                iter.clear();
+                return iter;
             }
             /**
             *   Get first child element resided below position specified by @param `of_this`. Since all values in Trie are lexicographically 
@@ -306,7 +330,10 @@ namespace OP
                 auto &iter = result.first;
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto value_assigner = [&]() {
-                    _topology_ptr->slot<TrieResidence>().increase_count(+1);
+                    _topology_ptr->slot<TrieResidence>()
+                        .increase_count(+1) //number of terminals
+                        .increase_version() // version of trie
+                        ;
                     result.second = true;
                     return value;
                 };
@@ -542,25 +569,24 @@ namespace OP
             }
             /**Return not fully valid iterator that matches common part specified by [begin, end)*/
             template <class Atom>
-            typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter, iterator * prefix_iter = nullptr) const
+            typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter) const
             {
                 auto retval = node_t::nav_result_t();
-                if (end == begin || (prefix_iter && prefix_iter->is_end()))
+                if (end == begin)
                 {
                     return retval;
                 }
                 FarAddress node_addr;
-                if (prefix_iter) //discover from previously positioned iterator
+                if (!result_iter.is_end()) //discover from previously positioned iterator
                 {
-
-                    auto node = view<node_t>(*_topology_ptr, prefix_iter->back().address());
-                    auto cls = classify_back(node, *prefix_iter);
+                    //there is great assumption that result_iter's deep points to full stem
+                    auto node = view<node_t>(*_topology_ptr, result_iter.back().address());
+                    auto cls = classify_back(node, result_iter);
                     if (!std::get<1>(cls)) //no way down
                     {
                         return retval;//end()
                     }
                     node_addr = std::get<FarAddress>(cls);
-                    result_iter = *prefix_iter;
                 }
                 else
                 { //start from root node
@@ -618,79 +644,95 @@ namespace OP
                 } while (is_not_set(result.back().terminality(), Terminality::term_has_data));
                 return result;
             }
+
             template <class Atom>
-            iterator lower_bound_impl(Atom& begin, Atom aend, iterator * prefix = nullptr) const
+            bool lower_bound_impl(Atom& begin, Atom aend, iterator& prefix) const
             {
-                auto iter = iterator(this);
-                auto nav_res = common_prefix(begin, aend, iter, prefix);
+                auto nav_res = common_prefix(begin, aend, prefix);
 
                 switch (nav_res.compare_result)
                 {
                 case stem::StemCompareResult::equals: //exact match
-                    return iter;
+                    return true;
                 case stem::StemCompareResult::unequals:
                 {
-                    if (iter.is_end())
+                    if (!prefix.is_end())
                     {
-                        return iter;
+                        next(prefix);
                     }
-                    next(iter);
-                    return iter;
+                    return false; //not an exact match
                 }
                 case stem::StemCompareResult::no_entry:
                 {
-                    auto start_from = iter.is_end()
+                    auto start_from = prefix.is_end()
                         ? _topology_ptr->slot<TrieResidence>().get_root_addr()
-                        : iter.back().address();
+                        : nav_res.child_node;//prefix.back().address();
                     auto lres = load_iterator(//need reload since after common_prefix may not be complete
-                        start_from, iter,
+                        start_from, prefix,
                         [&](ReadonlyAccess<node_t>& ro_node) {
                         return ro_node->next_or_this(*begin);
                     },
                         &iterator::emplace);
                     if (!tuple_ref<bool>(lres))
                     {
-                        return end();
+                        prefix.clear();
+                        return false;
                     }
-                    if (is_not_set(iter.back().terminality(), Terminality::term_has_data))
+                    if (is_not_set(prefix.back().terminality(), Terminality::term_has_data))
                     {
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), iter);
+                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), prefix);
                     }
-                    return iter;
+                    return false; //not an exact match
                 }
                 case stem::StemCompareResult::string_end:
                 {
                     auto lres = load_iterator(//need reload since after common_prefix may not be complete
-                        iter.back().address(), iter,
+                        prefix.back().address(), prefix,
                         [&](ReadonlyAccess<node_t>& ro_node) {
-                        return make_nullable(iter.back().key());
+                        return make_nullable(prefix.back().key());
                     },
                         &iterator::update_back);
                     assert(tuple_ref<bool>(lres));
-                    if (is_not_set(iter.back().terminality(), Terminality::term_has_data))
+                    if (is_not_set(prefix.back().terminality(), Terminality::term_has_data))
                     {
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), iter);
+                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), prefix);
                     }
-                    return iter;
+                    return false;//not an exact match
                 }
                 }
                 //when: stem::StemCompareResult::stem_end || stem::StemCompareResult::string_end ||
                 //   ( stem::StemCompareResult::unequals && !iter.is_end())
-                next(iter);
-                return iter;
+                next(prefix);
+                return false; //not an exact match
             }
-            /**If iterator has been stopped inside stem then it should be positioned at stem end*/
-            void normalize_iterator(const typename node_t::nav_result_t& nav, iterator& i) const
-            {
-
-            }
+            /**Sync iterator to reflect current version of trie*/
             void sync_iterator(iterator & it) const
             {
-                for (auto i = it._position_stack.begin(); i != it._position_stack.end(); ++i)
+                if (this->version() == it.version()) //no sync is needed
+                    return;
+                dim_t order = 0;
+                size_t prefix_length = 0;
+                //take each node of iterator and check against current version of real node
+                for (auto i : it._position_stack)
                 {
-                    
+                    auto node = view<node_t>(*_topology_ptr, i.address());
+                    if (node->version != i.version())
+                    {
+                        auto suffix = it.key().substr(prefix_length); //need make copy since next instructions corrupt the iterator
+                        it._prefix.resize(prefix_length); //cut prefix str
+                        it._position_stack.erase(it._position_stack.begin() + order, it._position_stack.end()); //cut stack
+                        auto suffix_begin = suffix.begin(), suffix_end = suffix.end();
+                        if (!lower_bound_impl(suffix_begin, suffix_end, it) )
+                        {
+                            it = end();
+                        }
+                        return;
+                    }
+                    prefix_length += i.deep();
+                    ++order;
                 }
             }
+            
             /**
             * @return
             * \li get<0> - true if back of iterator contains data (terminal)

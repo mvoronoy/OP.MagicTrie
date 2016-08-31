@@ -98,11 +98,14 @@ namespace OP
             node_stack_t _position_stack;
             const Container * _container;
             prefix_string_t _prefix;
+            node_version_t _version;
         public:
 
-            TrieIterator(const Container * container)
+            explicit TrieIterator(const Container * container)
                 : _container(container)
+                , _version(_container->version())
             {
+
             }
             TrieIterator()
             {
@@ -206,6 +209,7 @@ namespace OP
                 _prefix.resize(_prefix.length() - cut_len);
                 _position_stack.pop_back();
             }
+            /**Update last entry in iterator*/
             template <class Iterator>
             void correct_suffix(Iterator& new_suffix_begin, Iterator& new_suffix_end)
             {
@@ -219,6 +223,11 @@ namespace OP
             size_t deep() const
             {
                 return _position_stack.size();
+            }
+            /**Snapshot version of trie modification when iterator was created*/
+            node_version_t version() const
+            {
+                return this->_version;
             }
             /**Set iterator equal to end()*/
             void clear()

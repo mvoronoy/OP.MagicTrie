@@ -150,6 +150,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\impl\op\common\Unsigned.h" />
     <ClInclude Include="..\impl\op\service\BackgroundWorker.h" />
     <ClInclude Include="..\impl\op\common\Bitset.h" />
     <ClInclude Include="..\impl\op\common\func_iter.h" />
