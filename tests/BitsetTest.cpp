@@ -21,12 +21,14 @@ void generic_test(OP::utest::TestResult &tresult, B& container)
     }
     for (auto i = 0; i < container.capacity(); ++i)
     {
-        tresult.assert_true(i & 1 ? !container.get(i) : container.get(i), OP_CODE_DETAILS("Value must be " << (i & ~1)));
+        tresult.assert_true(
+            ((i & 1) ? !container.get(i) : container.get(i)), OP_CODE_DETAILS("Value must be " << (i & ~1)));
         container.toggle(i);
     }
     for (auto i = 0; i < container.capacity(); ++i)
     {
-        tresult.assert_true(i & 1 ? container.get(i) : !container.get(i), OP_CODE_DETAILS("Value must be " << (i & ~1)));
+        tresult.assert_true(
+            ((i & 1) ? container.get(i) : !container.get(i)), OP_CODE_DETAILS("Value must be " << (i & ~1)));
     }
 }
 void test_Basic(OP::utest::TestResult &tresult)
@@ -34,7 +36,8 @@ void test_Basic(OP::utest::TestResult &tresult)
     OP::trie::Bitset<1> b1_t(0xAAAAAAAAAAAAAAAAULL);
     for (auto i = 0; i < b1_t.capacity(); ++i)
     {
-        tresult.assert_true(i & 1 ? b1_t.get(i) : !b1_t.get(i), OP_CODE_DETAILS("Value must be " << (i & ~1)));
+        tresult.assert_true(
+            (i & 1) ? b1_t.get(i) : !b1_t.get(i), OP_CODE_DETAILS("Value must be " << (i & ~1)));
     }
     generic_test(tresult, b1_t);
     

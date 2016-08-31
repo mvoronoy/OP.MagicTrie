@@ -2,6 +2,7 @@
 #define _OP_TRIE_TRIERESIDENCE__H_
 
 #include <op/vtm/SegmentManager.h>
+#include <op/common/Unsigned.h>
 namespace OP
 {
     namespace trie
@@ -16,20 +17,25 @@ namespace OP
             /**Keep address of root node of Trie*/
             FarAddress get_root_addr() const
             {
-                auto ro_block = get_header_block();
-                return ro_block.at<TrieHeader>(0)->_root;
+                return
+                    view<TrieHeader>(*_segment_manager, _segment_address)->_root;
             }
             /**Total count of items in Trie*/
             std::uint64_t count() const
             {
-                auto ro_block = get_header_block();
-                return ro_block.at<TrieHeader>(0)->_count;
+                return
+                    view<TrieHeader>(*_segment_manager, _segment_address)->_count;
             }
             /**Total number of nodes (pags) allocated in Trie*/
             std::uint64_t nodes_allocated() const
             {
-                auto ro_block = get_header_block();
-                return ro_block.at<TrieHeader>(0)->_nodes_allocated;
+                return 
+                    view<TrieHeader>(*_segment_manager, _segment_address)->_nodes_allocated;
+            }
+            /**Current trie modification number*/
+            node_version_t current_version() const
+            {
+                return view<TrieHeader>(*_segment_manager, _segment_address)->_version;
             }
         private:
             struct TrieHeader
@@ -39,6 +45,7 @@ namespace OP
                     , _count(0)
                     , _nodes_allocated(0)
                     , _nodes_uid_gen(0)
+                    , _version(0)
                 {}
                 /**Where root resides*/
                 FarAddress _root;
@@ -47,21 +54,19 @@ namespace OP
                 /**Number of nodes (pages) allocated*/
                 std::uint64_t _nodes_allocated;
                 std::uint64_t _nodes_uid_gen;
+                node_version_t _version;
             };
-            ReadonlyMemoryChunk get_header_block() const
-            {
-                return _segment_manager->readonly_block(_segment_address, sizeof(TrieHeader));
-            }
+            
             FarAddress _segment_address;
             SegmentManager* _segment_manager;
         protected:
-                        /**
+            /**
             *   Set new root node for Trie
             *   @throws TransactionIsNotStarted if method called outside of transaction scope
             */
             TrieResidence& set_root_addr(FarAddress new_root)
             {
-                _segment_manager->wr_at<TrieHeader>(_segment_address)->_root = new_root;
+                accessor<TrieHeader>(*_segment_manager, _segment_address)->_root = new_root;
                 return *this;
             }
             /**Increase/decrease total count of items in Trie. 
@@ -70,7 +75,7 @@ namespace OP
             */
             TrieResidence& increase_count(int delta)
             {
-                _segment_manager->wr_at<TrieHeader>(_segment_address)->_count += delta;
+                accessor<TrieHeader>(*_segment_manager, _segment_address)->_count += delta;
                 return *this;
             }
 
@@ -80,12 +85,20 @@ namespace OP
             */
             TrieResidence& increase_nodes_allocated(int delta)
             {
-                _segment_manager->wr_at<TrieHeader>(_segment_address)->_nodes_allocated += delta;
+                accessor<TrieHeader>(*_segment_manager, _segment_address)->_nodes_allocated += delta;
                 return *this;
             }
+            /**Provide unique identifier for each node allocated*/
             std::uint64_t generate_node_id()
             {
-                return _segment_manager->wr_at<TrieHeader>(_segment_address)->_nodes_uid_gen ++;
+                return OP::trie::uinc(accessor<TrieHeader>(*_segment_manager, _segment_address)->_nodes_uid_gen);
+            }
+            /**On any trie change modofication version is increased*/
+            TrieResidence& increase_version()
+            {
+
+                OP::trie::uinc(accessor<TrieHeader>(*_segment_manager, _segment_address)->_version);
+                return *this;
             }
             //
             //  Overrides

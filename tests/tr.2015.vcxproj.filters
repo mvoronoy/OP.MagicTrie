@@ -145,6 +145,9 @@
     <ClInclude Include="..\impl\op\trie\ranges\PredicateRange.h">
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\common\Unsigned.h">
+      <Filter>OP\common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />

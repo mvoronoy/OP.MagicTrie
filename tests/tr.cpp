@@ -80,7 +80,7 @@ struct TestValue
         _version(++version)
     {
     }
-    TestValue(int value) :
+    explicit TestValue(int value) :
         TestValue(){
         _value = value;
     }
@@ -134,10 +134,12 @@ void test_CacheManager()
     f2_called = false;
     r = cache.get(2, f2);
     assert(!f2_called); //factory must not be invoked for 2
+    assert(r._value == 3);
     //pop up some value (it is 3)
     r = cache.get(limit + 10, f2);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     assert(f2_called);
+    assert(r._value == -1);
     //now test that 2 is there
     cache.get(2);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

@@ -341,13 +341,24 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
         tresult.assert_true(x == *lbit);
     }
     //handle case of stem_end
-
     std::string test_long(258, 'k');
     auto long_ins_res = trie->insert(test_long, 7.5);
     test_long += "aa";
     auto lbegin = std::begin(test_long);
     auto llong_res = trie->lower_bound(lbegin, std::end(test_long));
     tresult.assert_true(tools::container_equals(llong_res.key(), test_seq[5], &tools::sign_tolerant_cmp<atom_t>));
+    //handle case of no_entry
+    for (auto fl : test_seq)
+    {
+        auto fl_div = fl + "0";
+        tresult.assert_true(trie->insert(fl_div, 75.).second, "Item must not exists");
+        fl += "xxx";
+        auto fl_res = trie->lower_bound(fl);
+        tresult.assert_that<equals>(fl_res, trie->end(), "Item must not exists");
+        fl_res = trie->lower_bound(fl_div);
+        tresult.assert_that<equals>(fl_res.key(), fl_div, "Item must exists");
+
+    }
 }
 void test_PrefixedFind(OP::utest::TestResult &tresult)
 {
@@ -364,8 +375,10 @@ void test_PrefixedFind(OP::utest::TestResult &tresult)
         p_t((atom_t*)"abc", 1.),
         p_t((atom_t*)"abc.1", 1.),
         p_t((atom_t*)"abc.12", 1.),
+        p_t((atom_t*)"abc.122x", 1.9),
         p_t((atom_t*)"abc.123456789", 1.9),
-        p_t((atom_t*)"abc.2", 1.),
+        p_t((atom_t*)"abc.124x", 1.9),
+        p_t((atom_t*)"abc.2", 2.),
         p_t((atom_t*)"abc.3", 1.3),
         p_t((atom_t*)"abc.333", 1.33),
         p_t((atom_t*)"def.", 2.0)
@@ -375,12 +388,29 @@ void test_PrefixedFind(OP::utest::TestResult &tresult)
         trie->insert(s.first, s.second);
         test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
     });
-    tresult.info() << "first/last child\n";
+    tresult.info() << "prefixed lower_bound\n";
     auto i_root = trie->find(std::string("abc"));
     auto lw_ch1 = trie->lower_bound(i_root, std::string(".123"));
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
     tresult.assert_that<equals>(*lw_ch1, 1.9, "value mismatch");
-    
+    tresult.assert_that<equals>(trie->lower_bound(i_root, std::string(".xyz")), trie->end(), "iterator must be end");
+    tresult.assert_that<equals>(trie->lower_bound(trie->end(), std::string(".123")), trie->end(), "iterator must be end");
+    lw_ch1 = trie->lower_bound(i_root, std::string(".1"));
+    tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.1", "key mismatch");
+    tresult.assert_that<equals>(*lw_ch1, 1., "value mismatch");
+    //check case when no alternatives
+    lw_ch1 = trie->lower_bound(i_root, std::string(".2"));
+    tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.2", "key mismatch");
+    tresult.assert_that<equals>(*lw_ch1, 2., "value mismatch");
+    //check iterator recovery
+    trie->insert(std::string("aa"), 3.0);
+    trie->insert(std::string("ax"), 3.0);
+    trie->insert(std::string("aa1"), 3.0);
+    trie->insert(std::string("ax1"), 3.0);
+    lw_ch1 = trie->lower_bound(i_root, std::string(".123"));
+    tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
+
+    tresult.info() << "prefixed find\n";
 }
 
 void test_TrieNoTran(OP::utest::TestResult &tresult)
@@ -743,7 +773,7 @@ void test_Erase(OP::utest::TestResult &tresult)
         std::iota(long_base.begin(), long_base.end(), static_cast<std::uint8_t>(i));
         std::random_shuffle(long_base.begin(), long_base.end());
         std::vector<atom_string_t> chunks;
-        for (auto k = 1; k < str_limit; k *= (i & 1 ? 4:3))
+        for (auto k = 1; k < str_limit; k *= ((i & 1) ? 4:3))
         {
             atom_string_t prefix = long_base.substr(0, k);
             chunks.emplace_back(prefix);
@@ -888,6 +918,46 @@ void test_ChildSelector(OP::utest::TestResult &tresult)
     compare_containers(tresult, *r1, r1_empty);
 
 }
+void test_IteratorSync(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"a", 0.),
+        p_t((atom_t*)"aa1", 1.),
+        p_t((atom_t*)"aa2", 1.),
+        p_t((atom_t*)"abc", 1.),
+        p_t((atom_t*)"abc.12", 1.),
+        p_t((atom_t*)"abc.122x", 1.9),
+        p_t((atom_t*)"abc.123456789", 1.9),
+        p_t((atom_t*)"abd.12", 1.),
+    };
+    std::map<std::string, double> test_values;
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
+    });
+    auto i_1 = trie->find(std::string("abc"));
+    auto i_2 = trie->find(std::string("abc.12"));
+    //check iterator recovery
+    trie->insert(std::string("aa"), 3.0);
+    trie->insert(std::string("ax"), 3.0);
+    trie->insert(std::string("aa1"), 3.0);
+    trie->insert(std::string("ax1"), 3.0);
+
+    auto lw_ch1 = trie->lower_bound(i_1, std::string(".123"));
+    tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
+    auto lw_ch2 = trie->lower_bound(i_2, std::string(".122"));
+    tresult.assert_that<equals>(lw_ch2.key(), (const atom_t*)"abc.123456789", "key mismatch");
+}
+
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
     ->declare(test_TrieInsert, "insertion")
@@ -902,4 +972,5 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_Erase, "erase")
     ->declare(test_Siblings, "siblings")
     ->declare(test_ChildSelector, "child")
+    ->declare(test_IteratorSync, "sync iterator")
     ;

@@ -16,7 +16,7 @@ namespace OP
             
             struct bool_result
             {
-                bool_result(bool r)
+                explicit bool_result(bool r)
                     : test_result(r) {}
                 const bool test_result;
             };

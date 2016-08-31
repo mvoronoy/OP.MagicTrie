@@ -183,7 +183,7 @@ namespace OP
         {
             typedef PresenceIterator<TBitset> this_t;
 
-            PresenceIterator(const TBitset *owner)
+            explicit PresenceIterator(const TBitset *owner)
                 : _owner(owner)
                 , _pos(owner->first_set())
             {
@@ -259,7 +259,7 @@ namespace OP
                 /**Total bit count managed by this container*/
                 bit_length_c = const_iterator::bit_length_c
             };
-            Bitset(Int def = {0})
+            explicit Bitset(Int def = {0})
             {
                 std::fill_n(_presence, N, def);
             }

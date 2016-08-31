@@ -31,7 +31,6 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
     typedef NodeHashTable<EmptyPayload, 8> htbl64_t;
     typedef NodeSortedArray<EmptyPayload, 32> sarr32_t;
     
-    const std::uint8_t* one_byte_block = nullptr;
     FarAddress one_byte_pos;
     if (1 == 1)
     {       
@@ -41,7 +40,8 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
         tst_size = mngr1->segment_size();
         SegmentTopology<HeapManagerSlot> mngrTopology (mngr1);
         one_byte_pos = mngrTopology.slot<HeapManagerSlot>().allocate(1);
-        one_byte_block = mngr1->readonly_block(one_byte_pos, 1).at<std::uint8_t>(0);
+        auto one_byte_block = mngr1->readonly_block(one_byte_pos, 1);
+        one_byte_block.at<std::uint8_t>(0);
         mngr1->_check_integrity();
     }
     result.info() << "Test reopen existing...\n";

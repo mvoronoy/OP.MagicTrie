@@ -130,7 +130,7 @@ namespace OP
                 // Construct an ostream which tees output to the supplied
                 // ostreams.
                 template <class ... Tx>
-                multiplex_stream(Tx && ... os)
+                explicit multiplex_stream(Tx && ... os)
                     : std::ostream(&_tbuf)
                 {
                     bind(std::forward<Tx>(os)...);
@@ -167,7 +167,7 @@ namespace OP
         {
             typedef std::string id_t;
             template <class Name>
-            Identifiable(Name && name) :
+            explicit Identifiable(Name && name) :
                 _id(std::forward<Name>(name))
             {}
 
@@ -241,7 +241,7 @@ namespace OP
                 _is_abort(false)
             {
             }
-            TestFail(const std::string& text) :
+            explicit TestFail(const std::string& text) :
                 std::logic_error(text),
                 _is_abort(false)
             {
@@ -276,7 +276,7 @@ namespace OP
             friend struct TestCase;
             friend struct TestRun;
             typedef std::chrono::high_resolution_clock::time_point time_point_t;
-            TestResult(std::shared_ptr<TestSuite>& suite) :
+            explicit TestResult(std::shared_ptr<TestSuite>& suite) :
                 _suite(suite),
                 _status(not_started),
                 _run_number(0),
@@ -427,7 +427,7 @@ namespace OP
         struct TestCase : public Identifiable
         {
             template <class Name>
-            TestCase(Name && name) :
+            explicit TestCase(Name && name) :
                 Identifiable(std::forward<Name>(name))
             {
             }
@@ -453,8 +453,8 @@ namespace OP
                 while (warm_up--)
                 {
                     auto& tr = execute(result);
-                    if (!result) //warm-up failed
-                        return result;
+                    if (!tr) //warm-up failed
+                        return tr;
                 }
                 result._start_time = std::chrono::high_resolution_clock::now();
                 result._run_number = 0;
@@ -679,7 +679,7 @@ namespace OP
         struct TestRun
         {
             typedef std::shared_ptr<TestSuite> test_suite_ptr;
-            TestRun(TestRunOptions options = TestRunOptions())
+            explicit TestRun(TestRunOptions options = TestRunOptions())
             {
             }
             static TestRun& default_instance()

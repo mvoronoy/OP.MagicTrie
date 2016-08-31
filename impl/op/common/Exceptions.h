@@ -49,7 +49,7 @@ namespace OP
         };
         struct Exception : public std::exception
         {
-            Exception(ErrorCode code):
+            explicit Exception(ErrorCode code):
                 _code(code),
                 std::exception(){}
 
@@ -70,7 +70,7 @@ namespace OP
         };
         struct TransactionException : public Exception
         {
-            TransactionException(ErrorCode code):
+            explicit TransactionException(ErrorCode code):
                 Exception(code){}
 
         };
