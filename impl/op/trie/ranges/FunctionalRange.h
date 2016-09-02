@@ -68,7 +68,7 @@ namespace OP
 
             typedef typename key_eval_policy_t::applicator_result_t applicator_result_t;
             friend OwnerRange;
-            FunctionalRangeIterator(const OwnerRange& owner_range, source_iterator_t source, key_eval_policy_t && key_eval)
+            FunctionalRangeIterator(const OwnerRange& owner_range, source_iterator_t source, key_eval_policy_t && key_eval) noexcept
                 : _owner_range(owner_range)
                 , _source(source)
                 , _key_eval_policy(std::forward<key_eval_policy_t>(key_eval))
@@ -114,7 +114,7 @@ namespace OP
             > iterator;
             typedef KeyEvalPolicy key_eval_policy_t;
 
-            FunctionalRange(const SourceRange & source, UnaryFunction && transform)
+            FunctionalRange(const SourceRange & source, UnaryFunction && transform) noexcept
                 : _source_range(source)
                 , _transform(std::forward<UnaryFunction >(transform))
             {

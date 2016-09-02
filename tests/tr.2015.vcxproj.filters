@@ -148,6 +148,12 @@
     <ClInclude Include="..\impl\op\common\Unsigned.h">
       <Filter>OP\common</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\utest\unit_test.h">
+      <Filter>OP\utest</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\utest\unit_test_is.h">
+      <Filter>OP\utest</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />

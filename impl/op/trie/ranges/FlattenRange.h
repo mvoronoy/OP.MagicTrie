@@ -27,7 +27,7 @@ namespace OP
             template <class Range, class IteratorComparator>
             struct TreeSetStorage : public StoragePolicy<Range>
             {
-                TreeSetStorage(const IteratorComparator& comparator)
+                TreeSetStorage(const IteratorComparator& comparator) noexcept
                     :_comparator(comparator)
                 {}
                 void push(flat_item_ptr& item) override
@@ -81,7 +81,7 @@ namespace OP
             typedef typename OwnerRange::key_t key_type;
             typedef typename OwnerRange::store_t store_t;
             friend OwnerRange;
-            FlattenRangeIterator(std::shared_ptr< const OwnerRange > owner_range, std::unique_ptr<store_t> store)
+            FlattenRangeIterator(std::shared_ptr< const OwnerRange > owner_range, std::unique_ptr<store_t> store) noexcept
                 : _owner_range(owner_range)
                 , _store(std::move(store))
             {}
@@ -135,7 +135,7 @@ namespace OP
             typedef std::function<int(const typename applicator_result_t::iterator&, const typename applicator_result_t::iterator&)> iterator_comparator_t;
             typedef storage_policy::TreeSetStorage< applicator_result_t, iterator_comparator_t > store_t;
 
-            FlattenRange(std::shared_ptr<const SourceRange> source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator)
+            FlattenRange(std::shared_ptr<const SourceRange> source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator) noexcept
                 : _source_range(source)
                 , _deflate(std::forward<DeflateFunction >(deflate))
                 , _iterator_comparator(std::forward<iterator_comparator_t>(iterator_comparator))

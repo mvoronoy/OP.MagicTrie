@@ -19,7 +19,7 @@ namespace OP
             typedef typename KeyDiscover::key_t key_type;
             typedef Iterator origin_iter_t;
             typedef std::function<bool(const iterator& check)> in_range_predicate_t;
-            PredicateRange(origin_iter_t begin, in_range_predicate_t in_range_predicate, KeyDiscover key_discover = KeyDiscover() )
+            PredicateRange(origin_iter_t begin, in_range_predicate_t in_range_predicate, KeyDiscover key_discover = KeyDiscover() ) noexcept
                 : _begin(begin) 
                 , _in_range_predicate(in_range_predicate)
                 , _key_discover(key_discover)

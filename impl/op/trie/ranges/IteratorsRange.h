@@ -42,7 +42,7 @@ namespace OP
         struct IteratorWrap : public BaseIterator
         {
             typedef typename KeyDiscover::key_t key_type;
-            IteratorWrap(const BaseIterator & base_iter, const KeyDiscover &key_discover)
+            IteratorWrap(const BaseIterator & base_iter, const KeyDiscover &key_discover) noexcept
                 : BaseIterator((base_iter))
                 , _key_discover(key_discover)
             {}
@@ -61,7 +61,7 @@ namespace OP
         {
             typedef typename KeyDiscover::key_t key_type;
             typedef Iterator origin_iter_t;
-            IteratorsRange(const origin_iter_t& begin, const origin_iter_t& end, KeyDiscover key_discover = KeyDiscover() )
+            IteratorsRange(const origin_iter_t& begin, const origin_iter_t& end, KeyDiscover key_discover = KeyDiscover() ) noexcept
                 : _begin(begin) 
                 , _end(end)
                 , _key_discover(key_discover)

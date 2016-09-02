@@ -394,7 +394,7 @@ void test_PrefixedFind(OP::utest::TestResult &tresult)
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
     tresult.assert_that<equals>(*lw_ch1, 1.9, "value mismatch");
     tresult.assert_that<equals>(trie->lower_bound(i_root, std::string(".xyz")), trie->end(), "iterator must be end");
-    tresult.assert_that<equals>(trie->lower_bound(trie->end(), std::string(".123")), trie->end(), "iterator must be end");
+    tresult.assert_that<equals>(trie->lower_bound(trie->end(), std::string(".123")), i_root, "iterator must point to 'abc'");
     lw_ch1 = trie->lower_bound(i_root, std::string(".1"));
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.1", "key mismatch");
     tresult.assert_that<equals>(*lw_ch1, 1., "value mismatch");
@@ -411,6 +411,12 @@ void test_PrefixedFind(OP::utest::TestResult &tresult)
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
 
     tresult.info() << "prefixed find\n";
+    auto fnd_aa = trie->find(std::string("aa"));
+    tresult.assert_that<equals>(fnd_aa.key(), (const atom_t*)"aa", "key mismatch");
+    auto fnd_copy = fnd_aa;
+    tresult.assert_that<equals>(
+        trie->erase(fnd_copy), 1, "Nothing was erased");
+    lw_ch1 = trie->lower_bound(fnd_aa, std::string("1"));
 }
 
 void test_TrieNoTran(OP::utest::TestResult &tresult)
