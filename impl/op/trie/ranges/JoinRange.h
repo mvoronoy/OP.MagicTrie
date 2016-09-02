@@ -27,7 +27,7 @@ namespace OP
             friend OwnerRange;
             JoinRangeIterator(std::shared_ptr<const OwnerRange> owner_range, 
                 typename OwnerRange::left_iterator && left, 
-                typename OwnerRange::right_iterator && right)
+                typename OwnerRange::right_iterator && right) noexcept
                 : _owner_range(owner_range)
                 , _left(std::move(left))
                 , _right(std::move(right))
@@ -82,7 +82,7 @@ namespace OP
             * @param iterator_comparator - binary predicate `int(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
             */
             
-            JoinRange(std::shared_ptr<const SourceRange1> r1, std::shared_ptr<const SourceRange2> r2, iterator_comparator_t && iterator_comparator)
+            JoinRange(std::shared_ptr<const SourceRange1> r1, std::shared_ptr<const SourceRange2> r2, iterator_comparator_t && iterator_comparator) noexcept
                 : _left(r1)
                 , _right(r2)
                 , _iterator_comparator(std::forward<iterator_comparator_t> (iterator_comparator))

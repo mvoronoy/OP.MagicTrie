@@ -59,19 +59,19 @@ namespace OP
             NodeUid uid;
             dim_t capacity;
 
-            TrieNode()
+            TrieNode() noexcept
                 : version(0)
             {
             }
             struct nav_result_t
             {
-                nav_result_t()
+                nav_result_t() noexcept
                     : compare_result{ stem::StemCompareResult::unequals }
                     //, stem_rest{ 0 }
                 {}
 
                 nav_result_t(stem::StemCompareResult a_compare_result, 
-                    FarAddress a_child_node = FarAddress(), dim_t a_stem_rest = 0)
+                    FarAddress a_child_node = FarAddress(), dim_t a_stem_rest = 0) noexcept
                     : compare_result{a_compare_result}
                     , child_node{ a_child_node }
                     //, stem_rest{ a_stem_rest }
@@ -197,6 +197,7 @@ namespace OP
             template <class TSegmentTopology, class Atom, class ProducePayload>
             bool insert(TSegmentTopology& topology, Atom& begin, const Atom end, ProducePayload& payload_factory)
             {
+                ++version;
                 auto reindex_res = insert_stem(topology, begin, end);
                 if (begin == end)
                 { //source fully fit to stem
@@ -212,6 +213,7 @@ namespace OP
             template <class TSegmentTopology>
             bool erase(TSegmentTopology& topology, atom_t key, bool erase_data)
             {
+                ++version;
                 containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 //no need to operate by stem
@@ -248,7 +250,7 @@ namespace OP
                 atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 value_manager.accessor(payload, capacity)[ reindexed ].set_child(address);
-                version++;
+                ++version;
             }
             /**Get child address if present, otherwise return null-pos*/
             template <class TSegmentTopology>
@@ -276,7 +278,7 @@ namespace OP
                 atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 value_manager.accessor(payload, capacity)[ reindexed ].set_data(std::move(value));
-                version++;
+                ++version;
             }
             template <class TSegmentTopology>
             std::pair<bool, bool> get_presence(TSegmentTopology& topology, atom_t key) const
@@ -335,7 +337,7 @@ namespace OP
                 auto& src_val = value_manager.accessor(this->payload, this->capacity) [ridx];
                 auto& target_val = value_manager.accessor(target_node->payload, target_node->capacity)[reindex_target];
                 target_val = std::move(src_val);// move clears previous data/addr in source 
-                version++;
+                ++version;
             }
             /**
             *   Taken a byte key, return index where corresponding key should reside for stem_manager and value_manager
@@ -395,7 +397,6 @@ namespace OP
                     
                 }
                 presence.set(key);
-                version++;
                 return reindex_res;
             }
             
@@ -437,7 +438,7 @@ namespace OP
                 
                 value_manager.destroy(this->payload);
                 this->payload = value_grow_res.dest_addr();
-                version++;
+                ++version;
             }
             /**Apply `move_callback` to each existing item to move from previous container to new container (like a value- or stem- containers) */
             template <class Remap, class MoveCallback>

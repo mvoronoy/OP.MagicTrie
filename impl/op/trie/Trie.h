@@ -213,20 +213,32 @@ namespace OP
                 auto beg = std::begin(container);
                 return lower_bound(beg, std::end(container));
             }
+            /**
+            *   Returns an iterator pointing to the first element that is not less than key below string specified by param `of_prefix`.
+            *   @param[in,out] of_prefix start point to lookup string. Note:
+            *       \li if `of_prefix` iterator has not the same version as entire trie then 
+            *           iterator is synced and at exit it may be different.
+            *       \li when `of_prefix` is equal end() then function behaves like \code
+            *           template <class Atom>
+            *           iterator lower_bound(Atom& begin, Atom aend) const;
+            *   @param[in,out] begin specify begin of finding string. In case when no matching string found 
+            *           using this value allows you can detect last matched symbol
+            *   @param[in] aend specify end of finding string. 
+            */
             template <class Atom>
-            iterator& lower_bound(iterator& of_prefix, Atom& begin, Atom aend) const
+            iterator lower_bound(iterator& of_prefix, Atom& begin, Atom aend) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 sync_iterator(of_prefix);
-                lower_bound_impl(begin, aend, of_prefix);
-                return of_prefix;
+                iterator result(of_prefix);
+                lower_bound_impl(begin, aend, result);
+                return result;
             }
             template <class AtomContainer>
-            iterator& lower_bound(iterator& of_prefix, const AtomContainer& container) const
+            iterator lower_bound(iterator& of_prefix, const AtomContainer& container) const
             {
                 auto b = std::begin(container);
-                lower_bound(of_prefix, b, std::end(container));
-                return of_prefix;
+                return lower_bound(of_prefix, b, std::end(container));
             }
             template <class Atom>
             iterator find(Atom& begin, Atom aend) const
@@ -429,7 +441,7 @@ namespace OP
                     auto& back = pos.back();
                     auto wr_node = accessor<node_t>(*_topology_ptr, back.address());
                     if (erase_child_and_exit)
-                    {//previous node may left reference to child
+                    {//previous node may leave reference to child
                         wr_node->set_child(*_topology_ptr, static_cast<atom_t>(back.key()), FarAddress());
                         back._terminality &= ~Terminality::term_has_child;
                     }
@@ -446,6 +458,10 @@ namespace OP
                         erase_child_and_exit = true;
                     }
                 }
+                _topology_ptr->slot<TrieResidence>()
+                    .increase_count(-1) //number of terminals
+                    .increase_version() // version of trie
+                    ;
                 return 1;
             }
         private:
@@ -483,7 +499,7 @@ namespace OP
                 const trie_t &_owner;
             };
         private:
-            Trie(std::shared_ptr<TSegmentManager>& segments)
+            Trie(std::shared_ptr<TSegmentManager>& segments) noexcept
                 : _topology_ptr{ std::make_unique<topology_t>(segments) }
                 , _hash_mngr(*_topology_ptr)
                 , _stem_mngr(*_topology_ptr)
@@ -708,8 +724,10 @@ namespace OP
             /**Sync iterator to reflect current version of trie*/
             void sync_iterator(iterator & it) const
             {
-                if (this->version() == it.version()) //no sync is needed
+                const auto this_ver = this->version();
+                if (this_ver == it.version()) //no sync is needed
                     return;
+                it._version = this_ver;
                 dim_t order = 0;
                 size_t prefix_length = 0;
                 //take each node of iterator and check against current version of real node

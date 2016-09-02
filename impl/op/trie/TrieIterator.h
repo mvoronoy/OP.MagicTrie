@@ -16,7 +16,7 @@ namespace OP
         struct TriePosition
         {
             
-            TriePosition(FarAddress node_addr, NodeUid uid, dim_t key, dim_t deep, node_version_t version, Terminality term = term_no)
+            TriePosition(FarAddress node_addr, NodeUid uid, dim_t key, dim_t deep, node_version_t version, Terminality term = term_no) noexcept
                 : _node_addr(node_addr)
                 , _uid(uid)
                 , _key(key)
@@ -24,7 +24,7 @@ namespace OP
                 , _terminality(term)
                 , _version(version)
             {}
-            TriePosition()
+            TriePosition() noexcept
                 : _node_addr{}
                 , _uid{}
                 , _key(dim_nil_c)
@@ -101,7 +101,7 @@ namespace OP
             node_version_t _version;
         public:
 
-            explicit TrieIterator(const Container * container)
+            explicit TrieIterator(const Container * container) noexcept
                 : _container(container)
                 , _version(_container->version())
             {
