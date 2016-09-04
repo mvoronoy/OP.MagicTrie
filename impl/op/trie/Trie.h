@@ -108,7 +108,7 @@ namespace OP
             }
             iterator end() const
             {
-                return iterator();
+                return iterator(this);
             }
             bool in_range(const iterator& check) const 
             {
@@ -118,14 +118,16 @@ namespace OP
             void next(iterator& i) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                sync_iterator(i);
-                _next(true, i);
+                if (std::get<bool>(sync_iterator(i)))
+                {
+                    _next(true, i);
+                }
             }
             void next_sibling(iterator& i) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                sync_iterator(i);
-                if (i.is_end())
+                
+                if (!std::get<bool>(sync_iterator(i)) || i.is_end())
                     return;
                 auto lres = load_iterator(i.back().address(), i,
                         [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
@@ -202,10 +204,7 @@ namespace OP
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom aend) const
             {
-                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                iterator it(this);
-                lower_bound_impl(begin, aend, it);
-                return it;
+                return lower_bound(end(), begin, aend);
             }
             template <class Container>
             iterator lower_bound(const Container& container) const
@@ -222,17 +221,32 @@ namespace OP
             *           template <class Atom>
             *           iterator lower_bound(Atom& begin, Atom aend) const;
             *   @param[in,out] begin specify begin of finding string. In case when no matching string found 
-            *           using this value allows you can detect last matched symbol
+            *           using this value allows you detect last successfully matched symbol
             *   @param[in] aend specify end of finding string. 
             */
             template <class Atom>
             iterator lower_bound(iterator& of_prefix, Atom& begin, Atom aend) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                sync_iterator(of_prefix);
-                iterator result(of_prefix);
-                lower_bound_impl(begin, aend, result);
-                return result;
+                auto sync = sync_iterator(of_prefix);
+                if (std::get<bool>(sync)) 
+                {
+                    iterator result(of_prefix);
+                    lower_bound_impl(begin, aend, result);
+                    return result;
+                }
+                //impossible to sync (may be result of erase), let's try lower-bound of merged prefix
+                auto &look_for = std::get<atom_string_t>(sync);
+                auto break_at = look_for.size();
+                look_for.append(begin, aend);
+                iterator i2(this);
+                auto b2 = look_for.begin();
+                auto result = lower_bound_impl(b2, look_for.end(), i2);
+                if( !i2.is_end() )
+                {
+                    begin += i2.key().length() - break_at;
+                }
+                return i2;
             }
             template <class AtomContainer>
             iterator lower_bound(iterator& of_prefix, const AtomContainer& container) const
@@ -258,15 +272,19 @@ namespace OP
                 return find(b, std::end(container));
             }
             template <class AtomContainer>
-            iterator& find(iterator& of_prefix, const AtomContainer& container) const
+            iterator find(iterator& of_prefix, const AtomContainer& container) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                sync_iterator(of_prefix);
-                if (lower_bound_impl(begin, aend, &of_prefix) && begin == aend)
+                auto iter = end ();
+                if (std::get<bool>(sync_iterator(of_prefix)))
                 {
-                    return iter;
+                    iter = of_prefix;
+                    if (lower_bound_impl(begin, aend, &of_prefix) && begin == aend)
+                    {
+                        return iter;
+                    }
+                    iter.clear();
                 }
-                iter.clear();
                 return iter;
             }
             /**
@@ -428,12 +446,15 @@ namespace OP
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
             }
-            size_t erase(iterator& pos)
+            iterator erase(iterator& pos, size_t * count = nullptr)
             {
+                if (count) { *count = 0; }
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
-                sync_iterator(pos);
-                if (pos.is_end())
-                    return 0;
+                
+                if (!std::get<bool>(sync_iterator(pos)) || pos.is_end())
+                    return end();
+                auto result{ pos };
+                ++result ;
                 const auto root_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
                 bool erase_child_and_exit = false; //flag mean stop iteration
                 for (bool first = true; pos.deep() ; pos.pop(), first = false)
@@ -462,7 +483,8 @@ namespace OP
                     .increase_count(-1) //number of terminals
                     .increase_version() // version of trie
                     ;
-                return 1;
+                if (count) { *count = 1; }
+                return result;
             }
         private:
             typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
@@ -640,8 +662,7 @@ namespace OP
             template <class ChildLocator>
             iterator position_child(iterator& of_this, ChildLocator& locator) const
             {
-                this->sync_iterator(of_this);
-                if (of_this == end() ||
+                if (!std::get<bool>(sync_iterator(of_this)) || of_this == end() ||
                     is_not_set(of_this.back().terminality(), Terminality::term_has_child))
                 {
                     return end(); //no way down
@@ -661,6 +682,9 @@ namespace OP
                 return result;
             }
 
+            /**
+            * @return true when result matches exactly to specified string [begin, aend)
+            */
             template <class Atom>
             bool lower_bound_impl(Atom& begin, Atom aend, iterator& prefix) const
             {
@@ -721,12 +745,19 @@ namespace OP
                 next(prefix);
                 return false; //not an exact match
             }
-            /**Sync iterator to reflect current version of trie*/
-            void sync_iterator(iterator & it) const
+            /**Sync iterator to reflect current version of trie
+            * @return tuple, where:
+            * -# bool where true means success sync (or no sync was needed) and second string has no sense,
+            *         while false means inability to sync (entry was erased);
+            * -# atomic_string_t - set only when #0 is falsem origin key of iterator, because on
+            *       unsuccessful sync at exit iterator is damaged
+            */
+            std::tuple<bool, atom_string_t> sync_iterator(iterator & it) const
             {
                 const auto this_ver = this->version();
+                std::tuple<bool, atom_string_t> result = { true, {} };
                 if (this_ver == it.version()) //no sync is needed
-                    return;
+                    return result;
                 it._version = this_ver;
                 dim_t order = 0;
                 size_t prefix_length = 0;
@@ -736,19 +767,24 @@ namespace OP
                     auto node = view<node_t>(*_topology_ptr, i.address());
                     if (node->version != i.version())
                     {
-                        auto suffix = it.key().substr(prefix_length); //need make copy since next instructions corrupt the iterator
-                        it._prefix.resize(prefix_length); //cut prefix str
+                        std::get<1>(result) = it.key(); //need make copy since next instructions corrupt the iterator
+                        it._prefix.resize(prefix_length); 
                         it._position_stack.erase(it._position_stack.begin() + order, it._position_stack.end()); //cut stack
-                        auto suffix_begin = suffix.begin(), suffix_end = suffix.end();
+                        auto suffix_begin = std::get<1>(result).begin() + prefix_length //cut prefix str
+                            ,suffix_end = std::get<1>(result).end() 
+                            ;
                         if (!lower_bound_impl(suffix_begin, suffix_end, it) )
                         {
+                            std::get<0>(result) = false;
                             it = end();
+                            return result;
                         }
-                        return;
+                        return result; //still get<0> == true
                     }
                     prefix_length += i.deep();
                     ++order;
                 }
+                return result;
             }
             
             /**
