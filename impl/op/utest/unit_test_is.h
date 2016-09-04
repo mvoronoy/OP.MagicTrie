@@ -12,6 +12,7 @@ namespace OP
     namespace utest{
         /** Marker specifies equality operation between two arguments */
         struct equals {};
+        struct less {};
         namespace details {
             
             struct bool_result
@@ -26,6 +27,9 @@ namespace OP
             {
 
             };
+            //
+            //  equals
+            //
             template <class Left, class Right>
             struct that<Left, Right, equals> : bool_result
             {
@@ -39,6 +43,17 @@ namespace OP
             {
                 that(const char* left, const char* right)
                     : bool_result(strcmp(left, right) == 0)
+                {
+                }
+            };
+            //
+            //  less
+            //
+            template <class Left, class Right>
+            struct that<Left, Right, less> : bool_result
+            {
+                that(Left&& left, Right&& right)
+                    : bool_result(left < right)
                 {
                 }
             };

@@ -327,7 +327,7 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
         auto lbit = trie->lower_bound(std::begin(test), std::end(test));
 
         tresult.assert_true(tools::container_equals(lbit.key(), test, &tools::sign_tolerant_cmp<atom_t>));
-        tresult.assert_true(x == *lbit);
+        tresult.assert_that<equals>(x, *lbit, "value mismatch");
 
         auto query = test_seq[i] + "a";
         auto lbit2 = trie->lower_bound(std::begin(query), std::end(query));
@@ -414,9 +414,13 @@ void test_PrefixedFind(OP::utest::TestResult &tresult)
     auto fnd_aa = trie->find(std::string("aa"));
     tresult.assert_that<equals>(fnd_aa.key(), (const atom_t*)"aa", "key mismatch");
     auto fnd_copy = fnd_aa;
-    tresult.assert_that<equals>(
-        trie->erase(fnd_copy), 1, "Nothing was erased");
+    size_t cnt = 0;
+    trie->erase(fnd_copy, &cnt);
+    tresult.assert_that<equals>(1, cnt, "Nothing was erased");
+    //test that iterator recovers after erase
     lw_ch1 = trie->lower_bound(fnd_aa, std::string("1"));
+    tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"aa1", "key mismatch");
+
 }
 
 void test_TrieNoTran(OP::utest::TestResult &tresult)
@@ -734,7 +738,11 @@ void test_Erase(OP::utest::TestResult &tresult)
     trie->insert(lstr, lstr.length()+0.0);
     tresult.assert_true(trie->nodes_count() == 2, OP_CODE_DETAILS(<< "only 2 nodes must be allocated"));
     auto f = trie->find(lstr);
-    tresult.assert_true(1 == trie->erase(f));
+    auto tst_next ( f );
+    ++tst_next;
+    size_t cnt = 0;
+    tresult.assert_that<equals>(tst_next, trie->erase(f, &cnt), "iterators aren't identical");
+    tresult.assert_that<equals>(1, cnt, "Invalid count erased");
 
     compare_containers(tresult, *trie, test_values);
 
@@ -750,7 +758,9 @@ void test_Erase(OP::utest::TestResult &tresult)
     });
     const atom_string_t avg_key((const atom_t*)"4.ab");
     f = trie->find(avg_key);
-    tresult.assert_true(1 == trie->erase(f));
+    tst_next = f;
+    ++tst_next;
+    tresult.assert_that<equals>(tst_next, trie->erase(f), "iterators mismatch");
     test_values.erase(std::string((const char*)avg_key.c_str()));
     //
     std::cout << '\n';
@@ -758,17 +768,26 @@ void test_Erase(OP::utest::TestResult &tresult)
 
     const atom_string_t no_entry_key((const atom_t*)"no-entry");
     f = trie->find(no_entry_key);
-    tresult.assert_true(0 == trie->erase(f));
+    tresult.assert_that<equals>(trie->end(), trie->erase(f, &cnt), "erase must 'end()'");
+    tresult.assert_that<equals>(0, cnt, "erase must 'end()'");
 
     const atom_string_t edge_key((const atom_t*)"4.abc");
     f = trie->find(edge_key);
-    tresult.assert_true(1 == trie->erase(f));
+    tst_next = f;
+    ++tst_next;
+    tresult.assert_that<equals>(tst_next, trie->erase(f, &cnt), "iterator mismatch");
+    tresult.assert_that<equals>(1, cnt, "iterator mismatch");
+
     test_values.erase(std::string((const char*)edge_key.c_str()));
     compare_containers(tresult, *trie, test_values);
 
     const atom_string_t short_key((const atom_t*)"4");
     f = trie->find(short_key);
-    tresult.assert_true(1 == trie->erase(f));
+    tst_next = f;
+    ++tst_next;
+    tresult.assert_that<equals>(tst_next, trie->erase(f), "iterator mismatch");
+    tresult.assert_that<equals>(1, cnt, "count mismatch");
+
     test_values.erase(std::string((const char*)short_key.c_str()));
     compare_containers(tresult, *trie, test_values);
     //do random test
@@ -803,7 +822,11 @@ void test_Erase(OP::utest::TestResult &tresult)
         {
             //print_hex(std::cout << "[" << s.length() << "]", s);
             auto found = trie->find(s);
-            tresult.assert_true(trie->erase(found) > 0);
+            auto next_i = found;
+            ++next_i;
+            tresult.assert_that<equals>(next_i, trie->erase(found, &cnt), "iterator mismatch");
+            tresult.assert_that<less>(0, cnt, "wrong count");
+
             std::string signed_str(s.begin(), s.end());
             tresult.assert_true(test_values.erase(signed_str) != 0);
             if (!(--n))
