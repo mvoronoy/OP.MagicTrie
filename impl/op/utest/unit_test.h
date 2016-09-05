@@ -237,33 +237,19 @@ namespace OP
         struct TestFail : std::logic_error
         {
             TestFail() :
-                std::logic_error(nullptr),
-                _is_abort(false)
+                std::logic_error(nullptr)
             {
             }
             explicit TestFail(const std::string& text) :
-                std::logic_error(text),
-                _is_abort(false)
+                std::logic_error(text)
             {
             }
-            bool is_abort() const
-            {
-                return _is_abort;
-            }
-        protected:
-            void set_abort(bool is_abort)
-            {
-                _is_abort = is_abort;
-            }
-        private:
-            bool _is_abort;
         };
-
+        /**Demarcate abort exception. It is intentionally has no any inheritence*/
         struct TestAbort : public TestFail
         {
             TestAbort()
             {
-                set_abort(true);
             }
         };
 
@@ -315,10 +301,11 @@ namespace OP
             }
             
             inline std::ostream& info() const;
-            /*
-            template<typename T, typename... Us>
-            inline std::ostream& error(T &&t, Us &&... us) const;
-            */
+            inline std::ostream& debug() const
+            {
+                return info();
+            }
+
             detail& status_details()
             {
                 return _status_details;
@@ -364,7 +351,7 @@ namespace OP
                 if (!std::forward<Comparator>(cmp)())
                 {
                     fail(std::forward<Xetails>(details));
-                }
+                }                                                                        T
             }
             template<class Marker, class Left, class Right, class Xetails>
             void assert_that(Left&& left, Right&& right, Xetails &&details)
@@ -469,6 +456,17 @@ namespace OP
         protected:
             virtual void run(TestResult& retval) = 0;
         private:
+            template <class Exception>
+            static inline void render_exception_status(TestResult& retval, Exception const & e)
+            {
+                if (e.what() && *e.what())
+                {
+                    if (!retval._status_details.is_empty())
+                        retval._status_details << "\n";
+                    retval._status_details << e.what();
+                }
+
+            }
             void do_run(TestResult& retval)
             {
                 try
@@ -476,27 +474,23 @@ namespace OP
                     this->run(retval);
                     retval._status = TestResult::ok;
                 }
+                catch (TestAbort const &e)
+                {
+                    retval._end_time = std::chrono::high_resolution_clock::now();
+                    retval._status = TestResult::aborted;
+                    render_exception_status(retval, e);
+                }
                 catch (TestFail const &e)
                 {
                     retval._end_time = std::chrono::high_resolution_clock::now();
-                    retval._status = e.is_abort() ? TestResult::aborted : TestResult::failed;
-                    if (e.what() && *e.what())
-                    {
-                        if (!retval._status_details.is_empty())
-                            retval._status_details << "\n";
-                        retval._status_details << e.what();
-                    }
+                    retval._status = TestResult::failed;
+                    render_exception_status(retval, e);
                 }
                 catch (std::exception const &e)
                 {
                     retval._end_time = std::chrono::high_resolution_clock::now();
                     retval._status = TestResult::exception;
-                    if (e.what() && *e.what())
-                    {
-                        if (!retval._status_details.is_empty())
-                            retval._status_details << "\n";
-                        retval._status_details << e.what();
-                    }
+                    render_exception_status(retval, e);
                 }
                 catch (...)
                 { //hide any other exception
@@ -525,17 +519,16 @@ namespace OP
                 std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
                 return this->declare_case(
                     std::make_shared<FunctionalTestCase<decltype(f)> >(
-                    name,
+                    std::move(name),
                     std::move(f)
                     )
                     );
             }
-            template < class Name = const char*>
             TestSuite* declare(std::function<void(void)> f, std::string n = std::string())
             {
                 std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
                 std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(f)>(
-                    name,
+                    std::move(name),
                     std::move(f)
                     ));
                 return this->declare_case(pt);
@@ -545,7 +538,7 @@ namespace OP
                 auto fwrap = std::function< void() >(f);
                 std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
                 std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(fwrap)>(
-                    name,
+                    std::move(name),
                     std::move(fwrap)
                     ));
                 return this->declare_case(pt);
@@ -556,11 +549,22 @@ namespace OP
                 auto fwrap = std::function< void(TestResult&) >(f);
                 std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
                 std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(fwrap)>(
-                    name,
+                    std::move(name),
                     std::move(fwrap)
                     ));
                 return this->declare_case(pt);
             }
+            TestSuite* declare_exceptional(void (f)(TestResult&), std::string n = std::string())
+            {
+                auto fwrap = std::function< void(TestResult&) >(f);
+                std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
+                std::shared_ptr<TestCase> pt(new AnyExceptionTestCase<decltype(fwrap)>(
+                    std::move(name),
+                    std::move(fwrap)
+                    ));
+                return this->declare_case(pt);
+            }
+            
             TestSuite* declare_case(std::shared_ptr<TestCase> exec)
             {
                 _tests.push_back(exec);
@@ -598,20 +602,42 @@ namespace OP
             template <class F>
             struct FunctionalTestCase : public TestCase
             {
-                template <class Name>
-                FunctionalTestCase(Name && name, F&& f) :
-                    TestCase(std::forward<Name>(name)),
+                FunctionalTestCase(std::string && name, F&& f) :
+                    TestCase(std::move(name)),
                     _function(std::forward<F>(f))
                 {
                 }
             protected:
-                void run(TestResult& retval)
+                void run(TestResult& retval) override
                 {
                     _function(retval);
                 }
             private:
                 F _function;
             };
+            /**Handle test case that raises an exception*/
+            template <class F>
+            struct AnyExceptionTestCase : public FunctionalTestCase<F>
+            {
+                AnyExceptionTestCase(std::string && name, F&& f) :
+                    FunctionalTestCase<F>(std::move(name), std::forward<F>(f))
+                {
+                }
+            protected:
+                void run(TestResult& retval) override
+                {
+                    try
+                    {
+                        FunctionalTestCase<F>::run(retval);
+                        throw TestFail("exception was expected");
+                    }
+                    catch (...) {
+                        //normal case 
+                        retval.debug() << "exception was raised as normal case\n";
+                    }
+                }
+            };
+
         };
         /** Specialization for functions without arguments, it can use OP_UTEST_ASSERT
         * instead of access to TestResult methods
@@ -721,6 +747,8 @@ namespace OP
             std::vector< test_result_ptr_t > run_if(F &f)
             {
                 std::vector<std::shared_ptr<TestResult> > result;
+                sig_abort_guard guard;
+
                 for (auto& p : _suites)
                 {
                     p.second->info() << "==["<< p.first <<"]"<< std::setfill ('=') << std::setw(_options.output_width() - p.first.length()) << ""<< std::endl;
@@ -764,7 +792,7 @@ namespace OP
 
                         suite.info()
                             <<"\t["<<test.id()<< "] done with status:"
-                            <<result->status_to_str()
+                            << "-=["<<result->status_to_str() << "]=-" 
                             << " in:"<<std::fixed<< result->ms_duration()<< "ms\n";
                         result->leave_stream(suite.error());
                         f(std::move(result));

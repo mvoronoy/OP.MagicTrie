@@ -984,7 +984,7 @@ void test_IteratorSync(OP::utest::TestResult &tresult)
     auto lw_ch1 = trie->lower_bound(i_1, std::string(".123"));
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
     auto lw_ch2 = trie->lower_bound(i_2, std::string(".122"));
-    tresult.assert_that<equals>(lw_ch2.key(), (const atom_t*)"abc.123456789", "key mismatch");
+    tresult.assert_that<equals>(lw_ch2.key(), (const atom_t*)"abc.122x", "key mismatch");
 }
 
 static auto module_suite = OP::utest::default_test_suite("Trie")
