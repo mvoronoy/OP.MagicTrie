@@ -147,12 +147,17 @@ void test_CacheManager()
 }
 extern void test_RangeContainer();
 extern void test_Range();
-
+void test_Abortion(OP::utest::TestResult &result)
+{
+    assert(false);
+    result.fail("Exception must be raised");
+}
 static auto module_suite = OP::utest::default_test_suite("Arbitrary")
 ->declare(test_align, "align")
 ->declare(test_RangeContainer, "rangeConatiner")
 ->declare(test_Range, "range")
 ->declare(test_CacheManager, "cacheManager")
+->declare_exceptional(test_Abortion, "testAbort")
 ;
 
 int main(int argc, char* argv[])
