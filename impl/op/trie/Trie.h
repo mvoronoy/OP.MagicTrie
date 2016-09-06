@@ -350,95 +350,31 @@ namespace OP
                 op_g.rollback();
                 throw std::invalid_argument("position has no value associated");
             }
+            /**
+            *   Insert string specified by pair [begin, end) and associate value with it.
+            * @param begin start iterator of string to insert. 
+            * @param end end iterator of string to insert.
+            * @param value value to associate with inserted string
+            * @return pair of iterator and success indicator. When insert succeeded iterator is a position of 
+            *       just inserted item, otherwise it points to already existing key
+            */
             template <class AtomIterator>
-            std::pair<iterator, bool> insert(AtomIterator& begin, AtomIterator end, Payload value)
+            std::pair<iterator, bool> insert(AtomIterator begin, AtomIterator end, Payload value)
             {
-                auto result = std::make_pair(iterator(this), false);
                 if (begin == end)
-                    return result; //empty string cannot be inserted
-                auto origin_begin = begin;
-                auto &iter = result.first;
+                    return std::make_pair(iterator(this), false); //empty string cannot be inserted
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto value_assigner = [&]() {
                     _topology_ptr->slot<TrieResidence>()
                         .increase_count(+1) //number of terminals
                         .increase_version() // version of trie
                         ;
-                    result.second = true;
                     return value;
                 };
-                auto pref_res = common_prefix(begin, end, iter);
-                switch (pref_res.compare_result)
-                {
-                case stem::StemCompareResult::equals:
-                    op_g.rollback();
-                    return result; //dupplicate found
-                case stem::StemCompareResult::no_entry:
-                {
-                    unconditional_insert(pref_res.child_node, begin, end, iter, value_assigner);
-                    return result;
-                }
-                case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
-                {
-                    assert(!iter.is_end());
-                    auto &back = iter.back();
-                    FarAddress node_addr = back.address();
-                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-
-                    node_addr = new_node();
-                    wr_node->set_child(*_topology_ptr, static_cast<atom_t>(back.key()), node_addr);
-                    unconditional_insert(node_addr, begin, end, iter, value_assigner);
-                    return result;
-                }
-                case stem::StemCompareResult::unequals:
-                {
-                    assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
-                    FarAddress node_addr = iter.back().address();
-                    //entry should exists
-                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-                    node_addr =
-                        diversificate(*wr_node, iter);
-                    unconditional_insert(node_addr, begin, end, iter, value_assigner);
-                    return result;
-                }
-                case stem::StemCompareResult::string_end:
-                {
-                    assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
-                    auto &back = iter.back();
-                    FarAddress node_addr = back.address();
-                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-                    auto rindex = wr_node->reindex(*_topology_ptr, static_cast<atom_t>(back.key()));
-                    if (!wr_node->stems.is_null())
-                    {
-                        _stem_mngr.stemw(
-                            wr_node->stems,
-                            rindex,
-                            [&](const atom_t* sbegin, const atom_t* send, const stem::StemData& stem_header) {
-                            if (sbegin != send)
-                            {//empty iterator should not be diversificated, just set value
-                             //terminal is not there, otherwise it would be StemCompareResult::equals
-                                if ((back.deep()-1) == stem_header.stem_length[rindex])
-                                {
-                                    //it is allowed only to have child, if 'has_data' set - then `common_prefix` works wrong
-                                    assert(!(back.terminality()&Terminality::term_has_data));
-                                    //don't do anything, wait until wr_node->set_value
-                                }
-                                else 
-                                {
-                                    diversificate(*wr_node, iter);
-                                }
-                            }
-                        });
-                    }
-                    wr_node->set_value(*_topology_ptr, static_cast<atom_t>(back.key()), std::forward<Payload>(value_assigner()));
-                    iter.back()._terminality |= Terminality::term_has_data;
-                    return result;
-                }
-                default:
-                    assert(false);
-                    return result; //fail stub
-                }
-
+                auto on_update = [&op_g](iterator& ) {
+                    op_g.rollback(); //do nothing on update
+                };
+                return upsert_impl(begin, end, value_assigner, on_update);
             }
             template <class AtomContainer>
             std::pair<iterator, bool> insert(const AtomContainer& container, Payload value)
@@ -446,6 +382,30 @@ namespace OP
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
             }
+
+            template <class AtomIterator>
+            std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator end, Payload value)
+            {
+                if (begin == end)
+                    return std::make_pair(iterator(this), false); //empty string is not operatable
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                auto value_assigner = [&]() {
+                    return value;
+                };
+                auto on_update = [&](iterator& pos) {
+                    assert(is_set(pos.back().terminality(), Terminality::term_has_child));
+                    //_value_mngr.accessor( 
+                    //    set_data()
+                    *pos = std::forward<Payload>(value_assigner());
+                };
+                return upsert_impl(begin, end, value_assigner, on_update);
+            }
+            template <class AtomContainer>
+            std::pair<iterator, bool> upsert(const AtomContainer& container, Payload value)
+            {
+                return upsert(std::begin(container), std::end(container), value);
+            }
+
             iterator erase(iterator& pos, size_t * count = nullptr)
             {
                 if (count) { *count = 0; }
@@ -581,6 +541,7 @@ namespace OP
 
                 return new_node_addr;
             }
+            /**Place string to node without any additional checks*/
             template <class AtomIterator, class FValueAssigner>
             void unconditional_insert(FarAddress node_addr, AtomIterator& begin, AtomIterator end, iterator& result, FValueAssigner& fassign)
             {
@@ -603,9 +564,91 @@ namespace OP
                         wr_node->set_child(*_topology_ptr, key, node_addr);
                     }
                 }
-
             }
+            /**Insert or update value associated with specified key. The value is passed as functor evaluated on demand.
+            * @return pair of iterator and success indicator. When insert succeeded iterator is a position of
+            *       just inserted item, otherwise it points to already existing key
+            */
+            template <class AtomIterator, class FValueEval, class FOnUpdate>
             /**Return not fully valid iterator that matches common part specified by [begin, end)*/
+            std::pair<iterator, bool> upsert_impl(AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
+            {
+                auto result = std::make_pair(iterator(this), true/*suppose insert succeeded*/);
+                auto& iter = result.first;
+                auto pref_res = common_prefix(begin, end, iter);
+                switch (pref_res.compare_result)
+                {
+                case stem::StemCompareResult::equals:
+                    f_on_update(iter);
+                    result.second = false;
+                    return result; //dupplicate found
+                case stem::StemCompareResult::no_entry:
+                {
+                    unconditional_insert(pref_res.child_node, begin, end, iter, f_value_eval);
+                    return result;
+                }
+                case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
+                {
+                    assert(!iter.is_end());
+                    auto &back = iter.back();
+                    FarAddress node_addr = back.address();
+                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+
+                    node_addr = new_node();
+                    wr_node->set_child(*_topology_ptr, static_cast<atom_t>(back.key()), node_addr);
+                    unconditional_insert(node_addr, begin, end, iter, f_value_eval);
+                    return result;
+                }
+                case stem::StemCompareResult::unequals:
+                {
+                    assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
+                    FarAddress node_addr = iter.back().address();
+                    //entry should exists
+                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                    node_addr =
+                        diversificate(*wr_node, iter);
+                    unconditional_insert(node_addr, begin, end, iter, f_value_eval);
+                    return result;
+                }
+                case stem::StemCompareResult::string_end:
+                {
+                    assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
+                    auto &back = iter.back();
+                    FarAddress node_addr = back.address();
+                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                    auto rindex = wr_node->reindex(*_topology_ptr, static_cast<atom_t>(back.key()));
+                    if (!wr_node->stems.is_null())
+                    {
+                        _stem_mngr.stemw(
+                            wr_node->stems,
+                            rindex,
+                            [&](const atom_t* sbegin, const atom_t* send, const stem::StemData& stem_header) {
+                            if (sbegin != send)
+                            {//empty iterator should not be diversificated, just set value
+                             //terminal is not there, otherwise it would be StemCompareResult::equals
+                                if ((back.deep() - 1) == stem_header.stem_length[rindex])
+                                {
+                                    //it is allowed only to have child, if 'has_data' set - then `common_prefix` works wrong
+                                    assert(!(back.terminality()&Terminality::term_has_data));
+                                    //don't do anything, wait until wr_node->set_value
+                                }
+                                else
+                                {
+                                    diversificate(*wr_node, iter);
+                                }
+                            }
+                        });
+                    }
+                    wr_node->set_value(*_topology_ptr, static_cast<atom_t>(back.key()), std::forward<Payload>(f_value_eval()));
+                    iter.back()._terminality |= Terminality::term_has_data;
+                    return result;
+                }
+                default:
+                    assert(false);
+                    result.second = false;
+                    return result; //fail stub
+                }
+            }
             template <class Atom>
             typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter) const
             {
