@@ -103,22 +103,19 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
         std::begin(stem1), std::end(stem1)
         ));
     tresult.assert_true(2 == trie->nodes_count(), "2 nodes must be create for long stems");
-    tresult.assert_true(b1 == std::end(stem1));
     tresult.assert_true(trie->size() == 2);
 
     standard[stem1] = v_order++;
     compare_containers(tresult, *trie, standard);
     
-    auto ir2 = trie->insert(b1 = std::begin(stem1), std::end(stem1), v_order + 101.0);
+    auto ir2 = trie->insert(std::begin(stem1), std::end(stem1), v_order + 101.0);
     tresult.assert_false(
         ir2.second, 
         OP_CODE_DETAILS("Duplicate insert must not be allowed"));
-    tresult.assert_true(b1 == std::end(stem1));
     tresult.assert_true(trie->size() == 2);
     
-    auto ir3 = trie->insert(b1 = stem1_deviation1.cbegin(), stem1_deviation1.cend(), v_order);
+    auto ir3 = trie->insert(stem1_deviation1.cbegin(), stem1_deviation1.cend(), v_order);
     tresult.assert_true(ir3.second, OP_CODE_DETAILS());
-    tresult.assert_true(b1 == std::end(stem1_deviation1));
     //print_hex(std::cout << "1)", stem1_deviation1);
     //print_hex(std::cout << "2)", ir3.second.key());
 
@@ -129,11 +126,10 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     compare_containers(tresult, *trie, standard);
     // test behaviour on range
     const std::string stem2(256, 'b');
-    auto ir4 = trie->insert(b1 = std::begin(stem2), std::end(stem2), v_order);
+    auto ir4 = trie->insert(std::begin(stem2), std::end(stem2), v_order);
     tresult.assert_true(ir4.second, OP_CODE_DETAILS());
     standard[stem2] = v_order++;
     tresult.assert_true(3 == trie->nodes_count(), "3 nodes must exists in the system");
-    tresult.assert_true(b1 == std::end(stem2));
     tresult.assert_true(trie->size() == 4);
     tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir4.first.key()), std::end(ir4.first.key()),
         std::begin(stem2), std::end(stem2)
@@ -146,11 +142,10 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     tresult.status_details() << "test diversification\n";
     std::string stem3 = { std::string(1, 'c') + std::string(256, 'a') };
     const std::string& const_stem3 = stem3;
-    auto ir5 = trie->insert(b1 = std::begin(const_stem3), std::end(const_stem3), v_order);
+    auto ir5 = trie->insert(std::begin(const_stem3), std::end(const_stem3), v_order);
     tresult.assert_true(ir5.second, OP_CODE_DETAILS());
     standard[stem3] = v_order++;
     tresult.assert_true(4 == trie->nodes_count(), "4 nodes must exists in the system");
-    tresult.assert_true(b1 == std::end(stem3));
     tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.first.key()), std::end(ir5.first.key()),
         std::begin(stem3), std::end(stem3)
         ));
@@ -186,9 +181,8 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     tresult.assert_true(261 == trie->nodes_count(), "261 nodes must exists in the system");
     compare_containers(tresult, *trie, standard);
     stem4 += "zzzzz";
-    ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
+    ir5 = trie->insert(std::begin(const_stem4), std::end(const_stem4), v_order);
     standard[stem4] = v_order++;
-    tresult.assert_true(b1 == std::end(const_stem4));
     tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.first.key()), std::end(ir5.first.key()),
         std::begin(stem4), std::end(stem4)
     ));
@@ -199,24 +193,21 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     stem4 = "k";
     ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
     standard[stem4] = v_order++;
-    tresult.assert_true(b1 == std::end(const_stem4));
     tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.first.key()), std::end(ir5.first.key()),
         std::begin(stem4), std::end(stem4)
     ));
     tresult.assert_that<equals>(*ir5.first, (v_order - 1.0), "Wrong iterator value");
     stem4 += std::string(256, 'a');
-    ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
+    ir5 = trie->insert(std::begin(const_stem4), std::end(const_stem4), v_order);
     standard[stem4] = v_order++;
-    tresult.assert_true(b1 == std::end(const_stem4));
     tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.first.key()), std::end(ir5.first.key()),
         std::begin(stem4), std::end(stem4)
     ));
     tresult.assert_that<equals>(*ir5.first, (v_order - 1.0), "Wrong iterator value");
     compare_containers(tresult, *trie, standard);
     stem4 = "ka";
-    ir5 = trie->insert(b1 = std::begin(const_stem4), std::end(const_stem4), v_order);
+    ir5 = trie->insert(std::begin(const_stem4), std::end(const_stem4), v_order);
     standard[stem4] = v_order++;
-    tresult.assert_true(b1 == std::end(const_stem4));
     tresult.assert_true(OP::utest::tools::range_equals(std::begin(ir5.first.key()), std::end(ir5.first.key()),
         std::begin(stem4), std::end(stem4)
     ));
@@ -987,6 +978,55 @@ void test_IteratorSync(OP::utest::TestResult &tresult)
     tresult.assert_that<equals>(lw_ch2.key(), (const atom_t*)"abc.122x", "key mismatch");
 }
 
+void test_TrieUpsert(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"aa1", 1.),
+        p_t((atom_t*)"aa2", 1.),
+        p_t((atom_t*)"abc", 1.),
+        p_t((atom_t*)"abc.12", 1.),
+        p_t((atom_t*)"abc.122x", 1),
+        p_t((atom_t*)"abc.123456789", 1),
+        p_t((atom_t*)"abd.12", 1.),
+    };
+    std::map<atom_string_t, double> test_values;
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        atom_string_t s1(s.first);
+        trie->insert(s.first, s.second);
+        test_values.emplace(s.first, s.second);
+    });
+    compare_containers(tresult, *trie, test_values);
+    //extend with upsert
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        atom_string_t s1(s.first);
+        
+        s1.append(1, (atom_t)'x');
+        trie->upsert(s1, 2.0);
+        test_values.emplace(s1, 2.0);
+
+        s1 = s1.substr(s1.length()-2);
+
+        trie->upsert(s1, 2.0);
+        test_values.emplace(s1, 2.0);
+    });
+    compare_containers(tresult, *trie, test_values);
+    //update with upsert
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->upsert(s.first, 3.0);
+        test_values.find(s.first)->second = 3.0;
+    });
+    compare_containers(tresult, *trie, test_values);
+}
+
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
     ->declare(test_TrieInsert, "insertion")
@@ -1002,4 +1042,5 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_Siblings, "siblings")
     ->declare(test_ChildSelector, "child")
     ->declare(test_IteratorSync, "sync iterator")
+    ->declare(test_TrieUpsert, "upsert")
     ;
