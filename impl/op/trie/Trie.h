@@ -384,26 +384,30 @@ namespace OP
             }
 
             template <class AtomIterator>
-            std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator end, Payload value)
+            std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator end, Payload && value)
             {
                 if (begin == end)
                     return std::make_pair(iterator(this), false); //empty string is not operatable
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto value_assigner = [&]() {
-                    return value;
+                    return std::move(value);
                 };
                 auto on_update = [&](iterator& pos) {
-                    assert(is_set(pos.back().terminality(), Terminality::term_has_child));
-                    //_value_mngr.accessor( 
-                    //    set_data()
-                    *pos = std::forward<Payload>(value_assigner());
+                    assert(is_set(pos.back().terminality(), Terminality::term_has_data));
+                    //get the node
+                    auto ro_node = view<node_t>(*_topology_ptr, pos.back().address());
+                    auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.back().key());
+                    auto values = _value_mngr.accessor(ro_node->payload, ro_node->capacity);
+                    auto &v = values[ridx];
+                    assert(v.has_data());
+                    v.set_data(std::move(value));
                 };
                 return upsert_impl(begin, end, value_assigner, on_update);
             }
             template <class AtomContainer>
-            std::pair<iterator, bool> upsert(const AtomContainer& container, Payload value)
+            std::pair<iterator, bool> upsert(const AtomContainer& container, Payload&& value)
             {
-                return upsert(std::begin(container), std::end(container), value);
+                return upsert(std::begin(container), std::end(container), std::move(value));
             }
 
             iterator erase(iterator& pos, size_t * count = nullptr)
