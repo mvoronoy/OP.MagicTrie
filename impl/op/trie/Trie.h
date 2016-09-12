@@ -388,7 +388,7 @@ namespace OP
             {
                 if (begin == end)
                     return std::make_pair(iterator(this), false); //empty string is not operatable
-                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true/*commit automatically*/);
                 auto value_assigner = [&]() {
                     return std::move(value);
                 };
@@ -409,7 +409,34 @@ namespace OP
             {
                 return upsert(std::begin(container), std::end(container), std::move(value));
             }
+            /**Update or insert value specified by key that formed as `prefix.key + [begin, end)`. In other words
+            *   place a string bellow pointer specified by iterator. 
+            */
+            template <class AtomIterator>
+            std::pair<iterator, bool> upsert(iterator& prefix, AtomIterator begin, AtomIterator end, Payload && value)
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true/*commit automatically*/);
+                auto sync = sync_iterator(of_prefix);
+                if (std::get<bool>(sync))
+                {
+                    iterator result(of_prefix);
+                    lower_bound_impl(begin, aend, result);
+                    return result;
+                }
+                //impossible to sync (may be result of erase), let's try lower-bound of merged prefix
+                auto &look_for = std::get<atom_string_t>(sync);
+                auto break_at = look_for.size();
+                look_for.append(begin, aend);
+                iterator i2(this);
+                auto b2 = look_for.begin();
+                auto result = lower_bound_impl(b2, look_for.end(), i2);
+                if (!i2.is_end())
+                {
+                    begin += i2.key().length() - break_at;
+                }
+                return i2;
 
+            }
             iterator erase(iterator& pos, size_t * count = nullptr)
             {
                 if (count) { *count = 0; }
@@ -570,12 +597,12 @@ namespace OP
                 }
             }
             /**Insert or update value associated with specified key. The value is passed as functor evaluated on demand.
+            * @param start_from - iterator to start, note it MUST be already synced
             * @return pair of iterator and success indicator. When insert succeeded iterator is a position of
             *       just inserted item, otherwise it points to already existing key
             */
             template <class AtomIterator, class FValueEval, class FOnUpdate>
-            /**Return not fully valid iterator that matches common part specified by [begin, end)*/
-            std::pair<iterator, bool> upsert_impl(AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
+            std::pair<iterator, bool> upsert_impl(iterator& start_from, AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
             {
                 auto result = std::make_pair(iterator(this), true/*suppose insert succeeded*/);
                 auto& iter = result.first;
@@ -653,6 +680,7 @@ namespace OP
                     return result; //fail stub
                 }
             }
+            /**Return not fully valid iterator that matches common part specified by [begin, end)*/
             template <class Atom>
             typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter) const
             {
