@@ -597,7 +597,7 @@ namespace OP
                 }
             }
             /**Insert or update value associated with specified key. The value is passed as functor evaluated on demand.
-            * @param start_from - iterator to start, note it MUST be already synced
+            * @param start_from - iterator to start, note it MUST be already synced. At exit
             * @return pair of iterator and success indicator. When insert succeeded iterator is a position of
             *       just inserted item, otherwise it points to already existing key
             */
