@@ -359,9 +359,9 @@ namespace OP
             *       just inserted item, otherwise it points to already existing key
             */
             template <class AtomIterator>
-            std::pair<iterator, bool> insert(AtomIterator begin, AtomIterator end, Payload value)
+            std::pair<iterator, bool> insert(AtomIterator begin, AtomIterator aend, Payload value)
             {
-                if (begin == end)
+                if (begin == aend)
                     return std::make_pair(iterator(this), false); //empty string cannot be inserted
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto value_assigner = [&]() {
@@ -374,7 +374,7 @@ namespace OP
                 auto on_update = [&op_g](iterator& ) {
                     op_g.rollback(); //do nothing on update
                 };
-                return upsert_impl(begin, end, value_assigner, on_update);
+                return upsert_impl(end(), begin, aend, value_assigner, on_update);
             }
             template <class AtomContainer>
             std::pair<iterator, bool> insert(const AtomContainer& container, Payload value)
@@ -384,9 +384,9 @@ namespace OP
             }
 
             template <class AtomIterator>
-            std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator end, Payload && value)
+            std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, Payload && value)
             {
-                if (begin == end)
+                if (begin == aend)
                     return std::make_pair(iterator(this), false); //empty string is not operatable
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true/*commit automatically*/);
                 auto value_assigner = [&]() {
@@ -402,7 +402,7 @@ namespace OP
                     assert(v.has_data());
                     v.set_data(std::move(value));
                 };
-                return upsert_impl(begin, end, value_assigner, on_update);
+                return upsert_impl(end(), begin, aend, value_assigner, on_update);
             }
             template <class AtomContainer>
             std::pair<iterator, bool> upsert(const AtomContainer& container, Payload&& value)
