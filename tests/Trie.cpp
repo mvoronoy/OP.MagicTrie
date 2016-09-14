@@ -1026,6 +1026,58 @@ void test_TrieUpsert(OP::utest::TestResult &tresult)
     });
     compare_containers(tresult, *trie, test_values);
 }
+void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+    std::map<atom_string_t, double> test_values;
+
+    atom_string_t s0((atom_t*)"a");
+    auto start_pair = trie->insert(s0, -1.0);
+    test_values.emplace(s0, -1.);
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"a1", 1.),
+        p_t((atom_t*)"a2", 1.),
+        p_t((atom_t*)"bc", 1.),
+        p_t((atom_t*)"bc.12", 1.),
+        p_t((atom_t*)"bc.122x", 1),
+        p_t((atom_t*)"bc.123456789", 1),
+        p_t((atom_t*)"bd.12", 1.),
+    };
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        atom_string_t s1(s.first);
+        trie->prefixed_upsert(start_pair.first, s.first, s.second);
+        test_values.emplace(s0 + s.first, s.second);
+    });
+    compare_containers(tresult, *trie, test_values);
+    //extend with upsert
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        atom_string_t s1(s.first);
+
+        s1.append(1, (atom_t)'x');
+        trie->upsert(s1, 2.0);
+        test_values.emplace(s1, 2.0);
+
+        s1 = s1.substr(s1.length() - 2);
+
+        trie->upsert(s1, 2.0);
+        test_values.emplace(s1, 2.0);
+    });
+    compare_containers(tresult, *trie, test_values);
+    //update with upsert
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->upsert(s.first, 3.0);
+        test_values.find(s.first)->second = 3.0;
+    });
+    compare_containers(tresult, *trie, test_values);
+}
 
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
@@ -1043,4 +1095,5 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_ChildSelector, "child")
     ->declare(test_IteratorSync, "sync iterator")
     ->declare(test_TrieUpsert, "upsert")
+    ->declare(test_TriePrefixedUpsert, "prefixed upsert")
     ;
