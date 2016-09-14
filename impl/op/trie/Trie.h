@@ -413,7 +413,7 @@ namespace OP
             *   place a string bellow pointer specified by iterator. 
             */
             template <class AtomIterator>
-            std::pair<iterator, bool> upsert(iterator& prefix, AtomIterator begin, AtomIterator end, Payload && value)
+            std::pair<iterator, bool> prefixed_upsert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, Payload value)
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true/*commit automatically*/);
                 auto sync = sync_iterator(of_prefix);
@@ -437,6 +437,12 @@ namespace OP
                 return i2;
 
             }
+            template <class AtomContainer>
+            std::pair<iterator, bool> prefixed_upsert(iterator& prefix, const AtomContainer& container, Payload value)
+            {
+                return prefixed_upsert(prefix, std::begin(container), std::end(container), value);
+            }
+
             iterator erase(iterator& pos, size_t * count = nullptr)
             {
                 if (count) { *count = 0; }
