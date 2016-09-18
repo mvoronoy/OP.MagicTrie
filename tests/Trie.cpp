@@ -1069,6 +1069,7 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
     abc_copy = abc_iter;
     trie->prefixed_upsert(abc_iter, abc_str+(const atom_t*)"bc.12", 5.0);
     test_values[abc_str + (const atom_t*)"bc.12"] = 5.0;
+    compare_containers(tresult, *trie, test_values);
 
     //extend with upsert
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
