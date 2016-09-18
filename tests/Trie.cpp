@@ -1041,6 +1041,7 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
     atom_string_t s0((atom_t*)"a");
     auto start_pair = trie->insert(s0, -1.0);
     test_values.emplace(s0, -1.);
+    compare_containers(tresult, *trie, test_values);
 
     const p_t ini_data[] = {
         p_t((atom_t*)"a1", 1.),
@@ -1057,6 +1058,18 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
         test_values.emplace(s0 + s.first, s.second);
     });
     compare_containers(tresult, *trie, test_values);
+    //special case to recover after erase
+    atom_string_t abc_str((const atom_t*)"abc");
+    auto abc_iter = trie->find(abc_str);
+    tresult.assert_false(abc_iter == trie->end(), "abc must exists");
+    auto abc_copy = abc_iter;
+    tresult.assert_that<not<equals>>(trie->end(), trie->erase(abc_copy), "Erase failed");
+    test_values.erase(abc_str);
+    //copy again
+    abc_copy = abc_iter;
+    trie->prefixed_upsert(abc_iter, abc_str+(const atom_t*)"bc.12", 5.0);
+    test_values[abc_str + (const atom_t*)"bc.12"] = 5.0;
+
     //extend with upsert
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
         atom_string_t s1(s.first);

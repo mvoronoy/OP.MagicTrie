@@ -320,8 +320,8 @@ namespace OP
                 stem::StemStore<TSegmentTopology> stem_manager(topology);
                 containers::PersistedHashTable<TSegmentTopology> hash_manager(topology);
                 atom_t ridx = reindex(topology, key);
-                auto target_node =
-                    topology.segment_manager().wr_at<this_t>(target);
+                auto target_node = accessor<this_t>(topology, target);
+                    
                 dim_t reindex_target;
                 //extract stem from current node
                 stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stem::StemData& stem_header) -> void{

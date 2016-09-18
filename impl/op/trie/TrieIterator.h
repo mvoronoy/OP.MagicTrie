@@ -137,7 +137,7 @@ namespace OP
                 return _container->value_of(_position_stack.back());
             }
             
-            inline bool operator == (const this_t& other) const
+            inline bool operator == (const this_t& other) const  noexcept
             {
                 if (is_end())
                     return other.is_end();
@@ -147,7 +147,7 @@ namespace OP
 
                 return _position_stack.back() == other._position_stack.back();
             }
-            inline bool operator < (const this_t& other) const
+            inline bool operator < (const this_t& other) const  noexcept
             {
                 if (is_end())
                     return false; //even if other is 'end' too it is not less
@@ -158,15 +158,15 @@ namespace OP
                 return _prefix < other._prefix;
             }
 
-            inline bool operator != (const this_t& other) const
+            inline bool operator != (const this_t& other) const  noexcept
             {
                 return !operator == (other);
             }
-            inline bool is_end() const
+            inline bool is_end() const  noexcept
             {
                 return _position_stack.empty();
             }
-            const prefix_string_t& key() const
+            const prefix_string_t& key() const  noexcept
             {
                 return _prefix;
             }
