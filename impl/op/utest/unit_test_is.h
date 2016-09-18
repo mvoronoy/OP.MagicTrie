@@ -79,7 +79,7 @@ namespace OP
         };
         /** Using other marker invert (negate) semantic, for example:
         * \li that<not<equals>>(1, 2) ; //negate equality
-        * \li that<not<less>>(1, 2) ; //negate equality
+        * \li that<not<less>>(1, 2) ; //negate less
         */
         template <class Marker>
         struct not
@@ -88,7 +88,7 @@ namespace OP
             struct impl : details::bool_result
             {
                 impl(Ts&& ... ts)
-                    : details::bool_result(typename Marker::impl<Ts...>(std::forward<Ts>(ts)...))
+                    : details::bool_result(! typename Marker::impl<Ts...>(std::forward<Ts>(ts)...))
                 {
                 }
             };
