@@ -10,68 +10,90 @@
 namespace OP
 {
     namespace utest{
-        /** Marker specifies equality operation between two arguments */
-        struct equals {};
-        struct less {};
+
         namespace details {
             
             struct bool_result
             {
                 explicit bool_result(bool r)
                     : test_result(r) {}
+                bool_result() = delete;
+                bool operator () () const
+                {
+                    return test_result;
+                }
+
+                bool operator ! () const
+                {
+                    return !test_result;
+                }
+
+                operator bool() const
+                {
+                    return test_result;
+                }
+
                 const bool test_result;
             };
 
-            template <class Left, class Right, class Rule>
-            struct that : bool_result
-            {
-
-            };
-            //
-            //  equals
-            //
-            template <class Left, class Right>
-            struct that<Left, Right, equals> : bool_result
-            {
-                that(Left&& left, Right&& right)
-                    : bool_result(left == right)
-                {
-                }
-            };
-            template <>
-            struct that<const char*, const char*, equals> : bool_result
-            {
-                that(const char* left, const char* right)
-                    : bool_result(strcmp(left, right) == 0)
-                {
-                }
-            };
-            //
-            //  less
-            //
-            template <class Left, class Right>
-            struct that<Left, Right, less> : bool_result
-            {
-                that(Left&& left, Right&& right)
-                    : bool_result(left < right)
-                {
-                }
-            };
         } //ns:details
 
-        template <class Marker, class Left, class Right>
-        inline bool that(Left&& left, Right&& right)
+        template <class Marker, class Left, class ... Right>
+        inline bool that(Left&& left, Right&& ... right)
         {
-            return details::that<Left, Right, Marker>(std::forward<Left>(left), std::forward<Right>(right)).test_result;
+            return Marker::impl<Left, Right...>(std::forward<Left>(left), std::forward<Right>(right)...);
         }
-
-        template <class Left, class Right, class Comparator>
-        inline bool that(Left&& left, Right&& right, Comparator & cmp)
-        {
-            return cmp(std::forward<Left>(left), std::forward<Right>(right));
-        }
-
         
+        //
+        //  Markers
+        //
+        
+        //
+        //  Marker:equals
+        //
+        /** Marker specifies equality operation between two arguments */
+        struct equals
+        {
+            template <class Left, class Right>
+            struct impl : details::bool_result
+            {
+                impl(Left left, Right right)
+                    : details::bool_result(left == right)
+                {
+                }
+
+            };
+        };
+        /** Marker specifies equality operation between two arguments */
+        struct less
+        {
+            template <class Left, class Right>
+            struct impl : details::bool_result
+            {
+                impl(Left left, Right right)
+                    : details::bool_result(left < right)
+                {
+                }
+
+            };
+        };
+        /** Using other marker invert (negate) semantic, for example:
+        * \li that<not<equals>>(1, 2) ; //negate equality
+        * \li that<not<less>>(1, 2) ; //negate equality
+        */
+        template <class Marker>
+        struct not
+        {
+            template < class ... Ts>
+            struct impl : details::bool_result
+            {
+                impl(Ts&& ... ts)
+                    : details::bool_result(typename Marker::impl<Ts...>(std::forward<Ts>(ts)...))
+                {
+                }
+            };
+        };
+
     } //utest
 }//OP
 #endif //_UNIT_TEST_IS__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1

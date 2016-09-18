@@ -386,23 +386,7 @@ namespace OP
             template <class AtomIterator>
             std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, Payload && value)
             {
-                if (begin == aend)
-                    return std::make_pair(iterator(this), false); //empty string is not operatable
-                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true/*commit automatically*/);
-                auto value_assigner = [&]() {
-                    return std::move(value);
-                };
-                auto on_update = [&](iterator& pos) {
-                    assert(is_set(pos.back().terminality(), Terminality::term_has_data));
-                    //get the node
-                    auto ro_node = view<node_t>(*_topology_ptr, pos.back().address());
-                    auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.back().key());
-                    auto values = _value_mngr.accessor(ro_node->payload, ro_node->capacity);
-                    auto &v = values[ridx];
-                    assert(v.has_data());
-                    v.set_data(std::move(value));
-                };
-                return upsert_impl(end(), begin, aend, value_assigner, on_update);
+                return prefixed_upsert(end(), begin, aend, std::move(value));
             }
             template <class AtomContainer>
             std::pair<iterator, bool> upsert(const AtomContainer& container, Payload&& value)
@@ -415,27 +399,28 @@ namespace OP
             template <class AtomIterator>
             std::pair<iterator, bool> prefixed_upsert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, Payload value)
             {
+                if (begin == aend)
+                    return std::make_pair(end(), false); //empty string is not operatable
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true/*commit automatically*/);
-                auto sync = sync_iterator(of_prefix);
-                if (std::get<bool>(sync))
-                {
-                    iterator result(of_prefix);
-                    lower_bound_impl(begin, aend, result);
-                    return result;
+                auto sync_res = sync_iterator(of_prefix);
+                if (!std::get<bool>(sync_res))
+                { //no entry for previous iterator
+                    return insert(std::get<atom_string_t>(sync_res).append(begin, aend), std::move(value));
                 }
-                //impossible to sync (may be result of erase), let's try lower-bound of merged prefix
-                auto &look_for = std::get<atom_string_t>(sync);
-                auto break_at = look_for.size();
-                look_for.append(begin, aend);
-                iterator i2(this);
-                auto b2 = look_for.begin();
-                auto result = lower_bound_impl(b2, look_for.end(), i2);
-                if (!i2.is_end())
-                {
-                    begin += i2.key().length() - break_at;
-                }
-                return i2;
-
+                auto value_assigner = [&]() {
+                    return std::move(value);
+                };
+                auto on_update = [&](iterator& pos) {
+                    assert(is_set(pos.back().terminality(), Terminality::term_has_data));
+                    //get the nodein readonly way, but access values for write
+                    auto ro_node = view<node_t>(*_topology_ptr, pos.back().address());
+                    auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.back().key());
+                    auto values = _value_mngr.accessor(ro_node->payload, ro_node->capacity);
+                    auto &v = values[ridx];
+                    assert(v.has_data());
+                    v.set_data(std::move(value));
+                };
+                return upsert_impl(of_prefix, begin, aend, value_assigner, on_update);
             }
             template <class AtomContainer>
             std::pair<iterator, bool> prefixed_upsert(iterator& prefix, const AtomContainer& container, Payload value)
@@ -608,10 +593,11 @@ namespace OP
             *       just inserted item, otherwise it points to already existing key
             */
             template <class AtomIterator, class FValueEval, class FOnUpdate>
-            std::pair<iterator, bool> upsert_impl(iterator& start_from, AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
+            std::pair<iterator, bool> upsert_impl(const iterator& start_from, AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
             {
-                auto result = std::make_pair(iterator(this), true/*suppose insert succeeded*/);
+                auto result = std::make_pair(start_from, true/*suppose insert succeeded*/);
                 auto& iter = result.first;
+                auto origin_begin = begin;
                 auto pref_res = common_prefix(begin, end, iter);
                 switch (pref_res.compare_result)
                 {
@@ -639,11 +625,20 @@ namespace OP
                 case stem::StemCompareResult::unequals:
                 {
                     assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
-                    FarAddress node_addr = iter.back().address();
+                    auto &back = iter.back();
+                    FarAddress node_addr = back.address();
                     //entry should exists
                     auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-                    node_addr =
-                        diversificate(*wr_node, iter);
+                    if (origin_begin != begin)
+                    { //need split stem 
+                        node_addr =
+                            diversificate(*wr_node, iter);
+                    }
+                    else {// nothing to diversificate
+                        assert(pref_res.child_node.is_nil());
+                        node_addr = new_node();
+                        wr_node->set_child(*_topology_ptr, (atom_t)back.key(), node_addr);
+                    }
                     unconditional_insert(node_addr, begin, end, iter, f_value_eval);
                     return result;
                 }
