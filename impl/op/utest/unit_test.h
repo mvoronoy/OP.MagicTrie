@@ -894,11 +894,11 @@ namespace OP
                 return range_equals(std::begin(co1), std::end(co1), std::begin(co2), std::end(co2), pred);
             }
             // 
-            template <class A>
-            inline bool sign_tolerant_cmp(A left, A right)
+            template <class A, class B = A>
+            inline bool sign_tolerant_cmp(A left, B right)
             {
                 return static_cast< std::make_unsigned<A>::type >(left) == 
-                    static_cast< std::make_unsigned<A>::type >(right);
+                    static_cast< std::make_unsigned<B>::type >(right);
             }
             inline bool sign_tolerant_cmp(char left, unsigned char right)
             {

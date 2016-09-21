@@ -1038,7 +1038,7 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
     typedef std::pair<atom_string_t, double> p_t;
     std::map<atom_string_t, double> test_values;
 
-    atom_string_t s0((atom_t*)"a");
+    const atom_string_t s0((atom_t*)"a");
     auto start_pair = trie->insert(s0, -1.0);
     test_values.emplace(s0, -1.);
     compare_containers(tresult, *trie, test_values);
@@ -1065,9 +1065,10 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
     auto abc_copy = abc_iter;
     tresult.assert_that<not<equals>>(trie->end(), trie->erase(abc_copy), "Erase failed");
     test_values.erase(abc_str);
+    compare_containers(tresult, *trie, test_values);
     //copy again
     abc_copy = abc_iter;
-    trie->prefixed_upsert(abc_iter, abc_str+(const atom_t*)"bc.12", 5.0);
+    trie->prefixed_upsert(abc_iter, atom_string_t((const atom_t*)"bc.12"), 5.0);
     test_values[abc_str + (const atom_t*)"bc.12"] = 5.0;
     compare_containers(tresult, *trie, test_values);
 
@@ -1076,19 +1077,26 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
         atom_string_t s1(s.first);
 
         s1.append(1, (atom_t)'x');
-        trie->upsert(s1, 2.0);
-        test_values.emplace(s1, 2.0);
+        trie->prefixed_upsert(start_pair.first, s1, 2.0);
+        test_values.emplace(s0+s1, 2.0);
 
         s1 = s1.substr(s1.length() - 2);
 
-        trie->upsert(s1, 2.0);
-        test_values.emplace(s1, 2.0);
+        trie->prefixed_upsert(start_pair.first, s1, 2.0);
+        test_values.emplace(s0 + s1, 2.0);
     });
     compare_containers(tresult, *trie, test_values);
     //update with upsert
+    tresult.assert_true(trie->insert(abc_str, 3.0).second);
+    test_values.emplace(abc_str, 3.0);
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
-        trie->upsert(s.first, 3.0);
-        test_values.find(s.first)->second = 3.0;
+        auto r = trie->prefixed_upsert(start_pair.first, s.first, 3.0);
+        auto key_str = s0 + s.first;
+
+        tresult.assert_false(r.second, "Value already exists");
+        tresult.assert_that<string_equals>(key_str, r.first.key(), "Value already exists");
+
+        test_values.find(key_str)->second = 3.0;
     });
     compare_containers(tresult, *trie, test_values);
 }

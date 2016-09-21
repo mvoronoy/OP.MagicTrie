@@ -10,6 +10,7 @@
 #include <atomic>
 #include <memory>
 #include <future>
+#include <stack>
 #include <op/trie/Containers.h>
 #include <op/vtm/FixedSizeMemoryManager.h>
 #include <op/vtm/SegmentManager.h>
@@ -468,6 +469,35 @@ namespace OP
                 if (count) { *count = 1; }
                 return result;
             }
+            
+            /**Erase every entries that strictly below of the specified iterator, the point of iterator is not erased.
+            * @param prefx{in,out} - iterator to erase, at exist contains synced iterator (the same version as entire Trie)
+            * @return number of erased items
+            */
+            size_t prefixed_erase_all(iterator& prefix)
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                auto sync_res = sync_iterator(prefix);
+                if (!std::get<bool>(sync_res))
+                { //prefix totaly absent, so return nothing
+                    return 0;
+                }
+                if (is_not_set(prefix.back().terminality(), Terminality::term_has_child))
+                { //no child below, so skip any erase
+                    return 0;
+                }
+                auto back = classify_back(prefix);
+                std::stack<FarAddress> to_process = std::get<FarAddress>(back);
+                while (!to_process.empty())
+                {
+                    auto node_addr = to_process.top();
+                    to_process.pop();
+                    auto node = access<node_t>(*_topology_ptr, fa);
+                }
+                
+                //iterate through all presented
+
+            }
         private:
             typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
             typedef SegmentTopology<
@@ -694,8 +724,7 @@ namespace OP
                 if (!result_iter.is_end()) //discover from previously positioned iterator
                 {
                     //there is great assumption that result_iter's deep points to full stem
-                    auto node = view<node_t>(*_topology_ptr, result_iter.back().address());
-                    auto cls = classify_back(node, result_iter);
+                    auto cls = classify_back(result_iter);
                     if (!std::get<1>(cls)) //no way down
                     {
                         return retval;//end()
@@ -744,8 +773,7 @@ namespace OP
                     return end(); //no way down
                 }
                 iterator result(of_this);
-                auto node = view<node_t>(*_topology_ptr, result.back().address());
-                auto cls = classify_back(node, result);
+                auto cls = classify_back(result);
                 auto addr = std::get<FarAddress>(cls);
                 do
                 {
@@ -871,7 +899,7 @@ namespace OP
             *
             */
             template <class NodeView>
-            std::tuple<bool, bool, FarAddress> classify_back(NodeView& ro_node, iterator& dest) const
+            std::tuple<bool, bool, FarAddress> classify_back(NodeView& ro_node, const iterator& dest) const
             {
                 auto& pos = dest.back();
                 assert(pos.key() < (dim_t)containers::HashTableCapacity::_256);
@@ -883,7 +911,11 @@ namespace OP
                 auto &v = values[ridx];
                 return std::make_tuple(v.has_data(), v.has_child(), v.get_child());
             }
-            
+            std::tuple<bool, bool, FarAddress> classify_back(const iterator& dest) const
+            {
+                auto ro_node = view<node_t>(*_topology_ptr, dest.back().address());
+                return classify_back(ro_node, dest);
+            }
             /**
             * \tparam FFindEntry - function `nullable_atom_t (ReadonlyAccess<node_t>&)` that resolve index inside node
             * \tparam FIteratorUpdate - pointer to one of iterator members - either to update 'back' position or insert new one to iterator

@@ -85,7 +85,7 @@ namespace OP
         >
         {
         public:
-            typedef atom_string_t prefix_string_t;
+            typedef OP::trie::atom_string_t prefix_string_t;
             typedef prefix_string_t key_type;
             typedef typename Container::value_type value_type;
             typedef TrieIterator<Container> this_t;
