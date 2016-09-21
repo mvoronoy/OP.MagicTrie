@@ -492,7 +492,12 @@ namespace OP
                 {
                     auto node_addr = to_process.top();
                     to_process.pop();
+
                     auto node = access<node_t>(*_topology_ptr, fa);
+                    for (auto res = node->first(); res.first; node->next(res.second))
+                    {
+
+                    }
                 }
                 
                 //iterate through all presented
