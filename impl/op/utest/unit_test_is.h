@@ -94,6 +94,20 @@ namespace OP
             };
         };
 
+        /**Marker around container_equals that can be used with assert_that<> */
+        struct string_equals
+        {
+            template <class Str1, class Str2>
+            struct impl : details::bool_result
+            {
+                
+                impl(const Str1& left, const Str2& right)
+                    : details::bool_result(left.compare(right) == 0)
+                {
+                }
+
+            };
+        };
     } //utest
 }//OP
 #endif //_UNIT_TEST_IS__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
