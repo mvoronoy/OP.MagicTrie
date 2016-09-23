@@ -73,9 +73,11 @@ namespace OP
             *   @param delta positive/negative numeric value to modify counter
             *   @throws TransactionIsNotStarted if method called outside of transaction scope
             */
-            TrieResidence& increase_count(int delta)
+            TrieResidence& increase_count(std::int64_t delta)
             {
-                accessor<TrieHeader>(*_segment_manager, _segment_address)->_count += delta;
+                auto& header = accessor<TrieHeader>(*_segment_manager, _segment_address);
+                assert(delta >= 0 || header->_count >= static_cast<std::uint64_t>(std::abs(delta)));
+                header->_count += delta;
                 return *this;
             }
 
@@ -83,9 +85,11 @@ namespace OP
             *   @param delta positive/negative numeric value to modify counter
             *   @throws TransactionIsNotStarted if method called outside of transaction scope
             */
-            TrieResidence& increase_nodes_allocated(int delta)
+            TrieResidence& increase_nodes_allocated(std::int64_t delta)
             {
-                accessor<TrieHeader>(*_segment_manager, _segment_address)->_nodes_allocated += delta;
+                auto& header = accessor<TrieHeader>(*_segment_manager, _segment_address);
+                assert(delta >= 0 || header->_nodes_allocated >= static_cast<std::uint64_t>(std::abs(delta)));
+                header->_nodes_allocated += delta;
                 return *this;
             }
             /**Provide unique identifier for each node allocated*/

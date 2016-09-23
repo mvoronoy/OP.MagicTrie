@@ -478,7 +478,7 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto sync_res = sync_iterator(prefix);
-                if (!std::get<bool>(sync_res))
+                if (!std::get<bool>(sync_res) || prefix.is_end())
                 { //prefix totaly absent, so return nothing
                     return 0;
                 }
@@ -486,22 +486,44 @@ namespace OP
                 { //no child below, so skip any erase
                     return 0;
                 }
-                auto back = classify_back(prefix);
-                std::stack<FarAddress> to_process = std::get<FarAddress>(back);
+                auto parent_wr_node = accessor<node_t>(*_topology_ptr, prefix.back().address());
+                auto back = classify_back(parent_wr_node, prefix);
+                std::stack<FarAddress> to_process;
+                to_process.push(std::get<FarAddress>(back));
+                std::int64_t erased_terminals = 0;
                 while (!to_process.empty())
                 {
                     auto node_addr = to_process.top();
                     to_process.pop();
 
-                    auto node = access<node_t>(*_topology_ptr, fa);
-                    for (auto res = node->first(); res.first; node->next(res.second))
+                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+                    auto node_data = _value_mngr.accessor(wr_node->payload, wr_node->capacity);
+                    std::int64_t terminal_erased = 0;
+                    for (auto res = wr_node->first(); res.first; res = wr_node->next(res.second))
                     {
-
+                        auto idex = wr_node->reindex(*_topology_ptr, res.second);
+                        auto& v = node_data[idex];
+                        if (v.has_child())
+                        {
+                            to_process.push(v.get_child());
+                        }
+                        if (v.has_data())
+                        {
+                            --erased_terminals;
+                        }
+                        v.clear();
                     }
+                    remove_node(node_addr, *wr_node);
                 }
-                
-                //iterate through all presented
-
+                parent_wr_node->set_child(*_topology_ptr, static_cast<atom_t>(prefix.back().key()), FarAddress());
+                auto& residence = _topology_ptr->slot<TrieResidence>()
+                    .increase_count(erased_terminals) //number of terminals
+                    .increase_version() // version of trie
+                    ;
+                prefix._version = residence.current_version();
+                prefix.back()._version = parent_wr_node->version;
+                prefix.back()._terminality &= ~Terminality::term_has_child;
+                return std::abs(erased_terminals);
             }
         private:
             typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
