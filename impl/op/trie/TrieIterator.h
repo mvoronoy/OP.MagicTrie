@@ -203,6 +203,10 @@ namespace OP
             {
                 return _position_stack.back();
             }
+            const TriePosition& back() const
+            {
+                return _position_stack.back();
+            }
             void pop()
             {
                 auto cut_len = _position_stack.back()._deep;

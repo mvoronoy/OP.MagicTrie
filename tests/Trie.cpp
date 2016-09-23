@@ -1101,6 +1101,70 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
     compare_containers(tresult, *trie, test_values);
 }
 
+void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+    std::map<atom_string_t, double> test_values;
+
+    const atom_string_t s0((atom_t*)"a");
+    auto start_pair = trie->insert(s0, -1.0);
+    tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
+    test_values.emplace(s0, -1.);
+    compare_containers(tresult, *trie, test_values);
+
+    tresult.assert_that<equals>(0, trie->prefixed_erase_all(start_pair.first), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(0, trie->prefixed_erase_all(trie->end()), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"a1", 1.),
+        p_t((atom_t*)"a2", 1.),
+        p_t((atom_t*)"xyz", 1.),
+        p_t((atom_t*)"klmnopqrstuffjfisdifsd sduf asdasjkdhasjhjkahaskdask asaskdhaskhdkasdasjdasjkdhaskasdjk hkasdjhdkashaskdaksdasjkhdjkash djkashkdashjkdhasjkhdkashdjkashdjkasklmnopqrstuffjfisdifsd sduf asdasjkdhasjhjkahaskdask asaskdhaskhdkasdasjdasjkdhaskasdjk hkasdjhdkashaskdaksdasjkhdjkash djkashkdashjkdhasjkhdkashdjkashdjkas", 11.1),
+        p_t((atom_t*)"bc", 1.),
+        p_t((atom_t*)"bc.12", 1.),
+        p_t((atom_t*)"bc.122x", 1),
+        p_t((atom_t*)"bc.123456789", 1),
+        p_t((atom_t*)"bd.12", 1.),
+    };
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(s.first, s.second);
+    });
+    compare_containers(tresult, *trie, test_values);
+
+    auto abc_iter = trie->prefixed_erase_all(start_pair.first);
+    //prepare test map, by removing all string that starts from 'a' and bigger than 1 char
+    for (auto wi = test_values.begin();
+        (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'a' && itm.first.length() > 1;})) != test_values.end();
+        test_values.erase(wi++));
+    compare_containers(tresult, *trie, test_values);
+    //special case for restore iterator
+    atom_string_t en2((const atom_t*)"bc");
+    auto f2 = trie->find(en2);
+    tresult.assert_that<not<equals>>(trie->end(), f2, OP_CODE_DETAILS());
+    trie->erase(f2);
+    test_values.erase(en2);
+    compare_containers(tresult, *trie, test_values);
+
+    tresult.assert_that<not<less>>(4, trie->prefixed_erase_all(f2), OP_CODE_DETAILS());
+    //prepare test map, by removing all string that starts from 'bc' and bigger than 2 char
+    for (auto wi = test_values.begin();
+        (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'b' && itm.first[1] == (atom_t)'c' &&itm.first.length() > 1;})) != test_values.end();
+        test_values.erase(wi++));
+
+    compare_containers(tresult, *trie, test_values);
+
+}
+
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
     ->declare(test_TrieInsert, "insertion")
@@ -1118,4 +1182,6 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_IteratorSync, "sync iterator")
     ->declare(test_TrieUpsert, "upsert")
     ->declare(test_TriePrefixedUpsert, "prefixed upsert")
+    ->declare(test_TriePrefixedEraseAll, "prefixed erase_all")
+    
     ;
