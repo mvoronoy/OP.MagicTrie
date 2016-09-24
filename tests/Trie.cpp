@@ -1150,8 +1150,9 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     //special case for restore iterator
     atom_string_t en2((const atom_t*)"bc");
     auto f2 = trie->find(en2);
+    auto f2_copy = f2;
     tresult.assert_that<not<equals>>(trie->end(), f2, OP_CODE_DETAILS());
-    trie->erase(f2);
+    trie->erase(f2_copy);
     test_values.erase(en2);
     compare_containers(tresult, *trie, test_values);
 
