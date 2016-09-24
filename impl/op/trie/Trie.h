@@ -477,8 +477,12 @@ namespace OP
             size_t prefixed_erase_all(iterator& prefix)
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                if (prefix.is_end())
+                {
+                    return 0;
+                }
                 auto sync_res = sync_iterator(prefix);
-                if (!std::get<bool>(sync_res) || prefix.is_end())
+                if (!std::get<bool>(sync_res))
                 { //prefix totaly absent, so return nothing
                     return 0;
                 }
