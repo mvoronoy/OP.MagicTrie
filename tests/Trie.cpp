@@ -1156,12 +1156,7 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     test_values.erase(en2);
     compare_containers(tresult, *trie, test_values);
 
-    tresult.assert_that<not<less>>(4, trie->prefixed_erase_all(f2), OP_CODE_DETAILS());
-    //prepare test map, by removing all string that starts from 'bc' and bigger than 2 char
-    for (auto wi = test_values.begin();
-        (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'b' && itm.first[1] == (atom_t)'c' &&itm.first.length() > 1;})) != test_values.end();
-        test_values.erase(wi++));
-
+    tresult.assert_that<equals>(0, trie->prefixed_erase_all(f2), OP_CODE_DETAILS());
     compare_containers(tresult, *trie, test_values);
 
 }
