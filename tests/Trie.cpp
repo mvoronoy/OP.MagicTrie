@@ -1155,8 +1155,19 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     trie->erase(f2_copy);
     test_values.erase(en2);
     compare_containers(tresult, *trie, test_values);
+    f2_copy = f2;
+    tresult.assert_that<equals>(0, trie->prefixed_erase_all(f2_copy), OP_CODE_DETAILS());
+    compare_containers(tresult, *trie, test_values);
+    //put back
+    tresult.assert_true(trie->insert(en2, 0.).second);
+    test_values.emplace(en2, 0.);
 
-    tresult.assert_that<equals>(0, trie->prefixed_erase_all(f2), OP_CODE_DETAILS());
+    //prepare test map, by removing all string that starts from 'bc' and bigger than 2 char
+    for (auto wi = test_values.begin();
+        (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'b' && itm.first[1] == (atom_t)'c' && itm.first.length() > 2;})) != test_values.end();
+        test_values.erase(wi++));
+
+    tresult.assert_that<equals>(3, trie->prefixed_erase_all(f2), OP_CODE_DETAILS());
     compare_containers(tresult, *trie, test_values);
 
 }
