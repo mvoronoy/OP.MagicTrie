@@ -6,6 +6,10 @@
 #include <cstddef>
 #include <string>
 
+#if defined( _MSC_VER ) && defined(max)
+#undef max
+#endif
+
 #define OP_EMPTY_ARG
 #ifdef _MSC_VER
 #if _MSC_VER <= 1800
