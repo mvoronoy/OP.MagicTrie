@@ -373,7 +373,7 @@ namespace OP
                     return value;
                 };
                 auto on_update = [&op_g](iterator& ) {
-                    op_g.rollback(); //do nothing on update
+                    op_g.rollback(); //do nothing on update TODO: check case of nested transaction if smthng is destroyed
                 };
                 return upsert_impl(end(), begin, aend, value_assigner, on_update);
             }
@@ -383,7 +383,30 @@ namespace OP
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
             }
-
+            template <class AtomIterator>
+            std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, Payload value)
+            {
+                if (begin == aend)
+                    return std::make_pair(end(), false); //empty string is not operatable
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true/*commit automatically*/);
+                auto sync_res = sync_iterator(of_prefix);
+                if (!std::get<bool>(sync_res))
+                { //no entry for previous iterator
+                    return insert(std::get<atom_string_t>(sync_res).append(begin, aend), std::move(value));
+                }
+                auto value_assigner = [&]() {
+                    return std::move(value);
+                };
+                auto on_update = [&](iterator& pos) {
+                    //do nothing on update
+                };
+                return upsert_impl(of_prefix, begin, aend, value_assigner, on_update);
+            }
+            template <class AtomContainer>
+            std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, const AtomContainer& conatiner, Payload value)
+            {
+                return prefixed_insert(of_prefix, std::begin(container), std::end(conatiner), payload);
+            }
             template <class AtomIterator>
             std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, Payload && value)
             {
