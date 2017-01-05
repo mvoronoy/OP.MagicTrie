@@ -403,9 +403,9 @@ namespace OP
                 return upsert_impl(of_prefix, begin, aend, value_assigner, on_update);
             }
             template <class AtomContainer>
-            std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, const AtomContainer& conatiner, Payload value)
+            std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, const AtomContainer& container, Payload payload)
             {
-                return prefixed_insert(of_prefix, std::begin(container), std::end(conatiner), payload);
+                return prefixed_insert(of_prefix, std::begin(container), std::end(container), payload);
             }
             template <class AtomIterator>
             std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, Payload && value)
