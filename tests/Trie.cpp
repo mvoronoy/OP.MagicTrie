@@ -1086,7 +1086,7 @@ void test_TriePrefixedInsert(OP::utest::TestResult &tresult)
         test_values.emplace(s0 + s1, 2.0);
     });
     compare_containers(tresult, *trie, test_values);
-    //update with upsert
+    //fail update with insert
     tresult.assert_true(trie->insert(abc_str, 3.0).second);
     test_values.emplace(abc_str, 3.0);
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
@@ -1096,7 +1096,6 @@ void test_TriePrefixedInsert(OP::utest::TestResult &tresult)
         tresult.assert_false(r.second, "Value already exists");
         tresult.assert_that<string_equals>(key_str, r.first.key(), "Value already exists");
 
-        test_values.find(key_str)->second = 3.0;
     });
     compare_containers(tresult, *trie, test_values);
 }
