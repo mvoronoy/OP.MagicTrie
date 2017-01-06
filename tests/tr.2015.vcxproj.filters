@@ -113,7 +113,6 @@
     <ClInclude Include="..\impl\op\common\Bitset.h">
       <Filter>OP\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
     <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h">
       <Filter>OP\trie\ranges</Filter>
     </ClInclude>
@@ -153,6 +152,9 @@
     </ClInclude>
     <ClInclude Include="..\impl\op\utest\unit_test_is.h">
       <Filter>OP\utest</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieIterator.h">
+      <Filter>OP\trie</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
