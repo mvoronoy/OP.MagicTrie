@@ -241,6 +241,54 @@ void test_TrieInsertGrow(OP::utest::TestResult &tresult)
     }
     compare_containers(tresult, *trie, test_values);
 }
+void test_TrieUpdate(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    tresult.assert_that<equals>(0, trie->update(trie->end(), 0.0), "update of end is not allowed");
+
+    typedef std::pair<atom_string_t, double> p_t;
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"aa1", 1.),
+        p_t((atom_t*)"aa2", 1.),
+        p_t((atom_t*)"abc", 1.),
+        p_t((atom_t*)"abc.12", 1.),
+        p_t((atom_t*)"abc.122x", 1),
+        p_t((atom_t*)"abc.123456789", 1),
+        p_t((atom_t*)"abd.12", 1.),
+    };
+    std::map<atom_string_t, double> test_values;
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        atom_string_t s1(s.first);
+        trie->insert(s.first, s.second);
+        test_values.emplace(s.first, s.second);
+    });
+    compare_containers(tresult, *trie, test_values);
+    //update all values 
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        auto pos = trie->find(s.first);
+        tresult.assert_false(pos.is_end());
+
+        trie->update(pos, 2.0);
+        test_values[s.first] = 2.0;
+    });
+    compare_containers(tresult, *trie, test_values);
+    // test update of erased
+    auto to_erase = trie->find(ini_data[0].first);
+    trie_t::iterator copy_of = to_erase;
+    test_values.erase(ini_data[0].first);
+    size_t n = 0;
+    trie->erase(copy_of, &n);
+    tresult.assert_that<equals>(1, n, "wrong item specified");
+    tresult.assert_that<equals>(0, trie->update(to_erase, 3.0), "update must not operate erased item");
+    compare_containers(tresult, *trie, test_values);
+}
 
 void test_TrieGrowAfterUpdate(OP::utest::TestResult &tresult)
 {
@@ -1250,6 +1298,7 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
     ->declare(test_TrieInsert, "insertion")
     ->declare(test_TrieInsertGrow, "insertion-grow")
+    ->declare(test_TrieUpdate, "update values")
     //->declare(test_TrieGrowAfterUpdate, "grow-after-update")
     ->declare(test_TrieLowerBound, "lower_bound")
     ->declare(test_PrefixedFind, "prefixed find")

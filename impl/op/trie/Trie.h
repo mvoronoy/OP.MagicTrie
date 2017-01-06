@@ -146,7 +146,11 @@ namespace OP
             }
             typedef PredicateRange<iterator> range_container_t;
             typedef std::shared_ptr<range_container_t> range_container_ptr;
-
+            /**
+            *   Construct a range that address all string started from string specified by [begin, aend)
+            *   @param begin - first symbol of string to lookup
+            *   @param begin - end of string to lookup
+            */
             template <class IterateAtom>
             range_container_ptr subrange(IterateAtom begin, IterateAtom aend) const
             {
@@ -406,6 +410,30 @@ namespace OP
             std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, const AtomContainer& container, Payload payload)
             {
                 return prefixed_insert(of_prefix, std::begin(container), std::end(container), payload);
+            }
+            /**
+            *   @return number of items updated (1 or 0)
+            */
+            size_t update(iterator& pos, Payload && value)
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                auto sync_res = sync_iterator(pos);
+                if (!std::get<bool>(sync_iterator(pos)) || pos.is_end())
+                { //no entry for previous iterator
+                    return 0;
+                }
+                assert(is_set(pos.back().terminality(), Terminality::term_has_data));
+                //get the node in readonly way, but access values for write
+                auto ro_node = view<node_t>(*_topology_ptr, pos.back().address());
+                auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.back().key());
+                auto values = _value_mngr.accessor(ro_node->payload, ro_node->capacity);
+                auto &v = values[ridx];
+                assert(v.has_data());
+                v.set_data(std::move(value));
+                _topology_ptr->slot<TrieResidence>()
+                    .increase_version() // version of trie
+                    ;
+                return 1;
             }
             template <class AtomIterator>
             std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, Payload && value)
