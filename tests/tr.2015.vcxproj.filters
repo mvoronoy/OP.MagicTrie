@@ -156,6 +156,9 @@
     <ClInclude Include="..\impl\op\trie\TrieIterator.h">
       <Filter>OP\trie</Filter>
     </ClInclude>
+    <ClInclude Include="..\impl\op\common\FetchTicket.h">
+      <Filter>OP\common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />

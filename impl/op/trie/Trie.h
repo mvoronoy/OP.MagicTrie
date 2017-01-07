@@ -43,7 +43,7 @@ namespace OP
             typedef Trie<TSegmentManager, payload_t, initial_node_count> trie_t;
             typedef trie_t this_t;
             typedef TrieIterator<this_t> iterator;
-            typedef SuffixRange<typedef iterator> suffix_range_t;
+            typedef OP::ranges::SuffixRange<typedef iterator> suffix_range_t;
             typedef std::unique_ptr<suffix_range_t> suffix_range_ptr;
             typedef payload_t value_type;
             typedef TrieNode<payload_t> node_t;
@@ -144,7 +144,7 @@ namespace OP
                 }
                 i.clear();
             }
-            typedef PredicateRange<iterator> range_container_t;
+            typedef OP::ranges::PredicateRange<iterator> range_container_t;
             typedef std::shared_ptr<range_container_t> range_container_ptr;
             /**
             *   Construct a range that address all string started from string specified by [begin, aend)
@@ -159,7 +159,7 @@ namespace OP
                 iterator i(this);
                 auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix
-                    return std::make_shared<range_container_t>(end(), AlwaysFalseRangePredicate<range_container_t::iterator>());
+                    return std::make_shared<range_container_t>(end(), OP::ranges::AlwaysFalseRangePredicate<range_container_t::iterator>());
                 auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
@@ -599,7 +599,7 @@ namespace OP
                 return node.next((atom_t)i->back().key());
             };
             /**Used to iterate over immediate children*/
-            struct ChildRange : public PredicateRange<iterator>
+            struct ChildRange : public OP::ranges::PredicateRange<iterator>
             {
                 typedef typename trie_t::iterator super_iter_t;
                 typedef PredicateRange<super_iter_t> super_t;

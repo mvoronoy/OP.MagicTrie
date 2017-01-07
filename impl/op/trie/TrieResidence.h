@@ -7,6 +7,7 @@ namespace OP
 {
     namespace trie
     {
+        using namespace ::OP::utils;
         /**
         *   Small slot to keep arbitrary Trie information in 0 segment
         */

@@ -8,7 +8,7 @@
 
 namespace OP
 {
-    namespace trie
+    namespace utils
     {
         /**
         *   Allows get index of type in variadic template parameters.
@@ -189,61 +189,6 @@ namespace OP
             };
         };
 
-
-        template <class I>
-        struct FetchTicket
-        {
-            FetchTicket():
-                _ticket_number(0),
-                _turn(0)
-            {
-            }
-
-            void lock()
-            {
-                size_t r_turn = _ticket_number.fetch_add(1);
-                while (!_turn.compare_exchange_weak(r_turn, r_turn))
-                    /*empty body std::this_thread::yield()*/;
-            }
-            void unlock()
-            {
-                _turn.fetch_add(1);
-            }
-
-            std::atomic<I> _ticket_number;
-            std::atomic<I> _turn;
-
-        };
-        //////////////////////////////////
-        /**
-        *   Wrapper to grant RAI operation by invoking pair of methods
-        */
-        template < class T, 
-            void (T::*start_op)(), 
-            void (T::*end_op)() >
-        struct operation_guard_t
-        {
-            operation_guard_t(T& ref) :
-                _ref(&ref),
-                _is_closed(false)
-            {
-                (_ref->*start_op)();
-            }
-            void close()
-            {
-                if (!_is_closed)
-                    (_ref->*end_op)();
-                _is_closed = true;
-            }
-            ~operation_guard_t()
-            {
-                close();
-            }
-        private:
-            T* _ref;
-            bool _is_closed;
-        };
-
         template <class T, class Y>
         OP_CONSTEXPR(OP_EMPTY_ARG) inline T align_on(T address, Y base)
         {
@@ -256,26 +201,16 @@ namespace OP
             return (address / base)*base;
         }
         template <class T, class Y>
-        OP_CONSTEXPR(OP_EMPTY_ARG) inline segment_pos_t aligned_sizeof(Y base)
+        OP_CONSTEXPR(OP_EMPTY_ARG) inline std::uint32_t aligned_sizeof(Y base)
         {
-            return align_on(static_cast<segment_pos_t>(sizeof(T)), base);
+            return align_on(static_cast<std::uint32_t>(sizeof(T)), base);
         }
         template <class T, class Y>
         inline bool is_aligned(T address, Y base)
         {
             return ((size_t)(address) % base) == 0;
         }
-        /**get segment part from far address*/
-        inline segment_idx_t segment_of_far(far_pos_t pos)
-        {
-            return static_cast<segment_idx_t>(pos >> 32);
-        }
-        /**get offset part from far address*/
-        inline segment_pos_t pos_of_far(far_pos_t pos)
-        {
-            return static_cast<segment_pos_t>(pos);
-        }
 
-    } //trie
+    } //utils
 } //OP
 #endif //_OP_TRIE_UTILS__H_

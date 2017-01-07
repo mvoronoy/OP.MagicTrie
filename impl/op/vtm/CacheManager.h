@@ -5,6 +5,8 @@
 #include <atomic>
 #include <future>
 #include <op/common/Utils.h>
+#include <op/common/FetchTicket.h>
+
 namespace OP{
     namespace trie{
         template <class Key, class Value, class Hasher = std::hash<Key> >
@@ -347,7 +349,7 @@ namespace OP{
                     delete[]arr;
                 }
             };
-            struct Array : public FetchTicket<size_t>
+            struct Array : public OP::utils::FetchTicket<size_t>
             {
                 Array(index_t capacity)
                     :_capacity(capacity)

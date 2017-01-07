@@ -584,7 +584,7 @@ void test_join(
     auto comparator = [](const auto& left, const auto& right)->int {
         auto&&left_prefix = left.key(); //may be return by const-ref or by value
         auto&&right_prefix = right.key();//may be return by const-ref or by value
-        return OP::trie::str_lexico_comparator(left_prefix.begin(), left_prefix.end(),
+        return OP::ranges::str_lexico_comparator(left_prefix.begin(), left_prefix.end(),
             right_prefix.begin(), right_prefix.end());
     };
     auto result1 = r1->join(r2, comparator);
@@ -747,7 +747,7 @@ void test_Flatten(OP::utest::TestResult &tresult)
         decltype(strain1)::value_type((atom_t*)"def", 1.5),
     };
     tresult.assert_true(
-        OP::trie::utils::map_equals(*_1_flatten, strain1), OP_CODE_DETAILS(<< "Simple flatten failed"));
+        OP::ranges::utils::map_equals(*_1_flatten, strain1), OP_CODE_DETAILS(<< "Simple flatten failed"));
 }
 void test_Erase(OP::utest::TestResult &tresult)
 {
