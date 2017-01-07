@@ -85,7 +85,7 @@ namespace OP
                 auto r = _segment_size;
 
                 size_t min_page_size = boost::interprocess::mapped_region::get_page_size();
-                r = align_on(r, static_cast<segment_pos_t>(min_page_size));
+                r = OP::utils::align_on(r, static_cast<segment_pos_t>(min_page_size));
 
                 return r;
             }
@@ -216,7 +216,7 @@ namespace OP
             }
             segment_pos_t header_size() const
             {
-                return aligned_sizeof<SegmentHeader>(SegmentHeader::align_c);
+                return OP::utils::aligned_sizeof<SegmentHeader>(SegmentHeader::align_c);
             }
             /**create new segment if needed*/
             void ensure_segment(segment_idx_t index)
@@ -449,12 +449,12 @@ namespace OP
                 guard_t l(_file_lock);
                 _fbuf.seekp(0, std::ios_base::end);
                 auto segment_offset = (std::streamoff)_fbuf.tellp();
-                auto new_pos = align_on(segment_offset, _segment_size);
+                auto new_pos = OP::utils::align_on(segment_offset, _segment_size);
                 segment_idx_t result = static_cast<segment_idx_t>(new_pos / _segment_size);
                 SegmentHeader header(_segment_size);
                 do_write(header);
                 //place empty memory block
-                auto current = align_on((std::streamoff)_fbuf.tellp(), SegmentHeader::align_c);
+                auto current = OP::utils::align_on((std::streamoff)_fbuf.tellp(), SegmentHeader::align_c);
                 //_fbuf.seekp(current);
                 
                 _fbuf.seekp(new_pos + std::streamoff(_segment_size - 1), std::ios_base::beg);

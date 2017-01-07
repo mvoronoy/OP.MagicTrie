@@ -46,7 +46,7 @@ namespace OP
             /**@return real occupied bytes size()+sizeof(*this)*/
             segment_pos_t real_size() const
             {
-                return size() + aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                return size() + OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
             }
             segment_idx_t my_segement() const
             {
@@ -97,7 +97,7 @@ namespace OP
             FarAddress split_this(SegmentManager& segment_manager, far_pos_t this_pos, segment_pos_t byte_size)
             {
                 assert(_free);
-                OP_CONSTEXPR(const) segment_pos_t mbh_size_align = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                OP_CONSTEXPR(const) segment_pos_t mbh_size_align = OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 assert(size() >= byte_size);
                 //alloc new segment at the end of current
                 segment_pos_t offset = size() - byte_size;
@@ -144,7 +144,7 @@ namespace OP
             */
             std::uint8_t* memory() const
             {
-                return ((std::uint8_t*)this) + aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                return ((std::uint8_t*)this) + OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
             }
             void _check_integrity() const
             {
@@ -199,14 +199,14 @@ namespace OP
             */
             static far_pos_t get_header_addr(far_pos_t this_addr)
             {
-                return this_addr - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                return this_addr - OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
             }
             /**
             *   Taking this far address convert it to far address of associated MemoryBlockHeader
             */
             static far_pos_t get_addr_by_header(far_pos_t header_addr)
             {
-                return header_addr + aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                return header_addr + OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
             }
             
         };

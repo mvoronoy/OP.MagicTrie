@@ -113,6 +113,17 @@ namespace OP
                 return address == SegmentDef::far_null_c;
             }
         };
+        /**get segment part from far address*/
+        inline segment_idx_t segment_of_far(far_pos_t pos)
+        {
+            return static_cast<segment_idx_t>(pos >> 32);
+        }
+        /**get offset part from far address*/
+        inline segment_pos_t pos_of_far(far_pos_t pos)
+        {
+            return static_cast<segment_pos_t>(pos);
+        }
+
         template <typename ch, typename char_traits>
         std::basic_ostream<ch, char_traits>& operator<<(std::basic_ostream<ch, char_traits> &os, FarAddress const& addr)
         {

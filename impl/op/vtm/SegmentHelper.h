@@ -5,6 +5,7 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/thread.hpp>
 #include <cassert>
+#include <op/common/Utils.h>
 
 namespace OP
 {
@@ -67,7 +68,7 @@ namespace OP
                 }
                 std::uint8_t* raw_space() const
                 {
-                    return at<std::uint8_t>(aligned_sizeof<SegmentHeader>(SegmentHeader::align_c));
+                    return at<std::uint8_t>(OP::utils::aligned_sizeof<SegmentHeader>(SegmentHeader::align_c));
                 }
                 segment_pos_t available() const
                 {
