@@ -5,8 +5,8 @@
 
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
-#include <op/trie/ranges/IteratorsRange.h>
-#include <op/trie/ranges/RangeUtils.h>
+#include <op/ranges/IteratorsRange.h>
+#include <op/ranges/RangeUtils.h>
 #include <map>
 #include <utility>
 #include <unordered_set>

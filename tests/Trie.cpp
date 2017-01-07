@@ -6,11 +6,11 @@
 #include <op/utest/unit_test_is.h>
 
 #include <op/trie/Trie.h>
-#include <op/trie/ranges/RangeUtils.h>
+#include <op/ranges/RangeUtils.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/TransactedSegmentManager.h>
-#include <op/trie/ranges/FlattenRange.h>
+#include <op/ranges/FlattenRange.h>
 #include <algorithm>
 #include "test_comparators.h"
 

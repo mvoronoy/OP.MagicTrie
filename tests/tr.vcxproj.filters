@@ -101,10 +101,10 @@
     <ClInclude Include="..\impl\op\vtm\MemoryChunks.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h">
+    <ClInclude Include="..\impl\op\ranges\IteratorsRange.h">
       <Filter>Header Files\vtm\ranges</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h">
+    <ClInclude Include="..\impl\op\ranges\SuffixRange.h">
       <Filter>Header Files\vtm\ranges</Filter>
     </ClInclude>
   </ItemGroup>
