@@ -19,8 +19,8 @@
 #include <op/trie/TrieNode.h>
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
-#include <op/trie/ranges/IteratorsRange.h>
-#include <op/trie/ranges/PredicateRange.h>
+#include <op/ranges/IteratorsRange.h>
+#include <op/ranges/PredicateRange.h>
 
 namespace OP
 {
