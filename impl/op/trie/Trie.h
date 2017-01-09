@@ -20,6 +20,7 @@
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
 #include <op/ranges/PredicateRange.h>
+#include <op/ranges/IteratorsRange.h>
 
 namespace OP
 {
@@ -143,22 +144,32 @@ namespace OP
                 }
                 i.clear();
             }
-            typedef OP::ranges::PredicateRange<iterator> range_container_t;
-            typedef std::shared_ptr<range_container_t> range_container_ptr;
+            typedef OP::ranges::IteratorsRange<iterator> iterators_range_t;
+            typedef std::shared_ptr<iterators_range_t> iterators_range_ptr;
+            /**
+            *   @return range that embrace all records by pair [ begin(), end() )
+            */
+            iterators_range_ptr range() const
+            {
+                return std::make_shared<iterators_range_t>(begin(), end());
+            }
+
+            typedef OP::ranges::PredicateRange<iterator> subrange_container_t;
+            typedef std::shared_ptr<subrange_container_t> subrange_container_ptr;
             /**
             *   Construct a range that address all string started from string specified by [begin, aend)
             *   @param begin - first symbol of string to lookup
             *   @param begin - end of string to lookup
             */
             template <class IterateAtom>
-            range_container_ptr subrange(IterateAtom begin, IterateAtom aend) const
+            subrange_container_ptr subrange(IterateAtom begin, IterateAtom aend) const
             {
-                StartWithPredicate<range_container_t::iterator> end_predicate(atom_string_t(begin, aend));
+                StartWithPredicate<subrange_container_t::iterator> end_predicate(atom_string_t(begin, aend));
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 iterator i(this);
                 auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix
-                    return std::make_shared<range_container_t>(end(), OP::ranges::AlwaysFalseRangePredicate<range_container_t::iterator>());
+                    return std::make_shared<subrange_container_t>(end(), OP::ranges::AlwaysFalseRangePredicate<subrange_container_t::iterator>());
                 auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
@@ -177,8 +188,8 @@ namespace OP
                 }
                 //
                 //_next(false, i_end);
-                //return range_container_t(i_beg, i_end);
-                return std::make_shared<range_container_t>(i_beg, end_predicate);
+                //return subrange_container_t(i_beg, i_end);
+                return std::make_shared<subrange_container_t>(i_beg, end_predicate);
             }
             /**
             *   Just shorthand for: 
@@ -188,7 +199,7 @@ namespace OP
             * @param string any string of bytes that supports std::begin/ std::end functions
             */
             template <class AtomContainer>
-            range_container_ptr subrange(const AtomContainer& string) const
+            subrange_container_ptr subrange(const AtomContainer& string) const
             {
                 return this->subrange(std::begin(string), std::end(string));
             }
@@ -325,9 +336,9 @@ namespace OP
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
             }
             /**Return range that allows iterate all immediate childrens of specified prefix*/
-            range_container_ptr children_range(iterator& of_this)
+            subrange_container_ptr children_range(iterator& of_this)
             {
-                range_container_ptr result(new ChildRange(*this, first_child(of_this)));
+                subrange_container_ptr result(new ChildRange(*this, first_child(of_this)));
                 return result;
             }
 
