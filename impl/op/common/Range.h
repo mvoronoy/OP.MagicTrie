@@ -1,7 +1,25 @@
 #ifndef _OP_RANGE__H_
 #define _OP_RANGE__H_
+
+#ifdef _MSC_VER
+
+#ifndef NOMINMAX
+#define NOMINMAX 1
+#endif //NOMINMAX
+#endif //_MSC_VER
+
 #include <set>
 #include <op/common/Utils.h>
+#include <algorithm>
+
+#ifdef min
+#undef min
+#endif //min
+
+#ifdef max
+#undef max
+#endif //max
+
 namespace OP
 {
     template <class T>
