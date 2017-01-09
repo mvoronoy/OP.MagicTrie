@@ -1293,6 +1293,43 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     compare_containers(tresult, *trie, test_values);
 
 }
+void test_Range(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+    std::map<atom_string_t, double> test_values;
+
+    const p_t ini_data[] = {
+        p_t((atom_t*)"a1", 1.),
+        p_t((atom_t*)"a2", 1.),
+        p_t((atom_t*)"xyz", 1.),
+        p_t((atom_t*)"klmnopqrstuffjfisdifsd sduf asdasjkdhasjhjkahaskdask asaskdhaskhdkasdasjdasjkdhaskasdjk hkasdjhdkashaskdaksdasjkhdjkash djkashkdashjkdhasjkhdkashdjkashdjkasklmnopqrstuffjfisdifsd sduf asdasjkdhasjhjkahaskdask asaskdhaskhdkasdasjdasjkdhaskasdjk hkasdjhdkashaskdaksdasjkhdjkash djkashkdashjkdhasjkhdkashdjkashdjkas", 11.1),
+        p_t((atom_t*)"bc", 1.),
+        p_t((atom_t*)"bc.12", 1.),
+        p_t((atom_t*)"bc.122x", 1),
+        p_t((atom_t*)"bc.123456789", 1),
+        p_t((atom_t*)"bd.12", 1.),
+    };
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(s.first, s.second);
+    });
+
+    auto i = test_values.begin();
+    trie->range()
+        ->for_each([&](auto const & kv) {
+        tresult.assert_true(tools::container_equals(kv.key(), i->first, &tools::sign_tolerant_cmp<atom_t>),
+            OP_CODE_DETAILS("error for key=" << (const char*)i->first.c_str() << ", while obtained:" << (const char*)kv.key().c_str()));
+        tresult.assert_that<equals>(*kv, i->second,
+            OP_CODE_DETAILS(<< "Associated value error, has:" << *kv << ", expected:" << i->second));
+        ++i;
+    });
+}
 
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
@@ -1314,5 +1351,6 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TriePrefixedInsert, "prefixed insert")
     ->declare(test_TriePrefixedUpsert, "prefixed upsert")
     ->declare(test_TriePrefixedEraseAll, "prefixed erase_all")
-    
+    ->declare(test_Range, "iterate all by range")
+
     ;
