@@ -45,6 +45,7 @@ namespace OP
             typedef TrieIterator<this_t> iterator;
             typedef OP::ranges::SuffixRange<typedef iterator> suffix_range_t;
             typedef std::unique_ptr<suffix_range_t> suffix_range_ptr;
+            typedef OP::ranges::IteratorsRange<iterator> iterators_range_t;
             typedef payload_t value_type;
             typedef TrieNode<payload_t> node_t;
             typedef TriePosition poistion_t;
@@ -144,12 +145,10 @@ namespace OP
                 }
                 i.clear();
             }
-            typedef OP::ranges::IteratorsRange<iterator> iterators_range_t;
-            typedef std::shared_ptr<iterators_range_t> iterators_range_ptr;
             /**
             *   @return range that embrace all records by pair [ begin(), end() )
             */
-            iterators_range_ptr range() const
+            suffix_range_ptr range() const
             {
                 return std::make_shared<iterators_range_t>(begin(), end());
             }
@@ -159,7 +158,7 @@ namespace OP
             /**
             *   Construct a range that address all string started from string specified by [begin, aend)
             *   @param begin - first symbol of string to lookup
-            *   @param begin - end of string to lookup
+            *   @param aend - end of string to lookup
             */
             template <class IterateAtom>
             subrange_container_ptr subrange(IterateAtom begin, IterateAtom aend) const
