@@ -26,7 +26,7 @@ namespace OP
 
             template<class T,
                 class D = void>
-                struct DiscoverIteratorKeyType
+            struct DiscoverIteratorKeyType
             {   // default definition
                 typedef D key_t;
             };
@@ -109,7 +109,10 @@ namespace OP
             template <class OtherRange>
             inline std::shared_ptr< UnionAllRange<this_t, OtherRange> > merge_all(std::shared_ptr< OtherRange > & range,
                 typename UnionAllRange<this_t, OtherRange>::iterator_comparator_t && cmp) const;
-
+            /** Apply operation `f` to the each item of this range 
+            *   \tparam OPeration - functor with 1 argument `f(const& iterator)`
+            *   \return number of items processed
+            */
             template <class Operation>
             size_t for_each(Operation && f) const
             {
