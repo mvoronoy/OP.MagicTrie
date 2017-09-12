@@ -44,7 +44,7 @@ namespace OP
             typedef trie_t this_t;
             typedef TrieIterator<this_t> iterator;
             typedef OP::ranges::SuffixRange<typedef iterator> suffix_range_t;
-            typedef std::unique_ptr<suffix_range_t> suffix_range_ptr;
+            typedef std::shared_ptr<suffix_range_t> suffix_range_ptr;
             typedef OP::ranges::IteratorsRange<iterator> iterators_range_t;
             typedef payload_t value_type;
             typedef TrieNode<payload_t> node_t;
@@ -145,11 +145,13 @@ namespace OP
                 }
                 i.clear();
             }
+            using iterators_range_ptr = std::shared_ptr<iterators_range_t>;
             /**
             *   @return range that embrace all records by pair [ begin(), end() )
             */
-            suffix_range_ptr range() const
+            iterators_range_ptr range() const
             {
+
                 return std::make_shared<iterators_range_t>(begin(), end());
             }
 
