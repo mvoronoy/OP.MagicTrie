@@ -70,6 +70,10 @@ namespace OP
                 auto r = std::shared_ptr<this_t>(new this_t(segment_manager));
                 return r;
             }
+            TSegmentManager& segment_manager() const
+            {
+                return _topology_ptr->segment_manager();
+            }
             /**Total number of items*/
             std::uint64_t size()
             {
@@ -591,6 +595,44 @@ namespace OP
                 prefix.back()._terminality &= ~Terminality::term_has_child;
                 return std::abs(erased_terminals);
             }
+            /**
+            *   Allows to apply multiple modification operations in a transaction. In fact this just decoration 
+            * for \code
+            *  OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction(), true);
+            *  try{
+            *  .. multiple operations that modifies trie ...
+            *  }catch(...){
+            *       op_g.rollback();
+            *       throw;
+            *  }
+            * \endcode
+            */
+            template <class F>
+            auto apply(F& f) -> typename std::result_of<F(this_t&)>::type
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //autocommit on return
+                try{
+                    return f(*this);
+                }catch(...){
+                    op_g.rollback();
+                    throw;
+                }
+            }
+            /**
+            *   Allows to apply multiple readonly operations in a transaction. In fact this just decoration 
+            * for \code
+            *  OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction(), false);
+            *  .. multiple operations that modifies trie ...
+            *  op_g.commit()
+            * \endcode
+            */
+            template <class F>
+            auto apply(F const & f) const -> typename std::result_of<F(const this_t&)>::type
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //autocommit on return
+                return f(*this);
+            }
+
         private:
             typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
             typedef SegmentTopology<
