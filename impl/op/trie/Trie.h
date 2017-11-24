@@ -70,9 +70,9 @@ namespace OP
                 auto r = std::shared_ptr<this_t>(new this_t(segment_manager));
                 return r;
             }
-            TSegmentManager& segment_manager() const
+            TSegmentManager& segment_manager()
             {
-                return _topology_ptr->segment_manager();
+                return static_cast<TSegmentManager&>( OP::trie::resolve_segment_manager( *_topology_ptr ));
             }
             /**Total number of items*/
             std::uint64_t size()
