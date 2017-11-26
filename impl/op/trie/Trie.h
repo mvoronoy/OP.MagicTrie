@@ -537,7 +537,7 @@ namespace OP
             }
             
             /**Erase every entries that strictly below of the specified iterator, the point of iterator is not erased.
-            * @param prefx{in,out} - iterator to erase, at exist contains synced iterator (the same version as entire Trie)
+            * @param prefx{in,out} - iterator to erase, at exit contains synced iterator (the same version as entire Trie)
             * @return number of erased items
             */
             size_t prefixed_erase_all(iterator& prefix)
@@ -594,6 +594,24 @@ namespace OP
                 prefix.back()._version = parent_wr_node->version;
                 prefix.back()._terminality &= ~Terminality::term_has_child;
                 return std::abs(erased_terminals);
+            }
+            /**
+            *   Remove all that starts from prefix
+            */
+            template <class AtomContainer>
+            size_t prefixed_key_erase_all(const AtomContainer& prefix)
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                iterator it(this);
+                auto nav_res = common_prefix(std::begin(prefix), std::end(prefix), it);
+                switch (nav_res.compare_result)
+                {
+                case stem::StemCompareResult::equals:
+                case stem::StemCompareResult::string_end:
+                    return prefixed_erase_all(it);
+                default:
+                    return 0;
+                }
             }
             /**
             *   Allows to apply multiple modification operations in a transaction. In fact this just decoration 
