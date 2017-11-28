@@ -1239,10 +1239,13 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     auto start_pair = trie->insert(s0, -1.0);
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
     test_values.emplace(s0, -1.);
-    compare_containers(tresult, *trie, test_values);
+    /*@!!compare_containers(tresult, *trie, test_values);
 
     tresult.assert_that<equals>(0, trie->prefixed_erase_all(start_pair.first), OP_CODE_DETAILS());
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(1, trie->prefixed_key_erase_all(s0), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(trie->begin(), trie->end(), OP_CODE_DETAILS());*/
+
     tresult.assert_that<equals>(0, trie->prefixed_erase_all(trie->end()), OP_CODE_DETAILS());
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
 
@@ -1309,12 +1312,16 @@ void test_TriePrefixedKeyEraseAll(OP::utest::TestResult &tresult)
     const atom_string_t s0((atom_t*)"a");
     auto start_pair = trie->insert(s0, -1.0);
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
+    
+    /*@!!
     test_values.emplace(s0, -1.);
     compare_containers(tresult, *trie, test_values);
 
     tresult.assert_that<equals>(0, trie->prefixed_key_erase_all(s0), OP_CODE_DETAILS());
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
-
+    */
+    tresult.assert_that<equals>(1, trie->prefixed_key_erase_all(s0), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(trie->begin(), trie->end(), OP_CODE_DETAILS());
     const p_t ini_data[] = {
         p_t((atom_t*)"a1", 1.),
         p_t((atom_t*)"a2", 1.),
@@ -1350,11 +1357,11 @@ void test_TriePrefixedKeyEraseAll(OP::utest::TestResult &tresult)
     //put back
     tresult.assert_true(trie->insert(en2, 0.).second);
     test_values.emplace(en2, 0.);
-    tresult.assert_that<equals>(3, trie->prefixed_key_erase_all(en2), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(4, trie->prefixed_key_erase_all(en2), OP_CODE_DETAILS());
 
     //prepare test map, by removing all string that starts from 'bc' and bigger than 2 char
     for (auto wi = test_values.begin();
-        (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'b' && itm.first[1] == (atom_t)'c' && itm.first.length() > 2;})) != test_values.end();
+        (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'b' && itm.first[1] == (atom_t)'c' ;})) != test_values.end();
         test_values.erase(wi++));
 
     compare_containers(tresult, *trie, test_values);

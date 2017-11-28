@@ -237,7 +237,7 @@ namespace OP
                 //no child, so wipe content
                 if (has_reindexer)
                 {
-                    hash_mngr.erase(this->reindexer, static_cast<atom_t>(reindexed));
+                    hash_mngr.erase(this->reindexer, key);
                 }
                 presence.clear(key);
                 //@! think to reduce space of hashtable

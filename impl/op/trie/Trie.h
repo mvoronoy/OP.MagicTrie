@@ -295,11 +295,12 @@ namespace OP
             iterator find(iterator& of_prefix, const AtomContainer& container) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto iter = end ();
+                iterator iter = end ();
                 if (std::get<bool>(sync_iterator(of_prefix)))
                 {
                     iter = of_prefix;
-                    if (lower_bound_impl(begin, aend, &of_prefix) && begin == aend)
+                    auto begin = std::begin(container), aend = std::end(container);
+                    if (lower_bound_impl(begin, aend, iter) && begin == aend)
                     {
                         return iter;
                     }
@@ -554,8 +555,10 @@ namespace OP
                 }
                 if (is_not_set(prefix.back().terminality(), Terminality::term_has_child))
                 { //no child below, so skip any erase
-                    return 0;
-                }
+                    size_t counter = 0;
+                    prefix = erase(prefix, &counter);
+                    return counter;
+                } 
                 auto parent_wr_node = accessor<node_t>(*_topology_ptr, prefix.back().address());
                 auto back = classify_back(parent_wr_node, prefix);
                 std::stack<FarAddress> to_process;
@@ -602,16 +605,18 @@ namespace OP
             size_t prefixed_key_erase_all(const AtomContainer& prefix)
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
-                iterator it(this);
-                auto nav_res = common_prefix(std::begin(prefix), std::end(prefix), it);
-                switch (nav_res.compare_result)
+                size_t result = 0;
+                for (iterator it(this->lower_bound(prefix)); this->in_range(it); )
                 {
-                case stem::StemCompareResult::equals:
-                case stem::StemCompareResult::string_end:
-                    return prefixed_erase_all(it);
-                default:
-                    return 0;
+                    if (0 == it.key().compare(0, prefix.length(), prefix)) //check found starts with 'prefix'
+                    {
+                        result += prefixed_erase_all(it);
+                    }
+                    else
+                        break;
+                    
                 }
+                return result;
             }
             /**
             *   Allows to apply multiple modification operations in a transaction. In fact this just decoration 
