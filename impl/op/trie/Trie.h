@@ -608,7 +608,11 @@ namespace OP
                 size_t result = 0;
                 for (iterator it(this->lower_bound(prefix)); this->in_range(it); )
                 {
-                    if (0 == it.key().compare(0, prefix.length(), prefix)) //check found starts with 'prefix'
+                    if (it.key().size() < prefix.size())
+                        continue;
+                    auto key_beg = std::begin(it.key());
+                    //check found starts with 'prefix'
+                    if (std::lexicographical_compare(key_beg, key_beg + prefix.size(), std::begin(prefix), std::end(prefix))) 
                     {
                         result += prefixed_erase_all(it);
                     }
