@@ -1407,7 +1407,22 @@ void test_Range(OP::utest::TestResult &tresult)
         ++i;
     });
 }
+void test_TrieCheckExists(OP::utest::TestResult &tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
 
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+    std::map<atom_string_t, double> test_values;
+
+    const atom_string_t s0((atom_t*)"a");
+    auto start_pair = trie->insert(s0, -1.0);
+    test_values.emplace(s0, -1.);
+}
 static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieCreation, "creation")
     ->declare(test_TrieInsert, "insertion")
