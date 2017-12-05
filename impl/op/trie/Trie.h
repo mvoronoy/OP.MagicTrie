@@ -308,6 +308,18 @@ namespace OP
                 }
                 return iter;
             }
+            template <class AtomContainer>
+            bool check_exists(const AtomContainer& container) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                auto b = std::begin(container);
+                iterator iter = end();
+                
+                auto nav_res = common_prefix(b, std::end(container), iter);
+
+                return (nav_res.compare_result) == stem::StemCompareResult::equals);
+            }
+
             /**
             *   Get first child element resided below position specified by @param `of_this`. Since all values in Trie are lexicographically 
             *   ordred the return iterator indicate smallest immediate children
