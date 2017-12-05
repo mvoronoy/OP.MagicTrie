@@ -317,7 +317,7 @@ namespace OP
                 
                 auto nav_res = common_prefix(b, std::end(container), iter);
 
-                return (nav_res.compare_result) == stem::StemCompareResult::equals);
+                return (nav_res.compare_result == stem::StemCompareResult::equals);
             }
 
             /**
