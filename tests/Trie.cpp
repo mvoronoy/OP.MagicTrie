@@ -1419,9 +1419,6 @@ void test_TrieCheckExists(OP::utest::TestResult &tresult)
     typedef std::pair<atom_string_t, double> p_t;
     std::map<atom_string_t, double> test_values;
 
-    const atom_string_t s0((atom_t*)"a");
-    auto start_pair = trie->insert(s0, -1.0);
-    test_values.emplace(s0, -1.);
     typedef std::pair<atom_string_t, double> p_t;
 
     const p_t ini_data[] = {
@@ -1435,10 +1432,27 @@ void test_TrieCheckExists(OP::utest::TestResult &tresult)
     };
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
         atom_string_t s1(s.first);
-        trie->prefixed_insert(start_pair.first, s.first, s.second);
-        test_values.emplace(s0 + s.first, s.second);
+        trie->insert(s.first, s.second);
+        test_values.emplace(s.first, s.second);
     });
-    compare_containers(tresult, *trie, test_values);
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        atom_string_t s1(s.first);
+        tresult.assert_true(trie->check_exists(s1));
+    });
+
+    atom_string_t probe((const atom_t*)"a");
+    tresult.assert_false(trie->check_exists(probe));
+    probe = ((const atom_t*)"a22");
+    tresult.assert_false(trie->check_exists(probe));
+    probe = ((const atom_t*)"bc.1");
+    tresult.assert_false(trie->check_exists(probe));
+    probe = (const atom_t*)"bd.1";
+    tresult.assert_false(trie->check_exists(probe));
+    probe = (const atom_t*)"bd.122";
+    tresult.assert_false(trie->check_exists(probe));
+
+    probe = (const atom_t*)"xyz";
+    tresult.assert_false(trie->check_exists(probe));
 }
 
 static auto module_suite = OP::utest::default_test_suite("Trie")
