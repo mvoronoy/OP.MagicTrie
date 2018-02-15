@@ -1398,14 +1398,23 @@ void test_Range(OP::utest::TestResult &tresult)
     });
 
     auto i = test_values.begin();
-    trie->range()
+
+    tresult.assert_that<equals>(9, trie->range()
         ->for_each([&](auto const & kv) {
         tresult.assert_true(tools::container_equals(kv.key(), i->first, &tools::sign_tolerant_cmp<atom_t>),
             OP_CODE_DETAILS("error for key=" << (const char*)i->first.c_str() << ", while obtained:" << (const char*)kv.key().c_str()));
         tresult.assert_that<equals>(*kv, i->second,
             OP_CODE_DETAILS(<< "Associated value error, has:" << *kv << ", expected:" << i->second));
         ++i;
-    });
+    }), "wrong counter");
+    //test take_while semantic
+    atom_t last_letter = (atom_t)'z';
+    tresult.assert_that<equals>(7, trie->range()
+        ->for_each([&](auto const & kv)->bool {
+        last_letter = kv.key()[0];
+        return kv.key()[0] <= (atom_t)'b';
+    }), "wrong counter");
+    tresult.assert_true(last_letter == (atom_t)'k');
 }
 void test_TrieCheckExists(OP::utest::TestResult &tresult)
 {
