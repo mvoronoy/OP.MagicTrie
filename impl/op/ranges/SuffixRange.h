@@ -2,6 +2,7 @@
 #define _OP_RANGES_SUFFIX_RANGE__H_
 
 #include <algorithm>
+#include <type_traits>
 #include <op/ranges/FunctionalRange.h>
 
 #ifdef _MSC_VER
@@ -110,18 +111,41 @@ namespace OP
             inline std::shared_ptr< UnionAllRange<this_t, OtherRange> > merge_all(std::shared_ptr< OtherRange > & range,
                 typename UnionAllRange<this_t, OtherRange>::iterator_comparator_t && cmp) const;
             /** Apply operation `f` to the each item of this range 
-            *   \tparam OPeration - functor with 1 argument `f(const& iterator)`
+            *   \tparam Operation - functor that may have one of the following form:<ul>
+            *       <li> `void f(const& iterator)` - use to iterate all items </li>
+            *       <li> `bool f(const& iterator)` - use to iterate untill predicate returns true (take-while semantic)</li>
+            *   </ul>
             *   \return number of items processed
             */
             template <class Operation>
-            size_t for_each(Operation && f) const
+            typename std::enable_if< /*Apply to `void Operation(const &iterator)` */
+                !std::is_convertible<
+                typename std::result_of< 
+                    Operation(const iterator&) >::type,
+                bool>::value, size_t
+              >::type for_each( Operation && f ) const
             {
                 size_t n = 0;
                 for (auto i = begin(); in_range(i); next(i), ++n)
                 {
-                    f(i);
+                   f(i);
                 }
                 return n;
+
+            }
+            template <class Operation> 
+            typename std::enable_if</*Apply to `bool Operation(const &iterator)` */
+                std::is_convertible<typename std::result_of< Operation(const iterator&)>::type, bool>::value, size_t
+            >::type for_each( Operation && f ) const
+            {
+                 size_t n = 0;
+                 for (auto i = begin(); in_range(i); next(i), ++n)
+                 {
+                    if( !f(i) ){
+                        return n; 
+                    }
+                 }
+                 return n;
             }
         };
 
