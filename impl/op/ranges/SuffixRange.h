@@ -81,6 +81,18 @@ namespace OP
             virtual ~SuffixRange() = default;
 
             virtual iterator begin() const = 0;
+            /** Acts same as begin, but allows skip some records before 
+            * @param p predicate that should return true for the first matching and false to skip record
+            */
+            template <class Predicate>
+            iterator first_that(Predicate && p) const 
+            {
+                auto i = begin();
+                for(;in_range(i) && !p(i); next(i))
+                {/* empty */}
+                return i;
+            }
+
             virtual bool in_range(const iterator& check) const = 0;
             virtual void next(iterator& pos) const = 0;
 

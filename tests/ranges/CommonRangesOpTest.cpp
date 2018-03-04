@@ -196,10 +196,53 @@ void test_UnionAllRange(OP::utest::TestResult &tresult)
     tresult.assert_true(OP::ranges::utils::key_equals(*u1_3_1, strain2), OP_CODE_DETAILS(<< "Union-all no intersection"));
 }
 
+
+void test_FirstThat(OP::utest::TestResult &tresult)
+{
+    tresult.status_details().as_stream() << "test empty set\n";
+    test_container_t src_empty;
+
+    auto r_src0 = OP::ranges::make_iterators_range(src_empty);
+
+    tresult.assert_true(OP::ranges::utils::key_equals(*r_src0, src_empty));
+
+    test_container_t src1;
+    src1.emplace("a", 1.0);
+    src1.emplace("ab", 1.0);
+    src1.emplace("b", 1.0);
+    src1.emplace("bc", 1.0);
+    src1.emplace("xyz", 1.0);
+
+    auto r_src1 = OP::ranges::make_iterators_range(src1);
+
+    tresult.assert_that<equals>(
+        r_src1->first_that([](const auto& i) -> bool {
+            return i.key()[0] > 'a';
+        })->first,
+        "b",
+        OP_CODE_DETAILS(<< "First-that fails location")
+    );
+    //test untill the end
+    auto i = r_src1->first_that([](const auto&) -> bool {
+        return false;
+    });
+    tresult.assert_false(r_src1->in_range(i),
+        OP_CODE_DETAILS(<< "First-that over last fails location")
+        );
+    //test range
+    tresult.assert_that<equals>(
+        r_src1->first_that([](const auto&) -> bool {
+            return true;
+        })->first,
+        "a",
+        OP_CODE_DETAILS(<< "First-that fails on the first")
+    );
+}
 static auto module_suite = OP::utest::default_test_suite("Ranges")
 ->declare(test_RangeJoin, "join")
 ->declare(test_ApplyFncRange, "fnc")
 ->declare(test_FilterRange, "filter")
 ->declare(test_UnionAllRange, "union-all")
+->declare(test_FirstThat, "first-that")
 
 ;
