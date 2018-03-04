@@ -583,7 +583,7 @@ namespace OP
 
                     auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
                     auto node_data = _value_mngr.accessor(wr_node->payload, wr_node->capacity);
-                    std::int64_t terminal_erased = 0;
+                    
                     for (auto res = wr_node->first(); res.first; res = wr_node->next(res.second))
                     {
                         auto idex = wr_node->reindex(*_topology_ptr, res.second);
