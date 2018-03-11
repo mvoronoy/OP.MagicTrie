@@ -264,7 +264,7 @@ namespace OP
                 auto result = lower_bound_impl(b2, look_for.end(), i2);
                 if( !i2.is_end() )
                 {
-                    begin += i2.key().length() - break_at;
+                    begin += i2.key().size() - break_at;
                 }
                 return i2;
             }
@@ -624,8 +624,9 @@ namespace OP
                         continue;
                     auto key_beg = std::begin(it.key());
                     //check found starts with 'prefix'
-                    if (std::lexicographical_compare(key_beg, key_beg + prefix.size(), std::begin(prefix), std::end(prefix))) 
-                    {
+                    auto prefix_end = std::end(prefix);
+                    if (std::mismatch(key_beg, key_beg + prefix.size(), std::begin(prefix), prefix_end).second == prefix_end) 
+                    { //key starts from prefix
                         result += prefixed_erase_all(it);
                     }
                     else
