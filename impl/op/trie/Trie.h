@@ -1205,7 +1205,7 @@ namespace OP
                 }
                 bool operator()(const Iterator& check) const
                 {
-                    auto && str = check.key();
+                    auto & str = check.key();
                     if (str.length() < _prefix.length())
                         return false;
                     return std::equal(_prefix.begin(), _prefix.end(), str.begin());
