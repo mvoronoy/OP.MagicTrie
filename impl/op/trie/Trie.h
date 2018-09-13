@@ -264,7 +264,8 @@ namespace OP
                 auto result = lower_bound_impl(b2, look_for.end(), i2);
                 if( !i2.is_end() )
                 {
-                    begin += i2.key().size() - break_at;
+                    std::ptrdiff_t offset = static_cast<std::ptrdiff_t>(i2.key().size() - break_at);
+                    begin += offset;
                 }
                 return i2;
             }
