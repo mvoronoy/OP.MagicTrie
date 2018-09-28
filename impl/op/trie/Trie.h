@@ -397,6 +397,7 @@ namespace OP
             {
                 if (begin == aend)
                     return std::make_pair(iterator(this), false); //empty string cannot be inserted
+
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto value_assigner = [&]() {
                     _topology_ptr->slot<TrieResidence>()
@@ -421,6 +422,7 @@ namespace OP
             {
                 if (begin == aend)
                     return std::make_pair(end(), false); //empty string is not operatable
+
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true/*commit automatically*/);
                 auto sync_res = sync_iterator(of_prefix);
                 if (!std::get<bool>(sync_res))
@@ -801,6 +803,13 @@ namespace OP
             template <class AtomIterator, class FValueEval, class FOnUpdate>
             std::pair<iterator, bool> upsert_impl(const iterator& start_from, AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
             {
+                //std::cout << "##";
+                //for (auto i = begin; i != end; ++i) {
+                //    std::cout << std::setbase(16) << std::setw(2) << std::setfill('0') << (unsigned int)*i;
+                //}
+                //std::cout << std::endl;
+
+
                 auto result = std::make_pair(start_from, true/*suppose insert succeeded*/);
                 auto& iter = result.first;
                 auto origin_begin = begin;
