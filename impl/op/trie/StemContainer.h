@@ -268,6 +268,27 @@ namespace OP
                     data.stem_length[key] = shorten;
                 }
                 /**
+                * Move one column to another one, source is truncated to 0
+                */
+                inline void move_stem(const ref_stems_t& st_address, atom_t from, atom_t to) const
+                {
+                    auto data_header = accessor<StemData>(_topology, st_address.address);
+                    assert(from < data_header->width);
+                    assert(to < data_header->width);
+
+                    auto to_addr = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
+                        + sizeof(atom_t)*data_header->height * to };
+                    auto from_addr = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
+                        + sizeof(atom_t)*data_header->height * from };
+
+                    auto to_data = array_accessor<atom_t>(_topology, to_addr, data_header->height);
+                    auto from_data = array_view<atom_t>(_topology, from_addr, data_header->height);
+                    to_data.byte_copy(from_data, data_header->stem_length[from]);
+                    data_header->summary_length -= data_header->stem_length[to];
+                    data_header->stem_length[to] = data_header->stem_length[from];
+                    data_header->stem_length[from] = 0;
+                }
+                /**
                 *   Resolve stem matched to specified key
                 *   @return tuple of:
                 *   -# const pointer to first atom of stem
@@ -372,6 +393,7 @@ namespace OP
                         tuple_ref<trie::PersistedReference<StemData> >(new_stem)
                         );
                 }
+                
             private:
                 
 

@@ -200,6 +200,14 @@ namespace OP
             {
                 return array_view<vad_t>(_topology, array_ref.address, capacity);
             }
+            /**
+            *   Move one cell to another one
+            */
+            inline void move(const PersistedArray<vad_t>& array_ref, dim_t capacity, atom_t from, atom_t to) const
+            {
+                auto array_acc = array_accessor<vad_t>(_topology, array_ref.address, capacity);
+                array_acc[to] = std::move(array_acc[from]); //assumes that move cleares presence flag
+            }
         private:
             SegmentTopology& _topology;
         };

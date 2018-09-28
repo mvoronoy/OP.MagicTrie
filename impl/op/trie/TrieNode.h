@@ -216,16 +216,9 @@ namespace OP
                 ++version;
                 containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-                //no need to operate by stem
-                dim_t reindexed = key;
-                auto has_reindexer = !this->reindexer.is_null();
-                if (has_reindexer) //reindex may absent for 256 table
-                {
-                    auto table_head = hash_mngr.table_head(this->reindexer);
-                    reindexed = hash_mngr.find(table_head, key);
-                    assert(reindexed != hash_mngr.nil_c);
-                }
                 assert(presence.get(key));
+                //no need to operate by stem
+                dim_t reindexed = reindex(topology, key);
                 if (erase_data)
                 {
                     value_manager.accessor(payload, capacity)[reindexed].clear_data();
@@ -234,11 +227,19 @@ namespace OP
                 { //when child presented need keep sequence in this node
                     return false;
                 }
+                stem::StemStore<TSegmentTopology> stem_manager(topology);
                 //no child, so wipe content
-                if (has_reindexer)
+                if (!this->reindexer.is_null())
                 {
-                    hash_mngr.erase(this->reindexer, key);
+                    hash_mngr.erase(this->reindexer, key, [&](unsigned from, unsigned to) {
+                        //extract stem from current node
+                        stem_manager.move_stem(stems, from, to);
+                        value_manager.move(payload, capacity, from, to);
+                    });
                 }
+                else
+                    stem_manager.trunc_str(this->stems, static_cast<atom_t>(reindexed), 0);
+
                 presence.clear(key);
                 //@! think to reduce space of hashtable
                 return presence.first_set() == presence_t::nil_c; //erase entire node if no more entries
