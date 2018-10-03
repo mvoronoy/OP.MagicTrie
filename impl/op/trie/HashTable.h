@@ -187,7 +187,7 @@ namespace OP
 
                 /**
                 * @tparam OnMoveCallback - functor that is called if internal space of hash-table is optimized (shrinked). Argumnets (from, to)
-                * @return number of erased - 0 or 1
+                * @return position where data has been erased (or not found if no such key)
                 */
                 template <class OnMoveCallback>
                 unsigned erase(const trie::PersistedReference<HashTableData>& ref_data, atom_t key, OnMoveCallback& on_move_callback)
@@ -202,21 +202,18 @@ namespace OP
                     {
                         if (0 == (fpresence_c & HashTableData::get_flag(hash_data, hash)))
                         { //nothing at this pos
-                            return 0;
+                            return hash;
                         }
                         if (HashTableData::get_value(hash_data, hash) == key)
                         {//make erase
                             table_head->size--;
                             //may be rest of neighbors sequence may be shifted by 1, so scan in backward
 
-                            hash = restore_on_erase(table_head, hash_data, hash, on_move_callback);
-                            //just release pos
-                            HashTableData::reset_flag(hash_data, hash, fpresence_c);
-                            return 1;
+                            return restore_on_erase(table_head, hash_data, hash, on_move_callback);
                         }
                         ++hash %= table_head->capacity; //keep in boundary
                     }
-                    return 0u;
+                    return hash;
                 }
                 void clear(const trie::PersistedReference<HashTableData>& ref_data) const
                 {
@@ -372,26 +369,29 @@ namespace OP
                 {
                     const unsigned bitmask = details::bitmask((HashTableCapacity)table_head->capacity);//assuming that capacity is ^ 2
 
-                    unsigned erased_hash =  
-                        static_cast<unsigned>(HashTableData::get_value(hash_data, erase_pos)) & bitmask;
-
+                    unsigned erased_hash = static_cast<unsigned>(HashTableData::get_value(hash_data, erase_pos)) & bitmask;
                     unsigned limit = (erase_pos + table_head->neighbor_width) % table_head->capacity; //start from last available neighbor
 
                     for (unsigned i = (erase_pos + 1) % table_head->capacity; i != limit; ++i %= table_head->capacity)
                     {
                         if (!HashTableData::has_flag(hash_data, i, fpresence_c))
-                            return erase_pos; //stop optimization and erase item at pos
-                        unsigned local_hash = 
+                            break; //stop optimization and erase item at pos
+                        unsigned local_hash =
                             static_cast<unsigned>(HashTableData::get_value(hash_data, i)) & bitmask;
-                        
-                        if (local_hash == erased_hash)
+                        bool item_in_right_place = i == local_hash;
+                        if (item_in_right_place)
+                            continue;
+                        unsigned x = less_pos(erased_hash, erase_pos, table_head->capacity) ? erase_pos : erased_hash;
+                        if (!less_pos(x, local_hash, table_head->capacity)/*equivalent of <=*/)
                         {
                             copy_to(hash_data, erase_pos, i);
                             on_move_callback(i, erase_pos);
                             erase_pos = i;
-                            //limit = (erase_pos + table_head->neighbor_width) % table_head->capacity;
+                            erased_hash = local_hash;
+                            limit = (erase_pos + table_head->neighbor_width) % table_head->capacity;
                         }
                     }
+                    HashTableData::reset_flag(hash_data, erase_pos, fpresence_c);
                     return erase_pos;
                 }
                 /** test if tst_min is less than tst_max on condition of cyclyng nature of hash buffer, so (page_c = 8):
@@ -403,7 +403,7 @@ namespace OP
                     less(0x5, 0xF) == true
                     less(0xF, 0x5) == false
                 */
-                bool less_pos(unsigned tst_min, unsigned tst_max, unsigned capacity) const
+                static bool less_pos(unsigned tst_min, unsigned tst_max, unsigned capacity) 
                 {
                     int dif = static_cast<int>(tst_min) - static_cast<int>(tst_max);
                     unsigned a = std::abs(dif);
@@ -412,7 +412,7 @@ namespace OP
                     return dif < 0;
                 }
                 template <class Accessor>
-                void copy_to(Accessor &acc, unsigned to, unsigned src)
+                static void copy_to(Accessor &acc, unsigned to, unsigned src)
                 {
                     acc[to] = acc[src];
                 }

@@ -231,13 +231,14 @@ namespace OP
                 //no child, so wipe content
                 if (!this->reindexer.is_null())
                 {
-                    hash_mngr.erase(this->reindexer, key, [&](unsigned from, unsigned to) {
+                    auto erase_pos = hash_mngr.erase(this->reindexer, key, [&](unsigned from, unsigned to) {
                         //extract stem from current node
                         stem_manager.move_stem(stems, from, to);
                         value_manager.move(payload, capacity, from, to);
                     });
+                    stem_manager.trunc_str(this->stems, static_cast<atom_t>(erase_pos), 0);
                 }
-                else
+                else 
                     stem_manager.trunc_str(this->stems, static_cast<atom_t>(reindexed), 0);
 
                 presence.clear(key);

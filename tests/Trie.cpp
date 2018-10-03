@@ -828,6 +828,7 @@ void test_Erase(OP::utest::TestResult &tresult)
     tresult.assert_that<equals>(1, cnt, "count mismatch");
 
     test_values.erase(std::string((const char*)short_key.c_str()));
+    
     compare_containers(tresult, *trie, test_values);
     //do random test
     constexpr int str_limit = 513;
@@ -1713,8 +1714,12 @@ void test_ISSUE_0001(OP::utest::TestResult &tresult) {
         trie->insert(s, 0);
         test_values.emplace(s, 0);
     });
+    compare_containers(tresult, *trie, test_values);
+
     trie->erase(trie->find(to_erase));
     test_values.erase(to_erase);
+
+    compare_containers(tresult, *trie, test_values);
 
     tresult.assert_that<equals>(trie->end(), trie->find(to_erase),
         OP_CODE_DETAILS(<< "erase failed"));
