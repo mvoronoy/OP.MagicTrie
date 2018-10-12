@@ -99,6 +99,12 @@ namespace OP
             const Container * _container;
             prefix_string_t _prefix;
             node_version_t _version;
+            struct end_marker_t {};
+            TrieIterator(const Container * container, const end_marker_t&) noexcept
+                : _container(container)
+                , _version(0)
+            {
+            }
         public:
 
             explicit TrieIterator(const Container * container) noexcept
