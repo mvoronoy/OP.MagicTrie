@@ -114,7 +114,7 @@ namespace OP
             }
             iterator end() const
             {
-                return iterator(this);
+                return iterator(this, iterator::end_marker_t{});
             }
             bool in_range(const iterator& check) const 
             {
@@ -552,7 +552,7 @@ namespace OP
                 return result;
             }
             
-            /**Erase every entries that strictly below of the specified iterator, the point of iterator is not erased.
+            /**Erase every entries that begins with prfix specified by iterator.
             * @param prefx{in,out} - iterator to erase, at exit contains synced iterator (the same version as entire Trie)
             * @return number of erased items
             */
@@ -621,20 +621,28 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 size_t result = 0;
-                for (iterator it(this->lower_bound(prefix)); this->in_range(it); )
+                for (iterator it(this->lower_bound(prefix)); it != this->end(); )
                 {
-                    if (it.key().size() < prefix.size())
-                        continue;
                     auto key_beg = std::begin(it.key());
-                    //check found starts with 'prefix'
                     auto prefix_end = std::end(prefix);
+
+                    if (it.key().size() < prefix.size()) {
+                        //check if prefix lexically_less than it.key => stop
+                        auto key_end = std::end(it.key());
+                        if (std::mismatch(key_beg, key_end, std::begin(prefix), prefix_end).first == key_end) //case when key contained in prefix => just skip
+                        {
+                            ++it;
+                            continue;
+                        }
+                        break; //all other prefixes doesn't match and lexically bigger
+                    }
+                    //check found starts with 'prefix'
                     if (std::mismatch(key_beg, key_beg + prefix.size(), std::begin(prefix), prefix_end).second == prefix_end) 
                     { //key starts from prefix
                         result += prefixed_erase_all(it);
                     }
                     else
                         break;
-                    
                 }
                 return result;
             }
@@ -803,13 +811,6 @@ namespace OP
             template <class AtomIterator, class FValueEval, class FOnUpdate>
             std::pair<iterator, bool> upsert_impl(const iterator& start_from, AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
             {
-                //std::cout << "##";
-                //for (auto i = begin; i != end; ++i) {
-                //    std::cout << std::setbase(16) << std::setw(2) << std::setfill('0') << (unsigned int)*i;
-                //}
-                //std::cout << std::endl;
-
-
                 auto result = std::make_pair(start_from, true/*suppose insert succeeded*/);
                 auto& iter = result.first;
                 auto origin_begin = begin;

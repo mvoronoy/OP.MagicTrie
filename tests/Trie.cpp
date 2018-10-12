@@ -1238,17 +1238,22 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
 
     const atom_string_t s0((atom_t*)"a");
     auto start_pair = trie->insert(s0, -1.0);
+    auto check_iterator_restore{ start_pair.first };
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
     test_values.emplace(s0, -1.);
-    /*@!!compare_containers(tresult, *trie, test_values);
+    compare_containers(tresult, *trie, test_values);
 
-    tresult.assert_that<equals>(0, trie->prefixed_erase_all(start_pair.first), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(1, trie->prefixed_erase_all(start_pair.first), OP_CODE_DETAILS());
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(0, trie->size(), OP_CODE_DETAILS());
+    trie->insert(s0, -1.0);
     tresult.assert_that<equals>(1, trie->prefixed_key_erase_all(s0), OP_CODE_DETAILS());
-    tresult.assert_that<equals>(trie->begin(), trie->end(), OP_CODE_DETAILS());*/
+    tresult.assert_that<equals>(trie->begin(), trie->end(), OP_CODE_DETAILS());
 
     tresult.assert_that<equals>(0, trie->prefixed_erase_all(trie->end()), OP_CODE_DETAILS());
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
+
+    test_values.erase(s0);
 
     const p_t ini_data[] = {
         p_t((atom_t*)"a1", 1.),
@@ -1267,10 +1272,10 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     });
     compare_containers(tresult, *trie, test_values);
 
-    auto abc_iter = trie->prefixed_erase_all(start_pair.first);
+    auto abc_iter = trie->prefixed_key_erase_all(s0);
     //prepare test map, by removing all string that starts from 'a' and bigger than 1 char
     for (auto wi = test_values.begin();
-        (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'a' && itm.first.length() > 1;})) != test_values.end();
+        (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'a' /*&& itm.first.length() > 1*/;})) != test_values.end();
         test_values.erase(wi++));
     compare_containers(tresult, *trie, test_values);
     //special case for restore iterator
@@ -1314,13 +1319,7 @@ void test_TriePrefixedKeyEraseAll(OP::utest::TestResult &tresult)
     auto start_pair = trie->insert(s0, -1.0);
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
     
-    /*@!!
-    test_values.emplace(s0, -1.);
-    compare_containers(tresult, *trie, test_values);
 
-    tresult.assert_that<equals>(0, trie->prefixed_key_erase_all(s0), OP_CODE_DETAILS());
-    tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
-    */
     tresult.assert_that<equals>(1, trie->prefixed_key_erase_all(s0), OP_CODE_DETAILS());
     tresult.assert_that<equals>(trie->begin(), trie->end(), OP_CODE_DETAILS());
     const p_t ini_data[] = {
@@ -1369,6 +1368,27 @@ void test_TriePrefixedKeyEraseAll(OP::utest::TestResult &tresult)
     //  erase partial
     atom_string_t en3((const atom_t*)"xy");
     tresult.assert_that<equals>(1, trie->prefixed_key_erase_all(en3), OP_CODE_DETAILS());
+    test_values.erase((const atom_t*)"xyz");
+    compare_containers(tresult, *trie, test_values);
+
+
+    const p_t ini_data2[] = {
+        p_t((atom_t*)"gh", 1.),
+        p_t((atom_t*)"gh.", 1.),
+        p_t((atom_t*)"gh.1", 1.),
+        p_t((atom_t*)"gh.12", 1.),
+        p_t((atom_t*)"gh.2", 1.),
+    };
+    std::for_each(std::begin(ini_data2), std::end(ini_data2), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(s.first, s.second);
+    });
+    compare_containers(tresult, *trie, test_values);
+    
+    // check lower-bound is less then key (avoid infinit loop)
+    atom_string_t en4((const atom_t*)"efghijklm");
+    tresult.assert_that<equals>(0, trie->prefixed_key_erase_all(en4), OP_CODE_DETAILS());
+    compare_containers(tresult, *trie, test_values);
 
 }
 void test_Range(OP::utest::TestResult &tresult)
