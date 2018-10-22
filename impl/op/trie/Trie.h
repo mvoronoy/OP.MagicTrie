@@ -466,18 +466,36 @@ namespace OP
                     ;
                 return 1;
             }
+            /**Update or insert value specified by key that formed as `[begin, end)`. 
+            * @param value - payload to be assigned anyway 
+            * @return pair of iterator and boolean indicator. When insert succeeded iterator is a position of
+            *       just inserted item, otherwise it points to already existing key. Boolean indicator is false when
+            *       item already exists and true when it was inserted
+            */
             template <class AtomIterator>
             std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, Payload && value)
             {
                 return prefixed_upsert(end(), begin, aend, std::move(value));
             }
+            /**Update or insert value specified by key. In other words
+            *   place a string bellow pointer specified by iterator.
+            * @param key - a container that supports std::begin/std::end semantic
+            * @param value - payload to be assigned anyway 
+            * @return pair of iterator and boolean indicator. When insert succeeded iterator is a position of
+            *       just inserted item, otherwise it points to already existing key. Boolean indicator is false when
+            *       item already exists and true when it was inserted
+            */
             template <class AtomContainer>
-            std::pair<iterator, bool> upsert(const AtomContainer& container, Payload&& value)
+            std::pair<iterator, bool> upsert(const AtomContainer& key, Payload&& value)
             {
-                return upsert(std::begin(container), std::end(container), std::move(value));
+                return upsert(std::begin(key), std::end(key), std::move(value));
             }
             /**Update or insert value specified by key that formed as `prefix.key + [begin, end)`. In other words
             *   place a string bellow pointer specified by iterator. 
+            * @param value - payload to be assigned anyway 
+            * @return pair of iterator and boolean indicator. When insert succeeded iterator is a position of
+            *       just inserted item, otherwise it points to already existing key. Boolean indicator is false when
+            *       item already exists and true when it was inserted
             */
             template <class AtomIterator>
             std::pair<iterator, bool> prefixed_upsert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, Payload value)
