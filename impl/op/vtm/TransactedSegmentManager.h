@@ -20,6 +20,7 @@ namespace OP
         {
             friend struct SegmentManager;
         public:
+            TransactedSegmentManager() = delete;
             ~TransactedSegmentManager()
             {
             }
@@ -172,8 +173,9 @@ namespace OP
             }
 
         protected:
-            TransactedSegmentManager(const char * file_name, bool create_new, bool readonly) :
-                SegmentManager(file_name, create_new, readonly)
+            TransactedSegmentManager(const char * file_name, bool create_new, bool readonly) 
+                : SegmentManager(file_name, create_new, readonly)
+                , _transaction_uid_gen(121) //just a magic number, actually it can be any number
             {
                 _transaction_nesting = 0;
             }
