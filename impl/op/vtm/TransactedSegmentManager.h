@@ -655,11 +655,14 @@ namespace OP
                 }
                 //erase old and append to map brand-new key instead
                 auto new_val = std::move(to_extend->second);
-                auto er_res = current_tran->erase_shadow_buffer_created(new_val.shadow_buffer());
-                assert(er_res);
-                //if shadow buffer exists update it to bigger 
-                new_val.update_shadow(real_mem, to_extend->first.count(),
-                    static_cast<segment_pos_t>(to_extend->first.pos() - new_range.pos()));
+                if (new_val.shadow_buffer()) 
+                {
+                    auto er_res = current_tran->erase_shadow_buffer_created(new_val.shadow_buffer());
+                    assert(er_res);
+                    //if shadow buffer exists update it to bigger 
+                    new_val.update_shadow(real_mem, to_extend->first.count(),
+                        static_cast<segment_pos_t>(to_extend->first.pos() - new_range.pos()));
+                }
                 //current_tran->on_shadow_buffer_created(new_val.shadow_buffer(), real_mem.address());
                 current_tran->erase(to_extend);
                 auto erased = _captured_blocks.erase(to_extend);
@@ -753,7 +756,13 @@ namespace OP
                 if (found_res != _captured_blocks.end() && !(_captured_blocks.key_comp()(search_range, found_res->first)))
                 {//result found
                     if (!found_res->first.is_included(search_range))// don't allow transactions on overlapped memory blocks
-                        throw Exception(er_overlapping_block);
+                    {
+                        search_range = unite_range(search_range, found_res->first);
+                        auto super_res = std::move(SegmentManager::readonly_block(search_range.pos(), search_range.count(), hint));
+                        // extend existing if allowed
+                        extend_memory_block(found_res, search_range, super_res, current_transaction);
+                        current_transaction->store(found_res);
+                    }
                     //add hashcode to scope of transactions, may rise ConcurentLockException
                     if (found_res->second.permit_read(current_transaction->transaction_id()))
                     {//new lock was obtained, need persist to the transaction scope
