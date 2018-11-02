@@ -772,6 +772,35 @@ void test_TransactedBlockInclude(OP::utest::TestResult &tresult)
     g.commit();
     do_test_overlap();
 }
+
+void test_TransactedBlockIncludeOnRead(OP::utest::TestResult &tresult)
+{
+    tresult.info() << "test Transacted Segment Manager..." << std::endl;
+
+    const char seg_file_name[] = "t-segementation.test";
+
+    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(1024));
+    tmngr1->ensure_segment(0);
+    std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+    tresult.assert_true(fdata_acc.good());
+
+    //read out of tran must be permitted
+    OP::vtm::TransactionGuard g(tmngr1->begin_transaction());
+    auto outer_block = tmngr1->writable_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq1));
+    outer_block.byte_copy(write_fill_seq1, sizeof(write_fill_seq1));
+    g.commit();
+
+    OP::vtm::TransactionGuard g1(tmngr1->begin_transaction());
+    auto block1 = tmngr1->readonly_block(FarAddress(writable_data_fpos), 2);
+    auto block2 = tmngr1->readonly_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq1));
+    tresult.assert_true(tools::range_equals(
+        block2.pos(), block2.pos() + sizeof(write_fill_seq1), write_fill_seq1, write_fill_seq1 + sizeof(write_fill_seq1)),
+        OP_CODE_DETAILS(<< "Invalid overlapped data #2"));
+    g1.commit();
+
+}
 //using std::placeholders;
 static auto module_suite = OP::utest::default_test_suite("TransactedSegmentManager")
 ->declare(test_TransactedSegmentManager, "general")
@@ -782,5 +811,6 @@ static auto module_suite = OP::utest::default_test_suite("TransactedSegmentManag
 ->declare(test_ReleaseReadBlock, "release read block")
 ->declare(test_NestedTransactions, "nested transactions")
 ->declare(test_TransactedBlockInclude, "test write-block include capability")
+->declare(test_TransactedBlockIncludeOnRead, "test read-block include capability")
 
 ;
