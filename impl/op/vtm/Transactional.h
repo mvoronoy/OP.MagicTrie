@@ -79,6 +79,10 @@ namespace OP
                 , _is_closed(!_instance)//be polite to null transactions
                 , _do_commit_on_close(do_commit_on_close)
             {}
+			
+			TransactionGuard(const TransactionGuard&) = delete;
+			TransactionGuard& operator = (const TransactionGuard&) = delete;
+
             void commit()
             {
                 if (!!_instance)

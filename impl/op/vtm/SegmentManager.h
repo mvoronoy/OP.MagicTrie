@@ -288,11 +288,13 @@ namespace OP
             *   @return far-position resided inside specified segment
             *   @throws trie::Exception(trie::er_invalid_block) if `address` doesn't belong to `segment`
             */
+			/*!!!!!!!!!==>
             virtual far_pos_t to_far(segment_idx_t segment, const void * address) 
             {
                 auto h = get_segment(segment);
                 return _far(segment, h->to_offset(address));
             }
+			!!!!!!!!!==>*/
             void subscribe_event_listener(SegmentEventListener *listener)
             {
                 _listener = listener;
@@ -344,11 +346,8 @@ namespace OP
                 do_write(&t, 1);
                 return *this;
             }
-            inline void do_seek(segment_idx_t segment_idx, segment_pos_t size)
-            {
 
-            }
-            template <class T>
+			template <class T>
             inline SegmentManager& do_write(const T* t, size_t n)
             {
                 const auto to_write = sizeof(T)*n;
@@ -476,7 +475,7 @@ namespace OP
         * For example: \code
         *   SegmentTopology<NodeManager, HeapManagerSlot> 
         * \endcode
-        *   Specifies that we place 2 slots into each segment processed by SegmentManager. 
+        *   This example specifies that we place 2 slots into each segment processed by SegmentManager. 
         */
         struct Slot
         {

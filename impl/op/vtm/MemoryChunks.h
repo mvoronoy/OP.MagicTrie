@@ -16,36 +16,60 @@ namespace OP
             virtual ~BlockDisposer() OP_NOEXCEPT = default;
             virtual void on_leave_scope(MemoryChunkBase& closing) OP_NOEXCEPT = 0;
         };
-        struct MemoryChunkBase : public OP::Range<std::uint8_t *, segment_pos_t>
+		namespace details {
+			inline void dummy_deleter(std::uint8_t *) {/*do nothing*/}
+		}
+        struct MemoryChunkBase /*: public OP::Range<std::uint8_t *, segment_pos_t>*/
         {
-            typedef OP::Range<std::uint8_t *> base_t;
+            //typedef OP::Range<std::uint8_t *> base_t;
             MemoryChunkBase() {}
-            MemoryChunkBase(std::uint8_t * pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) OP_NOEXCEPT
-                : base_t(pos, count)
+            MemoryChunkBase(
+				far_pos_t pos_offset,
+				const std::shared_ptr<std::uint8_t>& pos, 
+				segment_pos_t count, 
+				FarAddress && address, 
+				details::segment_helper_p && segment) OP_NOEXCEPT
+                : _pos_offset(pos_offset)
+				, _pos(pos) 
+				, _count(count)
                 , _address(std::move(address))
                 , _segment(std::move(segment))
             {
             }
-            MemoryChunkBase(segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) OP_NOEXCEPT
-                : base_t(segment->at<std::uint8_t>(address.offset), count),
-                _address(std::move(address)),
-                _segment(std::move(segment))
+            MemoryChunkBase(
+				segment_pos_t count, 
+				FarAddress && address, 
+				details::segment_helper_p && segment) OP_NOEXCEPT
+                : _pos(std::shared_ptr<std::uint8_t> (
+					segment->at<std::uint8_t>(address.offset), 
+					/*dummy deleter since memory address from segment is not allocated in a heap*/
+					details::dummy_deleter))
+				, _count(count)
+                ,_address(std::move(address))
+                ,_segment(std::move(segment))
             {
             }
             MemoryChunkBase(MemoryChunkBase&& right) OP_NOEXCEPT
-                : base_t(right.pos(), right.count())
+				: _pos_offset(right._pos_offset)
+				, _pos(std::move(right._pos))
+				, _count(right._count)
                 , _address(std::move(right._address))
                 , _segment(std::move(right._segment))
                 , _disposer(std::move(right._disposer))
             {
-
+				right._count = 0;
+				right._pos_offset = 0;
             }
             MemoryChunkBase& operator = (MemoryChunkBase&& right) OP_NOEXCEPT
             {
-                _address = std::move(right._address);
+				_pos_offset = std::move(right._pos_offset);
+				right._pos_offset = 0;
+				_pos = std::move(right._pos);
+				_count = std::move(right._count);
+				right._count = 0;
+				_address = std::move(right._address);
                 _segment = std::move(right._segment);
                 _disposer = std::move(right._disposer);
-                base_t::operator=(std::move(right));
                 return *this;
             }
 
@@ -58,7 +82,7 @@ namespace OP
                     _disposer->on_leave_scope(*this);
             }
 
-            const FarAddress& address() const
+            FarAddress address() const
             {
                 return _address;
             }
@@ -72,8 +96,29 @@ namespace OP
             {
                 _disposer = std::move(d);
             }
-        private:
-            disposable_ptr_t _disposer;
+			std::uint8_t* pos() const
+			{
+				return _pos.get() + _pos_offset;
+			}
+			segment_pos_t count() const
+			{
+				return _count;
+			}
+			far_pos_t pos_offset() const
+			{
+				return _pos_offset;
+			}
+		protected:
+			const std::shared_ptr<std::uint8_t>& memory() const
+			{
+				return _pos;
+			}
+			
+		private:
+			std::shared_ptr<std::uint8_t> _pos;
+			segment_pos_t _count;
+			far_pos_t _pos_offset = 0;
+			disposable_ptr_t _disposer;
             FarAddress _address;
             details::segment_helper_p _segment;
         };
@@ -85,11 +130,16 @@ namespace OP
             MemoryChunk(segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
                 MemoryChunkBase(count, std::move(address), std::move(segment)) {}
 
-            MemoryChunk(std::uint8_t * pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
-                MemoryChunkBase(pos, count, std::move(address), std::move(segment))
+            MemoryChunk(const std::shared_ptr<std::uint8_t>& pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
+                MemoryChunkBase(0, pos, count, std::move(address), std::move(segment))
             {
             }
-            MemoryChunk(MemoryChunk&& right) OP_NOEXCEPT
+
+			MemoryChunk(far_pos_t pos_offset, const std::shared_ptr<std::uint8_t>& pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
+				MemoryChunkBase(pos_offset, pos, count, std::move(address), std::move(segment))
+			{
+			}
+			MemoryChunk(MemoryChunk&& right) OP_NOEXCEPT
                 :MemoryChunkBase(std::move(right))
             {
             }
@@ -110,7 +160,7 @@ namespace OP
             MemoryChunk subset(segment_pos_t offset) const
             {
                 assert(offset < count());
-                return MemoryChunk(this->pos() + offset, count() - offset, address() + offset, this->segment());
+                return MemoryChunk(pos_offset() + offset, memory(), count() - offset, address() + offset, this->segment());
             }
             /**
             *   @param idx - byte offset (not an item index)
@@ -135,26 +185,7 @@ namespace OP
                 memcpy(pos() + dest_offset, source, source_size);
                 return source_size;
             }
-            //template <class T, size_t N>
-            //segment_pos_t copy(const T (&arr)[N])
-            //{
-            //    return this->copy(arr, sizeof(arr));
-            //}
-            //
-            //template <class T, size_t N>
-            //segment_pos_t aligned_copy(const T arr[N])
-            //{
-            //    static OP_CONSTEXPR(const) byte_size_c = memory_requirement<T>::requirement * N;
-            //    if((this->count() - dest_offset) < byte_size_c)
-            //        throw std::out_of_range("source size too big");
-            //    auto p = pos() + dest_offset;
-            //    for (auto t : arr)
-            //    {
-            //        *p = t;
-            //        p += memory_requirement<T>::requirement;
-            //    }
-            //    return byte_size_c;
-            //}
+            
         };
         namespace details
         {
@@ -303,7 +334,7 @@ namespace OP
             enum type : std::uint8_t
             {
                 ro_no_hint_c = 0,
-                /**Forces keep lock even after ReadonlyMemoryChunk is released. The default behaviour releases lock */
+                /**Forces keep lock even after ReadonlyMemoryChunk is released. While the default behaviour releases lock */
                 ro_keep_lock = 0x1
             };
         };
@@ -315,8 +346,8 @@ namespace OP
         {
             ReadonlyMemoryChunk(segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
                 MemoryChunkBase(count, std::move(address), std::move(segment)) {}
-            ReadonlyMemoryChunk(std::uint8_t * pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
-                MemoryChunkBase(pos, count, std::move(address), std::move(segment))
+            ReadonlyMemoryChunk(far_pos_t offset, const std::shared_ptr<std::uint8_t>& pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
+                MemoryChunkBase(offset, pos, count, std::move(address), std::move(segment))
             {
             }
             ReadonlyMemoryChunk() = default;

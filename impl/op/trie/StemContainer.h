@@ -47,7 +47,7 @@ namespace OP
                 unequals,
                 no_entry
             };
-            template <dim_t Max = max_stem_length_c>
+            /*template <dim_t Max = max_stem_length_c>
             struct StemString
             {
                 typedef atom_t* data_ptr_t;
@@ -76,9 +76,9 @@ namespace OP
                 atom_t _length = 0;
                 atom_t _str[max_length_c];
             };
-
+			*/
             /**Abstraction that takes noded and allows iterate over stem contained in it. */
-            struct StemOfNode
+            /*struct StemOfNode
             {
                 typedef StemOfNode this_t;
             
@@ -123,7 +123,7 @@ namespace OP
                 atom_t _key;
                 dim_t _offset;
                 const atom_t *_begin;
-            };
+            };*/
 
             struct StemData
             {
@@ -173,9 +173,9 @@ namespace OP
                     auto mem_size = header_size + width * str_max_height;
                     auto addr = memmngr.allocate(mem_size);
                     auto mem_block = _topology.segment_manager().writable_block(addr, mem_size);
-                    WritableAccess<StemData> header(std::move(mem_block));
+					auto stems_data_block = mem_block.subset(header_size);
+					WritableAccess<StemData> header(std::move(mem_block));
                     header.make_new(width, str_max_height); //constructs header
-                    auto stems_data_block = mem_block.subset(header_size);
                     return std::make_tuple(
                         ref_stems_t(addr),
                         std::move(header),
@@ -204,8 +204,6 @@ namespace OP
                 template <class T>
                 inline void accommodate(const ref_stems_t& st_address, atom_t key, T& begin, T &&end)
                 {
-                    //assert(begin != end);
-                    //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     //write-lock header part
                     auto data_header = accessor<StemData>(_topology, st_address.address);
                     assert(key < data_header->width);
@@ -223,7 +221,6 @@ namespace OP
                     }
                     data_header->summary_length += size;
                     ++data_header->count;
-                    //g.commit();
                 }
                 /**
                 *   Detect substr contained in stem. 
@@ -276,13 +273,14 @@ namespace OP
                     assert(from < data_header->width);
                     assert(to < data_header->width);
 
-                    auto to_addr = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header->height * to };
-                    auto from_addr = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header->height * from };
+					auto raw_buffer = array_accessor<atom_t>(_topology,
+						st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement),
+							data_header->height * data_header->width);
+					segment_pos_t to_offset{ sizeof(atom_t)*data_header->height * to };
+					segment_pos_t from_offset {sizeof(atom_t)*data_header->height * from };
 
-                    auto to_data = array_accessor<atom_t>(_topology, to_addr, data_header->height);
-                    auto from_data = array_view<atom_t>(_topology, from_addr, data_header->height);
+                    auto to_data = raw_buffer.subset(to_offset);
+                    auto from_data = &raw_buffer[from_offset];
                     to_data.byte_copy(from_data, data_header->stem_length[from]);
                     data_header->summary_length -= data_header->stem_length[to];
                     data_header->stem_length[to] = data_header->stem_length[from];
@@ -303,13 +301,14 @@ namespace OP
                     auto data_header = view<StemData>(_topology, st_address.address);
 
                     assert(key < data_header->width);
-                    auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header->height * key };
-                    auto f_str = array_view<atom_t>(_topology, address, data_header->height);
-                    const atom_t * begin = f_str;
+					
+					auto raw_address = st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement);
+                    //going to block entire buffer to reduce segmentation    
+                    auto raw_str = array_view<atom_t>(_topology, raw_address, data_header->height * data_header->width);
+                    const atom_t * begin = raw_str + sizeof(atom_t)*data_header->height * key;
                     callback(begin, begin + data_header->stem_length[key], *data_header);
                 }
-                /** access stem for writing */
+                /** access stem for writing. Regardless of write operation callback accept const-string */
                 template <class FBack>
                 void stemw(const ref_stems_t& st_address, atom_t key, FBack& callback) const
                 {
@@ -317,10 +316,13 @@ namespace OP
                     auto data_header = accessor<StemData>(_topology, st_address.address);
 
                     assert(key < data_header->width);
-                    auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header->height * key };
-                    auto f_str = array_view<atom_t>(_topology, address, data_header->height);
-                    const atom_t * begin = f_str;
+					auto raw_address = st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement);
+                        
+					//going to block entire buffer to reduce segmentation
+					auto raw_str = array_view<atom_t>(_topology, raw_address, data_header->height * data_header->width);
+					const atom_t * begin = raw_str
+						+ sizeof(atom_t)*data_header->height * key;
+				
                     callback(begin, begin + data_header->stem_length[key], *data_header);
                 }
                 inline dim_t stem_length(const ref_stems_t& st_address, atom_t key) const
@@ -396,7 +398,7 @@ namespace OP
                 
             private:
                 
-
+				/*
                 template <class Tuple>
                 struct Helper
                 {
@@ -412,7 +414,7 @@ namespace OP
                     {
                         return memory;
                     }
-                };
+                };*/
                 SegmentTopology& _topology;
             };
         
