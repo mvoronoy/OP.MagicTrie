@@ -24,8 +24,78 @@ namespace OP
 {
     template <class T>
     struct RangeContainer;
+
+	namespace range_op
+	{
+		template <class R>
+		inline auto pos(const R& r) -> decltype(r.pos())
+		{
+			return r.pos();
+		}
+		template <class R>
+		inline auto count(const R& r) -> decltype(r.count())
+		{
+			return r.count();
+		}
+		template <class R>
+		inline auto right(const R& r) -> decltype(pos(r))
+		{
+			return pos(r) + count(r);
+		}
+		/** Check that [ a ) & [ b ) is not empty */
+		template <class R1, class R2>
+		inline bool is_overlapping(const R1& a, const R2& b) 
+		{
+			return (right(a) > pos(b)) && (pos(a) < right(b));
+		}
+		/**Check if the `point` is inside the range [ a ) */
+		template <class R>
+		bool in(const R& a, decltype(pos(a)) check) 
+		{
+			return check >= pos(a) && check < right(a);
+		}
+		template <class R>
+		bool empty(const R& a)
+		{
+			return !count(a);
+		}
+		/**Check if 'other' fully inside [ a ) */
+		template <class R1, class R2>
+		bool is_included(const R1& a, const R2& other)
+		{
+			return pos(a) <= pos(other) && right(other) <= right(a);
+		}
+		/**Operation is true if second range follows first without gap*/
+		template <class R1, class R2>
+		bool is_left_adjacent(const R2& a, const R2& other) 
+		{
+			return right(other) == pos(a);
+		}
+		/**Operation is true if first range follows second without gap*/
+		template <class R1, class R2>
+		bool is_right_adjacent(const R1& a, const R2& other) 
+		{
+			return right(a) == pos(other);
+		}
+		/**Operation is true if eaither right or left ajusted*/
+		template <class R1, class R2>
+		bool is_adjacent(const R1& a, const R2& other) 
+		{
+			return is_left_adjacent(a, other) || is_right_adjacent(a, other);
+		}
+		template <class R1, class R2>
+		bool less(const R1& a, const R2& b)
+		{
+			return (pos(a) < pos(b)) && !(pos(b) < right(a));
+		}
+		template <class R1, class R2>
+		bool equal (const R1& a, const R2& b)
+		{
+			return (pos(a) == pos(b)) && (count(a) == count(b));
+		}
+	};
     template <class T, class Distance = unsigned int>
-    struct Range
+    struct Range 
     {
         typedef T pos_t;
         typedef Distance distance_t;
@@ -58,45 +128,45 @@ namespace OP
 
         bool is_overlapped(const Range& other) const
         {
-            return (right() > other._pos) && (_pos < other.right());
+            return range_op::is_overlapping(*this, other);
         }
         
         bool in(pos_t check) const
         {
-            return !(check < _pos) && (check < right());
+            return range_op::in(_pos, check);
         }
         bool empty() const
         {
-            return _count == 0;
+            return range_op::empty(*this);
         }
         /**Check if 'other' fully inside this*/
         bool is_included(const Range& other) const
         {
-            return this->_pos <= other._pos && other.right() <= this->right();
+            return range_op::is_included(*this, other);
         }
         bool is_adjacent(const Range& other) const
         {
-            return is_left_adjacent(other) || is_right_adjacent(other);
+            return range_op::is_adjacent(*this, other);
         }
         bool is_left_adjacent(const Range& other) const
         {
-            return other.right() == _pos;
+            return range_op::is_left_adjacent(*this, other);
         }
         bool is_right_adjacent(const Range& other) const
         {
-            return right() == other._pos;
+            return range_op::is_right_adjacent(*this, other);
         }
         T right() const
         {
-            return _pos + _count;
+            return range_op::right(*this);
         }
         bool operator <(const Range<T>& right) const
         {
-            return (this->_pos < right._pos) && !(right._pos < this->right());
+            return range_op::less(*this, right);
         }
         bool operator == (const Range<T>& right) const
         {
-            return (this->_pos == right._pos) && (this->_count == right._count);
+            return range_op::equal(*this, right);
         }
         T pos() const
         {
@@ -111,17 +181,22 @@ namespace OP
         pos_t _pos;
         mutable Distance _count;
     };
+
     template <class TRange>
     TRange unite_range(const TRange& lar, const TRange& rar)
     {
-        auto leftmost = std::min(lar.pos(), rar.pos());
-        return TRange(leftmost, static_cast<TRange::distance_t>( std::max(lar.right(), rar.right()) - leftmost));
+        auto leftmost = std::min(range_op::pos(lar), range_op::pos(rar));
+        return TRange(leftmost, 
+			static_cast<TRange::distance_t>( 
+				std::max(range_op::right(lar), range_op::right(rar)) - leftmost));
     }
     template <class TRange>
     TRange join_range(const TRange& lar, const TRange& rar)
     {
-        auto leftmost_right = std::min(lar.right(), rar.right());
-        auto rightmost_left = std::max(lar.pos(), rar.pos());
+        auto leftmost_right = std::min(
+			range_op::right(lar), range_op::right(rar));
+        auto rightmost_left = std::max(
+			range_op::pos(lar), range_op::pos(rar));
         return rightmost_left < leftmost_right 
             ? TRange(rightmost_left, static_cast<TRange::distance_t>(leftmost_right - rightmost_left))
             : TRange(rightmost_left, 0);
