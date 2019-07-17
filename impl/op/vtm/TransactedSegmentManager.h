@@ -242,10 +242,11 @@ namespace OP
                 */
                 optimistic_write_c = 0x2
             };
+			using shadow_buffer_t = std::shared_ptr<std::uint8_t>;
             /**Describe how memory block is used*/
             struct BlockUse 
             {
-                using shadow_buffer_t = std::shared_ptr<std::uint8_t>;
+                
                 BlockUse(flag_t capture_kind, Transaction::transaction_id_t id) OP_NOEXCEPT
                     : _transaction_flag(capture_kind)
                     , _transactions{ {id} }
@@ -302,10 +303,15 @@ namespace OP
                     memcpy(new_buffer.get() + relative_offset, _shadow_buffer.get(), old_size); //override with origin 
                     _shadow_buffer = std::move(new_buffer);
                 }
+				void set_shadow(shadow_buffer_t &buf)
+				{
+					_shadow_buffer = buf;
+				}
+
                 bool is_exclusive_access(Transaction::transaction_id_t current) const
                 {
                     return _transactions.size() == 1 //exactly 1 transaction has access to this block 
-                        && _transactions.end() != _transactions.find(current); //and it is equal to queried
+                        && *_transactions.begin() == current; //and it is equal to queried
                 }
                 /**
                 *   Mark this block as available for multiple read operations. 
@@ -547,10 +553,9 @@ namespace OP
             void apply_transaction_log(Transaction::transaction_id_t tid, SavePoint& save_points, bool is_commit)
             {
                 guard_t g2(_map_lock); //shame @! to improve need some lock-less approach
-                auto end = save_points.end();
-                for (auto begin = save_points.begin(); begin != end; ++begin)
+                for (auto& p: save_points)
                 {
-                    auto& block_pair = **begin;
+                    auto& block_pair = *p;
                     auto flag = block_pair.second.transaction_flag();
                     bool to_erase = false;
                     if ((flag & wr_c))
@@ -571,7 +576,7 @@ namespace OP
                         to_erase = 0 == block_pair.second.leave(tid);
                     }
                     if (to_erase) //erase only blocks that has no other owners
-                        _captured_blocks.erase(*begin);
+                        _captured_blocks.erase(p);
                 }
             }
             /**Allows extend memory block in case of overlapped exception
@@ -617,6 +622,80 @@ namespace OP
                     RWR(new_range.pos(), new_range.count()),
                     std::move(new_val));
             }
+			/**
+			* @param new_range [in/out] on [in] indicates queried block, on [out] the result range that covers all affected blocks
+			*/
+			template <class Iterator>
+			void extend_ro_memory_block(Iterator& to_extend, RWR &new_range, ReadonlyBlockHint::type hint, transaction_impl_ptr_t& current_tran)
+			{
+				/* don't need check "before" overlapping since `to_extend` obtained from map::lower_bound that means first element that is not-less
+				if (to_extend != _captured_blocks.begin()) //not the first item
+				{
+				auto before = to_extend;
+				--before;
+				//check result range has no commons with previous block
+				if (range_op::is_overlapping(before->first, new_range))
+				{
+				throw Exception(er_overlapping_block);
+				}
+				}*/
+				bool ever_shadow_exists = false;
+				auto after = to_extend;
+				for(;after != _captured_blocks.end() //not the last item
+					&& range_op::is_overlapping(after->first, new_range) //check result range has no commons with next block
+					; ++after)
+				{
+					new_range = unite_range(new_range, after->first);
+					//aware of write-blocks that may belong to other transactions
+					if ((after->second.transaction_flag() & wr_c) 
+						&& !after->second.is_exclusive_access(current_tran->transaction_id()))
+					{
+						throw Exception(er_overlapping_block);
+					}
+					ever_shadow_exists = ever_shadow_exists || after->second.shadow_buffer();
+				}
+				
+				shadow_buffer_t new_buffer;
+				if (ever_shadow_exists) 
+				{
+					new_buffer = shadow_buffer_t{ new std::uint8_t[new_range.count()], [](std::uint8_t *p) {delete[]p; } };
+					//make copy of original memory state to this shadow
+					auto real_mem = SegmentManager::readonly_block(new_range.pos(), new_range.count()/*, hint*/);
+					memcpy(new_buffer.get(), real_mem.pos(), real_mem.count()); //copy origin memory
+				}
+
+				for (auto block = to_extend; block != after; ++block)
+				{
+					if (ever_shadow_exists)
+					{//If at least one block had a shadow, then merged block should use shadow as well
+						auto offset = block->first.pos().diff(new_range.pos());
+						if (block->second.shadow_buffer())
+						{//copy from shadow
+							memcpy(new_buffer.get()+ offset, block->second.shadow_buffer().get(), block->first.count()); //copy previous shadow memory
+						}
+						else
+						{ //copy from origin memory
+							auto real_mem = std::move(SegmentManager::readonly_block(block->first.pos(), block->first.count(), hint));
+							memcpy(new_buffer.get() + offset, real_mem.pos(), block->first.count()); //copy origin memory
+						}
+					}
+					//erase from transaction scope old blocks that aren't pointed by 'to_extend'
+					current_tran->erase(block);
+				}
+				//prepare erase old and append to map brand-new key instead
+				auto new_block = std::move(to_extend->second);
+				new_block.set_shadow(new_buffer);
+				auto erased_pos = _captured_blocks.erase(to_extend, after);
+
+				//current_tran->on_shadow_buffer_created(new_val.shadow_buffer(), real_mem.address());
+				
+				auto ins_res = _captured_blocks.emplace(/*erased_pos,*/
+					std::piecewise_construct,
+					std::forward_as_tuple(RWR{ new_range.pos(), new_range.count() }),
+					std::forward_as_tuple(std::move(new_block)));
+				to_extend = ins_res.first;
+				current_tran->store(to_extend);
+			}
             /**
             * wipe the transaction  
             * @param tid - id of thread that owns by transaction
@@ -690,11 +769,11 @@ namespace OP
                 {//result found but not exact matching
                     if (!found_res->first.is_included(search_range))// check if overlapped memory blocks are allowed
                     {
-                        search_range = unite_range(search_range, found_res->first);
-                        auto super_res = std::move(SegmentManager::readonly_block(search_range.pos(), search_range.count(), hint));
+                        //@@[x] search_range = unite_range(search_range, found_res->first);
+                        //@@[x] auto super_res = std::move(SegmentManager::readonly_block(search_range.pos(), search_range.count(), hint));
                         // extend existing if allowed
-                        extend_memory_block(found_res, search_range, super_res, current_transaction);
-                        current_transaction->store(found_res);
+                        extend_ro_memory_block(found_res, search_range, hint, current_transaction);
+                        //@@[x]current_transaction->store(found_res);
                     }
                     //add hashcode to scope of transactions, may rise ConcurentLockException
                     if (found_res->second.permit_read(current_transaction->transaction_id()))
