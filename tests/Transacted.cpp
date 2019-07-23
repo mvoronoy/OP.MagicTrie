@@ -839,12 +839,12 @@ void test_TransactedBlockOverlapOnRead(OP::utest::TestResult &tresult)
 	//just check that everything works till now
 	test_total_sequence();
 	//create RO locks over some stripes
-	if (1 == 1)
-	{
+	[&](){
+		tresult.info() << "\tTest creation of big RO block that covers many small RO block" << std::endl;
 		OP::vtm::TransactionGuard g(tmngr1->begin_transaction());
 		std::vector<ReadonlyMemoryChunk> retain_array;
 		constexpr segment_pos_t stripe_size = 16;
-		for (auto i = 0; i < write_block_len1; i += 2 * stripe_size)
+		for (segment_pos_t i = 0; i < write_block_len1; i += 2 * stripe_size)
 		{
 			auto ro1 = tmngr1->readonly_block(FarAddress(0, write_block_pos1+i), stripe_size);
 			retain_array.emplace_back(std::move(ro1));
@@ -855,10 +855,60 @@ void test_TransactedBlockOverlapOnRead(OP::utest::TestResult &tresult)
 		tresult.assert_that< not<less> >(write_block_len1 + write_block_len2, ro_block.count(),
 			OP_CODE_DETAILS(<< "Block is unexpected size"));
 
+		tresult.assert_true(tools::range_equals(
+			ro_block.pos(), ro_block.pos() + sizeof(write_fill_seq1), write_fill_seq1, write_fill_seq1 + sizeof(write_fill_seq1)),
+			OP_CODE_DETAILS(<< "Invalid overlapped data #1"));
+		tresult.assert_true(tools::range_equals(
+			ro_block.pos() + +sizeof(write_fill_seq1), ro_block.pos() + sizeof(write_fill_seq1) + sizeof(write_fill_seq2), 
+			write_fill_seq2, write_fill_seq2 + sizeof(write_fill_seq2)),
+			OP_CODE_DETAILS(<< "Invalid overlapped data #2"));
+
 		g.commit();
 
-	}
+	}();
 
+	std::vector<std::uint8_t> wr_block1_clone{ std::begin(write_fill_seq1), std::end(write_fill_seq1) };
+	[&]() {
+		tresult.info() << "\tTest creation of big RO block that covers many small WR block (on the same tran)" << std::endl;
+		OP::vtm::TransactionGuard g(tmngr1->begin_transaction());
+		std::vector<MemoryChunk> retain_array;
+		constexpr segment_pos_t stripe_size = 16;
+		std::array<std::uint8_t, stripe_size> override_sample;
+		std::iota(override_sample.begin(), override_sample.end(), stripe_size);
+
+		for (segment_pos_t i = 0; i < write_block_len1; i += 2 * stripe_size)
+		{
+			auto wr1 = tmngr1->writable_block(FarAddress(0, write_block_pos1 + i), stripe_size);
+			//fill with sample value
+			wr1.byte_copy(override_sample.data(), static_cast<segment_pos_t>(override_sample.size()));
+			std::copy(override_sample.begin(), override_sample.end(), wr_block1_clone.begin()+i);
+			//retain block for the late
+			retain_array.emplace_back(std::move(wr1));
+		}
+		//and now all stripes should be covered by 1 block
+
+		auto ro_block = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len1 + write_block_len2);
+		tresult.assert_that< not<less> >(write_block_len1 + write_block_len2, ro_block.count(),
+			OP_CODE_DETAILS(<< "Block is unexpected size"));
+
+		tresult.assert_true(tools::range_equals(
+			ro_block.pos(), ro_block.pos() + sizeof(write_fill_seq1), 
+			wr_block1_clone.begin(), wr_block1_clone.end()),
+			OP_CODE_DETAILS(<< "Invalid RO/WR overlapped data #1"));
+
+		tresult.assert_true(tools::range_equals(
+			ro_block.pos() + +sizeof(write_fill_seq1), ro_block.pos() + sizeof(write_fill_seq1) + sizeof(write_fill_seq2),
+			write_fill_seq2, write_fill_seq2 + sizeof(write_fill_seq2)),
+			OP_CODE_DETAILS(<< "Invalid RO overlapped data #2"));
+
+		g.commit();
+	}();
+	//check the same afetr commit
+	auto ro_block = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len1 + write_block_len2);
+	tresult.assert_true(tools::range_equals(
+		ro_block.pos(), ro_block.pos() + sizeof(write_fill_seq1),
+		wr_block1_clone.begin(), wr_block1_clone.end()),
+		OP_CODE_DETAILS(<< "Invalid RO/WR overlapped data (after commit)"));
 
 }
 
