@@ -428,8 +428,8 @@ namespace OP
                         {
                             _transaction_log.erase(ri);
                             
-                            //it mustn't be possible that block owns shadow memory
-                            assert(current.second.shadow_buffer() == nullptr);
+                            //@![?] it mustn't be possible that block owns shadow memory
+                            //@! assert(current.second.shadow_buffer() == nullptr);
                             return true;
                         }
                     }
@@ -640,6 +640,7 @@ namespace OP
 				}
 				}*/
 				bool ever_shadow_exists = false;
+				bool optimistic_write = false;
 				auto after = to_extend;
 				for(;after != _captured_blocks.end() //not the last item
 					&& range_op::is_overlapping(after->first, new_range) //check result range has no commons with next block
@@ -653,6 +654,7 @@ namespace OP
 						throw Exception(er_overlapping_block);
 					}
 					ever_shadow_exists = ever_shadow_exists || after->second.shadow_buffer();
+					optimistic_write = optimistic_write || after->second.transaction_flag() & optimistic_write_c;
 				}
 				
 				shadow_buffer_t new_buffer;
@@ -671,6 +673,7 @@ namespace OP
 						auto offset = block->first.pos().diff(new_range.pos());
 						if (block->second.shadow_buffer())
 						{//copy from shadow
+							//@! Need exception if wr block is not a WritableBlockHint::allow_block_realloc
 							memcpy(new_buffer.get()+ offset, block->second.shadow_buffer().get(), block->first.count()); //copy previous shadow memory
 						}
 						else
@@ -683,7 +686,7 @@ namespace OP
 					current_tran->erase(block);
 				}
 				//prepare erase old and append to map brand-new key instead
-				auto new_block = std::move(to_extend->second);
+				auto new_block = BlockUse{ new_buffer ? wr_c : ro_c, current_tran->transaction_id() };//std::move(to_extend->second);
 				new_block.set_shadow(new_buffer);
 				auto erased_pos = _captured_blocks.erase(to_extend, after);
 
@@ -694,6 +697,7 @@ namespace OP
 					std::forward_as_tuple(RWR{ new_range.pos(), new_range.count() }),
 					std::forward_as_tuple(std::move(new_block)));
 				to_extend = ins_res.first;
+
 				current_tran->store(to_extend);
 			}
             /**
