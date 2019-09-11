@@ -1,7 +1,7 @@
 #ifndef _OP_RANGES_UNION_ALL_RANGE__H_
 #define _OP_RANGES_UNION_ALL_RANGE__H_
 #include <iterator>
-#include <op/ranges/SuffixRange.h>
+#include <op/ranges/PrefixRange.h>
 
 #if _MSC_VER > 1000
 #pragma warning(disable:4503)
@@ -62,8 +62,8 @@ namespace OP
         };
 
         template <class SourceRange1, class SourceRange2>
-        struct UnionAllRange : public SuffixRange<
-            UnionAllRangeIterator< UnionAllRange<SourceRange1, SourceRange2> > >
+        struct UnionAllRange : public PrefixRange<
+            UnionAllRangeIterator< UnionAllRange<SourceRange1, SourceRange2> >, true >
         {
             typedef UnionAllRange<SourceRange1, SourceRange2> this_t;
             typedef typename SourceRange1::iterator left_iterator;

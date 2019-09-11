@@ -1,7 +1,7 @@
 #ifndef _OP_RANGES_ITERATORS_RANGE__H_
 #define _OP_RANGES_ITERATORS_RANGE__H_
 
-#include <op/ranges/SuffixRange.h>
+#include <op/ranges/PrefixRange.h>
 
 namespace OP
 {
@@ -53,11 +53,13 @@ namespace OP
         private:
             const KeyDiscover &_key_discover;
         };
+
+
         /**
         *
         */
         template <class Iterator, class KeyDiscover = details::DiscoverIteratorKey<Iterator> >
-        struct IteratorsRange : public SuffixRange< IteratorWrap< Iterator, KeyDiscover> >
+        struct IteratorsRange : public PrefixRange< IteratorWrap< Iterator, KeyDiscover>, true >
         {
             typedef typename KeyDiscover::key_t key_type;
             typedef Iterator origin_iter_t;
@@ -89,15 +91,49 @@ namespace OP
             {
                 ++pos;
             }
+        protected:
+            const KeyDiscover& key_discover() const
+            {
+                return _key_discover;
+            }
         private:
             origin_iter_t _begin, _end;
             KeyDiscover _key_discover;
         }; 
+
+        /**
+        *   Range is a kind of IteratorsRange that allows create ordered sequence from std::map container
+        */
+        template <class Map>
+        struct SortedMapRange : public OrderedRange<typename Map::const_iterator, IteratorsRange<typename Map::const_iterator> >
+        {
+            SortedMapRange(const Map& source)
+                : OrderedRange<typename Map::const_iterator, IteratorsRange<typename Map::const_iterator> >(source)
+                , _source(source)
+            {
+            }
+
+            iterator lower_bound(const typename iterator::key_type& key) const override
+            {
+                return iterator{ _source.lower_bound(key), key_discover() };
+            }
+        private:
+            const Map& _source;
+        };
+
         template <class Container, class KeyDiscover = details::DiscoverIteratorKey<Container::const_iterator> >
         inline std::shared_ptr< IteratorsRange<typename Container::const_iterator, KeyDiscover> > make_iterators_range(const Container& co)
         {
             return std::make_shared<IteratorsRange<typename Container::const_iterator, KeyDiscover>>(co);
         }
+
+        template <class T, typename... Ts>
+        inline std::shared_ptr< SortedMapRange<std::map<T, Ts...> > > make_iterators_range(const std::map<T, Ts...>& co)
+        {
+            using map_t = std::map<T, Ts...>;
+            return std::make_shared< SortedMapRange<map_t> >(co);
+        }
+
     }//ns:ranges
 }//ns:OP
 #endif //_OP_RANGES_ITERATORS_RANGE__H_

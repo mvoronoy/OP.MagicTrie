@@ -1,7 +1,7 @@
-#ifndef _OP_RANGES_PREFIX_RANGE__H_
-#define _OP_RANGES_PREFIX_RANGE__H_
+#ifndef _OP_RANGES_JOIN_RANGE__H_
+#define _OP_RANGES_JOIN_RANGE__H_
 #include <iterator>
-#include <op/ranges/SuffixRange.h>
+#include <op/ranges/PrefixRange.h>
 
 #if _MSC_VER > 1000
 #pragma warning(disable:4503)
@@ -70,10 +70,13 @@ namespace OP
         };
         
         template <class SourceRange1, class SourceRange2>
-        struct JoinRange : public SuffixRange< 
+        struct JoinRange : public OrderedRange<
                 JoinRangeIterator< JoinRange<SourceRange1, SourceRange2> > >
         {
             typedef JoinRange<SourceRange1, SourceRange2> this_t;
+            static_assert(SourceRange1::is_ordered_c, "Source range(1) must support ordering");
+            static_assert(SourceRange1::is_ordered_c, "Source range(2) must support ordering");
+
             typedef typename SourceRange1::iterator left_iterator;
             typedef typename SourceRange2::iterator right_iterator;
             typedef std::function<int(const left_iterator&, const right_iterator&)> iterator_comparator_t;
@@ -108,6 +111,14 @@ namespace OP
                 }
                 seek(pos);
             }
+            iterator lower_bound(const typename iterator::key_type& key) const override
+            {
+                iterator result(std::static_pointer_cast<const this_t>(shared_from_this()), 
+                    _left->lower_bound(key), _right->lower_bound(key));
+                seek(result);
+                return result;
+            }
+
         private:
             void seek(iterator &pos) const
             {
@@ -137,4 +148,4 @@ namespace OP
         
     } //ns: ranges
 } //ns: OP
-#endif //_OP_RANGES_PREFIX_RANGE__H_
+#endif //_OP_RANGES_JOIN_RANGE__H_

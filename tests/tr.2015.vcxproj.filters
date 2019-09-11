@@ -116,9 +116,6 @@
     <ClInclude Include="..\impl\op\ranges\IteratorsRange.h">
       <Filter>OP\ranges</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\ranges\SuffixRange.h">
-      <Filter>OP\ranges</Filter>
-    </ClInclude>
     <ClInclude Include="..\impl\op\vtm\HeapManager.h">
       <Filter>OP\vtm</Filter>
     </ClInclude>
@@ -158,6 +155,15 @@
     </ClInclude>
     <ClInclude Include="..\impl\op\common\FetchTicket.h">
       <Filter>OP\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieRangeAdapter.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="AtomStrLiteral.h">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\PrefixRange.h">
+      <Filter>OP\ranges</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

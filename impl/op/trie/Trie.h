@@ -34,18 +34,20 @@ namespace OP
             static const dim_t max_stem_length_c = 255;
         };
         
+        template <class Trie>
+        struct TrieRangeAdapter;
+
+        template <class Trie>
+        struct ChildRangeAdapter;
 
         template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 1024>
-        struct Trie
+        struct Trie : public std::enable_shared_from_this< Trie<TSegmentManager, Payload, initial_node_count> >
         {
         public:
             typedef Payload payload_t;
             typedef Trie<TSegmentManager, payload_t, initial_node_count> trie_t;
             typedef trie_t this_t;
             typedef TrieIterator<this_t> iterator;
-            typedef OP::ranges::SuffixRange<typedef iterator> suffix_range_t;
-            typedef std::shared_ptr<suffix_range_t> suffix_range_ptr;
-            typedef OP::ranges::IteratorsRange<iterator> iterators_range_t;
             typedef payload_t value_type;
             typedef TrieNode<payload_t> node_t;
             typedef TriePosition poistion_t;
@@ -149,14 +151,13 @@ namespace OP
                 }
                 i.clear();
             }
-            using iterators_range_ptr = std::shared_ptr<iterators_range_t>;
+            using range_adapter_ptr = std::shared_ptr<TrieRangeAdapter<this_t>>;
             /**
             *   @return range that embrace all records by pair [ begin(), end() )
             */
-            iterators_range_ptr range() const
+            range_adapter_ptr range() const
             {
-
-                return std::make_shared<iterators_range_t>(begin(), end());
+                return std::make_shared<TrieRangeAdapter<this_t> >(shared_from_this());
             }
 
             typedef OP::ranges::PredicateRange<iterator> subrange_container_t;
@@ -167,19 +168,19 @@ namespace OP
             *   @param aend - end of string to lookup
             */
             template <class IterateAtom>
-            subrange_container_ptr subrange(IterateAtom begin, IterateAtom aend) const
+            subrange_container_ptr prefixed_subrange(IterateAtom begin, IterateAtom aend) const
             {
                 StartWithPredicate<subrange_container_t::iterator> end_predicate(atom_string_t(begin, aend));
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 iterator i(this);
                 auto nav = common_prefix(begin, aend, i);
-                if (begin != aend) //no such prefix
+                if (begin != aend) //no such prefix since begin wasn't exhausted
                     return std::make_shared<subrange_container_t>(end(), OP::ranges::AlwaysFalseRangePredicate<subrange_container_t::iterator>());
                 auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
-                if(nav.compare_result == stem::StemCompareResult::string_end) //prefix partially matches to some prefix
-                { //correct string at back of iterator
+                if(nav.compare_result == stem::StemCompareResult::string_end) //key partially matches to some prefix
+                { //correct string at the back of iterator
                     auto lres = load_iterator(i_beg.back().address(), i_beg,
                         [&i](ReadonlyAccess<node_t>& ) { 
                             return make_nullable(i.back().key());
@@ -204,9 +205,9 @@ namespace OP
             * @param string any string of bytes that supports std::begin/ std::end functions
             */
             template <class AtomContainer>
-            subrange_container_ptr subrange(const AtomContainer& string) const
+            subrange_container_ptr prefixed_subrange(const AtomContainer& string) const
             {
-                return this->subrange(std::begin(string), std::end(string));
+                return this->prefixed_subrange(std::begin(string), std::end(string));
             }
 
             /**
@@ -216,7 +217,7 @@ namespace OP
             auto flatten_subrange(std::shared_ptr<Range>& container) const
             {
                 return make_flatten_range(container, [this](const auto& i) {
-                    return subrange(i.key());
+                    return prefixed_subrange(i.key());
                 });
             }
 
@@ -354,11 +355,12 @@ namespace OP
                 return position_child(of_this,
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
             }
+            using child_range_t = ChildRangeAdapter<this_t>;
             /**Return range that allows iterate all immediate childrens of specified prefix*/
-            subrange_container_ptr children_range(iterator& of_this)
+            std::shared_ptr<child_range_t> children_range(iterator& of_this) const
             {
-                subrange_container_ptr result(new ChildRange(*this, first_child(of_this)));
-                return result;
+                auto first = first_child(of_this); //this may update `of_this`
+                return std::make_shared<child_range_t>(shared_from_this(), first, of_this);
             }
 
             value_type value_of(poistion_t pos) const
@@ -720,22 +722,6 @@ namespace OP
             {
                 return node.next((atom_t)i->back().key());
             };
-            /**Used to iterate over immediate children*/
-            struct ChildRange : public OP::ranges::PredicateRange<iterator>
-            {
-                typedef typename trie_t::iterator super_iter_t;
-                typedef PredicateRange<super_iter_t> super_t;
-                ChildRange(const trie_t &owner, const super_iter_t& begin)
-                    : super_t(begin, [](const auto& iter_check) {return !iter_check.is_end();})
-                    , _owner(owner)
-                {}
-                void next(iterator& pos) const override
-                {
-                    _owner.next_sibling(pos);
-                }
-            private:
-                const trie_t &_owner;
-            };
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments) noexcept
                 : _topology_ptr{ std::make_unique<topology_t>(segments) }
@@ -977,6 +963,12 @@ namespace OP
                     return end(); //no way down
                 }
                 iterator result(of_this);
+                position_child_unsafe(result, locator);
+                return result;
+            }
+            template <class ChildLocator>
+            void position_child_unsafe(iterator& result, ChildLocator& locator) const
+            {
                 auto cls = classify_back(result);
                 auto addr = std::get<FarAddress>(cls);
                 do
@@ -987,9 +979,7 @@ namespace OP
                     assert(std::get<0>(lres)); //empty nodes are not allowed
                     addr = std::get<1>(lres);
                 } while (is_not_set(result.back().terminality(), Terminality::term_has_data));
-                return result;
             }
-
             /**
             * @return true when result matches exactly to specified string [begin, aend)
             */
@@ -1242,7 +1232,10 @@ namespace OP
             private:
                 atom_string_t _prefix;
             };
-        };
-    }
-}
+        }; 
+
+
+    } //ns:trie
+}//ns:OP
+
 #endif //_OP_TRIE_TRIE__H_

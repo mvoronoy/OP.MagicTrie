@@ -11,8 +11,10 @@
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/TransactedSegmentManager.h>
 #include <op/ranges/FlattenRange.h>
+#include <op/trie/TrieRangeAdapter.h>
 #include <algorithm>
 #include "test_comparators.h"
+#include "AtomStrLiteral.h"
 
 
 using namespace OP::trie;
@@ -541,7 +543,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
     {
         atom_string_t test = atom_string_t(1, (std::string::value_type)i);
         decltype(test.begin()) b1;
-        auto container_ptr = trie->subrange(b1 = test.begin(), test.end());
+        auto container_ptr = trie->prefixed_subrange(b1 = test.begin(), test.end());
         auto begin_test = container_ptr->begin();
 
         if ((i & 1) != 0) //odd entries must have a terminal
@@ -624,12 +626,12 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     std::map<atom_string_t, double> test_values;
     atom_string_t query1 ((const atom_t*)"a");
     atom_string_t query2 ((const atom_t*)"ad");
-    auto container1 = trie->subrange(std::begin(query1), std::end(query1));
+    auto container1 = trie->prefixed_subrange(query1);
     //container1.for_each([&tresult](auto& i) {
     //    print_hex(tresult.info(), i.key());
     //});
     
-    auto container2 = trie->subrange(std::begin(query2), std::end(query2));
+    auto container2 = trie->prefixed_subrange(query2);
     //tresult.info() << "======\n";
     //for (auto i = container2.begin(); container2.in_range(i); container2.next(i))
     //{
@@ -643,7 +645,7 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     //
     test_values.clear();
     atom_string_t query3((const atom_t*)"x");
-    test_join(tresult, container1, trie->subrange(std::begin(query3), std::end(query3)), test_values);
+    test_join(tresult, container1, trie->prefixed_subrange(std::begin(query3), std::end(query3)), test_values);
 
     const atom_string_t stem_diver[] = {
 
@@ -671,10 +673,10 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
 
     atom_string_t query4((const atom_t*)"m"), query5((const atom_t*)"n");
     test_join(tresult, 
-        trie->subrange(std::begin(query4), std::end(query4))->map([](auto const& it) {
+        trie->prefixed_subrange(query4)->map([](auto const& it) {
             return it.key().substr(1);
         }),
-        trie->subrange(std::begin(query5), std::end(query5))->map([](auto const& it) {
+        trie->prefixed_subrange(query5)->map([](auto const& it) {
             return it.key().substr(1);
         }),
         test_values);
@@ -721,7 +723,7 @@ void test_Flatten(OP::utest::TestResult &tresult)
     std::for_each(std::begin(ini_data), std::end(ini_data), [&trie](const p_t& s) {
         trie->insert(s.first, s.second);
     });
-    auto _1_range = trie->subrange(atom_string_t((atom_t*)"1."));
+    auto _1_range = trie->prefixed_subrange(atom_string_t((atom_t*)"1."));
     _1_range->for_each([](const auto& i) {
         std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
     });
@@ -733,7 +735,7 @@ void test_Flatten(OP::utest::TestResult &tresult)
     });
     //-->>>>
     auto frange1 = make_flatten_range(suffixes_range, [&trie](const auto& i) {
-        return trie->subrange(i.key());
+        return trie->prefixed_subrange(i.key());
     });
     std::cout << "Flatten result:\n";
     frange1->for_each([](const auto& i) {
@@ -1437,6 +1439,44 @@ void test_Range(OP::utest::TestResult &tresult)
     }), "wrong counter");
     tresult.assert_true(last_letter == (atom_t)'k');
 }
+void test_NativeRangeSupport(OP::utest::TestResult &tresult)
+{
+    tresult.info() << "apply lower_bound on container with native support\n";
+    std::map<atom_string_t, double> src1;
+    src1.emplace("a"_atom, 1.0);
+    src1.emplace("ab"_atom, 1.0);
+    src1.emplace("b"_atom, 1.0);
+    src1.emplace("bc"_atom, 1.0);
+    src1.emplace("c"_atom, 1.0);
+    src1.emplace("cd"_atom, 1.0);
+    src1.emplace("d"_atom, 1.0);
+    src1.emplace("def"_atom, 1.0);
+    src1.emplace("g"_atom, 1.0);
+    src1.emplace("xyz"_atom, 1.0);
+
+    //note: no transactions!
+    auto tmngr1 = OP::trie::SegmentManager::create_new<OP::trie::SegmentManager>("trie2range.test",
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    using trie_t = OP::trie::Trie<OP::trie::SegmentManager, double>;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+    for (const auto &pair : src1) trie->insert(pair.first, pair.second);
+
+    auto flt_src = trie
+        ->range()
+        ->filter([](auto it) { return it.key().length() > 1/*peek long enough*/; })
+        ;
+    auto found1 = flt_src->lower_bound(reinterpret_cast<const atom_t*>("f")); //pretty sure 'f' not exists so correct answer are 'g' and 'xyz', but filter skips (len > 1)
+    tresult.assert_true(flt_src->in_range(found1), OP_CODE_DETAILS(<< "end of the range is wrong"));
+
+    tresult.assert_that<equals>(
+        found1.key(),
+        "xyz"_atom,
+        OP_CODE_DETAILS(<< "lower_bound must point 'XYZ'")
+        );
+
+}
 void test_TrieCheckExists(OP::utest::TestResult &tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
@@ -1770,6 +1810,7 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TriePrefixedEraseAll, "prefixed erase_all")
     ->declare(test_TriePrefixedKeyEraseAll, "prefixed erase_all by key")
     ->declare(test_Range, "iterate all by range")
+    ->declare(test_NativeRangeSupport, "test native ranges of Trie")
     ->declare(test_TrieCheckExists, "check_exists")
     ->declare(test_ISSUE_0001, "ISSUE_0001")
 

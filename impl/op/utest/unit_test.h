@@ -422,9 +422,9 @@ namespace OP
             /**Invoke test single times*/
             TestResult& execute(TestResult& retval)
             {
-                retval._start_time = std::chrono::high_resolution_clock::now();
+                retval._start_time = std::chrono::steady_clock::now();
                 do_run(retval);
-                retval._end_time = std::chrono::high_resolution_clock::now();
+                retval._end_time = std::chrono::steady_clock::now();
                 retval._run_number = 1;
                 return retval;
             }
@@ -443,13 +443,13 @@ namespace OP
                     if (!tr) //warm-up failed
                         return tr;
                 }
-                result._start_time = std::chrono::high_resolution_clock::now();
+                result._start_time = std::chrono::steady_clock::now();
                 result._run_number = 0;
                 for (; run_number; --run_number, ++result._run_number)
                 {
                     do_run(result);
                 }
-                result._end_time = std::chrono::high_resolution_clock::now();
+                result._end_time = std::chrono::steady_clock::now();
                 result._status = TestResult::ok;
                 return result;
             }
@@ -476,25 +476,25 @@ namespace OP
                 }
                 catch (TestAbort const &e)
                 {
-                    retval._end_time = std::chrono::high_resolution_clock::now();
+                    retval._end_time = std::chrono::steady_clock::now();
                     retval._status = TestResult::aborted;
                     render_exception_status(retval, e);
                 }
                 catch (TestFail const &e)
                 {
-                    retval._end_time = std::chrono::high_resolution_clock::now();
+                    retval._end_time = std::chrono::steady_clock::now();
                     retval._status = TestResult::failed;
                     render_exception_status(retval, e);
                 }
                 catch (std::exception const &e)
                 {
-                    retval._end_time = std::chrono::high_resolution_clock::now();
+                    retval._end_time = std::chrono::steady_clock::now();
                     retval._status = TestResult::exception;
                     render_exception_status(retval, e);
                 }
                 catch (...)
                 { //hide any other exception
-                    retval._end_time = std::chrono::high_resolution_clock::now();
+                    retval._end_time = std::chrono::steady_clock::now();
                     retval._status = TestResult::exception;
                 }
             }
