@@ -1,13 +1,13 @@
 #ifndef _OP_RANGES_FUNCTIONAL_RANGE__H_
 #define _OP_RANGES_FUNCTIONAL_RANGE__H_
 #include <iterator>
-#include <op/ranges/SuffixRange.h>
+#include <op/ranges/PrefixRange.h>
 namespace OP
 {
     namespace ranges
     {
-        template <class Iterator>
-        struct SuffixRange;
+        template <class Iterator, bool is_ordered>
+        struct PrefixRange;
 
         
         /**Declares the policy what to do if function applied twice to the same origin iterator position.
@@ -100,17 +100,17 @@ namespace OP
         };
 
         template <class SourceRange, class UnaryFunction, 
-            class KeyEvalPolicy = FunctionResultNoCachePolicy<typename SourceRange::iterator, UnaryFunction>  >
-        struct FunctionalRange : public SuffixRange<
+            class KeyEvalPolicy = FunctionResultNoCachePolicy<typename SourceRange::iterator, UnaryFunction>, bool is_ordered = false  >
+        struct FunctionalRange : public PrefixRange<
             FunctionalRangeIterator<
                 typename SourceRange::iterator, 
                 FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy>
-                > >
+                >, is_ordered >
         {
-            typedef FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy> this_t;
+            typedef FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy, is_ordered> this_t;
             typedef FunctionalRangeIterator<
                 typename SourceRange::iterator,
-                FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy>
+                typename this_t//FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy>
             > iterator;
             typedef KeyEvalPolicy key_eval_policy_t;
 
@@ -122,7 +122,12 @@ namespace OP
 
             iterator begin() const override
             {
-                return iterator(*this, _source_range.begin(), key_eval_policy_t() );
+                iterator res(*this, _source_range.begin(), key_eval_policy_t());
+                if (in_range(res))
+                {//notify policy that key was changed
+                    res._key_eval_policy.on_after_change(res._source, _transform);
+                }
+                return res;
             }
             bool in_range(const iterator& check) const override
             {

@@ -1,7 +1,7 @@
 #ifndef _OP_RANGES_PREDICATE_RANGE__H_
 #define _OP_RANGES_PREDICATE_RANGE__H_
 
-#include <op/ranges/SuffixRange.h>
+#include <op/ranges/PrefixRange.h>
 #include <op/ranges/IteratorsRange.h>
 #include <functional>
 
@@ -14,7 +14,7 @@ namespace OP
         *
         */
         template <class Iterator, class KeyDiscover = details::DiscoverIteratorKey<Iterator> >
-        struct PredicateRange : public SuffixRange< IteratorWrap< Iterator, KeyDiscover> >
+        struct PredicateRange : public PrefixRange< IteratorWrap< Iterator, KeyDiscover>, true >
         {
             typedef typename KeyDiscover::key_t key_type;
             typedef Iterator origin_iter_t;

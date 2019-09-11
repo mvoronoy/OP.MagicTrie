@@ -1,7 +1,7 @@
 #ifndef _OP_RANGES_FLATTEN_RANGE__H_
 #define _OP_RANGES_FLATTEN_RANGE__H_
 
-#include <op/ranges/SuffixRange.h>
+#include <op/ranges/PrefixRange.h>
 #include <op/common/Utils.h>
 #include <set>
 
@@ -109,21 +109,22 @@ namespace OP
             std::unique_ptr<store_t> _store;
         };
         /**
-        * \tparam DeflateFunction functor that has spec: SuffixRange(const OriginIterator& )
+        * \tparam DeflateFunction functor that has spec: PrefixRange(const OriginIterator& )
         */
         template <class SourceRange, class DeflateFunction >
-        struct FlattenRange : public SuffixRange<
+        struct FlattenRange : public PrefixRange<
             FlattenRangeIterator<
                 FlattenRange<SourceRange, DeflateFunction>
-            > 
+            >,
+            true /*flatten support order*/
         >
         {
             typedef FlattenRange<SourceRange, DeflateFunction> this_t;
             typedef FlattenRangeIterator<this_t> iterator;
             typedef typename SourceRange::iterator source_iterator_t;
-            //need ensure that applicator_result_t is kind of SuffixRange
+            //need ensure that applicator_result_t is kind of PrefixRange
             typedef typename std::result_of<DeflateFunction(const source_iterator_t&)>::type pre_applicator_result_t;
-            /**Type of Range returned by DeflateFunction. Must be kind of SuffixRange
+            /**Type of Range returned by DeflateFunction. Must be kind of PrefixRange
             */
             typedef typename std::conditional< //strip shared_ptr from pre_applicator_result_t if present
                 OP::utils::is_generic<pre_applicator_result_t, std::shared_ptr>::value,

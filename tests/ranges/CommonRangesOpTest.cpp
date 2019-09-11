@@ -10,7 +10,7 @@
 #include <map>
 #include <utility>
 #include <unordered_set>
-
+#include <locale>
 using namespace OP::utest;
 
 struct lex_less
@@ -238,11 +238,75 @@ void test_FirstThat(OP::utest::TestResult &tresult)
         OP_CODE_DETAILS(<< "First-that fails on the first")
     );
 }
+
+template <typename T>
+class has_lower_bound
+{
+    typedef char one;
+    struct two { char x[2]; };
+
+    template <typename C> static one test(decltype(&C::lower_bound));
+    template <typename C> static two test(...);
+
+public:
+    enum { value = sizeof(test<T>(0)) == sizeof(char) };
+};
+
+void test_LowerBound(OP::utest::TestResult &tresult)
+{
+    tresult.info() << "apply lower_bound on container without native support\n";
+
+    test_container_t src1;
+    src1.emplace("a", 1.0);
+    src1.emplace("ab", 1.0);
+    src1.emplace("b", 1.0);
+    src1.emplace("bc", 1.0);
+    src1.emplace("c", 1.0);
+    src1.emplace("cd", 1.0);
+    src1.emplace("d", 1.0);
+    src1.emplace("def", 1.0);
+    src1.emplace("g", 1.0);
+    src1.emplace("xyz", 1.0);
+
+    auto r1_src1 = OP::ranges::make_iterators_range(src1);
+        
+    using namespace OP::ranges;
+    std::locale loc;
+    //map-range doesn't support lower_bound so check that lower_bound still works (meaning O(n) algorithm)
+    auto msrc = r1_src1->map<policy::cached>([&](const auto& i)-> std::string {
+        //capitalize
+        auto k = i.key();
+        for (auto &c : k) c = std::toupper(c, loc);
+        return k; 
+    });
+    auto flt_src = msrc->filter([](auto it) { return it.key().length() > 1/*peek long enough*/; });
+    
+    static_assert(!has_lower_bound< decltype(*flt_src.get()) >::value, "Should not expose lower_bound");
+
+    ///
+    /// Now do the same for container that supports lower_bound natively
+    ///
+
+    auto filtered_range2 = r1_src1
+        ->filter([](auto it) { return it.key().length() > 1/*peek long enough*/; });
+    auto found2 = filtered_range2
+        ->lower_bound("t"); //pretty sure 't' not exists so correct answer is (int)'x'
+    tresult.assert_true(filtered_range2->in_range(found2), OP_CODE_DETAILS(<< "end of the range is wrong"));
+
+    tresult.assert_that<equals>(
+        found2.key(),
+        "xyz",
+        OP_CODE_DETAILS(<< "lower_bound must point 'xyz'")
+        );
+    
+}
+
 static auto module_suite = OP::utest::default_test_suite("Ranges")
 ->declare(test_RangeJoin, "join")
 ->declare(test_ApplyFncRange, "fnc")
 ->declare(test_FilterRange, "filter")
 ->declare(test_UnionAllRange, "union-all")
 ->declare(test_FirstThat, "first-that")
+->declare(test_LowerBound, "lower_bound")
 
 ;

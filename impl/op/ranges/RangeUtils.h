@@ -1,6 +1,6 @@
 #ifndef _OP_RANGES_RANGE_UTILS__H_
 #define _OP_RANGES_RANGE_UTILS__H_
-#include <op/ranges/SuffixRange.h>
+#include <op/ranges/PrefixRange.h>
 
 namespace OP
 {
@@ -9,7 +9,7 @@ namespace OP
 
 
             template <class Iterator1, class Iterator2>
-            inline bool key_equals(const SuffixRange<Iterator1>& range1, const SuffixRange<Iterator2>& range2)
+            inline bool key_equals(const PrefixRange<Iterator1, true>& range1, const PrefixRange<Iterator2, true>& range2)
             {
                 auto from1 = range1.begin();
                 auto from2 = range2.begin();
@@ -22,7 +22,7 @@ namespace OP
             }
 
             template <class Iterator1, class Container>
-            inline bool key_equals(const SuffixRange<Iterator1>& range1, const Container& range2)
+            inline bool key_equals(const PrefixRange<Iterator1, true>& range1, const Container& range2)
             {
                 auto from1 = range1.begin();
                 auto from2 = std::begin(range2);
@@ -35,7 +35,7 @@ namespace OP
                 return !range1.in_range(from1) && (from2 == to2);
             }
             template <class Iterator1, class Container>
-            inline bool map_equals(const SuffixRange<Iterator1>& range1, const Container& range2)
+            inline bool map_equals(const PrefixRange<Iterator1, true>& range1, const Container& range2)
             {
                 auto from1 = range1.begin();
                 auto from2 = std::begin(range2);

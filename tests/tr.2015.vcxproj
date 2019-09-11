@@ -162,9 +162,10 @@
     <ClInclude Include="..\impl\op\ranges\JoinRange.h" />
     <ClInclude Include="..\impl\op\ranges\PredicateRange.h" />
     <ClInclude Include="..\impl\op\ranges\RangeUtils.h" />
-    <ClInclude Include="..\impl\op\ranges\SuffixRange.h" />
+    <ClInclude Include="..\impl\op\ranges\PrefixRange.h" />
     <ClInclude Include="..\impl\op\ranges\UnionAllRange.h" />
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
+    <ClInclude Include="..\impl\op\trie\TrieRangeAdapter.h" />
     <ClInclude Include="..\impl\op\utest\unit_test.h" />
     <ClInclude Include="..\impl\op\utest\unit_test_is.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryBlock.h" />
@@ -189,6 +190,7 @@
     <ClInclude Include="..\impl\op\vtm\PersistedReference.h" />
     <ClInclude Include="..\impl\op\common\Utils.h" />
     <ClInclude Include="..\impl\op\trie\ValueArray.h" />
+    <ClInclude Include="AtomStrLiteral.h" />
     <ClInclude Include="GenericMemoryTest.h" />
     <ClInclude Include="test_comparators.h" />
   </ItemGroup>
