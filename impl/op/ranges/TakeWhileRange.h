@@ -13,13 +13,11 @@ namespace OP
         /**
         *
         */
-        template <class Iterator, class KeyDiscover = details::DiscoverIteratorKey<Iterator> >
-        struct PredicateRange : public PrefixRange< IteratorWrap< Iterator, KeyDiscover>, true >
+        template <class Iterator >
+        struct TakeWhileRange : public OrderedRange< Iterator >
         {
-            typedef typename KeyDiscover::key_t key_type;
-            typedef Iterator origin_iter_t;
-            typedef std::function<bool(const iterator& check)> in_range_predicate_t;
-            PredicateRange(origin_iter_t begin, in_range_predicate_t in_range_predicate, KeyDiscover key_discover = KeyDiscover() ) noexcept
+            using in_range_predicate_t = std::function<bool(const iterator& check)> ;
+            TakeWhileRange(iterator begin, in_range_predicate_t in_range_predicate ) noexcept
                 : _begin(begin) 
                 , _in_range_predicate(in_range_predicate)
                 , _key_discover(key_discover)
@@ -28,12 +26,9 @@ namespace OP
 
             iterator begin() const override
             {
-                return iterator(_begin, _key_discover);
+                return _begin;
             }
-            iterator end() const
-            {
-                return iterator(_end, _key_discover);
-            }
+
             bool in_range(const iterator& check) const override
             {
                 return _in_range_predicate(check);
@@ -42,12 +37,12 @@ namespace OP
             {
                 ++pos;
             }
+
         private:
-            origin_iter_t _begin;
+            iterator _begin;
             in_range_predicate_t _in_range_predicate;
-            KeyDiscover _key_discover;
         }; 
-        /**Implement always false predicate for PredicateRange. Used to create empty PredicateRange */
+        /**Implement always false predicate for TakeWhileRange. Used to create empty TakeWhileRange */
         template <class Iterator>
         struct AlwaysFalseRangePredicate
         {

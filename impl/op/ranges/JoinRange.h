@@ -2,6 +2,7 @@
 #define _OP_RANGES_JOIN_RANGE__H_
 #include <iterator>
 #include <op/ranges/PrefixRange.h>
+#include <op/ranges/OrderedRange.h>
 
 #if _MSC_VER > 1000
 #pragma warning(disable:4503)
@@ -11,23 +12,141 @@ namespace OP
 {
     namespace ranges
     {
-        template <class OwnerRange>
-        struct JoinRangeIterator :
-            public std::iterator<
-            std::forward_iterator_tag,
-            typename OwnerRange::left_iterator::value_type
-            >
+        template <class OwnerRange, class LeftIterator, class RightIterator>
+        struct JoinRangeIterator;
+
+        template <class SourceRange1, class SourceRange2>
+        struct JoinRange : 
+            public OrderedRange< IteratorWrap<typename SourceRange1::iterator> >
         {
-            typedef JoinRangeIterator<OwnerRange> this_t;
-            typedef typename OwnerRange::left_iterator::value_type value_type;
-            typedef typename OwnerRange::left_iterator::key_type key_type;
-            typedef decltype(std::declval<OwnerRange::left_iterator>().key()) application_key_t;
-            //typedef typename OwnerRange::left_iterator::prefix_string_t prefix_string_t;
+            using this_t = JoinRange<SourceRange1, SourceRange2> ;
+            using iterator = IteratorWrap<typename SourceRange1::iterator>;
+            using base_t = OrderedRange<iterator>;
+
+            static_assert(SourceRange1::is_ordered_c, "Source range(1) must support ordering");
+            static_assert(SourceRange2::is_ordered_c, "Source range(2) must support ordering");
             
+            using left_iterator = typename SourceRange1::iterator ;
+            using right_iterator = typename SourceRange2::iterator ;
+
+            
+            using left_right_comparator_t =
+                std::function<int(const typename SourceRange1::key_type&, const typename SourceRange2::key_type&)>;
+            /**
+            * @param iterator_comparator - binary predicate `int(const iterator&, const iterator&)` that implements tripple compare of current 
+            *    iterator positions (< 0, == 0, > 0)
+            */
+            JoinRange(
+                std::shared_ptr<SourceRange1 const> r1, 
+                std::shared_ptr<SourceRange2 const> r2,
+                key_comparator_t comparator) noexcept
+                : base_t(std::forward<key_comparator_t>(comparator))
+                , _left(r1)
+                , _right(r2)
+                
+            {
+            }
+            JoinRange() = delete;
+            iterator begin() const override
+            {
+                auto zis = std::static_pointer_cast<this_t const> (shared_from_this());
+                iterator result(_left->begin(),
+                    make_shared_void(new IteratorPayload{
+                        zis,
+                        //_left->begin(), 
+                        _right->begin()
+                    })
+                );
+                
+                seek(result);
+                return result;
+            }
+            bool in_range(const iterator& check) const override
+            {
+                return _left->in_range(check) && _right->in_range(payload(check)->_right);
+            }
+            void next(iterator& pos) const override
+            {
+                _left->next(pos);
+                auto pload = payload(pos);
+
+                if (pload->_optimize_right_forward)
+                {
+                    _right->next(pload->_right);
+                }
+                seek(pos);
+            }
+            iterator lower_bound(const typename key_type& key) const override
+            {
+                auto zis = std::static_pointer_cast<this_t const> (shared_from_this());
+                iterator result(_left->lower_bound(key),
+                    make_shared_void(new IteratorPayload(zis, _right->lower_bound(key) ))
+                    );
+                seek(result);
+                return result;
+            }
+
+        private:
+            struct IteratorPayload
+            {
+                IteratorPayload(std::shared_ptr< this_t const > owner_range, right_iterator right)
+                    : _owner_range(owner_range)
+                    , _right(right)
+                    , _optimize_right_forward(false)
+                {}
+                std::shared_ptr< this_t const > _owner_range;
+                right_iterator _right;
+                /**Very special case when right == left, then ::next must be called for both iterators (not only for left)*/
+                bool _optimize_right_forward;
+            };
+            static IteratorPayload* payload(iterator& i)
+            {
+                return reinterpret_cast<IteratorPayload*>(i.payload().get());
+            }
+            static const IteratorPayload* payload(const iterator& i)
+            {
+                return reinterpret_cast<IteratorPayload*>(i.payload().get());
+            }
+            void seek(iterator &pos) const
+            {
+                auto pload = payload(pos);
+                pload->_optimize_right_forward = false;
+                while (in_range(pos))
+                {
+                    auto diff = key_comp()(
+                        key_discovery::key(pos), key_discovery::key(pload->_right));
+                    if (diff < 0) 
+                    {
+                        _left->next(pos);
+                    }
+                    else {
+                        if (diff == 0) 
+                        {
+                            pload->_optimize_right_forward = true;
+                            return;
+                        }
+                        _right->next(pload->_right);
+                    }
+                }
+
+            }
+            std::shared_ptr<SourceRange1 const> _left;
+            std::shared_ptr<SourceRange2 const> _right;
+        };
+        /*
+        template <class OwnerRange, class LeftIterator, class RightIterator>
+        struct JoinRangeIterator
+        {
+            typedef JoinRangeIterator<OwnerRange, LeftIterator, RightIterator> this_t;
+            //typedef typename OwnerRange::left_iterator::value_type value_type;
+            typedef LeftIterator left_iterator;
+            typedef RightIterator right_iterator;
+            typedef std::remove_reference_t< decltype(key_discovery::key(std::declval<left_iterator>())) > key_type;
+
             friend OwnerRange;
-            JoinRangeIterator(std::shared_ptr<const OwnerRange> owner_range, 
-                typename OwnerRange::left_iterator && left, 
-                typename OwnerRange::right_iterator && right) noexcept
+            JoinRangeIterator(std::shared_ptr< OwnerRange const> owner_range,
+                left_iterator && left,
+                right_iterator && right) noexcept
                 : _owner_range(owner_range)
                 , _left(std::move(left))
                 , _right(std::move(right))
@@ -44,108 +163,31 @@ namespace OP
                 _owner_range->next(*this);
                 return result;
             }
-            value_type operator* () const
+            auto operator* () -> decltype(*std::declval<left_iterator>()) const
             {
                 return *left();
             }
-            application_key_t key() const
+            const key_type& key() const
             {
                 return _left.key();
             }
 
         private:
-            const typename OwnerRange::left_iterator& left() const
+            const left_iterator& left() const
             {
                 return _left;
             }
-            const typename OwnerRange::right_iterator& right() const
+            const right_iterator& right() const
             {
                 return _right;
             }
-            std::shared_ptr<const OwnerRange> _owner_range;
-            typename OwnerRange::left_iterator _left;
-            typename OwnerRange::right_iterator _right;
-            /**Very special case when right == left, then ::next must be called for both iterators (not only for left)*/
+            std::shared_ptr< OwnerRange const > _owner_range;
+            left_iterator _left;
+            right_iterator _right;
+            //Very special case when right == left, then ::next must be called for both iterators (not only for left)
             bool _optimize_right_forward;
-        };
-        
-        template <class SourceRange1, class SourceRange2>
-        struct JoinRange : public OrderedRange<
-                JoinRangeIterator< JoinRange<SourceRange1, SourceRange2> > >
-        {
-            typedef JoinRange<SourceRange1, SourceRange2> this_t;
-            static_assert(SourceRange1::is_ordered_c, "Source range(1) must support ordering");
-            static_assert(SourceRange1::is_ordered_c, "Source range(2) must support ordering");
+        };*/
 
-            typedef typename SourceRange1::iterator left_iterator;
-            typedef typename SourceRange2::iterator right_iterator;
-            typedef std::function<int(const left_iterator&, const right_iterator&)> iterator_comparator_t;
-            typedef JoinRangeIterator<this_t> iterator;
-            /**
-            * @param iterator_comparator - binary predicate `int(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
-            */
-            
-            JoinRange(std::shared_ptr<const SourceRange1> r1, std::shared_ptr<const SourceRange2> r2, iterator_comparator_t && iterator_comparator) noexcept
-                : _left(r1)
-                , _right(r2)
-                , _iterator_comparator(std::forward<iterator_comparator_t> (iterator_comparator))
-            {
-            }
-            JoinRange() = delete;
-            iterator begin() const override
-            {
-                iterator result(std::static_pointer_cast<const this_t>(shared_from_this()), _left->begin(), _right->begin());
-                seek(result);
-                return result;
-            }
-            bool in_range(const iterator& check) const override
-            {
-                return _left->in_range(check.left()) && _right->in_range(check.right());
-            }
-            void next(iterator& pos) const override
-            {
-                _left->next(pos._left);
-                if (pos._optimize_right_forward)
-                {
-                    _right->next(pos._right);
-                }
-                seek(pos);
-            }
-            iterator lower_bound(const typename iterator::key_type& key) const override
-            {
-                iterator result(std::static_pointer_cast<const this_t>(shared_from_this()), 
-                    _left->lower_bound(key), _right->lower_bound(key));
-                seek(result);
-                return result;
-            }
-
-        private:
-            void seek(iterator &pos) const
-            {
-                pos._optimize_right_forward = false;
-                while (in_range(pos))
-                {
-                    auto diff = _iterator_comparator(pos._left, pos._right);
-                    if (diff < 0) 
-                    {
-                        _left->next(pos._left);
-                    }
-                    else {
-                        if (diff == 0) 
-                        {
-                            pos._optimize_right_forward = true;
-                            return;
-                        }
-                        _right->next(pos._right);
-                    }
-                }
-
-            }
-            std::shared_ptr<const SourceRange1> _left;
-            std::shared_ptr<const SourceRange2> _right;
-            const iterator_comparator_t _iterator_comparator;
-        };
-        
     } //ns: ranges
 } //ns: OP
 #endif //_OP_RANGES_JOIN_RANGE__H_

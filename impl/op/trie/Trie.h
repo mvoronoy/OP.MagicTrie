@@ -19,7 +19,7 @@
 #include <op/trie/TrieNode.h>
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
-#include <op/ranges/PredicateRange.h>
+#include <op/trie/TrieRangeAdapter.h>
 #include <op/ranges/IteratorsRange.h>
 
 namespace OP
@@ -34,8 +34,6 @@ namespace OP
             static const dim_t max_stem_length_c = 255;
         };
         
-        template <class Trie>
-        struct TrieRangeAdapter;
 
         template <class Trie>
         struct ChildRangeAdapter;
@@ -160,8 +158,9 @@ namespace OP
                 return std::make_shared<TrieRangeAdapter<this_t> >(shared_from_this());
             }
 
-            typedef OP::ranges::PredicateRange<iterator> subrange_container_t;
-            typedef std::shared_ptr<subrange_container_t> subrange_container_ptr;
+            using subrange_container_t = TakewhileTrieRangeAdapter<this_t>;
+
+            typedef std::shared_ptr<subrange_container_t const> subrange_container_ptr;
             /**
             *   Construct a range that address all string started from string specified by [begin, aend)
             *   @param begin - first symbol of string to lookup

@@ -1,6 +1,7 @@
 #ifndef _OP_RANGES_UNION_ALL_RANGE__H_
 #define _OP_RANGES_UNION_ALL_RANGE__H_
 #include <iterator>
+#include <functional>
 #include <op/ranges/PrefixRange.h>
 
 #if _MSC_VER > 1000
@@ -18,12 +19,10 @@ namespace OP
             std::forward_iterator_tag,
             typename OwnerRange::left_iterator::value_type
             >
-
         {
             typedef UnionAllRangeIterator<OwnerRange> this_t;
             typedef typename OwnerRange::left_iterator::value_type value_type;
-            typedef typename OwnerRange::left_iterator::key_type key_type;
-            typedef decltype(std::declval<OwnerRange::left_iterator>().key()) application_key_t;
+            using key_type = decltype(key_discovery::key(std::declval<typename OwnerRange::left_iterator>()));
 
             friend OwnerRange;
             UnionAllRangeIterator(std::shared_ptr<const OwnerRange> owner_range,
@@ -48,9 +47,9 @@ namespace OP
             {
                 return _left_less ? *_left : *_right;
             }
-            application_key_t key() const
+            key_type key() const
             {
-                return _left_less ? _left.key() : _right.key();
+                return _left_less ? key_discovery::key(_left) : key_discovery::key(_right);
             }
 
         private:
@@ -63,16 +62,18 @@ namespace OP
 
         template <class SourceRange1, class SourceRange2>
         struct UnionAllRange : public PrefixRange<
-            UnionAllRangeIterator< UnionAllRange<SourceRange1, SourceRange2> >, true >
+            UnionAllRangeIterator< UnionAllRange<SourceRange1, SourceRange2> >, false >
         {
             typedef UnionAllRange<SourceRange1, SourceRange2> this_t;
             typedef typename SourceRange1::iterator left_iterator;
             typedef typename SourceRange2::iterator right_iterator;
+
+            /*@! review to remove this assert
             static_assert(
                 std::is_convertible<typename right_iterator::key_type, typename left_iterator::key_type>::value
                 && std::is_convertible<typename right_iterator::value_type, typename left_iterator::value_type>::value
                 , "Right iterator of merge must have convertible key/value type to left iterator");
-
+            */
             typedef std::function<int(const left_iterator&, const right_iterator&)> iterator_comparator_t;
             typedef UnionAllRangeIterator<this_t> iterator;
             /**
@@ -118,6 +119,15 @@ namespace OP
             const iterator_comparator_t _iterator_comparator;
         };
 
+        namespace key_discovery {
+
+            template <class SomeRange>
+            inline auto key(const UnionAllRangeIterator<SomeRange>& i) -> decltype(i.key())
+            {
+                return i.key();
+            }
+
+        }//ns: key_discovery
     } //ns: ranges
 } //ns: OP
 #endif //_OP_RANGES_UNION_ALL_RANGE__H_

@@ -247,6 +247,17 @@ namespace OP
             }
         };
     } //ns:trie
+    namespace ranges {
+
+        namespace key_discovery {
+            template <class Container>
+            auto key(const ::OP::trie::TrieIterator<Container> & i) -> decltype(i.key())
+            {
+                return i.key();
+            }
+
+        }
+    }//ns:ranges
 } //ns:OP
 #endif //_OP_TRIE_TRIEITERATOR__H_
 

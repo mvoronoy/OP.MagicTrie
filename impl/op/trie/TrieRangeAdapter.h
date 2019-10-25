@@ -10,7 +10,7 @@ namespace OP
         *   Allows trie to mimic OP::ranges::PrefixRange capabilities
         */
         template <class TTrie>
-        struct TrieRangeAdapter : public OP::ranges::OrderedRange< typename TTrie::iterator, OP::ranges::PrefixRange<typename TTrie::iterator, true> >
+        struct TrieRangeAdapter : public OP::ranges::OrderedRange< typename TTrie::iterator >
         {
             using trie_t = TTrie;
             using iterator = typename trie_t::iterator;
@@ -56,7 +56,24 @@ namespace OP
             std::shared_ptr<const trie_t> _parent;
             iterator _begin, _end;
         };
-
+        
+        template <class TTrie>
+        struct TakewhileTrieRangeAdapter : public TrieRangeAdapter<TTrie>
+        {
+            using in_range_predicate_t = std::function<bool(const iterator& check)>;
+            using base_t = TrieRangeAdapter<TTrie>;
+            
+            TakewhileTrieRangeAdapter(std::shared_ptr<const trie_t> parent, iterator begin, iterator end, in_range_predicate_t in_range_predicate)
+                : base_t(parent, iterator begin, iterator end)
+                , _in_range_predicate(std::forward<in_range_predicate_t>(in_range_predicate))
+            {}
+            bool in_range(const iterator& check) const override
+            {
+                return base_t::in_range(check) && _in_range_predicate(check);
+            }
+        private:
+            in_range_predicate_t _in_range_predicate;
+        };
         template <class Trie, class String>
         struct PrefixSubrangeAdapter : public OP::ranges::OrderedRange< typename Trie::iterator >
         {

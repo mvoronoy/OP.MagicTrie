@@ -127,6 +127,7 @@ namespace OP
         template <class Container>
         struct NodeTableIterator
         {
+
             typedef Container container_t;
 #ifdef __MINGW32__
             friend class Container;
@@ -137,8 +138,8 @@ namespace OP
             typedef NodeTableIterator<Container> this_t;
             typedef std::random_access_iterator_tag iterator_category;
             typedef typename Container::key_t value_type;
-            typedef int difference_type;
-            typedef int distance_type;
+            typedef std::ptrdiff_t difference_type;
+            typedef std::ptrdiff_t distance_type;
             typedef typename atom_t* pointer;
             typedef typename atom_t& reference;
 
@@ -170,17 +171,23 @@ namespace OP
             {
                 return !operator==(other);
             }
-            this_t operator + (int value_c) const
+            this_t operator + (distance_type value) const
             {
                 this_t rv(*this);
-                return _container->next(rv, value_c);
+                return _container->next(rv, value);
             }
-            this_t operator - (int value_c) const
+            this_t operator - (distance_type value) const
             {
                 this_t rv(*this);
-                return _container->next(rv, -value_c);
+                return _container->next(rv, -value);
             }
-
+            
+            distance_type operator - (const this_t & other) const
+            {
+                this_t rv(*this);
+                return _offset - other._offset;
+            }
+            
             bool operator < (const this_t & other) const
             {
                 return this->_offset < other._offset;
