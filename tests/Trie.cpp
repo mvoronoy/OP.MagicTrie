@@ -12,6 +12,7 @@
 #include <op/vtm/TransactedSegmentManager.h>
 #include <op/ranges/FlattenRange.h>
 #include <op/trie/TrieRangeAdapter.h>
+#include <op/ranges/OrderedRange.h>
 #include <algorithm>
 #include "test_comparators.h"
 #include "AtomStrLiteral.h"
@@ -57,7 +58,7 @@ void print_hex(O& os, const T& t)
     os << '\n';
 }
 template <class Trie, class Map>
-void compare_containers(OP::utest::TestResult &tresult, Trie& trie, Map& map)
+void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const Map& map)
 {
     auto mi = std::begin(map);
     //for (auto xp : map)
@@ -581,15 +582,17 @@ inline void print_co(Stream& os, const Co& co)
 
 template <class R1, class R2, class Sample>
 void test_join(
-    OP::utest::TestResult &tresult, std::shared_ptr< R1> r1, std::shared_ptr< R2> r2, const Sample& expected)
+    OP::utest::TestResult &tresult, std::shared_ptr< R1 const > r1, std::shared_ptr< R2 const > r2, const Sample& expected)
 {
-    auto comparator = [](const auto& left, const auto& right)->int {
-        auto&&left_prefix = left.key(); //may be return by const-ref or by value
+    auto comparator = [](const atom_string_t& left, const atom_string_t& right)->int {
+        /*auto&&left_prefix = left.key(); //may be return by const-ref or by value
         auto&&right_prefix = right.key();//may be return by const-ref or by value
         return OP::ranges::str_lexico_comparator(left_prefix.begin(), left_prefix.end(),
-            right_prefix.begin(), right_prefix.end());
+            right_prefix.begin(), right_prefix.end());*/
+        return OP::ranges::str_lexico_comparator(left.begin(), left.end(),
+            right.begin(), right.end());
     };
-    auto result1 = r1->join(r2, comparator);
+    auto result1 = r1->join(r2, [](const auto& a, const auto &b)->int {return -1; });
     //print_co(std::cout << "===========>", r1);
     compare_containers(tresult, *result1, expected);
     //print_co(std::cout << "===========>", r2);
@@ -648,37 +651,57 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     test_join(tresult, container1, trie->prefixed_subrange(std::begin(query3), std::end(query3)), test_values);
 
     const atom_string_t stem_diver[] = {
-
-        (atom_t*)"ma",
-        (atom_t*)"madc",
-        (atom_t*)"mb",
-        (atom_t*)"mdef",
-        (atom_t*)"mg",
-        (atom_t*)"na",
-        (atom_t*)"nad", //missed
-        (atom_t*)"nadc",
-        (atom_t*)"nb",
-        (atom_t*)"ndef",
-        (atom_t*)"nh",
-        (atom_t*)"x",
+        "ma"_atom,
+        "madc"_atom,
+        "mb"_atom,
+        "mdef"_atom,
+        "mg"_atom,
+        "ma"_atom,
+        "madc"_atom,
+        "mb"_atom,
+        "mdef"_atom,
+        "mg"_atom,
+        "na"_atom,
+        "nad"_atom, //missed
+        "nadc"_atom,
+        "nb"_atom,
+        "ndef"_atom,
+        "nh"_atom,
+        "x"_atom
     };
     std::for_each(std::begin(stem_diver), std::end(stem_diver), [&trie](const atom_string_t& s) {
         trie->insert(s, (double)s.length());
     });
+    std::map<atom_string_t, double> join_src = {
+        {"mdef"_atom, 0},
+        {"mg"_atom, 0},
+        {"ma"_atom, 0},
+        {"madc"_atom, 0},
+        {"mb"_atom, 0},
+        {"mdef"_atom, 0},
+        {"mg"_atom, 0},
+        {"na"_atom, 0},
+        {"nadc"_atom, 0},
+        {"nb"_atom, 0},
+        {"y"_atom, 0}
+    };
+    auto join_src_range = OP::ranges::make_iterators_range(join_src);
 
-    test_values.emplace((atom_t*)("a"), 2);
-    test_values.emplace((atom_t*)"adc", 4);
-    test_values.emplace((atom_t*)"b", 2);
-    test_values.emplace((atom_t*)"def", 4);
+    test_values.emplace("mdef"_atom, 2);
+    test_values.emplace("mg"_atom, 4);
+    test_values.emplace("ma"_atom, 2);
+    test_values.emplace("madc"_atom, 4);
+    test_values.emplace("mb"_atom, 0);
+    test_values.emplace("mdef"_atom, 0);
+    test_values.emplace("mg"_atom, 0);
+    test_values.emplace("na"_atom, 0);
+    test_values.emplace("nadc"_atom, 0);
+    test_values.emplace("nb"_atom, 0);
 
-    atom_string_t query4((const atom_t*)"m"), query5((const atom_t*)"n");
+    atom_string_t query4("m"_atom), query5("n"_atom);
     test_join(tresult, 
-        trie->prefixed_subrange(query4)->map([](auto const& it) {
-            return it.key().substr(1);
-        }),
-        trie->prefixed_subrange(query5)->map([](auto const& it) {
-            return it.key().substr(1);
-        }),
+        trie->prefixed_subrange(query4),
+        join_src_range,
         test_values);
 }
 

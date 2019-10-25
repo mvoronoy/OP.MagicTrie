@@ -2,6 +2,8 @@
 #define _OP_RANGES_PREFIX_RANGE__H_
 
 #include <algorithm>
+#include <memory>
+#include <functional>
 #include <type_traits>
 #include <op/ranges/FunctionalRange.h>
 
@@ -14,17 +16,14 @@ namespace OP
     namespace ranges
     {
 
-        template <class SourceRange, class UnaryPredicate>
+        template <class Iterator, bool is_ordered>
+        struct PrefixRange;
+        
+        template <class SourceRange>
         struct FilteredRange;
-
-        template <class SourceRange, class UnaryPredicate>
+            
+        template <class SourceRange>
         struct OrderedFilteredRange;
-
-        template <class Iterator, class Base >
-        struct OrderedRange;
-
-        template <class SourceRange1, class SourceRange2>
-        struct JoinRange;
 
         template <class SourceRange1, class SourceRange2>
         struct UnionAllRange;
@@ -124,17 +123,16 @@ namespace OP
             /**
             *   Declare type for result of `filter` operation. Depending on suppot of this_t order. Fitlered range may or may not support order as well
             */
-            template <class UnaryPredicate>
             using filtered_range_t = std::conditional_t<
                 is_ordered,
-                OrderedFilteredRange<this_t, UnaryPredicate>,
-                FilteredRange<this_t, UnaryPredicate>
+                OrderedFilteredRange<this_t>,
+                FilteredRange<this_t>
             >;
             /**
             *   Produce new range that fitlers-out some record from this one
             */
             template <class UnaryPredicate>
-            std::shared_ptr< filtered_range_t<UnaryPredicate> > filter(UnaryPredicate && f) const
+            std::shared_ptr< filtered_range_t> filter(UnaryPredicate && f) const
             {
                 return filter_impl(std::forward<UnaryPredicate>(f), 0);
             }
@@ -183,19 +181,18 @@ namespace OP
         private:
 
             /** Case when filter supports orders*/
-            template <class UnaryPredicate, class Q = std::enable_if_t<is_ordered, std::shared_ptr< filtered_range_t<UnaryPredicate> > > >
+            template <class UnaryPredicate, class Q = std::enable_if_t<is_ordered, std::shared_ptr< filtered_range_t> > >
             Q filter_impl(UnaryPredicate && f, int) const
             {
-                using filter_it_t = filtered_range_t<UnaryPredicate>;
-                return std::make_shared<filter_it_t>(
+                
+                return std::make_shared<filtered_range_t>(
                     shared_from_this(), std::forward<UnaryPredicate>(f));
             }
             /** Case when filter over non-ordered sequence*/
             template <class UnaryPredicate>
-            std::shared_ptr< filtered_range_t<UnaryPredicate> > filter_impl(UnaryPredicate && f, ...) const
+            std::shared_ptr< filtered_range_t > filter_impl(UnaryPredicate && f, ...) const
             {
-                using filter_it_t = filtered_range_t<UnaryPredicate>;
-                return std::make_shared<filter_it_t>(
+                return std::make_shared<filtered_range_t>(
                     shared_from_this(), std::forward<UnaryPredicate>(f));
             }
         };
@@ -220,46 +217,19 @@ namespace OP
             }
             return first_right == end_right ? 0 : -1;
         }
-        template <class Iterator, class Base = PrefixRange<Iterator, true>>
-        struct OrderedRange : public Base
-        {
-            using Base::Base;
-            using this_t = OrderedRange<Iterator, Base>;
-            using iterator = typename Base::iterator;
-            virtual iterator lower_bound(const typename iterator::key_type& key) const = 0;
-
-
-            template <class OtherRange>
-            using join_range_t = JoinRange<this_t, OtherRange>;
-
-            template <class OtherRange>
-            using join_range_comparator_t = typename join_range_t < OtherRange> ::iterator_comparator_t;
-
-            template <class OtherRange>
-            inline std::shared_ptr< join_range_t< OtherRange> > join(std::shared_ptr< OtherRange > & range,
-                join_range_comparator_t<OtherRange> && cmp) const
-            {
-                using join_t = JoinRange<PrefixRange<typename Iterator, is_ordered>, OtherRange>;
-                return std::make_shared<join_t>(
-                    shared_from_this(),
-                    other,
-                    std::forward<typename join_t::iterator_comparator_t>(cmp)
-                    );
-            }
-
-        };
-
        
         /**
         *   Implement range that filters source range by some `UnaryPredicate` criteria
         * \tparam UnaryPredicate boolean functor that accepts iterator as input argument and returns true 
         *       if position should appear in result.
         */
-        template <class SourceRange, class UnaryPredicate>
-        struct FilteredRange : public SourceRange
+        template <class SourceRange, class Base >
+        struct FilteredRangeBase : public Base
         {
             using iterator = typename SourceRange::iterator;
-            FilteredRange(std::shared_ptr<const SourceRange > source_range, UnaryPredicate && predicate)
+
+            template <class UnaryPredicate>
+            FilteredRangeBase(std::shared_ptr<const SourceRange > source_range, UnaryPredicate && predicate)
                 : _source_range(source_range)
                 , _predicate(std::forward<UnaryPredicate>(predicate))
             {}
@@ -297,25 +267,58 @@ namespace OP
         private:
 
             std::shared_ptr<const SourceRange> _source_range;
-            UnaryPredicate _predicate;
+            std::function<bool(const iterator&)> _predicate;
         };
 
-        template <class SourceRange, class UnaryPredicate>
-        struct OrderedFilteredRange : public OrderedRange< typename SourceRange::iterator, FilteredRange<SourceRange, UnaryPredicate> >
+        template <class SourceRange>
+        struct FilteredRange : public FilteredRangeBase<SourceRange, PrefixRange<typename SourceRange::iterator, false>>
         {
-            using base_t = OrderedRange< typename SourceRange::iterator, FilteredRange<SourceRange, UnaryPredicate> >;
-            OrderedFilteredRange(std::shared_ptr<const SourceRange > source_range, UnaryPredicate && predicate)
-                : base_t(source_range, std::forward<UnaryPredicate>(predicate))
-            {}
-
-
-            iterator lower_bound(const typename iterator::key_type& key) const override
-            {
-                auto lower = static_cast<const base_t&>( *source_range() ) .lower_bound(key);
-                seek(lower);
-                return lower;
-            }
+            using base_t = FilteredRangeBase<SourceRange, PrefixRange<typename SourceRange::iterator, false>>;
+            using base_t::base_t;
         };
+
+        using shared_void_ptr = std::shared_ptr<void>;
+        template<typename T>
+        inline shared_void_ptr make_shared_void(T * ptr)
+        {
+            return std::shared_ptr<void>(ptr, [](void const * data) {
+                T const * p = static_cast<T const*>(data);
+                delete p;
+            });
+        }
+        /**
+        *   Helper class to add some payload for arbitrary iterator
+        */
+        template <class BaseIterator>
+        struct IteratorWrap : public BaseIterator
+        {
+            IteratorWrap(const BaseIterator & base_iter, shared_void_ptr payload) noexcept
+                : BaseIterator((base_iter))
+                , _payload(std::forward<shared_void_ptr>(payload))
+            {}
+            auto key() -> decltype(key_discovery::key(std::declval<const BaseIterator&>())) const
+            {
+                return key_discovery::key(*this);
+            }
+            const shared_void_ptr& payload() const
+            {
+                return _payload;
+            }
+        private:
+            shared_void_ptr _payload;
+        };
+
+        namespace key_discovery {
+
+            template <class BaseIterator>
+            inline auto key(const IteratorWrap<BaseIterator>& i) -> decltype(i.key())
+            {
+                return i.key();
+            }
+
+        }//ns: key_discovery
+
+
 /*!!!!!!!!!!!!!!!!!!!!!!!!!! to rempve !!!!!!!!!!!!!!!!!!!!!
         template<class Iterator, false>
         template<class UnaryPredicate>
@@ -327,8 +330,9 @@ namespace OP
 */
 }//ns:ranges
 }//ns:OP
-#include <op/ranges/JoinRange.h>
+
 #include <op/ranges/UnionAllRange.h>
+
 namespace OP{
     namespace ranges {
         
