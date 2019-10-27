@@ -174,7 +174,9 @@ namespace OP
                 iterator i(this);
                 auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix since begin wasn't exhausted
-                    return std::make_shared<subrange_container_t>(end(), OP::ranges::AlwaysFalseRangePredicate<subrange_container_t::iterator>());
+                    return std::make_shared<subrange_container_t>(
+                        shared_from_this(),
+                        end(), end(), [](const auto&)->bool {return false;});
                 auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
@@ -194,7 +196,7 @@ namespace OP
                 //
                 //_next(false, i_end);
                 //return subrange_container_t(i_beg, i_end);
-                return std::make_shared<subrange_container_t>(i_beg, end_predicate);
+                return std::make_shared<subrange_container_t>(shared_from_this(), i_beg, end(), end_predicate);
             }
             /**
             *   Just shorthand for: 

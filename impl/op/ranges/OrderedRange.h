@@ -21,6 +21,12 @@ namespace OP {
             {
                 return i->first;
             }
+            template <class I>
+            auto value(const I& i) -> decltype(i->second)
+            {
+                return i->second;
+            }
+            
             
             /**
             *   Specialization of discovery key from iterators for types that may return value by "key()" method. For example it
@@ -32,6 +38,11 @@ namespace OP {
                 return i.key();
             }
 
+            template <class I>
+            auto value(const I& i) -> decltype(i.key(), *i )
+            {
+                return *i;
+            }
         } //ns:details
 
 

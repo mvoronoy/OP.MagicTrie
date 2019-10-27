@@ -132,7 +132,7 @@ namespace OP
             *   Produce new range that fitlers-out some record from this one
             */
             template <class UnaryPredicate>
-            std::shared_ptr< filtered_range_t> filter(UnaryPredicate && f) const
+            std::shared_ptr< filtered_range_t> filter(UnaryPredicate f) const
             {
                 return filter_impl(std::forward<UnaryPredicate>(f), 0);
             }
@@ -316,6 +316,12 @@ namespace OP
                 return i.key();
             }
 
+            template <class BaseIterator>
+            inline auto value(const IteratorWrap<BaseIterator>& i) 
+                -> decltype( OP::ranges::key_discovery::value(static_cast<BaseIterator>(i) ))
+            {
+                return OP::ranges::key_discovery::value(static_cast<BaseIterator>(i) );
+            }
         }//ns: key_discovery
 
 
