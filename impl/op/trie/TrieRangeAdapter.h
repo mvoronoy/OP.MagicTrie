@@ -1,5 +1,6 @@
 #pragma once
 #include <op/ranges/PrefixRange.h>
+#include <op/ranges/OrderedRange.h>
 #include <memory>
 
 namespace OP
@@ -64,7 +65,7 @@ namespace OP
             using base_t = TrieRangeAdapter<TTrie>;
             
             TakewhileTrieRangeAdapter(std::shared_ptr<const trie_t> parent, iterator begin, iterator end, in_range_predicate_t in_range_predicate)
-                : base_t(parent, iterator begin, iterator end)
+                : base_t(parent, begin, end)
                 , _in_range_predicate(std::forward<in_range_predicate_t>(in_range_predicate))
             {}
             bool in_range(const iterator& check) const override

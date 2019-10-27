@@ -290,9 +290,12 @@ void test_LowerBound(OP::utest::TestResult &tresult)
     ///
     /// Now do the same for container that supports lower_bound natively
     ///
-
+    
     auto filtered_range2 = r1_src1
-        ->filter([](auto it) { return OP::ranges::key_discovery(it).length() > 1/*peek long enough*/; });
+        ->filter([](const auto& it) -> bool {
+
+        return OP::ranges::key_discovery::key(it).length() > 1/*peek long enough*/;
+    });
     auto found2 = filtered_range2
         ->lower_bound("t"); //pretty sure 't' not exists so correct answer is (int)'x'
     tresult.assert_true(filtered_range2->in_range(found2), OP_CODE_DETAILS(<< "end of the range is wrong"));
