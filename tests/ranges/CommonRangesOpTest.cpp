@@ -9,9 +9,12 @@
 #include <op/ranges/JoinRange.h>
 #include <op/ranges/RangeUtils.h>
 #include <map>
+#include <string>
 #include <utility>
 #include <unordered_set>
 #include <locale>
+#include "../AtomStrLiteral.h"
+
 using namespace OP::utest;
 
 struct lex_less
@@ -256,6 +259,59 @@ public:
     enum { value = sizeof(test<T>(0)) == sizeof(char) };
 };
 
+template <class Container, class Key>
+static void eval_lower_bound(OP::utest::TestResult &tresult, const Container& co, const Key &not_exists, const Key& exact, const Key& lower)
+{
+    const auto& k1 = OP::ranges::key_discovery::key(co.begin());
+    auto r1 = co.lower_bound(k1);
+    tresult.assert_that<equals>(OP::ranges::key_discovery::key(r1), k1, OP_CODE_DETAILS(<< "lower_bound of begin()"));
+
+    auto r2 = co.lower_bound(not_exists);
+    tresult.assert_false(co.in_range(r2), OP_CODE_DETAILS(<< "lower_bound of not_exists"));
+
+    auto r3 = co.lower_bound(exact);
+    tresult.assert_true(co.in_range(r3), OP_CODE_DETAILS(<< "in-range lower_bound of exact"));
+    tresult.assert_that<equals>(exact, OP::ranges::key_discovery::key(r3), OP_CODE_DETAILS(<< "lower_bound of exact"));
+
+    auto r4 = co.lower_bound(lower);
+    tresult.assert_true(co.in_range(r4), OP_CODE_DETAILS(<< "in-range lower_bound of lower"));
+    tresult.assert_that<less>(lower, OP::ranges::key_discovery::key(r4), OP_CODE_DETAILS(<< "lower_bound of lower"));
+}
+
+void test_LowerBoundAllRanges(OP::utest::TestResult &tresult)
+{
+    tresult.info() << "apply lower_bound on container without native support\n";
+
+    test_container_t src1;
+    src1.emplace("a", 1.0);
+    src1.emplace("ab", 1.0);
+    src1.emplace("b", 1.0);
+    src1.emplace("bc", 1.0);
+    src1.emplace("c", 1.0);
+    src1.emplace("cd", 1.0);
+    src1.emplace("d", 1.0);
+    src1.emplace("def", 1.0);
+    src1.emplace("g", 1.0);
+    src1.emplace("xyz", 1.0);
+
+    using namespace std::string_literals;
+
+    auto r1_src1 = OP::ranges::make_iterators_range(src1);
+    eval_lower_bound(tresult, *r1_src1, "xyzz"s, "def"s, "cda"s);
+
+    auto r_src2 = OP::ranges::make_iterators_range(src1);
+    auto r_join = r1_src1->join(r_src2); //with itself
+    eval_lower_bound(tresult, *r1_src1, "xyzz"s, "def"s, "cda"s);
+
+    auto r_filtered = r1_src1->filter([](const auto& i) {
+        const auto& s = OP::ranges::key_discovery::key(i);
+        return s != "def"s && s !="xyz"s; 
+    }); 
+
+    eval_lower_bound(tresult, *r_filtered, "xyzz"s, "cd"s, "def"s);
+
+}
+
 void test_LowerBound(OP::utest::TestResult &tresult)
 {
     tresult.info() << "apply lower_bound on container without native support\n";
@@ -314,6 +370,7 @@ static auto module_suite = OP::utest::default_test_suite("Ranges")
 ->declare(test_FilterRange, "filter")
 ->declare(test_UnionAllRange, "union-all")
 ->declare(test_FirstThat, "first-that")
-->declare(test_LowerBound, "lower_bound")
+->declare(test_LowerBound, "lower_bound-base")
+->declare(test_LowerBoundAllRanges, "lower_bound-on-containers")
 
 ;

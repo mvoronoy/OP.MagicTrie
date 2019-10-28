@@ -592,7 +592,7 @@ void test_join(
         return OP::ranges::str_lexico_comparator(left.begin(), left.end(),
             right.begin(), right.end());
     };
-    auto result1 = r1->join(r2, [](const auto& a, const auto &b)->int {return -1; });
+    auto result1 = r1->join(r2, comparator);
     //print_co(std::cout << "===========>", r1);
     compare_containers(tresult, *result1, expected);
     //print_co(std::cout << "===========>", r2);
@@ -610,9 +610,8 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     // Populate trie with unique strings in range from [0..255]
     // this must cause grow of root node
     const atom_string_t stems[] = { 
-        
-        (atom_t*)"adc", 
-        (atom_t*)"x", 
+        "adc"_atom, 
+        "x"_atom,
         atom_string_t(256, 'a'),
         atom_string_t(256, 'a') + (atom_t*)("b")
     };
@@ -627,8 +626,8 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     }
 
     std::map<atom_string_t, double> test_values;
-    atom_string_t query1 ((const atom_t*)"a");
-    atom_string_t query2 ((const atom_t*)"ad");
+    atom_string_t query1 ("a"_atom);
+    atom_string_t query2 ("ad"_atom);
     auto container1 = trie->prefixed_subrange(query1);
     //container1.for_each([&tresult](auto& i) {
     //    print_hex(tresult.info(), i.key());
@@ -647,7 +646,7 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     //  Test empty
     //
     test_values.clear();
-    atom_string_t query3((const atom_t*)"x");
+    atom_string_t query3("x"_atom);
     test_join(tresult, container1, trie->prefixed_subrange(std::begin(query3), std::end(query3)), test_values);
 
     const atom_string_t stem_diver[] = {
@@ -660,7 +659,7 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
         "madc"_atom,
         "mb"_atom,
         "mdef"_atom,
-        "mg"_atom,
+        "ng"_atom,
         "na"_atom,
         "nad"_atom, //missed
         "nadc"_atom,
@@ -673,34 +672,40 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
         trie->insert(s, (double)s.length());
     });
     std::map<atom_string_t, double> join_src = {
-        {"mdef"_atom, 0},
-        {"mg"_atom, 0},
-        {"ma"_atom, 0},
-        {"madc"_atom, 0},
-        {"mb"_atom, 0},
-        {"mdef"_atom, 0},
-        {"mg"_atom, 0},
-        {"na"_atom, 0},
-        {"nadc"_atom, 0},
-        {"nb"_atom, 0},
-        {"y"_atom, 0}
+        {"mdef"_atom, 4},
+        {"mg"_atom, 2},
+        {"ma"_atom, 2},
+        {"madc"_atom, 4},
+        {"mb"_atom, 2},
+        {"mdef"_atom, 4},
+        {"ng"_atom, 2},
+        {"na"_atom, 2},
+        {"nadc"_atom, 4},
+        {"nb"_atom, 2},
+        {"y"_atom, 1}
     };
     auto join_src_range = OP::ranges::make_iterators_range(join_src);
 
-    test_values.emplace("mdef"_atom, 2);
-    test_values.emplace("mg"_atom, 4);
+    test_values.emplace("mdef"_atom, 4);
+    test_values.emplace("mg"_atom, 2);
     test_values.emplace("ma"_atom, 2);
     test_values.emplace("madc"_atom, 4);
-    test_values.emplace("mb"_atom, 0);
-    test_values.emplace("mdef"_atom, 0);
-    test_values.emplace("mg"_atom, 0);
-    test_values.emplace("na"_atom, 0);
-    test_values.emplace("nadc"_atom, 0);
-    test_values.emplace("nb"_atom, 0);
+    test_values.emplace("mb"_atom, 2);
+    test_values.emplace("mdef"_atom, 4);
+    /*test_values.emplace("ng"_atom, 2);
+    test_values.emplace("na"_atom, 2);
+    test_values.emplace("nadc"_atom, 4);
+    test_values.emplace("nb"_atom, 2);*/
 
-    atom_string_t query4("m"_atom), query5("n"_atom);
+    atom_string_t query4("m"_atom), query5("a"_atom);
     test_join(tresult, 
         trie->prefixed_subrange(query4),
+        join_src_range,
+        test_values);
+
+    test_values.clear();
+    test_join(tresult,
+        trie->prefixed_subrange(query5),
         join_src_range,
         test_values);
 }
