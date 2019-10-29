@@ -138,9 +138,6 @@
     <ClInclude Include="..\impl\op\ranges\UnionAllRange.h">
       <Filter>OP\ranges</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\ranges\PredicateRange.h">
-      <Filter>OP\ranges</Filter>
-    </ClInclude>
     <ClInclude Include="..\impl\op\common\Unsigned.h">
       <Filter>OP\common</Filter>
     </ClInclude>
@@ -163,6 +160,13 @@
       <Filter>tests</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\ranges\PrefixRange.h">
+      <Filter>OP\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\PredicateRange.h" />
+    <ClInclude Include="..\impl\op\ranges\OrderedRange.h">
+      <Filter>OP\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\TakeWhileRange.h">
       <Filter>OP\ranges</Filter>
     </ClInclude>
   </ItemGroup>
