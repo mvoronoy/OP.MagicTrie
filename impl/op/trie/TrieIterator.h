@@ -79,14 +79,14 @@ namespace OP
         };
 
         template <class Container>
-        class TrieIterator : public std::iterator<
-            std::bidirectional_iterator_tag,
-            typename Container::value_type
-        >
+        class TrieIterator 
         {
         public:
+            using iterator_category = std::bidirectional_iterator_tag;
+
             typedef OP::trie::atom_string_t prefix_string_t;
             typedef prefix_string_t key_type;
+            typedef prefix_string_t key_t;
             typedef typename Container::value_type value_type;
             typedef TrieIterator<Container> this_t;
 

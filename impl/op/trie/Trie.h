@@ -20,8 +20,8 @@
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
 #include <op/trie/TrieRangeAdapter.h>
+#include <op/trie/SectionAdapter.h>
 #include <op/ranges/IteratorsRange.h>
-
 namespace OP
 {
     namespace trie
@@ -167,7 +167,7 @@ namespace OP
             *   @param aend - end of string to lookup
             */
             template <class IterateAtom>
-            subrange_container_ptr prefixed_subrange(IterateAtom begin, IterateAtom aend) const
+            subrange_container_ptr prefixed_range(IterateAtom begin, IterateAtom aend) const
             {
                 StartWithPredicate<subrange_container_t::iterator> end_predicate(atom_string_t(begin, aend));
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
@@ -199,16 +199,16 @@ namespace OP
                 return std::make_shared<subrange_container_t>(shared_from_this(), i_beg, end(), end_predicate);
             }
             /**
-            *   Just shorthand for: 
+            *   Just shorthand notation for: 
             *   \code
             *   subrange(std::begin(container), std::end(container))
             *   \endcode
             * @param string any string of bytes that supports std::begin/ std::end functions
             */
             template <class AtomContainer>
-            subrange_container_ptr prefixed_subrange(const AtomContainer& string) const
+            subrange_container_ptr prefixed_range(const AtomContainer& string) const
             {
-                return this->prefixed_subrange(std::begin(string), std::end(string));
+                return this->prefixed_range(std::begin(string), std::end(string));
             }
 
             /**
@@ -218,18 +218,30 @@ namespace OP
             auto flatten_subrange(std::shared_ptr<Range>& container) const
             {
                 return make_flatten_range(container, [this](const auto& i) {
-                    return prefixed_subrange(i.key());
+                    return prefixed_range(OP::ranges::key_discovery::key(i));
                 });
             }
 
-
+            /**
+            @return an iterator pointing to the first element that is not less than (i.e. greater or equal to) key 
+                specified as [begin, aend).
+            @param begin - specifies begin iterator of searching key
+            @param aend - specifies end iterator of searching key
+            */
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom aend) const
             {
                 return lower_bound(end(), begin, aend);
             }
-            template <class Container>
-            iterator lower_bound(const Container& container) const
+            /**
+            *   Just shorthand notation for:
+            *   \code
+            *   lower_bound(std::begin(container), std::end(container))
+            *   \endcode
+            * @param container any enumerable bytes that supports `std::begin` / `std::end` functions
+            */
+            template <class AtomString>
+            iterator lower_bound(const AtomString& container) const
             {
                 auto beg = std::begin(container);
                 return lower_bound(beg, std::end(container));
@@ -271,12 +283,25 @@ namespace OP
                 }
                 return i2;
             }
-            template <class AtomContainer>
-            iterator lower_bound(iterator& of_prefix, const AtomContainer& container) const
+            /**
+            *   Just shorthand notation for:
+            *   \code
+            *   lower_bound(of_prefix, std::begin(container), std::end(container))
+            *   \endcode
+            * @param container any enumerable bytes that supports `std::begin` / `std::end` functions
+            */
+            template <class AtomString>
+            iterator lower_bound(iterator& of_prefix, const AtomString& container) const
             {
                 auto b = std::begin(container);
                 return lower_bound(of_prefix, b, std::end(container));
             }
+            /**
+                Find exact matching of string specified by [begin, aend) parameters
+                @param begin of string to search
+                @param aend - the end of string to search
+                @return iterator that points on found string. In case if no such key result equals to `end()`
+            */
             template <class Atom>
             iterator find(Atom& begin, Atom aend) const
             {
@@ -288,14 +313,21 @@ namespace OP
                 }
                 return end();
             }
-            template <class AtomContainer>
-            iterator find(const AtomContainer& container) const
+            /**
+            *   Just shorthand notation for:
+            *   \code
+            *   find(std::begin(container), std::end(container))
+            *   \endcode
+            * @param container any enumerable bytes that supports `std::begin` / `std::end` functions
+            */
+            template <class AtomString>
+            iterator find(const AtomString& container) const
             {
                 auto b = std::begin(container);
                 return find(b, std::end(container));
             }
-            template <class AtomContainer>
-            iterator find(iterator& of_prefix, const AtomContainer& container) const
+            template <class AtomString>
+            iterator find(iterator& of_prefix, const AtomString& container) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 iterator iter = end ();
@@ -311,8 +343,14 @@ namespace OP
                 }
                 return iter;
             }
-            template <class AtomContainer>
-            bool check_exists(const AtomContainer& container) const
+            /**
+            *   Quick check if some string exists in this trie.
+            *   @param containser - string to check. Type must support `std::begin` / `std::end` functions
+            *   @return true if exists exact string matching. Note, if trie contains only `abc`, and you check `ab` 
+            *   method returns fals since it is not exact matching
+            */
+            template <class AtomString>
+            bool check_exists(const AtomString& container) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 auto b = std::begin(container);
@@ -363,7 +401,16 @@ namespace OP
                 auto first = first_child(of_this); //this may update `of_this`
                 return std::make_shared<child_range_t>(shared_from_this(), first, of_this);
             }
-
+            
+            using section_range_t = TrieSectionAdapter< subrange_container_t >;
+            
+            template <class AtomString>
+            std::shared_ptr<section_range_t> section_range(const AtomString& prefix) const
+            {
+                auto source = prefixed_range(std::begin(prefix), std::end(prefix));
+                return std::make_shared<section_range_t>(source, prefix);
+            }
+            
             value_type value_of(poistion_t pos) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);

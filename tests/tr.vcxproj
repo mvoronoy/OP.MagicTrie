@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -27,26 +27,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -151,10 +151,19 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\impl\op\common\Bitset.h" />
+    <ClInclude Include="..\impl\op\ranges\FlattenRange.h" />
+    <ClInclude Include="..\impl\op\ranges\FunctionalRange.h" />
     <ClInclude Include="..\impl\op\ranges\IteratorsRange.h" />
-    <ClInclude Include="..\impl\op\ranges\SuffixRange.h" />
+    <ClInclude Include="..\impl\op\ranges\JoinRange.h" />
+    <ClInclude Include="..\impl\op\ranges\OrderedRange.h" />
+    <ClInclude Include="..\impl\op\ranges\PrefixRange.h" />
+    <ClInclude Include="..\impl\op\ranges\RangeUtils.h" />
+    <ClInclude Include="..\impl\op\ranges\TakeWhileRange.h" />
+    <ClInclude Include="..\impl\op\ranges\UnionAllRange.h" />
+    <ClInclude Include="..\impl\op\trie\SectionAdapter.h" />
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
     <ClInclude Include="..\impl\op\trie\TrieNode.h" />
+    <ClInclude Include="..\impl\op\trie\TrieRangeAdapter.h" />
     <ClInclude Include="..\impl\op\trie\TrieResidence.h" />
     <ClInclude Include="..\impl\op\vtm\FixedSizeMemoryManager.h" />
     <ClInclude Include="..\impl\op\vtm\HeapManager.h" />

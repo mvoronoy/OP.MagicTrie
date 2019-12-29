@@ -325,15 +325,7 @@ namespace OP
         }//ns: key_discovery
 
 
-/*!!!!!!!!!!!!!!!!!!!!!!!!!! to rempve !!!!!!!!!!!!!!!!!!!!!
-        template<class Iterator, false>
-        template<class UnaryPredicate>
-        inline std::shared_ptr< FilteredRange<PrefixRange<Iterator>, UnaryPredicate> > PrefixRange<Iterator>::filter(UnaryPredicate && f) const
-        {
-            return std::make_shared<FilteredRange<this_t, UnaryPredicate>>(
-                shared_from_this(), std::forward<UnaryPredicate>(f));
-        }
-*/
+
 }//ns:ranges
 }//ns:OP
 

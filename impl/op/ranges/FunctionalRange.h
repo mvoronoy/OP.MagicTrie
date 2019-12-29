@@ -112,7 +112,10 @@ namespace OP
                 typename SourceRange::iterator,
                 typename this_t//FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy>
             > iterator;
+
             typedef KeyEvalPolicy key_eval_policy_t;
+            using key_type = typename iterator::key_type;
+            using key_t = key_type;
 
             FunctionalRange(const SourceRange & source, UnaryFunction && transform) noexcept
                 : _source_range(source)
