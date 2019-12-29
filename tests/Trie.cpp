@@ -5,6 +5,7 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 
+#include <op/ranges/OrderedRange.h>
 #include <op/trie/Trie.h>
 #include <op/ranges/RangeUtils.h>
 #include <op/vtm/SegmentManager.h>
@@ -12,7 +13,7 @@
 #include <op/vtm/TransactedSegmentManager.h>
 #include <op/ranges/FlattenRange.h>
 #include <op/trie/TrieRangeAdapter.h>
-#include <op/ranges/OrderedRange.h>
+
 #include <algorithm>
 #include "test_comparators.h"
 #include "AtomStrLiteral.h"
@@ -544,7 +545,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
     {
         atom_string_t test = atom_string_t(1, (std::string::value_type)i);
         decltype(test.begin()) b1;
-        auto container_ptr = trie->prefixed_subrange(b1 = test.begin(), test.end());
+        auto container_ptr = trie->prefixed_range(b1 = test.begin(), test.end());
         auto begin_test = container_ptr->begin();
 
         if ((i & 1) != 0) //odd entries must have a terminal
@@ -628,12 +629,12 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     std::map<atom_string_t, double> test_values;
     atom_string_t query1 ("a"_atom);
     atom_string_t query2 ("ad"_atom);
-    auto container1 = trie->prefixed_subrange(query1);
+    auto container1 = trie->prefixed_range(query1);
     //container1.for_each([&tresult](auto& i) {
     //    print_hex(tresult.info(), i.key());
     //});
     
-    auto container2 = trie->prefixed_subrange(query2);
+    auto container2 = trie->prefixed_range(query2);
     //tresult.info() << "======\n";
     //for (auto i = container2.begin(); container2.in_range(i); container2.next(i))
     //{
@@ -647,7 +648,7 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     //
     test_values.clear();
     atom_string_t query3("x"_atom);
-    test_join(tresult, container1, trie->prefixed_subrange(std::begin(query3), std::end(query3)), test_values);
+    test_join(tresult, container1, trie->prefixed_range(std::begin(query3), std::end(query3)), test_values);
 
     const atom_string_t stem_diver[] = {
         "ma"_atom,
@@ -699,13 +700,13 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
 
     atom_string_t query4("m"_atom), query5("a"_atom);
     test_join(tresult, 
-        trie->prefixed_subrange(query4),
+        trie->prefixed_range(query4),
         join_src_range,
         test_values);
 
     test_values.clear();
     test_join(tresult,
-        trie->prefixed_subrange(query5),
+        trie->prefixed_range(query5),
         join_src_range,
         test_values);
 }
@@ -751,7 +752,7 @@ void test_Flatten(OP::utest::TestResult &tresult)
     std::for_each(std::begin(ini_data), std::end(ini_data), [&trie](const p_t& s) {
         trie->insert(s.first, s.second);
     });
-    auto _1_range = trie->prefixed_subrange(atom_string_t((atom_t*)"1."));
+    auto _1_range = trie->prefixed_range(atom_string_t((atom_t*)"1."));
     _1_range->for_each([](const auto& i) {
         std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
     });
@@ -759,11 +760,11 @@ void test_Flatten(OP::utest::TestResult &tresult)
         return i.key().substr(2/*"1."*/);
     });
     suffixes_range->for_each([](const auto& i) {
-        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+        std::cout << "{{" << (const char*)i.key().c_str() << ", " << *i << "}}\n";
     });
     //-->>>>
     auto frange1 = make_flatten_range(suffixes_range, [&trie](const auto& i) {
-        return trie->prefixed_subrange(i.key());
+        return trie->prefixed_range(i.key());
     });
     std::cout << "Flatten result:\n";
     frange1->for_each([](const auto& i) {
@@ -778,6 +779,87 @@ void test_Flatten(OP::utest::TestResult &tresult)
     };
     tresult.assert_true(
         OP::ranges::utils::map_equals(*_1_flatten, strain1), OP_CODE_DETAILS(<< "Simple flatten failed"));
+    tresult.debug() << "Scenario #2\n";
+
+    typedef std::map<atom_string_t, double/*, lex_less*/> test_container_t;
+    test_container_t src1;
+    src1.emplace("1."_atom, 1.0);
+    src1.emplace("2."_atom, 2.0);
+    src1.emplace("3."_atom, 3.0);
+    auto r1_src1 = OP::ranges::make_iterators_range(src1);
+    auto fres2 = make_flatten_range(r1_src1, [&trie](const auto& i) {
+        const auto& k = OP::ranges::key_discovery::key(i);
+        return trie
+            ->prefixed_range(OP::ranges::key_discovery::key(i))
+            ->map([&k](const auto& i) {
+            return OP::ranges::key_discovery::key(i).substr(k.length());
+        });
+    });
+
+    fres2->for_each([](const auto& i) {
+        std::cout << "\\/{" << OP::ranges::key_discovery::key(i).c_str() << ", " << *i << "}\\/\n";
+    });
+}
+void test_TrieSectionRange(OP::utest::TestResult &tresult)
+{
+
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    typedef std::pair<atom_string_t, double> p_t;
+
+    const p_t ini_data[] = {
+        p_t("1.abc"_astr, 1.0),
+        p_t("1.abc.1"_astr, 1.1),
+        p_t("1.abc.2"_astr, 1.2),
+        p_t("1.abc.3"_astr, 1.3),
+        p_t("1.def.1"_astr, 1.4),
+        p_t("1.def"_astr, 1.5),
+
+        p_t("2.abc"_astr, 2.0),
+        p_t("2.abc"_astr, 2.0),
+
+        p_t("3.abc"_astr, 3.0),
+
+        p_t("4."_astr, 3.0)
+    };
+
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+    });
+
+    tresult.debug() << "Test no suffixes with terminal string without branching\n";
+    auto _1r = trie->section_range("3.abc"_astr);
+    tresult.assert_false(_1r->in_range(_1r->begin()), "Suffix of terminal string without branching must be empty");
+
+    tresult.debug() << "Test base scenario\n";
+    auto _2r = trie->section_range("1."_astr);
+    std::map<atom_string_t, double> strain1 = {
+        p_t("1.abc"_astr, 1.0),
+        p_t("1.abc.1"_astr, 1.1),
+        p_t("1.abc.2"_astr, 1.2),
+        p_t("1.abc.3"_astr, 1.3),
+        p_t("1.def.1"_astr, 1.4),
+        p_t("1.def"_astr, 1.5),
+    };
+    _2r->for_each([](const auto& i) {
+        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+    });
+    tresult.assert_true(
+        OP::ranges::utils::map_equals(*_2r, strain1), OP_CODE_DETAILS(<< "Simple section failed"));
+
+    strain1.erase("1.def.1"_astr);
+    strain1.erase("1.abc"_astr);
+    strain1.erase("1.def"_astr);
+
+    auto _3r = trie->section_range("_1.abc"_astr);
+    tresult.assert_true(
+        OP::ranges::utils::map_equals(*_3r, strain1), OP_CODE_DETAILS(<< "Narrowed section failed"));
+
 }
 void test_Erase(OP::utest::TestResult &tresult)
 {
@@ -1828,6 +1910,7 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
     ->declare(test_TrieSubtreeLambdaOperations, "lambda on subtree")
     ->declare(test_TrieNoTran, "trie no tran")
     ->declare(test_Flatten, "flatten")
+    ->declare(test_TrieSectionRange, "section range")
     ->declare(test_Erase, "erase")
     ->declare(test_Siblings, "siblings")
     ->declare(test_ChildSelector, "child")

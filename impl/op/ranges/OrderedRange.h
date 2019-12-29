@@ -53,6 +53,7 @@ namespace OP {
             
             using this_t = OrderedRange<iterator>;
             using key_type = decltype(OP::ranges::key_discovery::key(std::declval<const iterator&>()));
+            using key_t = key_type;
 
             template <class OtherRange>
             using join_comparator_t =

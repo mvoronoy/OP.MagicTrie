@@ -15,8 +15,11 @@
     <Filter Include="Header Files\common">
       <UniqueIdentifier>{4258e71b-cfb7-425e-bc81-58a4213e8ee4}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\vtm\ranges">
+    <Filter Include="Header Files\ranges">
       <UniqueIdentifier>{1a5bd1b9-2cb8-47ba-b04c-e5e983913d51}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\trie">
+      <UniqueIdentifier>{c9e8d11c-912b-4576-b697-28ce1cdfe113}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -102,10 +105,37 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\ranges\IteratorsRange.h">
-      <Filter>Header Files\vtm\ranges</Filter>
+      <Filter>Header Files\ranges</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\ranges\SuffixRange.h">
-      <Filter>Header Files\vtm\ranges</Filter>
+    <ClInclude Include="..\impl\op\ranges\FlattenRange.h">
+      <Filter>Header Files\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\FunctionalRange.h">
+      <Filter>Header Files\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\JoinRange.h">
+      <Filter>Header Files\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\OrderedRange.h">
+      <Filter>Header Files\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\PrefixRange.h">
+      <Filter>Header Files\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\RangeUtils.h">
+      <Filter>Header Files\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\TakeWhileRange.h">
+      <Filter>Header Files\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\UnionAllRange.h">
+      <Filter>Header Files\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieRangeAdapter.h">
+      <Filter>Header Files\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\SectionAdapter.h">
+      <Filter>Header Files\trie</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
