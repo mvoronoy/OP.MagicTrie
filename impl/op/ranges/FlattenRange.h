@@ -1,9 +1,11 @@
 #ifndef _OP_RANGES_FLATTEN_RANGE__H_
 #define _OP_RANGES_FLATTEN_RANGE__H_
+#pragma once
 
 #include <op/ranges/PrefixRange.h>
+#include <op/ranges/OrderedRange.h>
 #include <op/common/Utils.h>
-#include <set>
+#include <queue>
 
 namespace OP
 {
@@ -26,10 +28,10 @@ namespace OP
 
             };
             template <class Range, class IteratorComparator>
-            struct TreeSetStorage : public StoragePolicy<Range>
+            struct PriorityQueueSetStorage : public StoragePolicy<Range>
             {
-                TreeSetStorage(const IteratorComparator& comparator) noexcept
-                    :_comparator(comparator)
+                PriorityQueueSetStorage(const IteratorComparator& comparator) noexcept
+                    : _item_set(flat_less(comparator))
                 {}
                 void push(flat_item_ptr& item) override
                 {
@@ -37,14 +39,13 @@ namespace OP
                 }
                 virtual flat_item_ptr pop() override
                 {
-                    auto b = _item_set.begin();
-                    auto result = *b;
-                    _item_set.erase(b);
-                    return result;
+                    auto res = _item_set.top();
+                    _item_set.pop();
+                    return res;
                 }
                 flat_item_ptr smallest() const override
                 {
-                    return *_item_set.begin();
+                    return _item_set.top();
                 }
                 bool is_empty() const override
                 {
@@ -62,13 +63,13 @@ namespace OP
                         assert(left->first->in_range(left->second) &&
                             right->first->in_range(right->second));
                         auto test = _comparator(left->second, right->second);
-                        return test < 0;
+                        return test > 0; // >0 implments 'greater' - to invert default priority_queue behaviour
                     }
                     const IteratorComparator& _comparator;
                 };
-                typedef std::set<flat_item_ptr, flat_less> flat_item_set_t;
-                const IteratorComparator& _comparator;
-                flat_item_set_t _item_set = flat_item_set_t(_comparator);
+                using flat_store_t = std::vector<flat_item_ptr>;
+                using flat_item_set_t = std::priority_queue<flat_item_ptr, flat_store_t, flat_less> ;
+                flat_item_set_t _item_set;
             };
         } //ns:storage_policy
 
@@ -94,10 +95,11 @@ namespace OP
 
                 using value_type = typename applicator_result_t::iterator::value_type ;
                 using iterator_comparator_t = std::function<int(const typename applicator_result_t::iterator&, const typename applicator_result_t::iterator&)> ;
-                using store_t = typename storage_policy::TreeSetStorage< applicator_result_t, iterator_comparator_t > ;
+                using store_t = typename storage_policy::PriorityQueueSetStorage< applicator_result_t, iterator_comparator_t > ;
             };
 
-        }
+        } //ns:details
+
         template <class FlattenTraits>
         struct FlattenRangeIterator 
         {
@@ -153,7 +155,7 @@ namespace OP
             using value_type = typename traits_t::value_type;
 
             using iterator_comparator_t = typename traits_t::iterator_comparator_t;
-            using store_t = storage_policy::TreeSetStorage< applicator_result_t, iterator_comparator_t > ;
+            using store_t = storage_policy::PriorityQueueSetStorage< applicator_result_t, iterator_comparator_t > ;
 
             FlattenRange(std::shared_ptr<const SourceRange> source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator) noexcept
                 : _source_range(source)
@@ -178,7 +180,7 @@ namespace OP
                 });
                 return iterator(std::static_pointer_cast<const this_t>(shared_from_this()), std::move(store));
             }
-            iterator lower_bound(const typename key_type& key) const override
+            iterator lower_bound(const typename traits_t::key_type& key) const /*override*/
             {
                 auto store = std::make_unique< store_t >(_iterator_comparator);
                 _source_range->for_each([&](const auto& i) {

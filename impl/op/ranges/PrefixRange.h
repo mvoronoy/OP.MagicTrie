@@ -6,6 +6,7 @@
 #include <functional>
 #include <type_traits>
 #include <op/ranges/FunctionalRange.h>
+#include <op/common/Utils.h>
 
 #ifdef _MSC_VER
 #pragma warning(disable : 4503)
@@ -28,6 +29,9 @@ namespace OP
         template <class SourceRange1, class SourceRange2>
         struct UnionAllRange;
 
+        template <class SourceRange, class DeflateFunction >
+        struct FlattenRange;
+
         namespace details {
 
             template<class T,
@@ -49,6 +53,23 @@ namespace OP
                 typedef typename T::key_type key_t;
             };
 
+            /**
+            *   Traits class declares how flatten range is rendered
+            */
+            //template <class DeflateFunction, class SourceIterator>
+            //struct FlattenTraits
+            //{
+            //    using source_iterator_t = SourceIterator;
+
+            //    using pre_applicator_result_t = typename std::result_of<DeflateFunction(const source_iterator_t&)>::type;
+            //    /**Type of Range returned by DeflateFunction. Must be kind of OrderedRange
+            //    */
+            //    using applicator_result_t = typename std::conditional< //strip shared_ptr from pre_applicator_result_t if present
+            //        OP::utils::is_generic<pre_applicator_result_t, std::shared_ptr>::value,
+            //        typename pre_applicator_result_t::element_type,
+            //        pre_applicator_result_t>::type; //type of 
+            //    
+            //};
         } //ns:details
         namespace policy
         {
@@ -72,6 +93,8 @@ namespace OP
                 >::type >
                     ::type
                     ;
+
+
             }
         } //ns:policy
         
@@ -178,6 +201,18 @@ namespace OP
                 }
                 return n;
             }
+
+
+            /**
+            *  Produce range consisting of the results of replacing each element of this range with the contents `deflate_function`.
+            * \tparam DeflateFunction functor that accepts this range iterator and returns 
+            *   ordered sequence
+            * \param deflate_function converts single entry to another range
+            * \return ordered range merged together from produced by `deflate_function`
+            */
+            template <class DeflateFunction>
+            std::shared_ptr< FlattenRange<this_t, DeflateFunction > > flatten(DeflateFunction deflate_function) const;
+
         private:
 
             /** Case when filter supports orders*/
@@ -322,14 +357,123 @@ namespace OP
             {
                 return OP::ranges::key_discovery::value(static_cast<BaseIterator>(i) );
             }
-        }//ns: key_discovery
+
+            /**
+            *   Specialization of discovery key from iterators for types that support dereferncing of "first". For example it 
+            *   may be iterators produced by std::map
+            */
+            template <class I>
+            auto key(const I& i) -> decltype(i->first)
+            {
+                return i->first;
+            }
+            template <class I>
+            auto value(const I& i) -> decltype(i->second)
+            {
+                return i->second;
+            }
+            
+            
+            /**
+            *   Specialization of discovery key from iterators for types that may return value by "key()" method. For example it
+            *   may be iterators produced by other OrderedRange
+            */
+            template <class I>
+            auto key(const I& i) -> decltype(i.key())
+            {
+                return i.key();
+            }
+
+            template <class I>
+            auto value(const I& i) -> decltype(i.key(), *i )
+            {
+                return *i;
+            }
+        } //ns:key_discovery
+
+        template <class Iterator>
+        struct OrderedRange : public PrefixRange<Iterator, true>
+        {
+            using iterator = Iterator;
+            
+            using this_t = OrderedRange<iterator>;
+            using key_type = decltype(OP::ranges::key_discovery::key(std::declval<const iterator&>()));
+            using key_t = key_type;
+
+            template <class OtherRange>
+            using join_comparator_t =
+                std::function<int(const key_type&, const typename OtherRange::key_type&)>;
+            //typename join_range_t < OtherRange> ::iterator_comparator_t;
+
+            using key_comparator_t =
+                std::function<int(const key_type&, const key_type&)>;
+            
+            using join_iterator_t = IteratorWrap<iterator>;
+            using join_range_t = OrderedRange< join_iterator_t > ;
+
+            OrderedRange() = default;
+
+            OrderedRange(key_comparator_t key_cmp)
+                : _key_cmp(std::forward<key_comparator_t>(key_cmp))
+            {}
+
+
+            template <class OtherRange>
+            inline std::shared_ptr< join_range_t > join(std::shared_ptr< OtherRange const > range,
+                join_comparator_t<OtherRange> cmp) const;
+
+            template <class OtherRange>
+            inline std::shared_ptr< join_range_t > join(std::shared_ptr< OtherRange > range,
+                join_comparator_t<OtherRange> cmp) const
+            {
+                std::shared_ptr< OtherRange const > cast{ range };
+                return join(cast, cmp);
+            }
+
+            template <class OtherRange>
+            inline std::shared_ptr< join_range_t > join(std::shared_ptr< OtherRange const > range) const
+            {
+                return this->join(range, [this](auto const& left, auto const& right)->int {
+                    return key_comp()(left, right);
+                });
+            }
+            
+            const key_comparator_t& key_comp() const
+            {
+                return _key_cmp;
+            }
+            virtual iterator lower_bound(const key_type& key) const = 0;
+        
+        private:
+            key_comparator_t _key_cmp;
+        };
+
+
+        template <class SourceRange>
+        struct OrderedFilteredRange : 
+            public FilteredRangeBase<SourceRange, OrderedRange< typename SourceRange::iterator > >
+        {
+            using base_t = FilteredRangeBase<SourceRange, OrderedRange< typename SourceRange::iterator > >;
+
+            using base_t::base_t;
+
+            iterator lower_bound(const typename base_t::key_type& key) const override
+            {
+                auto lower = static_cast<const base_t&>(*source_range()).lower_bound(key);
+                seek(lower);
+                return lower;
+            }
+        };
 
 
 
 }//ns:ranges
 }//ns:OP
 
+
 #include <op/ranges/UnionAllRange.h>
+#include <op/ranges/FlattenRange.h>
+#include <op/ranges/JoinRange.h>
 
 namespace OP{
     namespace ranges {
@@ -348,6 +492,27 @@ namespace OP{
                 std::forward<typename merge_all_t::iterator_comparator_t>(cmp)
             );
         }
+
+        template<class Iterator, bool is_ordered>
+        template <class DeflateFunction>
+        std::shared_ptr< FlattenRange< PrefixRange<Iterator, is_ordered>, DeflateFunction > >  PrefixRange<Iterator, is_ordered>::flatten(DeflateFunction deflate_function) const
+        {
+            using traits_t = details::FlattenTraits<this_t, DeflateFunction>;
+            static_assert(traits_t::applicator_result_t::is_ordered_c, "DeflateFunction function must produce ordered range, otherwise use unordered_flatten");
+            return make_flatten_range(shared_from_this(), std::forward<DeflateFunction>(deflate_function));
+        }
+
+        template <class Iterator>
+        template <class OtherRange>
+        inline std::shared_ptr< OrderedRange<IteratorWrap<Iterator>> > OrderedRange<Iterator>::join(std::shared_ptr<OtherRange const> range,
+            join_comparator_t<OtherRange> cmp) const
+        {
+            std::shared_ptr<OrderedRange<Iterator> const> the_ptr( std::static_pointer_cast<OrderedRange<Iterator> const> (shared_from_this()) );
+            using range_impl_t = JoinRange<this_t, OtherRange>;
+            auto r = new range_impl_t(the_ptr, range, std::forward<join_comparator_t<OtherRange>>(cmp));
+            return std::shared_ptr<join_range_t>(r);
+        }
 }//ns:ranges
 }//ns:OP
+
 #endif //_OP_RANGES_PREFIX_RANGE__H_

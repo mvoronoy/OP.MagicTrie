@@ -205,7 +205,10 @@
       <PreprocessKeepComments Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</PreprocessKeepComments>
     </ClCompile>
     <ClCompile Include="Transacted.cpp" />
-    <ClCompile Include="Trie.cpp" />
+    <ClCompile Include="Trie.cpp">
+      <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
+      <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</PreprocessToFile>
+    </ClCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
