@@ -831,7 +831,7 @@ void test_TrieSectionRange(OP::utest::TestResult &tresult)
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
         trie->insert(s.first, s.second);
     });
-
+    
     tresult.debug() << "Test no suffixes with terminal string without branching\n";
     auto _1r = trie->section_range("3.abc"_astr);
     tresult.assert_false(_1r->in_range(_1r->begin()), "Suffix of terminal string without branching must be empty");
@@ -839,27 +839,30 @@ void test_TrieSectionRange(OP::utest::TestResult &tresult)
     tresult.debug() << "Test base scenario\n";
     auto _2r = trie->section_range("1."_astr);
     std::map<atom_string_t, double> strain1 = {
-        p_t("1.abc"_astr, 1.0),
-        p_t("1.abc.1"_astr, 1.1),
-        p_t("1.abc.2"_astr, 1.2),
-        p_t("1.abc.3"_astr, 1.3),
-        p_t("1.def.1"_astr, 1.4),
-        p_t("1.def"_astr, 1.5),
+        p_t("abc"_astr, 1.0),
+        p_t("abc.1"_astr, 1.1),
+        p_t("abc.2"_astr, 1.2),
+        p_t("abc.3"_astr, 1.3),
+        p_t("def.1"_astr, 1.4),
+        p_t("def"_astr, 1.5),
     };
-    _2r->for_each([](const auto& i) {
-        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
-    });
+    //_2r->for_each([](const auto& i) {
+    //    std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+    //});
     tresult.assert_true(
         OP::ranges::utils::map_equals(*_2r, strain1), OP_CODE_DETAILS(<< "Simple section failed"));
 
-    strain1.erase("1.def.1"_astr);
-    strain1.erase("1.abc"_astr);
-    strain1.erase("1.def"_astr);
-
-    auto _3r = trie->section_range("_1.abc"_astr);
+    std::map<atom_string_t, double> strain2 = {
+        p_t(".1"_astr, 1.1),
+        p_t(".2"_astr, 1.2),
+        p_t(".3"_astr, 1.3)
+        
+    };
+    auto _3r = trie->section_range("1.abc"_astr);
     tresult.assert_true(
-        OP::ranges::utils::map_equals(*_3r, strain1), OP_CODE_DETAILS(<< "Narrowed section failed"));
+        OP::ranges::utils::map_equals(*_3r, strain2), OP_CODE_DETAILS(<< "Narrowed section failed"));
 
+    tresult.debug() << "Test flatten-range scenario\n";
 }
 void test_Erase(OP::utest::TestResult &tresult)
 {

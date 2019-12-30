@@ -136,7 +136,7 @@ namespace OP
                 return iterator(
                     std::static_pointer_cast<const this_t>(shared_from_this()), 
                     _prefix.length(), 
-                    _source_range->begin());
+                    skip_first_if_empty(_source_range->begin()));
             }
             iterator end() const
             {
@@ -146,7 +146,6 @@ namespace OP
             {
                 if (_source_range->in_range(check.source_iterator()))
                 {//check against matching the prefix
-                    std::cout << "@@"<<(const char*)OP::ranges::key_discovery::key(check).c_str() << std::endl;
                     return OP::ranges::key_discovery::key(check.source_iterator())
                         .compare(0, _prefix.length(), _prefix) == 0;
                 }
@@ -166,13 +165,23 @@ namespace OP
                 return iterator(
                     std::static_pointer_cast<const this_t>(shared_from_this()), 
                     _prefix.length(), 
-                    _source_range->lower_bound(_prefix + key));
+                    skip_first_if_empty(_source_range->lower_bound(_prefix + key)));
             }
             const std::shared_ptr<const SourceRange>& source_range() const
             {
                 return _source_range;
             }
         private:
+            /**When prefixed_range starts iteration it may point to terminal string, so to avoid empty string need check and skip*/
+            source_iterator_t& skip_first_if_empty(source_iterator_t& from) const
+            {
+                if (_source_range->in_range(from) )
+                {
+                    if (OP::ranges::key_discovery::key(from).length() == _prefix.length())
+                        _source_range->next(from);
+                }
+                return from;
+            }
             std::shared_ptr<const SourceRange> _source_range;
             atom_string_t _prefix;
         };
