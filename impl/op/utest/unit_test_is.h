@@ -64,7 +64,7 @@ namespace OP
 
             };
         };
-        /** Marker specifies equality operation between two arguments */
+        /** Marker specifies strictly less operation between two arguments */
         struct less
         {
             template <class Left, class Right>
@@ -72,6 +72,19 @@ namespace OP
             {
                 impl(Left left, Right right)
                     : details::bool_result(left < right)
+                {
+                }
+
+            };
+        };
+        /** Marker specifies strictly greater operation between two arguments */
+        struct greater
+        {
+            template <class Left, class Right>
+            struct impl : details::bool_result
+            {
+                impl(Left left, Right right)
+                    : details::bool_result(right < left) //note less is used!
                 {
                 }
 

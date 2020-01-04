@@ -149,15 +149,21 @@ namespace OP
         {
             using this_t = FlattenRange<SourceRange, DeflateFunction>;
             using traits_t = details::FlattenTraits<SourceRange, DeflateFunction>;
+
+
             using iterator = FlattenRangeIterator< traits_t> ;
 
             using applicator_result_t = typename traits_t::applicator_result_t;
+            static_assert(applicator_result_t::is_ordered_c, "DeflateFunction must produce range that support ordering");
+
             using value_type = typename traits_t::value_type;
 
             using iterator_comparator_t = typename traits_t::iterator_comparator_t;
             using store_t = storage_policy::PriorityQueueSetStorage< applicator_result_t, iterator_comparator_t > ;
 
-            FlattenRange(std::shared_ptr<const SourceRange> source, DeflateFunction && deflate, iterator_comparator_t && iterator_comparator) noexcept
+            FlattenRange(std::shared_ptr<SourceRange> source
+                , DeflateFunction deflate
+                , iterator_comparator_t iterator_comparator) noexcept
                 : _source_range(source)
                 , _deflate(std::forward<DeflateFunction >(deflate))
                 , _iterator_comparator(std::forward<iterator_comparator_t>(iterator_comparator))
@@ -213,7 +219,7 @@ namespace OP
             }
 
         private:
-            std::shared_ptr<const SourceRange> _source_range;
+            std::shared_ptr<SourceRange> _source_range;
             const iterator_comparator_t _iterator_comparator;
             const DeflateFunction _deflate;
 
@@ -225,8 +231,12 @@ namespace OP
             return std::make_shared<FlattenRange<SourceRange, DeflateFunction > > (
                 src, 
                 std::forward<DeflateFunction>(f), [](const auto& left, const auto& right) {
-                return OP::ranges::str_lexico_comparator(std::begin(left.key()), std::end(left.key()),
-                    std::begin(right.key()), std::end(right.key()));
+                const auto& k_left = OP::ranges::key_discovery::key(left);
+                const auto& k_right = OP::ranges::key_discovery::key(right);
+                return OP::ranges::str_lexico_comparator(
+                    std::begin(k_left), std::end(k_left),
+                    std::begin(k_right), std::end(k_right)
+                );
             });
             
         }

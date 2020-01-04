@@ -201,8 +201,24 @@ namespace OP
                 }
                 return n;
             }
-
-
+            /**
+            *   Count number of entries in this range. Since range may be big use this operation responsibly because complexity is O(N).
+            * If you need just check if range isn't empty use `!empty()` method
+            */
+            size_t count() const
+            {
+                size_t n = 0;
+                for (auto i = begin(); in_range(i); next(i), ++n)
+                {
+                    /*nothing*/
+                }
+                return n;
+            }
+            /**Allows check if range is empty. Complexity is close to O(1) */
+            bool empty() const
+            {
+                return in_range(begin());
+            }
             /**
             *  Produce range consisting of the results of replacing each element of this range with the contents `deflate_function`.
             * \tparam DeflateFunction functor that accepts this range iterator and returns 
@@ -499,7 +515,24 @@ namespace OP{
         {
             using traits_t = details::FlattenTraits<this_t, DeflateFunction>;
             static_assert(traits_t::applicator_result_t::is_ordered_c, "DeflateFunction function must produce ordered range, otherwise use unordered_flatten");
-            return make_flatten_range(shared_from_this(), std::forward<DeflateFunction>(deflate_function));
+            std::shared_ptr<this_t> source = std::const_pointer_cast<this_t>(shared_from_this());
+            auto ptr = new FlattenRange<this_t, DeflateFunction >(
+                source,
+                std::forward<DeflateFunction>(deflate_function),
+                [](const auto& left, const auto& right) {
+                auto const &inpl_l = OP::ranges::key_discovery::key(left);
+                auto const &inpl_r = OP::ranges::key_discovery::key(right);
+                return OP::ranges::str_lexico_comparator(
+                    std::begin(inpl_l), std::end(inpl_l),
+                    std::begin(inpl_r), std::end(inpl_r)
+                );
+            }
+            );
+            std::shared_ptr< FlattenRange< PrefixRange<Iterator, is_ordered>, DeflateFunction > > result{
+                ptr
+            };
+            return result;
+                //make_flatten_range(std::static_pointer_cast<const this_t>(shared_from_this()), std::forward<DeflateFunction>(deflate_function));
         }
 
         template <class Iterator>

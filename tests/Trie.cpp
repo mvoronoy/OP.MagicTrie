@@ -586,10 +586,6 @@ void test_join(
     OP::utest::TestResult &tresult, std::shared_ptr< R1 const > r1, std::shared_ptr< R2 const > r2, const Sample& expected)
 {
     auto comparator = [](const atom_string_t& left, const atom_string_t& right)->int {
-        /*auto&&left_prefix = left.key(); //may be return by const-ref or by value
-        auto&&right_prefix = right.key();//may be return by const-ref or by value
-        return OP::ranges::str_lexico_comparator(left_prefix.begin(), left_prefix.end(),
-            right_prefix.begin(), right_prefix.end());*/
         return OP::ranges::str_lexico_comparator(left.begin(), left.end(),
             right.begin(), right.end());
     };
@@ -782,23 +778,39 @@ void test_Flatten(OP::utest::TestResult &tresult)
     tresult.debug() << "Scenario #2\n";
 
     typedef std::map<atom_string_t, double/*, lex_less*/> test_container_t;
-    test_container_t src1;
-    src1.emplace("1."_atom, 1.0);
-    src1.emplace("2."_atom, 2.0);
-    src1.emplace("3."_atom, 3.0);
+    test_container_t src1 = {
+        {"1."_atom, 1.0},
+        {"2."_atom, 2.0},
+        {"3."_atom, 3.0}
+    };
     auto r1_src1 = OP::ranges::make_iterators_range(src1);
     auto fres2 = make_flatten_range(r1_src1, [&trie](const auto& i) {
         const auto& k = OP::ranges::key_discovery::key(i);
         return trie
             ->prefixed_range(OP::ranges::key_discovery::key(i))
+            /*[!] Uncoment to test compile time error "DeflateFunction must produce range that support ordering"
             ->map([&k](const auto& i) {
-            return OP::ranges::key_discovery::key(i).substr(k.length());
-        });
+                return OP::ranges::key_discovery::key(i).substr(k.length());
+            }) */
+            ;
     });
 
+    test_container_t strain_fm = {
+        { "1.abc"_astr, 10.000000 },
+        { "1.bcd"_astr, 10.000000 },
+        { "1.def"_astr, 10.000000 },
+        { "2.def"_astr, 20.000000 },
+        { "2.fgh"_astr, 20.000000 },
+        { "2.hij"_astr, 20.000000 },
+        { "3.hij"_astr, 30.000000 },
+        { "3.jkl"_astr, 30.000000 },
+        { "3.lmn"_astr, 30.000000 },
+    };
     fres2->for_each([](const auto& i) {
-        std::cout << "\\/{" << OP::ranges::key_discovery::key(i).c_str() << ", " << *i << "}\\/\n";
+        //std::cout << "\\/{" << OP::ranges::key_discovery::key(i).c_str() << ", " << *i << "}\\/\n";
     });
+    compare_containers(tresult, *fres2, strain_fm);
+
 }
 void test_TrieSectionRange(OP::utest::TestResult &tresult)
 {
@@ -819,13 +831,17 @@ void test_TrieSectionRange(OP::utest::TestResult &tresult)
         p_t("1.abc.3"_astr, 1.3),
         p_t("1.def.1"_astr, 1.4),
         p_t("1.def"_astr, 1.5),
+        p_t("1."_astr, 1.5),
 
         p_t("2.abc"_astr, 2.0),
-        p_t("2.abc"_astr, 2.0),
+        p_t("2.abc.1"_astr, 2.0),
+        p_t("2."_astr, 2.0),
 
-        p_t("3.abc"_astr, 3.0),
+        p_t("3.abc"_astr, 3.1),
+        p_t("3.abc.3"_astr, 3.2),
+        p_t("3."_astr, 3.0),
 
-        p_t("4."_astr, 3.0)
+        p_t("4."_astr, 4.0)
     };
 
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
@@ -833,7 +849,7 @@ void test_TrieSectionRange(OP::utest::TestResult &tresult)
     });
     
     tresult.debug() << "Test no suffixes with terminal string without branching\n";
-    auto _1r = trie->section_range("3.abc"_astr);
+    auto _1r = trie->section_range("4."_astr);
     tresult.assert_false(_1r->in_range(_1r->begin()), "Suffix of terminal string without branching must be empty");
 
     tresult.debug() << "Test base scenario\n";
@@ -863,6 +879,41 @@ void test_TrieSectionRange(OP::utest::TestResult &tresult)
         OP::ranges::utils::map_equals(*_3r, strain2), OP_CODE_DETAILS(<< "Narrowed section failed"));
 
     tresult.debug() << "Test flatten-range scenario\n";
+    auto lookup = trie->sibling_range("1."_astr);
+    lookup->for_each([](const auto& i) {
+        std::cout << "////" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+    });
+    auto _4r = trie->sibling_range("1."_astr)->flatten([&](auto const& i) {
+        return trie->section_range(OP::ranges::key_discovery::key(i));
+    });
+    std::map<atom_string_t, std::set<double>> strain4 = { 
+        {"abc"_astr, {1, 2, 3.1}},
+        {"abc.1"_astr, {1.1, 2}},
+        {"abc.2"_astr, {1.2}},
+        {"abc.3"_astr, {3.2, 1.3}},
+        {"def"_astr, {1.5}},
+        {"def.1"_astr, {1.4}}
+    };
+    size_t n = 0;
+    const size_t n4r = _4r->count();
+    tresult.assert_that<greater>(n4r, 0, OP_CODE_DETAILS(<< "Flatten range must not be empty"));
+    _4r->for_each([&](const auto& i) {
+            //std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+        //need manually compare
+        auto& key = OP::ranges::key_discovery::key(i);
+        auto value = OP::ranges::key_discovery::value(i);
+        auto found = strain4.find(key);
+        tresult.assert_that<not<equals>>(strain4.end(), found, OP_CODE_DETAILS(<< "Key not found:" << (const char*)key.c_str()));
+        auto& value_set = found->second;
+        tresult.assert_that<string_equals>(key, found->first, OP_CODE_DETAILS(<< "Key compare failed:" << (const char*)key.c_str()));
+        tresult.assert_that<not<equals>>(value_set.end(), value_set.find(value), 
+            OP_CODE_DETAILS(<< "Value compare failed:" << value << " of key:" << (const char*)key.c_str()));
+        ++n;
+        value_set.erase(value);
+        if(value_set.empty())
+            strain4.erase(found);
+    });
+    tresult.assert_that<equals>(n, n4r, OP_CODE_DETAILS(<< "Result sets are not equal size:" << n << " vs " << n4r));
 }
 void test_Erase(OP::utest::TestResult &tresult)
 {
@@ -1094,6 +1145,7 @@ void test_ChildSelector(OP::utest::TestResult &tresult)
     r1_test.emplace(std::string(ini_data[1].first.begin(), ini_data[1].first.end()), ini_data[1].second);
     r1_test.emplace(std::string(ini_data[2].first.begin(), ini_data[2].first.end()), ini_data[2].second);
     r1_test.emplace(std::string(ini_data[3].first.begin(), ini_data[3].first.end()), ini_data[3].second);
+    r1_test.emplace(std::string(ini_data[4].first.begin(), ini_data[4].first.end()), ini_data[4].second);
 
     compare_containers(tresult, *r1, r1_test);
 
