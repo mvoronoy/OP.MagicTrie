@@ -71,7 +71,7 @@ namespace OP
             {
                 return OP::ranges::key_discovery::value(_source_iterator);
             }
-            key_type key() const
+            const key_type& key() const
             {
                 return _cashed_str;
             }

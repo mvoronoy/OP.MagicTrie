@@ -35,9 +35,6 @@ namespace OP
         };
         
 
-        template <class Trie>
-        struct ChildRangeAdapter;
-
         template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 1024>
         struct Trie : public std::enable_shared_from_this< Trie<TSegmentManager, Payload, initial_node_count> >
         {
@@ -397,10 +394,19 @@ namespace OP
             }
             using child_range_t = ChildRangeAdapter<this_t>;
             /**Return range that allows iterate all immediate childrens of specified prefix*/
-            std::shared_ptr<child_range_t> children_range(iterator& of_this) const
+            std::shared_ptr<child_range_t> children_range(iterator of_this) const
             {
-                auto first = first_child(of_this); //this may update `of_this`
-                return std::make_shared<child_range_t>(shared_from_this(), first, of_this);
+                IdentityFactory<iterator>it2functor( of_this );
+                return std::make_shared<child_range_t>(shared_from_this(), std::move(it2functor));
+            }
+
+            using sibling_range_t = SiblingRangeAdapter<this_t, atom_string_t>;
+            /**Return range that allows iterate all immediate childrens of specified prefix*/
+            
+            std::shared_ptr<sibling_range_t> sibling_range(const atom_string_t& key) const
+            {
+                auto zhis = shared_from_this();
+                return std::make_shared< sibling_range_t>(zhis, [key, zhis]() { return zhis->find(key); });
             }
             
             using section_range_t = TrieSectionAdapter< subrange_container_t >;
@@ -1263,24 +1269,6 @@ namespace OP
                     start_from = std::get<1>(lres);
                 } while (is_not_set(i.back().terminality(), Terminality::term_has_data));
             }
-            /**Implement functor for subrange method to implement predicate that detects end of range iteration*/
-            template <class Iterator>
-            struct StartWithPredicate
-            {
-                StartWithPredicate(atom_string_t && prefix)
-                    : _prefix(std::move(prefix))
-                {
-                }
-                bool operator()(const Iterator& check) const
-                {
-                    auto & str = check.key();
-                    if (str.length() < _prefix.length())
-                        return false;
-                    return std::equal(_prefix.begin(), _prefix.end(), str.begin());
-                }
-            private:
-                atom_string_t _prefix;
-            };
         }; 
 
 
