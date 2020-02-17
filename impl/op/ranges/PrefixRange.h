@@ -235,7 +235,6 @@ namespace OP
             template <class UnaryPredicate, class Q = std::enable_if_t<is_ordered, std::shared_ptr< filtered_range_t> > >
             Q filter_impl(UnaryPredicate && f, int) const
             {
-                
                 return std::make_shared<filtered_range_t>(
                     shared_from_this(), std::forward<UnaryPredicate>(f));
             }
@@ -362,7 +361,7 @@ namespace OP
         namespace key_discovery {
 
             template <class BaseIterator>
-            inline auto key(const IteratorWrap<BaseIterator>& i) -> decltype(i.key())
+            inline auto key(const IteratorWrap<BaseIterator>& i) -> std::add_const_t< decltype(i.key()) >&
             {
                 return i.key();
             }
@@ -395,7 +394,7 @@ namespace OP
             *   may be iterators produced by other OrderedRange
             */
             template <class I>
-            auto key(const I& i) -> decltype(i.key())
+            auto key(const I& i) ->decltype(i.key())
             {
                 return i.key();
             }
