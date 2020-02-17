@@ -42,7 +42,10 @@ namespace OP
 {
     namespace utest{
         
+        struct TestFail; //forward decl
+
         namespace _inner {
+
             template <class X>
             inline bool _uncondition_exception_raise(X&&x)
             {
