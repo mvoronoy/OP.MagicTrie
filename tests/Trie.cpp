@@ -903,10 +903,10 @@ void test_TrieSectionRange(OP::utest::TestResult &tresult)
         auto& key = OP::ranges::key_discovery::key(i);
         auto value = OP::ranges::key_discovery::value(i);
         auto found = strain4.find(key);
-        tresult.assert_that<not<equals>>(strain4.end(), found, OP_CODE_DETAILS(<< "Key not found:" << (const char*)key.c_str()));
+        tresult.assert_that<logical_not<equals>>(strain4.end(), found, OP_CODE_DETAILS(<< "Key not found:" << (const char*)key.c_str()));
         auto& value_set = found->second;
         tresult.assert_that<string_equals>(key, found->first, OP_CODE_DETAILS(<< "Key compare failed:" << (const char*)key.c_str()));
-        tresult.assert_that<not<equals>>(value_set.end(), value_set.find(value), 
+        tresult.assert_that<logical_not<equals>>(value_set.end(), value_set.find(value), 
             OP_CODE_DETAILS(<< "Value compare failed:" << value << " of key:" << (const char*)key.c_str()));
         ++n;
         value_set.erase(value);
@@ -1279,7 +1279,7 @@ void test_TriePrefixedInsert(OP::utest::TestResult &tresult)
     auto abc_iter = trie->find(abc_str);
     tresult.assert_false(abc_iter == trie->end(), "abc must exists");
     auto abc_copy = abc_iter;
-    tresult.assert_that<not<equals>>(trie->end(), trie->erase(abc_copy), "Erase failed");
+    tresult.assert_that<logical_not<equals>>(trie->end(), trie->erase(abc_copy), "Erase failed");
     test_values.erase(abc_str);
     compare_containers(tresult, *trie, test_values);
     //copy again
@@ -1353,7 +1353,7 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
     auto abc_iter = trie->find(abc_str);
     tresult.assert_false(abc_iter == trie->end(), "abc must exists");
     auto abc_copy = abc_iter;
-    tresult.assert_that<not<equals>>(trie->end(), trie->erase(abc_copy), "Erase failed");
+    tresult.assert_that<logical_not<equals>>(trie->end(), trie->erase(abc_copy), "Erase failed");
     test_values.erase(abc_str);
     compare_containers(tresult, *trie, test_values);
     //copy again
@@ -1449,7 +1449,7 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     atom_string_t en2((const atom_t*)"bc");
     auto f2 = trie->find(en2);
     auto f2_copy = f2;
-    tresult.assert_that<not<equals>>(trie->end(), f2, OP_CODE_DETAILS());
+    tresult.assert_that<logical_not<equals>>(trie->end(), f2, OP_CODE_DETAILS());
     trie->erase(f2_copy);
     test_values.erase(en2);
     compare_containers(tresult, *trie, test_values);
@@ -1516,7 +1516,7 @@ void test_TriePrefixedKeyEraseAll(OP::utest::TestResult &tresult)
     atom_string_t en2((const atom_t*)"bc");
     auto f2 = trie->find(en2);
     auto f2_copy = f2;
-    tresult.assert_that<not<equals>>(trie->end(), f2, OP_CODE_DETAILS());
+    tresult.assert_that<logical_not<equals>>(trie->end(), f2, OP_CODE_DETAILS());
     trie->erase(f2_copy);
     test_values.erase(en2);
     compare_containers(tresult, *trie, test_values);

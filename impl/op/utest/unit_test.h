@@ -4,6 +4,7 @@
 #include <vector>
 #include <deque>
 #include <iostream>
+#include <iterator>
 #include <iomanip>
 #include <memory>
 #include <chrono>
@@ -18,6 +19,8 @@
 #include <mutex>
 #include <cstdint>
 #include <signal.h> 
+#include <op/utest/unit_test_is.h>
+
 /** Allows place usefull information to detail output.
 * Usage:
 * \code
@@ -42,7 +45,7 @@ namespace OP
 {
     namespace utest{
         
-        struct TestFail; //forward decl
+        struct TestFail;
 
         namespace _inner {
 
@@ -265,8 +268,8 @@ namespace OP
             friend struct TestCase;
             friend struct TestRun;
             typedef std::chrono::high_resolution_clock::time_point time_point_t;
-            explicit TestResult(std::shared_ptr<TestSuite>& suite) :
-                _suite(suite),
+            explicit TestResult(std::shared_ptr<TestSuite> suite) :
+                _suite(std::move(suite)),
                 _status(not_started),
                 _run_number(0),
                 _access_result(new std::recursive_mutex())
@@ -349,12 +352,12 @@ namespace OP
                 assert_true(!condition, std::forward<Xetails>(details));
             }
             template<class Comparator, class Xetails>
-            void assert_that(Comparator && cmp, Xetails &&details)
+            void assert_that(Comparator cmp, Xetails details)
             {
-                if (!std::forward<Comparator>(cmp)())
+                if (!cmp())
                 {
                     fail(std::forward<Xetails>(details));
-                }                                                                        T
+                }                                                                        
             }
             template<class Marker, class Left, class Right, class Xetails>
             void assert_that(Left&& left, Right&& right, Xetails &&details)
@@ -747,7 +750,7 @@ namespace OP
             * @tparam F predicate that matches to signature `bool F(TestSuite&, TestCase&)`
             */
             template <class F>
-            std::vector< test_result_ptr_t > run_if(F &f)
+            std::vector< test_result_ptr_t > run_if(F f)
             {
                 std::vector<std::shared_ptr<TestResult> > result;
                 sig_abort_guard guard;
@@ -787,7 +790,7 @@ namespace OP
                 suite.list_cases([&](TestCase& test){
                     if (p(suite, test))
                     {
-                        std::shared_ptr<TestResult> result = std::make_shared<TestResult>(suite.shared_from_this());
+                        std::shared_ptr<TestResult> result{ std::make_shared<TestResult>(suite.shared_from_this()) };
                         //allow output error right after appear
                         result->join_stream(suite.error());
                         suite.info() <<"\t["<<test.id()<<"]...\n";
@@ -810,49 +813,73 @@ namespace OP
         };
         namespace tools
         {
-            inline std::string& randomize(std::string& target, size_t max_size, size_t min_size = 0)
+            inline int wrap_rnd()
             {
-                target.clear();
-                if (!max_size || min_size > max_size)
-                    return target;
-                auto l = (min_size == max_size) ? min_size : (
-                    (std::rand() % (max_size - min_size)) + min_size);
-                target.reserve(l);
-                while (l--)
-                    target += (static_cast<char>(std::rand() % ('_' - '0')) + '0');
-                return target;
+                return std::rand();
             }
-            template <class V, class T, class F >
-            inline V& randomize(V& target, size_t max_size, size_t min_size = 0, F & value_factory = random_value<T>)
+
+            template <class V, class F >
+            inline V& randomize_str(V& target, size_t max_size, size_t min_size, F value_factory)
             {
                 target.clear();
                 if (!max_size || min_size > max_size)
                     return target;
                 auto l = (min_size == max_size) ? min_size : (
-                    (std::rand() % (max_size - min_size)) + min_size);
-                for (std::insert_iterator a(target, std::begin(target)); l--; ++a)
+                    (wrap_rnd() % (max_size - min_size)) + min_size);
+                target.reserve(l);
+                using insert_it_t = typename std::insert_iterator<V>;
+                for (insert_it_t a(target, std::begin(target)); l--; ++a)
                     *a = value_factory();
                 return target;
             }
 
-            template<class T>
-            inline T random_value()
+
+            template <class T>
+            inline T randomize();
+
+
+            inline std::string& randomize(std::string& target, size_t max_size, size_t min_size = 0) 
             {
-                return static_cast<T>(std::rand());
-            }
-            template<>
-            inline std::uint64_t random_value<std::uint64_t>()
-            {
-                return (static_cast<std::uint64_t>(std::rand()) << 32)
-                    | static_cast<std::uint64_t>(std::rand());
+                return randomize_str(target, max_size, min_size, []()->char {return (static_cast<char>(std::rand() % ('_' - '0')) + '0'); });
             }
 
-            template<>
-            inline std::string random_value<std::string>()
+            template <>
+            inline std::string randomize<std::string>()
+            {
+                std::string target;
+                return randomize_str( target, 12, 12,  []()->char {(static_cast<char>(std::rand() % ('_' - '0')) + '0'); } );
+            }
+
+            inline int random_value()
+            {
+                return wrap_rnd();
+            }
+            
+            template <>
+            inline std::uint8_t randomize<std::uint8_t>()
+            {
+                std::string target;
+                return static_cast<std::uint8_t>(std::rand());
+            }
+            template <>
+            inline uint16_t randomize<std::uint16_t>()
+            {
+                std::string target;
+                return static_cast<std::uint16_t>(std::rand());
+            }
+            template <>
+            inline std::uint64_t randomize<std::uint64_t>()
+            {
+                return (static_cast<std::uint64_t>(wrap_rnd()) << 32)
+                    | static_cast<std::uint64_t>(wrap_rnd());
+            }
+            
+            
+            /*inline std::string random_value_string()
             {
                 std::string r;
                 return randomize(r, 256);
-            }
+            }*/
             template <class Container1, class Container2, class ErrorHandler>
             inline bool compare(const Container1& co1, const Container2& co2, ErrorHandler& on_error = [](const Container2::value_type& v){})
             {
@@ -900,8 +927,8 @@ namespace OP
             template <class A, class B = A>
             inline bool sign_tolerant_cmp(A left, B right)
             {
-                return static_cast< std::make_unsigned<A>::type >(left) == 
-                    static_cast< std::make_unsigned<B>::type >(right);
+                return static_cast< typename std::make_unsigned<A>::type >(left) == 
+                    static_cast<typename std::make_unsigned<B>::type >(right);
             }
             inline bool sign_tolerant_cmp(char left, unsigned char right)
             {

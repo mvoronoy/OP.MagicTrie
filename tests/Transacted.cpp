@@ -814,7 +814,7 @@ void test_TransactedBlockOverlapOnRead(OP::utest::TestResult &tresult)
 
 	auto test_total_sequence = [&]() {
 		auto ro_block = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len1 + write_block_len2);
-		tresult.assert_that< not<less> >(write_block_len1 + write_block_len2, ro_block.count(),
+		tresult.assert_that< logical_not<less> >(write_block_len1 + write_block_len2, ro_block.count(),
 			OP_CODE_DETAILS(<< "Block is unexpected size"));
 		tresult.assert_that<equals>(
 			0, 
@@ -852,7 +852,7 @@ void test_TransactedBlockOverlapOnRead(OP::utest::TestResult &tresult)
 		//and now all stripes should be covered by 1 block
 
 		auto ro_block = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len1 + write_block_len2);
-		tresult.assert_that< not<less> >(write_block_len1 + write_block_len2, ro_block.count(),
+		tresult.assert_that< logical_not<less> >(write_block_len1 + write_block_len2, ro_block.count(),
 			OP_CODE_DETAILS(<< "Block is unexpected size"));
 
 		tresult.assert_true(tools::range_equals(
@@ -888,7 +888,7 @@ void test_TransactedBlockOverlapOnRead(OP::utest::TestResult &tresult)
 		//and now all stripes should be covered by 1 block
 
 		auto ro_block = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len1 + write_block_len2);
-		tresult.assert_that< not<less> >(write_block_len1 + write_block_len2, ro_block.count(),
+		tresult.assert_that< logical_not<less> >(write_block_len1 + write_block_len2, ro_block.count(),
 			OP_CODE_DETAILS(<< "Block is unexpected size"));
 
 		tresult.assert_true(tools::range_equals(
