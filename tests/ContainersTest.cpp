@@ -19,7 +19,7 @@ struct TestHashTable : public NodeHashTable< TestEmpty, capacity_c >
 };
 
 template <class T, class Tbl, class F>
-std::set<T> _randomize(Tbl& tbl, F& f = OP::utest::tools::random_value<T> )
+std::set<T> _randomize(Tbl& tbl, F f = OP::utest::tools::randomize<T> )
 {
     std::set<T> result;
     while (tbl.size() < tbl.capacity())
@@ -42,7 +42,7 @@ void _random_test(T &tbl)
         if (!(i & (i - 1)))
             std::cout << '.';
         tbl.clear();
-        auto sample =_randomize<Key>(tbl, OP::utest::tools::random_value<Key>);
+        auto sample =_randomize<Key>(tbl, OP::utest::tools::randomize<Key>);
         while (!tbl.empty())
         {
             auto p = sample.begin();
