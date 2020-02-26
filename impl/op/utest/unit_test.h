@@ -172,8 +172,9 @@ namespace OP
         struct Identifiable
         {
             typedef std::string id_t;
+            
             template <class Name>
-            explicit Identifiable(Name && name) :
+            explicit Identifiable(Name name) :
                 _id(std::forward<Name>(name))
             {}
 
@@ -243,7 +244,7 @@ namespace OP
         struct TestFail : std::logic_error
         {
             TestFail() :
-                std::logic_error(nullptr)
+                std::logic_error("fail")
             {
             }
             explicit TestFail(const std::string& text) :
@@ -255,6 +256,7 @@ namespace OP
         struct TestAbort : public TestFail
         {
             TestAbort()
+                : TestFail("abort triggered")
             {
             }
         };
@@ -293,6 +295,10 @@ namespace OP
             bool operator !() const
             {
                 return _status != ok;
+            }
+            Status status() const
+            {
+                return _status;
             }
             double ms_duration() const
             {
