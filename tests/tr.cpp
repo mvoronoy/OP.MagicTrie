@@ -21,6 +21,7 @@
 #include <regex>
 
 #include <op/utest/unit_test.h>
+#include <op/utest/cmdln_unit_test.h>
 
 using namespace OP::trie;
 
@@ -162,81 +163,5 @@ static auto module_suite = OP::utest::default_test_suite("Arbitrary")
 
 int main(int argc, char* argv[])
 {
-    bool allow_long_test = false;
-    //default is run all
-    std::function<bool(OP::utest::TestSuite&, OP::utest::TestCase&)> test_case_filter 
-        = [](OP::utest::TestSuite& , OP::utest::TestCase& ){ return true; };
-    enum exec_command_t
-    {
-        command_run_c = 0,
-        command_list_c,
-        command_usage_c,
-    };
-    exec_command_t command = command_run_c;
-    for (int i = 1; i < argc; ++i)
-    {
-        if (strcmp("-r", argv[i]) == 0)
-        {
-            if ((i + 1) < argc)
-            {
-                try{
-                    std::regex expression(argv[++i]);
-                    test_case_filter = [=](OP::utest::TestSuite& suite, OP::utest::TestCase& cs) {
-                        std::string key = suite.id() + "/" + cs.id();
-                        return std::regex_match(key, expression);
-                    };
-                }
-                catch (std::regex_error& e)
-                {
-                    std::cerr << "Invalid -r argument:" << e.what() << "\n";
-                    command = command_usage_c;
-                    break;
-                }
-
-            }
-            else
-            {
-                command = command_usage_c;
-                std::cerr << "Invalid -r argument\n";
-                break;
-            }
-        }
-        else if (strcmp("-l", argv[i]) == 0)
-        {
-            command = command_list_c;
-        }
-    }
-    switch (command)
-    {
-    case command_run_c:
-        OP::utest::TestRun::default_instance().run_if(test_case_filter);
-        break;
-    case command_list_c:
-    {
-        auto case_callback = [](OP::utest::TestCase& cs)-> bool{
-                std::cout << "\t>" << cs.id() << "\n";
-                return true;
-            };
-        auto suite_callback = [&](OP::utest::TestSuite& sui){
-            std::cout << sui.id() << "\n";
-            sui.list_cases(case_callback);
-            return true;
-        };
-        OP::utest::TestRun::default_instance().list_suites(suite_callback);
-        break;
-    }
-    case command_usage_c:
-        std::cout << "Usage:\n"
-            << "\t[-r] <regexp> - regular expression to filter test cases. Regex is matched agains pattern <Test SuiteName>/<Test Case Name>\n"
-            << "\t[-l] list test cases instead of run (may be combined with -r to list matched tests only)\n"
-            ;
-        break;
-    }
-
-    //OP::utest::TestRun::default_instance().run_if([](OP::utest::TestSuite& suite, OP::utest::TestCase& cs){
-        //return true;
-        //return suite.id() == "TransactedSegmentManager" && cs.id() == "multithread";
-        //return suite.id() == "SegmentManager" && cs.id() == "base";
-    //});
-    return 0;
+    return OP::utest::cmdline::simple_command_line_run(argc, argv);
 }
