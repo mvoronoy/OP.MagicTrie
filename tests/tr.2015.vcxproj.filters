@@ -40,6 +40,7 @@
     <ClCompile Include="ranges\CommonRangesOpTest.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="testMixedAdapter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GenericMemoryTest.h" />
@@ -162,7 +163,6 @@
     <ClInclude Include="..\impl\op\ranges\PrefixRange.h">
       <Filter>OP\ranges</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\ranges\PredicateRange.h" />
     <ClInclude Include="..\impl\op\ranges\OrderedRange.h">
       <Filter>OP\ranges</Filter>
     </ClInclude>

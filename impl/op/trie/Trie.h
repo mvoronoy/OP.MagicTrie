@@ -401,23 +401,37 @@ namespace OP
             }
 
             using sibling_range_t = SiblingRangeAdapter<this_t, atom_string_t>;
+
             /**Return range that allows iterate all immediate childrens of specified prefix*/
-            
             std::shared_ptr<sibling_range_t> sibling_range(const atom_string_t& key) const
             {
                 auto zhis = shared_from_this();
-                return std::make_shared< sibling_range_t>(zhis, [key, zhis]() { return zhis->find(key); });
+                return std::make_shared< sibling_range_t>(zhis, [key/*copy*/, zhis]() { return zhis->find(key); });
+            }
+            /**Return range that allows iterate all immediate childrens of specified prefix*/
+            std::shared_ptr<sibling_range_t> sibling_range(iterator pos) const
+            {
+                auto zhis = shared_from_this();
+                return std::make_shared< sibling_range_t>(zhis, [pos{std::move(pos)}]() { return pos; });
             }
             
             using section_range_t = TrieSectionAdapter< subrange_container_t >;
             
+            /** utilize feature of Trie where all entrie below prefix are lexicographicaly ordered.
+            * This range provide access to ordered sequence of suffixes. In simplified view you can think about it as cut of trie entry*/
+            template <class Atom>
+            std::shared_ptr<section_range_t> section_range(Atom begin, Atom aend) const
+            {
+                atom_string_t prefix{ begin, aend };
+                return std::move(section_range(prefix));
+            }            
             template <class AtomString>
-            std::shared_ptr<section_range_t> section_range(const AtomString& prefix) const
+            std::shared_ptr<section_range_t> section_range(AtomString prefix) const
             {
                 auto source = prefixed_range(std::begin(prefix), std::end(prefix));
-                return std::make_shared<section_range_t>(source, prefix);
+                return std::make_shared<section_range_t>(source, std::move(prefix));
             }
-            
+
             value_type value_of(poistion_t pos) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);

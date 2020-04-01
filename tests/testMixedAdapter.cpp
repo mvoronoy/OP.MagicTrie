@@ -1,0 +1,96 @@
+#if _MSC_VER > 1000
+#pragma warning(disable:4503)
+#endif // _MSC_VER > 1000
+
+#include <op/utest/unit_test.h>
+#include <op/utest/unit_test_is.h>
+
+#include <op/ranges/OrderedRange.h>
+#include <op/trie/Trie.h>
+#include <op/ranges/RangeUtils.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/CacheManager.h>
+#include <op/vtm/TransactedSegmentManager.h>
+#include <op/ranges/FlattenRange.h>
+#include <op/trie/MixedAdapter.h>
+#include <op/common/NamedArgs.h>
+
+#include <algorithm>
+#include "test_comparators.h"
+#include "AtomStrLiteral.h"
+#include "TrieTestUtils.h"
+
+using namespace OP::trie;
+using namespace OP::utest;
+static const char* test_file_name = "trie.test";
+
+void testChildConfig(OP::utest::TestResult& tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+    using mix_ns = Ingredient<trie_t>;
+
+
+    mix_ns mix0{};
+    using my_range0 = OP::trie::MixAlgorithmRangeAdapter < trie_t >;
+    my_range0 test_range0{ trie, mix0 };
+    tresult.assert_false(test_range0.in_range(test_range0.begin()), "Wring empty case");
+
+    typedef std::pair<atom_string_t, double> p_t;
+
+    const p_t ini_data[] = {
+        p_t("abc"_astr, 1.),
+        p_t("abc.1"_astr, 1.),
+        p_t("abc.2"_astr, 1.),
+        p_t("abc.3"_astr, 1.3),
+        p_t("abc.333"_astr, 1.33), //not a child since only 'abc.3' in the result
+        p_t("abc.444"_astr, 1.444), // a child
+        p_t("abcdef"_astr, 2.0),
+    };
+    
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+    });
+    tresult.info() << "first/last child\n";
+    
+
+    atom_string_t common_prefix = "abc"_astr;
+    auto vars = OP::utils::make_named_args(
+        mix_ns::nm_prefix_string_c << common_prefix,
+        mix_ns::nm_prefix_check_predicate_c << StartWithPredicate<typename trie_t::iterator>(common_prefix));
+    using my_range = OP::trie::MixAlgorithmRangeAdapter< trie_t, mix_ns::ChildBegin, mix_ns::ChildNext, mix_ns::ChildInRange>;
+
+    my_range test_range{ trie, vars };
+    auto first_ch1 = test_range.begin();//of 'abc'
+
+    tresult.assert_that<equals>(first_ch1.key(), "abc.1"_atom, "key mismatch");
+    tresult.assert_that<equals>(*first_ch1, 1., "value mismatch");
+
+    std::map<atom_string_t, double> test_values = {
+        p_t("abc.1"_astr, 1.),
+        p_t("abc.2"_astr, 1.),
+        p_t("abc.3"_astr, 1.3),
+        p_t("abc.444"_astr, 1.444)
+    };
+    compare_containers(tresult, test_range, test_values);
+
+    using my_range2 = OP::trie::MixAlgorithmRangeAdapter< trie_t, mix_ns::ChildBegin>;
+
+    my_range2 test_range2{ trie, vars };
+    test_values = {
+    p_t("abc.1"_astr, 1.),
+        p_t("abc.2"_astr, 1.),
+        p_t("abc.3"_astr, 1.3),
+        p_t("abc.333"_astr, 1.33), //not a child since only 'abc.3' in the result
+        p_t("abc.444"_astr, 1.444), // a child
+        p_t("abcdef"_astr, 2.0),
+    };
+    compare_containers(tresult, test_range2, test_values);
+}
+static auto module_suite = OP::utest::default_test_suite("MixedAdapter")
+\    ->declare(testChildConfig, "child")
+;

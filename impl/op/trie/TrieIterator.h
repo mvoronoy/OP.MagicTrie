@@ -96,7 +96,7 @@ namespace OP
 
             typedef std::vector<TriePosition> node_stack_t;
             node_stack_t _position_stack;
-            const Container * _container;
+            const Container * _container = nullptr;
             prefix_string_t _prefix;
             node_version_t _version;
             struct end_marker_t {};

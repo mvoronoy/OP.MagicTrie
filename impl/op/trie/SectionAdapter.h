@@ -127,7 +127,7 @@ namespace OP
                 std::shared_ptr<const source_range_t> source_range, 
                 atom_string_t prefix) noexcept
                 : _source_range(source_range)
-                , _prefix(prefix)
+                , _prefix(std::move(prefix))
             {
             }
 

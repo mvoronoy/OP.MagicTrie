@@ -36,6 +36,7 @@
 *.sdf
 *.opensdf
 *.suo
+*.vsp*
 
 # Test result
 *.test

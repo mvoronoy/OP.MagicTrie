@@ -434,11 +434,6 @@ namespace OP
 
             typedef SparseCache<details::SegmentHelper, segment_idx_t> cache_region_t;
             typedef Range<const std::uint8_t*, segment_pos_t> slot_address_range_t;
-            typedef boost::shared_mutex shared_mutex_t;
-            typedef boost::shared_lock< shared_mutex_t > ro_guard_t;
-            typedef boost::upgrade_lock< shared_mutex_t > upgradable_guard_t;
-            typedef boost::upgrade_to_unique_lock< shared_mutex_t > upgraded_guard_t;
-            typedef boost::unique_lock< shared_mutex_t > wo_guard_t;
 
             mutable cache_region_t _cached_segments;
 
