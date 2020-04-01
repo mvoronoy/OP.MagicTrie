@@ -32,6 +32,17 @@ namespace OP
         typedef std::uint8_t atom_t;
         typedef std::pair<bool, atom_t> nullable_atom_t;
         typedef std::basic_string<atom_t> atom_string_t;
+        
+        inline constexpr const atom_t* operator "" _atom(const char* str, size_t n)
+        {
+            return (const atom_t*)(str);
+        }
+
+        inline OP::trie::atom_string_t operator "" _astr(const char* str, size_t n)
+        {
+            return OP::trie::atom_string_t{reinterpret_cast<const atom_t*>(str), n};
+        }
+
         typedef std::uint16_t dim_t;
         typedef std::uint_fast16_t fast_dim_t;
         enum : dim_t

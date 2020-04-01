@@ -43,9 +43,22 @@
 #define OP_UTEST_FAIL(...) (void)(OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
 namespace OP
 {
-    namespace utest{
+    namespace utest
+    {
         
         struct TestFail;
+        /**
+        *   Level of result logging
+        */
+        enum class ResultLevel
+        {
+            /**Display errors only*/
+            error = 1,
+            /**Display information messages and errors*/
+            info = 2,
+            /**Display all messages*/
+            debug = 3
+        };
 
         namespace _inner {
 
@@ -64,7 +77,6 @@ namespace OP
             {
                 return std::function< void() >(f);
             }
-
             /**
             *
             *   @copyright teebuf and teestream
@@ -128,6 +140,12 @@ namespace OP
             private:
                 typedef std::vector<std::streambuf *> multiplex_t;
                 multiplex_t _buffers;
+            };
+            /** Do nothing buffer */
+            class null_buffer : public std::streambuf
+            {
+            public:
+              int overflow(int c) { return c; }
             };
 
             class multiplex_stream : public std::ostream
@@ -292,6 +310,7 @@ namespace OP
                 ok,
                 _last_
             };
+
             bool operator !() const
             {
                 return _status != ok;
@@ -299,6 +318,14 @@ namespace OP
             Status status() const
             {
                 return _status;
+            }
+            ResultLevel log_level() const
+            {
+                return _log_level;
+            }
+            void log_level(ResultLevel level)
+            {
+                _log_level = level;
             }
             double ms_duration() const
             {
@@ -315,7 +342,7 @@ namespace OP
             inline std::ostream& info() const;
             inline std::ostream& debug() const
             {
-                return info();
+                return _log_level >  ResultLevel::info ? info() : _null_stream;
             }
 
             detail& status_details()
@@ -420,6 +447,9 @@ namespace OP
             mutex_ptr_t _access_result;
             typedef std::unique_lock<mutex_ptr_t::element_type> guard_t;
 
+            _inner::null_buffer _null_buffer;
+            mutable std::ostream _null_stream{ &_null_buffer };
+            ResultLevel _log_level = ResultLevel::info;
         };
         typedef std::shared_ptr<TestResult> test_result_ptr_t;
         /**Abstract definition of test invokation*/
@@ -661,17 +691,9 @@ namespace OP
         }
         inline std::ostream& TestResult::info() const
         {
-            return _suite->info();
+            return _log_level >= ResultLevel::info ? _suite->info() : _null_stream;
         }
-        /*
-        template<typename T, typename... Us>
-        inline std::ostream& TestResult::error(T &&t, Us &&... us) const
-        {
-            guard_t g(_access_result);
-            _suite->error() << std::forward<T>(t);
-            error(std::forward<Us>(us)...);
-        }
-        */
+        
         template <class Name>
         inline std::shared_ptr<TestSuite> default_test_suite(Name && name)
         {
@@ -710,14 +732,26 @@ namespace OP
                 _output_width = output_width;
                 return *this;
             }
+            ResultLevel log_level() const
+            {
+                return _log_level;
+            }
+            TestRunOptions& log_level(ResultLevel level) 
+            {
+                _log_level = level;
+                return *this;
+            }
+
         private:
             bool _intercept_sig_abort;
             std::uint16_t _output_width;
+            ResultLevel _log_level = ResultLevel::info;
         };
         struct TestRun
         {
             typedef std::shared_ptr<TestSuite> test_suite_ptr;
             explicit TestRun(TestRunOptions options = TestRunOptions())
+                : _options(options)
             {
             }
             static TestRun& default_instance()
@@ -797,6 +831,7 @@ namespace OP
                     if (p(suite, test))
                     {
                         std::shared_ptr<TestResult> result{ std::make_shared<TestResult>(suite.shared_from_this()) };
+                        result->log_level(_options.log_level()); 
                         //allow output error right after appear
                         result->join_stream(suite.error());
                         suite.info() <<"\t["<<test.id()<<"]...\n";

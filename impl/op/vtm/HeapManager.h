@@ -391,7 +391,7 @@ namespace OP
             typedef Log2SkipList<FreeMemoryBlockTraits> free_blocks_t;
 
             std::unique_ptr<free_blocks_t> _free_blocks;
-            SegmentManager* _segment_manager;
+            SegmentManager* _segment_manager = nullptr;
         private:
             /**Return modifyable reference to variable that keep available memory in segment */
             segment_pos_t& get_available_bytes(segment_idx_t segment)

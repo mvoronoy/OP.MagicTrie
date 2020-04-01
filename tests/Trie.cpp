@@ -58,31 +58,8 @@ void print_hex(O& os, const T& t)
         os << std::setbase(16) << std::setw(2) << std::setfill('0') << (unsigned int)(unsigned char)*b;
     os << '\n';
 }
-template <class Trie, class Map>
-void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const Map& map)
-{
-    auto mi = std::begin(map);
-    //for (auto xp : map)
-    //{
-    //    print_hex(tresult.info(), xp.first );
-    //    tresult.info() << /*xp.first << */'=' << xp.second << '\n';
-    //}
-    auto ti = trie.begin();
-    int n = 0;
-    //order must be the same
-    for (; trie.in_range(ti); trie.next(ti), ++mi, ++n)
-    {
-        //print_hex(tresult.info() << "1)", ti.key());
-        //print_hex(tresult.info() << "2)", mi->first);
-        tresult.assert_true(ti.key().length() == mi->first.length(), 
-            OP_CODE_DETAILS(<<"step#"<< n << " has:" << ti.key().length() << ", while expected:" << mi->first.length()));
-        tresult.assert_true(tools::container_equals(ti.key(), mi->first, &tools::sign_tolerant_cmp<atom_t>),
-            OP_CODE_DETAILS(<<"step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.key().c_str()));
-        tresult.assert_that<equals>(OP::ranges::key_discovery::value(ti), mi->second,
-            OP_CODE_DETAILS(<<"Associated value error, has:" << OP::ranges::key_discovery::value(ti) << ", expected:" << mi->second ));
-    }
-    tresult.assert_true(mi == std::end(map), OP_CODE_DETAILS());
-}
+
+#include "TrieTestUtils.h"
 void test_TrieInsert(OP::utest::TestResult &tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
@@ -898,7 +875,7 @@ void test_TrieSectionRange(OP::utest::TestResult &tresult)
     const size_t n4r = _4r->count();
     tresult.assert_that<greater>(n4r, 0, OP_CODE_DETAILS(<< "Flatten range must not be empty"));
     _4r->for_each([&](const auto& i) {
-            //std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
         //need manually compare
         auto& key = OP::ranges::key_discovery::key(i);
         auto value = OP::ranges::key_discovery::value(i);

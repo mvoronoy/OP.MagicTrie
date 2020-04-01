@@ -39,7 +39,7 @@ namespace OP
             JoinRange(
                 std::shared_ptr<SourceRange1 const> r1, 
                 std::shared_ptr<SourceRange2 const> r2,
-                key_comparator_t comparator) noexcept
+                typename base_t::key_comparator_t comparator) noexcept
                 : base_t(std::forward<key_comparator_t>(comparator))
                 , _left(r1)
                 , _right(r2)
@@ -76,7 +76,7 @@ namespace OP
                 }
                 seek(pos);
             }
-            iterator lower_bound(const typename key_type& key) const override
+            iterator lower_bound(const typename base_t::key_type& key) const override
             {
                 auto zis = std::static_pointer_cast<this_t const> (shared_from_this());
                 iterator result(_left->lower_bound(key),

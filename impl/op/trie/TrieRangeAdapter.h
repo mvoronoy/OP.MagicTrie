@@ -37,6 +37,11 @@ namespace OP
                 : _prefix(std::move(prefix))
             {
             }
+            explicit StartWithPredicate(const atom_string_t& prefix)
+                : _prefix(prefix)
+            {
+            }
+
             bool operator()(const Iterator& check) const
             {
                 auto & str = OP::ranges::key_discovery::key(check);
@@ -59,6 +64,12 @@ namespace OP
             using identity_factory_f = IdentityFactory<iterator>;
             using iterator_factory_f = std::function<iterator()>;
 
+            TrieRangeAdapter(std::shared_ptr<const trie_t> parent, iterator_factory_f f_begin, iterator_factory_f f_end) noexcept
+                : _parent(std::move(parent))
+                , _begin_factory(f_begin) 
+                , _end_factory(f_end)
+            {
+            }
             TrieRangeAdapter(std::shared_ptr<const trie_t> parent) noexcept
                 : TrieRangeAdapter(
                     std::move(parent), 
@@ -99,13 +110,7 @@ namespace OP
             {
                 return _parent;
             }
-        protected:
-            TrieRangeAdapter(std::shared_ptr<const trie_t> parent, iterator_factory_f f_begin, iterator_factory_f f_end) noexcept
-                : _parent(std::move(parent))
-                , _begin_factory(f_begin) 
-                , _end_factory(f_end)
-            {
-            }
+
         private:
             std::shared_ptr<const trie_t> _parent;
             iterator_factory_f _begin_factory, _end_factory;

@@ -175,5 +175,8 @@
     <ClCompile Include="BitsetTest.cpp">
       <Filter>Tests</Filter>
     </ClCompile>
+    <ClCompile Include="testMixedAdapter.cpp">
+      <Filter>Tests</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

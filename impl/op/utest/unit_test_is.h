@@ -82,7 +82,15 @@ namespace OP
                 {
                 }
         };
-        
+        /** Marker specifies strictly less operation between two arguments */
+        struct is_null : public details::bool_result
+        {
+            template <class Inst>
+            constexpr is_null(Inst inst)
+                : details::bool_result(inst == nullptr)
+            {
+            }
+        };
 
         //--------------------------------------
         /** Using other marker invert (negate) semantic, for example:
@@ -90,16 +98,16 @@ namespace OP
         * \li that<not<less>>(1, 2) ; //negate less
         */
         template <class Marker>
-        struct logical_not : public details::bool_result
+        struct negate : public details::bool_result
         {
             template < class ... Ts>
-            constexpr logical_not(Ts&& ... ts)
+            constexpr negate(Ts&& ... ts)
                     : details::bool_result(!Marker(std::forward<Ts>(ts)...))
             {
             }
         };
         template <class Marker>
-        using logic_not = logical_not<Marker>;
+        using logical_not = negate<Marker>;
 
         /**Marker around container_equals that can be used with assert_that<> */
         struct string_equals : public details::bool_result

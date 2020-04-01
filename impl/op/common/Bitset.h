@@ -55,8 +55,9 @@ namespace OP
                 ;
         }
         template <size_t N, class Int>
-        struct BitsetIterator : public std::iterator<std::random_access_iterator_tag, bool>
+        struct BitsetIterator 
         {
+            using iterator_category = std::random_access_iterator_tag;
             enum
             {
                 /**bits count in single entry*/
@@ -64,9 +65,8 @@ namespace OP
                 /**Total bit count managed by this container*/
                 bit_length_c = bits_c * N
             };
-            using base_t = typename std::iterator<std::random_access_iterator_tag, bool>;
-            using difference_type = typename base_t::difference_type;
-            using this_t = typename BitsetIterator<N, Int>;
+            using difference_type = ptrdiff_t;
+            using this_t = BitsetIterator<N, Int>;
 
             BitsetIterator() : _ptr(nullptr), _offset{} {}
 
@@ -179,8 +179,12 @@ namespace OP
         
         /**Allows iterate over Bitset only for entries that are set*/
         template <class TBitset>
-        struct PresenceIterator : public std::iterator<std::forward_iterator_tag, typename TBitset::dim_t>
+        struct PresenceIterator 
         {
+            using iterator_category = std::forward_iterator_tag;
+            using difference_type = typename TBitset::dim_t;
+            
+
             typedef PresenceIterator<TBitset> this_t;
 
             explicit PresenceIterator(const TBitset *owner)

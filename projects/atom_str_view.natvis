@@ -3,7 +3,16 @@
 
 
   <Type Name="std::basic_string&lt;unsigned char,std::char_traits&lt;unsigned char&gt;,std::allocator&lt;unsigned char&gt; &gt;">
-    <DisplayString Condition="_Mypair._Myval2._Myres &lt; _Mypair._Myval2._BUF_SIZE">{_Mypair._Myval2._Bx._Buf,s32}</DisplayString>
+
+    <AlternativeType Name="std::basic_string&lt;unsigned char,*,*&gt;" />
+    <DisplayString>{_M_dataplus._M_p}</DisplayString>
+    <Expand>
+      <Item Name="[string]" ExcludeView="simple">_M_dataplus._M_p</Item>
+      <Item Name="[size]">((std::basic_string&lt;char,$T2,$T3&gt;::_Rep*)_M_dataplus._M_p)[-1]._M_length</Item>
+      <Item Name="[capacity]">((std::basic_string&lt;char,$T2,$T3&gt;::_Rep*)_M_dataplus._M_p)[-1]._M_capacity</Item>
+    </Expand>
+
+<!--    <DisplayString Condition="_Mypair._Myval2._Myres &lt; _Mypair._Myval2._BUF_SIZE">{_Mypair._Myval2._Bx._Buf,s32}</DisplayString>
     <DisplayString Condition="_Mypair._Myval2._Myres &gt;= _Mypair._Myval2._BUF_SIZE">{_Mypair._Myval2._Bx._Ptr,s32}</DisplayString>
     <StringView Condition="_Mypair._Myval2._Myres &lt; _Mypair._Myval2._BUF_SIZE">_Mypair._Myval2._Bx._Buf,s32</StringView>
     <StringView Condition="_Mypair._Myval2._Myres &gt;= _Mypair._Myval2._BUF_SIZE">_Mypair._Myval2._Bx._Ptr,s32</StringView>
@@ -16,7 +25,8 @@
         <ValuePointer Condition="_Mypair._Myval2._Myres &lt; _Mypair._Myval2._BUF_SIZE">_Mypair._Myval2._Bx._Buf</ValuePointer>
         <ValuePointer Condition="_Mypair._Myval2._Myres &gt;= _Mypair._Myval2._BUF_SIZE">_Mypair._Myval2._Bx._Ptr</ValuePointer>
       </ArrayItems>
-    </Expand>
+    </Expand> -->
+
   </Type>
   
 </AutoVisualizer>

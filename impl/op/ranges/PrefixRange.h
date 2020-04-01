@@ -468,16 +468,17 @@ namespace OP
         struct OrderedFilteredRange : 
             public FilteredRangeBase<SourceRange, OrderedRange< typename SourceRange::iterator > >
         {
-            using base_t = FilteredRangeBase<SourceRange, OrderedRange< typename SourceRange::iterator > >;
-
+            using ordered_base_t = OrderedRange< typename SourceRange::iterator >;
+            using base_t = FilteredRangeBase<SourceRange, ordered_base_t>;
+            using iterator = typename SourceRange::iterator;
             using base_t::base_t;
 
-            iterator lower_bound(const typename base_t::key_type& key) const override
+            iterator lower_bound(const typename ordered_base_t::key_type& key) const override
             {
                 auto lower = static_cast<const base_t&>(*source_range()).lower_bound(key);
                 seek(lower);
                 return lower;
-            }
+            } 
         };
 
 

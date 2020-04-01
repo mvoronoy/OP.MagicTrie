@@ -156,6 +156,7 @@ namespace OP
             //default is run all
             std::function<bool(OP::utest::TestSuite&, OP::utest::TestCase&)> test_case_filter
                 = [](OP::utest::TestSuite&, OP::utest::TestCase&) { return true; };
+            OP::utest::TestRunOptions opts;
             ArgumentProcessor<'-'> processor;
             processor
                 .on("-l")
@@ -173,6 +174,13 @@ namespace OP
                     OP::utest::TestRun::default_instance().list_suites(suite_callback);
                     std::exit(0);
                 });
+            processor
+                .on("-d")
+                .description("level of logging 1-3 (1=error, 2=info, 3=debug")
+                .action<int>([&](int level){
+                    opts.log_level(static_cast<OP::utest::ResultLevel>(level));
+                })
+                ;
             processor
                 .on("-r")
                 .description("<regexp> - regular expression to filter test cases. Regex is matched agains pattern <Test SuiteName>/<Test Case Name>")
@@ -197,6 +205,7 @@ namespace OP
                 std::cerr << "Invalid -r argument:" << e.what() << "\n";
                 return 1;
             }
+            OP::utest::TestRun::default_instance().options() = opts;
             auto all_result = 
                 OP::utest::TestRun::default_instance().run_if(test_case_filter);
             for (auto result : all_result)
