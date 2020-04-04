@@ -155,25 +155,19 @@ namespace OP
                 return std::make_shared<TrieRangeAdapter<this_t> >(shared_from_this());
             }
 
-            using subrange_container_t = TakewhileTrieRangeAdapter<this_t>;
-
-            typedef std::shared_ptr<subrange_container_t const> subrange_container_ptr;
-            /**
-            *   Construct a range that address all string started from string specified by [begin, aend)
+            /** return first entry that contains prefix specified by string [begin, aend) 
             *   @param begin - first symbol of string to lookup
             *   @param aend - end of string to lookup
+            *   \tparam IterateAtom iterator of string
             */
             template <class IterateAtom>
-            subrange_container_ptr prefixed_range(IterateAtom begin, IterateAtom aend) const
+            iterator prefixed_begin(IterateAtom begin, IterateAtom aend) const
             {
-                StartWithPredicate<subrange_container_t::iterator> end_predicate(atom_string_t(begin, aend));
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 iterator i(this);
                 auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix since begin wasn't exhausted
-                    return std::make_shared<subrange_container_t>(
-                        shared_from_this(),
-                        end(), end(), [](const auto&)->bool {return false;});
+                    return end();
                 auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
@@ -191,9 +185,25 @@ namespace OP
                     }
                 }
                 //
-                //_next(false, i_end);
-                //return subrange_container_t(i_beg, i_end);
-                return std::make_shared<subrange_container_t>(shared_from_this(), i_beg, end(), end_predicate);
+                return i_beg;
+            }
+
+            using subrange_container_t = PrefixSubrangeAdapter<this_t>;
+            using subrange_container_ptr = std::shared_ptr<subrange_container_t const> ;
+            
+            /**
+            *   Construct a range that address all string started from string specified by [begin, aend)
+            *   @param begin - first symbol of string to lookup
+            *   @param aend - end of string to lookup
+            *   \tparam IterateAtom iterator of string 
+            */
+            template <class IterateAtom>
+            subrange_container_ptr prefixed_range(IterateAtom begin, IterateAtom aend) const
+            {
+                atom_string_t prefix(begin, aend);
+
+                return make_mixed_range(shared_from_this(),
+                    typename Ingredient<this_t>::PrefixedBegin( prefix ), typename Ingredient<this_t>::PrefixedInRange (StartWithPredicate(prefix)) );                
             }
             /**
             *   Just shorthand notation for: 
@@ -203,9 +213,10 @@ namespace OP
             * @param string any string of bytes that supports std::begin/ std::end functions
             */
             template <class AtomContainer>
-            subrange_container_ptr prefixed_range(const AtomContainer& string) const
+            subrange_container_ptr prefixed_range(const AtomContainer& prefix) const
             {
-                return this->prefixed_range(std::begin(string), std::end(string));
+                return make_mixed_range(shared_from_this(),
+                    typename Ingredient<this_t>::PrefixedBegin(prefix), typename Ingredient<this_t>::PrefixedInRange(StartWithPredicate(prefix)) );
             }
 
             /**
@@ -392,21 +403,22 @@ namespace OP
                 return position_child(of_this,
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
             }
-            using child_range_t = ChildRangeAdapter<this_t>;
             /**Return range that allows iterate all immediate childrens of specified prefix*/
-            std::shared_ptr<child_range_t> children_range(iterator of_this) const
+            auto children_range(iterator of_this) const
             {
-                IdentityFactory<iterator>it2functor( of_this );
-                return std::make_shared<child_range_t>(shared_from_this(), std::move(it2functor));
+                return make_mixed_range(
+                    shared_from_this(), 
+                    typename Ingredient<this_t>::ChildBegin{of_this}, 
+                    typename Ingredient<this_t>::ChildInRange{StartWithPredicate(OP::ranges::key_discovery::key(of_this))}
+                );
             }
 
-            using sibling_range_t = SiblingRangeAdapter<this_t, atom_string_t>;
+            using sibling_range_t = SiblingRangeAdapter<this_t>;
 
             /**Return range that allows iterate all immediate childrens of specified prefix*/
             std::shared_ptr<sibling_range_t> sibling_range(const atom_string_t& key) const
             {
-                auto zhis = shared_from_this();
-                return std::make_shared< sibling_range_t>(zhis, [key/*copy*/, zhis]() { return zhis->find(key); });
+                return std::make_shared< sibling_range_t>(shared_from_this(), key);
             }
             /**Return range that allows iterate all immediate childrens of specified prefix*/
             std::shared_ptr<sibling_range_t> sibling_range(iterator pos) const
@@ -415,21 +427,20 @@ namespace OP
                 return std::make_shared< sibling_range_t>(zhis, [pos{std::move(pos)}]() { return pos; });
             }
             
-            using section_range_t = TrieSectionAdapter< subrange_container_t >;
-            
             /** utilize feature of Trie where all entrie below prefix are lexicographicaly ordered.
             * This range provide access to ordered sequence of suffixes. In simplified view you can think about it as cut of trie entry*/
             template <class Atom>
-            std::shared_ptr<section_range_t> section_range(Atom begin, Atom aend) const
+            auto section_range(Atom begin, Atom aend) const
             {
                 atom_string_t prefix{ begin, aend };
-                return std::move(section_range(prefix));
+                return section_range(std::move(prefix));
             }            
             template <class AtomString>
-            std::shared_ptr<section_range_t> section_range(AtomString prefix) const
+            auto section_range(AtomString prefix) const
             {
                 auto source = prefixed_range(std::begin(prefix), std::end(prefix));
-                return std::make_shared<section_range_t>(source, std::move(prefix));
+                using result_t = TrieSectionAdapter<typename decltype(source)::element_type>;
+                return std::make_shared<result_t>(source, std::move(prefix));
             }
 
             value_type value_of(poistion_t pos) const
@@ -703,7 +714,7 @@ namespace OP
                 return std::abs(erased_terminals);
             }
             /**
-            *   Remove all that starts from prefix
+            *   Remove all that starts with prefix
             */
             template <class AtomContainer>
             size_t prefixed_key_erase_all(const AtomContainer& prefix)
