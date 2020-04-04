@@ -1,8 +1,7 @@
 #pragma once
 #include <op/ranges/PrefixRange.h>
 #include <op/ranges/OrderedRange.h>
-#include <op/trie/TrieRangeAdapter.h>
-#include <op/common/NamedArgs.h>
+//#include <op/common/NamedArgs.h>
 #include <memory>
 #include <functional>
 #include  <type_traits>
@@ -23,6 +22,32 @@ namespace OP
 {
     namespace trie
     {
+
+
+        /**Implement functor for subrange method to implement predicate that detects end of range iteration*/
+        struct StartWithPredicate
+        {
+            StartWithPredicate(atom_string_t && prefix)
+                : _prefix(std::move(prefix))
+            {
+            }
+            explicit StartWithPredicate(const atom_string_t& prefix)
+                : _prefix(prefix)
+            {
+            }
+
+            template <class Iterator>
+            bool operator()(const Iterator& check) const
+            {
+                auto & str = OP::ranges::key_discovery::key(check);
+                if (str.length() < _prefix.length())
+                    return false;
+                return std::equal(_prefix.begin(), _prefix.end(), str.begin());
+            }
+        private:
+            atom_string_t _prefix;
+        };
+
         namespace details
         {
             /** Declare SFINAE predicate to test  if class  has member _begin */
@@ -32,63 +57,43 @@ namespace OP
             /** Declare SFINAE predicate to test  if class  has member _in_range */
             OP_DECLARE_CLASS_HAS_MEMBER( _in_range )
             /** Declare SFINAE predicate to test  if class  has member _end */
-            OP_DECLARE_CLASS_HAS_MEMBER(_end)
+            OP_DECLARE_CLASS_HAS_MEMBER( _end )
             /** Declare SFINAE predicate to test  if class  has member _lower_bound */
-            OP_DECLARE_CLASS_HAS_MEMBER(_lower_bound)
+            OP_DECLARE_CLASS_HAS_MEMBER( _lower_bound )
         }
         
 
         template <class Trie>
         struct Ingredient
         {
-            static constexpr OP::utils::ArgId<1> nm_prefix_string_c{};
-            static constexpr OP::utils::ArgId<2> nm_prefix_check_predicate_c{};
-
-            /*struct DefaultBegin
-            {
-            protected:
-                typename Trie::iterator _begin(Trie& trie) const
-                {
-                    return trie->begin();
-                }
-            };
-            struct DefaultNext
-            {
-            protected:
-                void _next(Trie& trie, typename Trie::iterator& i) const
-                {
-                    trie->next(i);
-                }
-            };
-            struct DefaultInRange
-            {
-            protected:
-                bool _in_range(Trie& trie, const typename Trie::iterator& i) const
-                {
-                    return trie->in_range(i);
-                }
-            };
-             */
-
+            using start_with_predicate_t = StartWithPredicate;
+            
+            /** Ingredient for MixAlgorithmRangeAdapter - allows range use `first_child` method instead of `begin` */
             struct ChildBegin
             {
-
+                /** Construct by finding `first_child` from interator. For details see Trie::first_child */ 
                 template <class SharedArguments>
                 ChildBegin(const SharedArguments& args)
-                    : _prefix(args.get(nm_prefix_string_c))
+                    : _iterator(std::get<typename Trie::iterator>(args))
+                {
+                }
+
+                ChildBegin(typename Trie::iterator iter)
+                    : _iterator(std::move(iter))
                 {
                 }
 
                 typename Trie::iterator _begin(const Trie& trie) const
                 {
-                    auto found = trie.find(_prefix);
-                    if( trie.in_range(found) )
-                        return trie.first_child(found);
-                    return trie.end();
+                    return trie.first_child(_iterator);
                 }
-                const atom_string_t& _prefix;
+            private:
+                /** Mutable since Trie can update version of iterartot */
+                mutable typename Trie::iterator _iterator;
             };
-            struct ChildNext
+
+            /** Ingredient for MixAlgorithmRangeAdapter - allows range use `next_sibling` method instead of `next` */
+            struct SiblingNext
             {
 
                 void _next(const Trie& trie, typename Trie::iterator& i) const
@@ -97,36 +102,93 @@ namespace OP
                 }
             };
 
+
+            /** Ingredient for MixAlgorithmRangeAdapter - allows start iteration from first element that matches specific prefix string */
+            struct PrefixedBegin
+            {
+                template <class SharedArguments>
+                PrefixedBegin(const SharedArguments& args)
+                    : _prefix(std::get<atom_string_t>(args))
+                {
+                }
+                PrefixedBegin(atom_string_t prefix)
+                    : _prefix(std::move(prefix))
+                {
+                }
+                typename Trie::iterator _begin(const Trie& trie) const
+                {
+                    return trie.prefixed_begin(std::begin(_prefix), std::end(_prefix));
+                }
+            private:
+                const atom_string_t _prefix;
+            };
+
+
+            /** Ingredient for MixAlgorithmRangeAdapter - allows range customize `in_range` in a way to check that 
+            * range iterates over items with specific prefix */
             struct PrefixedInRange
             {
                 template <class SharedArguments>
                 PrefixedInRange(const SharedArguments& args)
-                    : _prefix_check(args.get(nm_prefix_check_predicate_c))
+                    : _prefix_check(std::get<start_with_predicate_t>(args))
                     {}
+
+                PrefixedInRange(start_with_predicate_t pred)
+                    : _prefix_check(std::move(pred))
+                    {}
+
                 bool _in_range(const Trie& trie, const typename Trie::iterator& i) const
                 {
                     return trie.in_range(i) && _prefix_check(i);
                 }
-                const StartWithPredicate<typename Trie::iterator>& _prefix_check;
+            private:
+                const start_with_predicate_t _prefix_check;
             };
-            using ChildInRange = PrefixedInRange;
-            struct PrefixedLowerBoundRange
-            {
 
+            /** Ingredient for MixAlgorithmRangeAdapter - just alias for PrefixedInRange, but give more consistence when mixing iteration over
+            * children range like: <ChildBegin, ChildInRange, SiblingNext>
+            */
+            using ChildInRange = PrefixedInRange;
+
+            /** Ingredient for MixAlgorithmRangeAdapter - implments `in_range` with extra predicate */
+            struct TakeWhileInRange
+            {
+                /** extract predicate from shared argument std::tuple from */
                 template <class SharedArguments>
-                PrefixedLowerBoundRange(const SharedArguments& args)
-                    : _prefix_check(args.get(nm_prefix_check_predicate_c))
+                TakeWhileInRange(const SharedArguments& args)
+                    : _check_predicate(std::get<bool(const typename Trie::iterator&)>(args)) noexcept
                 {}
 
-                typename Trie::iterator _lower_bound(const Trie& trie, const atom_string_t& key) const
+                TakeWhileInRange(bool(*predicate)(const typename Trie::iterator&)) noexcept
+                    : _check_predicate(std::move(predicate))
+                {}
+
+                bool _in_range(const Trie& trie, const typename Trie::iterator& i) const
                 {
-                    auto found = trie.lower_bound(key);
-                    if(trie.in_range(found) && _prefix_check(found) )
-                        return found;
-                    return trie.end();
+                    return trie.in_range(i) && _predicate(i);
                 }
-                const StartWithPredicate<typename Trie::iterator>& _prefix_check;
+
+            private:
+                const std::function< bool(const typename Trie::iterator&)> _predicate;
             };
+
+            /** Ingredient for MixAlgorithmRangeAdapter - implments `find` to play role of begin */
+            struct Find
+            {
+                template <class SharedArguments>
+                Find(const SharedArguments& args)
+                    : _key(std::get<atom_string_t>(args))
+                {}
+
+                typename Trie::iterator _begin(const Trie& trie) const
+                {
+                    return trie.find(_key);
+                }
+
+            private:
+                const atom_string_t _key;
+            };
+
         };
 
         template <class Trie, class ... Mx>
@@ -136,33 +198,34 @@ namespace OP
         template <class Trie>
         struct Mixer<Trie> 
         {
-                template<class SharedArguments>
-                explicit Mixer(const SharedArguments& arguments) noexcept{}
-                //default impl that invoke Trie::
-                typename Trie::iterator _begin(const Trie& trie) const
-                {
-                    return trie.begin();
-                }
-                
-                void _next(const Trie& trie, typename Trie::iterator& i) const
-                {
-                    trie.next(i);
-                }
+            explicit Mixer() = default;
+            template<class SharedArguments>
+            explicit Mixer(const SharedArguments& arguments) noexcept{}
+            //default impl that invoke Trie::
+            typename Trie::iterator _begin(const Trie& trie) const
+            {
+                return trie.begin();
+            }
+            
+            void _next(const Trie& trie, typename Trie::iterator& i) const
+            {
+                trie.next(i);
+            }
 
-                bool _in_range(const Trie& trie, const typename Trie::iterator& i) const
-                {
-                    return trie.in_range(i);
-                }
+            bool _in_range(const Trie& trie, const typename Trie::iterator& i) const
+            {
+                return trie.in_range(i);
+            }
 
-                typename Trie::iterator _end(const Trie& trie) const
-                {
-                    return trie.end();
-                }
+            typename Trie::iterator _end(const Trie& trie) const
+            {
+                return trie.end();
+            }
 
-                typename Trie::iterator _lower_bound(const Trie& trie, const atom_string_t& key) const
-                {
-                    return trie.lower_bound(key);
-                } 
+            typename Trie::iterator _lower_bound(const Trie& trie, const atom_string_t& key) const
+            {
+                return trie.lower_bound(key);
+            } 
         };
         /** class aggregates together all algorithms */
         template <class Trie, class M, class ... Mx>
@@ -171,21 +234,26 @@ namespace OP
             using base_t = Mixer<Trie, Mx ... >;
             using this_t = Mixer<Trie, M >;
 
-            /** Constructor suppose consume 1 arg from input params of type `A` to delegate to Ingredient::???? */
-            template <class SharedArguments,
+            /** Constructor suppose Ingredient::???? accept tuple parameter*/
+            template < typename ...  Args,
                     typename = std::enable_if_t< !std::is_default_constructible<M>::value >
             >
-            explicit Mixer(const SharedArguments& arguments) noexcept
+            explicit Mixer(const std::tuple<Args ...>& arguments) noexcept
                 : M(arguments)
-                ,base_t(arguments)
+                , base_t(arguments)
             {
             }
 
-            template <class SharedArguments,
+            template <typename ...  Args,
                 typename = std::enable_if_t< std::is_default_constructible<M>::value >
             >
-            explicit Mixer(const SharedArguments& arguments, ...) noexcept
+            explicit Mixer(const std::tuple<Args ...>& arguments, ...) noexcept
                 : base_t(arguments)
+            {}
+
+            explicit Mixer(M && m, Mx&& ... mx) noexcept
+                : M (std::forward<M>(m))
+                , base_t(std::forward<Mx>(mx)...)
             {}
 
             ///** Constructor just delegate to manage input params to base classe. In other words `T` constructor has no arguments */
@@ -223,11 +291,23 @@ namespace OP
             using mixer_t = Mixer<trie_t, Mx ...>;
             using iterator = typename trie_t::iterator;
 
-            mixer_t _mixer;
-            template <class SharedArguments>
-            MixAlgorithmRangeAdapter(std::shared_ptr<const trie_t> parent, const SharedArguments& args) noexcept
+
+            MixAlgorithmRangeAdapter(std::shared_ptr<const trie_t> parent) noexcept
                 : _parent(std::move(parent))
-                , _mixer(args)
+                , _mixer{}
+            {
+            }
+
+            template <typename ...  Args>
+            MixAlgorithmRangeAdapter(std::shared_ptr<const trie_t> parent, Args&& ... args) noexcept
+                : _parent(std::move(parent))
+                , _mixer(std::make_tuple(std::forward<Args>(args)...))
+            {
+            }
+
+            MixAlgorithmRangeAdapter(std::piecewise_construct_t _, std::shared_ptr<const trie_t> parent, Mx&& ... args) noexcept
+                : _parent(std::move(parent))
+                , _mixer(std::forward<Mx>(args)...)
             {
             }
 
@@ -260,8 +340,16 @@ namespace OP
 
         private:
             std::shared_ptr<const trie_t> _parent;
+            mixer_t _mixer;
         };
         
+        template <class TTrie, class ... Mx>
+        std::shared_ptr< MixAlgorithmRangeAdapter<TTrie, Mx...> >
+        make_mixed_range(std::shared_ptr<const TTrie> trie, Mx&& ...args)
+        {
+            using mixed_t = MixAlgorithmRangeAdapter<TTrie, Mx...>;
+            return std::make_shared<mixed_t>(std::piecewise_construct, trie, std::forward<Mx>(args)...);
+        }
 
     } //ns:trie
 }//ns:OP
