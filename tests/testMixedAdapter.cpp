@@ -105,7 +105,8 @@ void testChildConfig(OP::utest::TestResult& tresult)
         p_t("abc.1"_astr, 1.),
         p_t("abc.2"_astr, 1.),
         p_t("abc.3"_astr, 1.3),
-        p_t("abc.444"_astr, 1.444)
+        p_t("abc.444"_astr, 1.444),
+        p_t("abcdef"_astr, 2.0),
     };
     compare_containers(tresult, test_range, test_values);
 
@@ -123,7 +124,59 @@ void testChildConfig(OP::utest::TestResult& tresult)
     };
     compare_containers(tresult, test_range2, test_values);
 }
+/**Issue with MixedRange when not all next_sibling returned*/
+void test_ISSUE_0002(OP::utest::TestResult& tresult)
+{
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+    using mix_ns = Ingredient<trie_t>;
+
+    using p_t = std::pair<atom_string_t, double>;
+
+    const p_t ini_data[] = {
+        p_t("\0x80AAAAAg"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAC"_astr, 0.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAC\0x82"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAC\0x82AAAAAg"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAC\0x83"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAC\0x83AAAAAg"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAD"_astr, 0.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAD\0x82"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAD\0x82AAAAAg"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAD\0x83"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAD\0x83AAAAAw"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAwAAAAIAAAAD"_astr, 0.),
+        p_t("\0x80AAAAAg\0x81AAAAAwAAAAIAAAAD\0x82"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAwAAAAIAAAAD\0x82AAAAAw"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAwAAAAIAAAAD\0x83"_astr, 1.),
+        p_t("\0x80AAAAAg\0x81AAAAAwAAAAIAAAAD\0x83AAAAAw"_astr, 1.),
+    };
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        });
+
+    atom_string_t result_prefix = "\0x80AAAAAg\0x81"_astr;
+    auto source_range = OP::trie::make_mixed_range(
+        std::const_pointer_cast<const trie_t>(trie),
+        OP::trie::Ingredient<trie_t>::ChildOfKeyBegin(
+            result_prefix),
+        OP::trie::Ingredient<trie_t>::SiblingNext());
+
+    std::map<atom_string_t, double> test_values = {
+            p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAC"_astr, 0.),
+            p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAD"_astr, 0.),
+            p_t("\0x80AAAAAg\0x81AAAAAwAAAAIAAAAD"_astr, 0.)
+    };
+    compare_containers(tresult, *source_range, test_values);
+}
+
 static auto module_suite = OP::utest::default_test_suite("MixedAdapter")
     ->declare(testDefault,  "default")
     ->declare(testChildConfig, "child")
+    ->declare(test_ISSUE_0002, "ISSUE_0002")
 ;
