@@ -17,7 +17,7 @@ void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const 
     auto ti = trie.begin();
     int n = 0;
     //order must be the same
-    for (; trie.in_range(ti); trie.next(ti), ++mi, ++n)
+    for (; trie.in_range(ti) && mi != std::end(map); trie.next(ti), ++mi, ++n)
     {
         //print_hex(tresult.info() << "1)", ti.key());
         //print_hex(tresult.info() << "2)", mi->first);
@@ -35,6 +35,16 @@ void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const 
         for (; mi != std::end(map); ++mi)
         {
             os << "{" << (const char*)mi->first.c_str() << ", " << mi->second << "}\n";
+        }
+        tresult.fail(OP_CODE_DETAILS() << os.str());
+    }
+    if (trie.in_range(ti))
+    {
+        std::ostringstream os;
+        os << "Compared range contains extra items:\n";
+        for (; trie.in_range(ti); trie.next(ti))
+        {
+            os << "{" << (const char*)ti.key().c_str() << "}\n";
         }
         tresult.fail(OP_CODE_DETAILS() << os.str());
     }

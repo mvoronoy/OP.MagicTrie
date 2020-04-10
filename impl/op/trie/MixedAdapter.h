@@ -39,7 +39,7 @@ namespace OP
             template <class Iterator>
             bool operator()(const Iterator& check) const
             {
-                auto & str = OP::ranges::key_discovery::key(check);
+                const auto & str = OP::ranges::key_discovery::key(check);
                 if (str.length() < _prefix.length())
                     return false;
                 return std::equal(_prefix.begin(), _prefix.end(), str.begin());
@@ -91,11 +91,34 @@ namespace OP
                 /** Mutable since Trie can update version of iterartot */
                 mutable typename Trie::iterator _iterator;
             };
+            /** Ingredient for MixAlgorithmRangeAdapter - allows range use `find(key | `first_child` method instead of `begin` */
+            struct ChildOfKeyBegin
+            {
+                /** Construct by finding `first_child` from interator. For details see Trie::first_child */ 
+                template <class SharedArguments>
+                ChildOfKeyBegin(const SharedArguments& args)
+                    : _key(std::get<atom_string_t>(args))
+                {
+                }
+                ChildOfKeyBegin(const atom_string_t& key)
+                    : _key(key)
+                {
+                }
+
+                typename Trie::iterator _begin(const Trie& trie) const
+                {
+                    auto found = trie.find(_key);
+                    if( trie.in_range( found ) )
+                        return trie.first_child(found);
+                    return trie.end();
+                }
+            private:
+                const atom_string_t _key;
+            };
 
             /** Ingredient for MixAlgorithmRangeAdapter - allows range use `next_sibling` method instead of `next` */
             struct SiblingNext
             {
-
                 void _next(const Trie& trie, typename Trie::iterator& i) const
                 {
                     trie.next_sibling(i);
@@ -128,6 +151,7 @@ namespace OP
             * range iterates over items with specific prefix */
             struct PrefixedInRange
             {
+                /**Construct with shared tuple, expects that `start_with_predicate_t ` exists*/
                 template <class SharedArguments>
                 PrefixedInRange(const SharedArguments& args)
                     : _prefix_check(std::get<start_with_predicate_t>(args))

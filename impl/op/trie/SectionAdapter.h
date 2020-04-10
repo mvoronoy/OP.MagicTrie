@@ -42,16 +42,20 @@ namespace OP
             using value_type = typename traits_t::value_type;
             using owner_range_t = TrieSectionAdapter<typename traits_t::source_range_t>;
             using source_iterator_t = typename traits_t::source_iterator_t;
+            /** function that returns result string length */
+            using trunc_fnc_t = std::function<size_t(const typename traits_t::atom_string_t &)> ;
             friend owner_range_t;
 
             SectionIterator(
                 std::shared_ptr< const owner_range_t > owner_range,
                 size_t prefix_length,
-                source_iterator_t source_iterator
+                source_iterator_t source_iterator,
+                trunc_fnc_t trunc_fnc
             )
-                : _owner_range(owner_range)
+                : _owner_range(std::move(owner_range))
                 , _prefix_length(prefix_length)
-                , _source_iterator(source_iterator)
+                , _source_iterator(std::move(source_iterator))
+                , _trunc_fnc(std::move(trunc_fnc))
             {
                 update_cache();
             }
@@ -88,13 +92,20 @@ namespace OP
             {
                 if (_owner_range->source_range()->in_range(_source_iterator))
                 {
-                    _cashed_str = OP::ranges::key_discovery::key(_source_iterator).substr(_prefix_length);
+                    _cashed_str =  
+                        OP::ranges::key_discovery::key(_source_iterator)
+                        .substr(_prefix_length);
+
+                    if (_trunc_fnc)
+                        _cashed_str.resize(_trunc_fnc(_cashed_str));
                 }
-                else {
+                else 
+                {
                     _cashed_str.clear();
                 }
             }
         private:
+            trunc_fnc_t _trunc_fnc;
             std::shared_ptr< const owner_range_t > _owner_range;
             source_iterator_t _source_iterator;
             key_t _cashed_str;
@@ -110,6 +121,11 @@ namespace OP
         *           return key_discovery::key(i).substr( prefix.length() ); //cut string after the prefix
         *       });
         * \endcode
+        * If optional parameter trunc_func specified, `substr` also restricted by length
+        * \code
+        *  auto str = key_discovery::key(i).substr( prefix.length() );
+        *  str = str.substr(0, _trunc_fun(str));
+        * \endcode
         * In compare with code above this Range returns ordered sequence
         */
         template <class SourceRange>
@@ -122,12 +138,16 @@ namespace OP
             using iterator = SectionIterator<traits_t>;
             using source_iterator_t = typename traits_t::source_iterator_t;
             using atom_string_t = typename traits_t::atom_string_t;
+            using trunc_fnc_t = std::function<size_t(const atom_string_t&)> ;
 
             TrieSectionAdapter(
                 std::shared_ptr<const source_range_t> source_range, 
-                atom_string_t prefix) noexcept
+                atom_string_t prefix,
+                trunc_fnc_t trunc_fnc = nullptr
+                ) noexcept
                 : _source_range(source_range)
                 , _prefix(std::move(prefix))
+                , _trunc_fnc(std::move(trunc_fnc))
             {
             }
 
@@ -136,7 +156,9 @@ namespace OP
                 return iterator(
                     std::static_pointer_cast<const this_t>(shared_from_this()), 
                     _prefix.length(), 
-                    skip_first_if_empty(_source_range->begin()));
+                    skip_first_if_empty(_source_range->begin()),
+                    _trunc_fnc
+                    );
             }
             iterator end() const
             {
@@ -153,9 +175,14 @@ namespace OP
             }
             void next(iterator& pos) const override
             {
-                _source_range->next(pos.source_iterator());
-                if (_source_range->in_range(pos.source_iterator()))
-                { //cache result
+                do
+                {
+                    _source_range->next(pos.source_iterator());
+                } while (_source_range->in_range(pos.source_iterator()) 
+                    //skip duplicates 
+                    && pos._cashed_str == OP::ranges::key_discovery::key(pos.source_iterator()) ) ;
+                //if (_source_range->in_range(pos.source_iterator()))
+                { //update cached result
                     pos.update_cache();
                 }
             }
@@ -165,7 +192,9 @@ namespace OP
                 return iterator(
                     std::static_pointer_cast<const this_t>(shared_from_this()), 
                     _prefix.length(), 
-                    skip_first_if_empty(_source_range->lower_bound(_prefix + key)));
+                    skip_first_if_empty(_source_range->lower_bound(_prefix + key)),
+                    _trunc_fnc
+                    );
             }
             const std::shared_ptr<const SourceRange>& source_range() const
             {
@@ -184,6 +213,7 @@ namespace OP
             }
             std::shared_ptr<const SourceRange> _source_range;
             atom_string_t _prefix;
+            trunc_fnc_t _trunc_fnc;
         };
     } //ns:trie
 }//ns:OP

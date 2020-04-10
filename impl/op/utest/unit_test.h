@@ -287,7 +287,7 @@ namespace OP
         {
             friend struct TestCase;
             friend struct TestRun;
-            typedef std::chrono::high_resolution_clock::time_point time_point_t;
+            typedef std::chrono::steady_clock::time_point time_point_t;
             explicit TestResult(std::shared_ptr<TestSuite> suite) :
                 _suite(std::move(suite)),
                 _status(not_started),

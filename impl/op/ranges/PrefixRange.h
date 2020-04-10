@@ -17,6 +17,30 @@ namespace OP
     namespace ranges
     {
 
+        template <class K, class V>
+        struct RangeIterator
+        {
+            virtual const K& key() const = 0;
+            virtual const V& value() const = 0;
+        };
+
+        template <class K, class V>
+        struct OrderedRangeBase
+        {
+            using iterator = RangeIterator<K, V>;
+            using iterator_ptr = std::unique_ptr<iterator>;
+            using range_t = OrderedRangeBase<K, V>;
+            using range_ptr = std::shared_ptr<base_t>;
+
+            virtual iterator_ptr begin() const = 0;
+            virtual iterator_ptr lower_bound(const K&) const = 0;
+            virtual bool in_range(const iterator_ptr & check) const = 0;
+            virtual void next(iterator_ptr & i) const = 0;
+            virtual range_ptr join(const range_ptr& other) const
+            merge() const
+        };
+
+
         template <class Iterator, bool is_ordered>
         struct PrefixRange;
         
@@ -405,6 +429,7 @@ namespace OP
                 return *i;
             }
         } //ns:key_discovery
+
 
         template <class Iterator>
         struct OrderedRange : public PrefixRange<Iterator, true>

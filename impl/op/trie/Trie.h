@@ -126,25 +126,51 @@ namespace OP
                     _next(true, i);
                 }
             }
+            /**
+            * Iterate next item that is not prefixed by current (`i`). In other words selct right of this or parent. In compare with
+            * regular `next` doesn't enter to child way of current iterator (`i`).
+            * For example:
+            * Given prefixes:
+            * \code
+            * "abc"
+            * "abc.1"
+            * "abc.2"
+            * "abc.222", //not a sibling since 'abc.2' has a it as a child
+            * "abc.333"
+            * "abcdef"
+            * \endcode
+            * Have following in the result:
+            *  
+            *  Source `i` | next(i) | next_sibling(i)
+            *  -----------|---------|----------------
+            *  abc        | abc.1   |  abc.1
+            *  abc.1      | abc.2   |  abc.2
+            *  abc.2      | abc.222 |  abc.333
+            *  abc.333    | abcdef  |  abcdef
+            */
             void next_sibling(iterator& i) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 
-                if (!std::get<bool>(sync_iterator(i)) || i.is_end())
-                    return;
-                auto lres = load_iterator(i.back().address(), i,
-                        [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
-                        &iterator::update_back);
-                if (tuple_ref<bool>(lres))
-                { //navigation right succeeded
-                    if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
-                    {//i already points to correct entry
+                if (!std::get<bool>(sync_iterator(i)))
+                    return;    
+                while(!i.is_end())
+                { 
+                    auto lres = load_iterator(i.back().address(), i,
+                            [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
+                            &iterator::update_back);
+                    if (tuple_ref<bool>(lres))
+                    { //navigation right succeeded
+                        if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
+                        {//i already points to correct entry
+                            return;
+                        }
+                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), i);
                         return;
                     }
-                    enter_deep_until_terminal(tuple_ref<FarAddress>(lres), i);
-                    return;
+                    i.pop();
                 }
-                i.clear();
+                
             }
             using range_adapter_ptr = std::shared_ptr<TrieRangeAdapter<this_t>>;
             /**
