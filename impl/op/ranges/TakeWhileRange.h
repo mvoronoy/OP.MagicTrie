@@ -13,8 +13,8 @@ namespace OP
         /**
         *
         */
-        template <class Iterator >
-        struct TakeWhileRange : public OrderedRange< Iterator >
+        template <class SourceRange >
+        struct TakeWhileRange : public SourceRange
         {
             using in_range_predicate_t = std::function<bool(const iterator& check)> ;
             TakeWhileRange(iterator begin, in_range_predicate_t in_range_predicate ) noexcept

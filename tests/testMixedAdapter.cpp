@@ -37,8 +37,8 @@ void testDefault(OP::utest::TestResult& tresult)
 
     mix_ns mix0{};
     using my_range0 = OP::trie::MixAlgorithmRangeAdapter < trie_t >;
-    my_range0 test_range0{ trie, mix0 };
-    tresult.assert_false(test_range0.in_range(test_range0.begin()), "Wrong empty case");
+    auto test_range0 = std::make_shared< my_range0 >( trie, mix0 );
+    tresult.assert_false(test_range0->in_range(test_range0->begin()), "Wrong empty case");
 
     std::map<atom_string_t, double> test_values;
 
@@ -95,11 +95,12 @@ void testChildConfig(OP::utest::TestResult& tresult)
     
     using my_range = OP::trie::MixAlgorithmRangeAdapter< trie_t, mix_ns::ChildBegin, mix_ns::SiblingNext, mix_ns::ChildInRange>;
 
-    my_range test_range{ trie, common_prefix, trie->find(common_prefix), StartWithPredicate(common_prefix) };
-    auto first_ch1 = test_range.begin();//of 'abc'
+    auto test_range = std::make_shared< my_range>(
+        trie, common_prefix, trie->find(common_prefix), StartWithPredicate(common_prefix) );
+    auto first_ch1 = test_range->begin();//of 'abc'
 
     tresult.assert_that<equals>(first_ch1.key(), "abc.1"_atom, "key mismatch");
-    tresult.assert_that<equals>(*first_ch1, 1., "value mismatch");
+    tresult.assert_that<equals>(first_ch1.value(), 1., "value mismatch");
 
     std::map<atom_string_t, double> test_values = {
         p_t("abc.1"_astr, 1.),
@@ -108,11 +109,11 @@ void testChildConfig(OP::utest::TestResult& tresult)
         p_t("abc.444"_astr, 1.444),
         p_t("abcdef"_astr, 2.0),
     };
-    compare_containers(tresult, test_range, test_values);
+    compare_containers(tresult, *test_range, test_values);
 
     using my_range2 = OP::trie::MixAlgorithmRangeAdapter< trie_t, mix_ns::ChildBegin>;
 
-    my_range2 test_range2{ trie, trie->find(common_prefix) };
+    auto test_range2 = std::make_shared< my_range2>( trie, trie->find(common_prefix) );
     test_values.clear();
     test_values = {
     p_t("abc.1"_astr, 1.),
@@ -122,7 +123,7 @@ void testChildConfig(OP::utest::TestResult& tresult)
         p_t("abc.444"_astr, 1.444), // a child
         p_t("abcdef"_astr, 2.0),
     };
-    compare_containers(tresult, test_range2, test_values);
+    compare_containers(tresult, *test_range2, test_values);
 }
 /**Issue with MixedRange when not all next_sibling returned*/
 void test_ISSUE_0002(OP::utest::TestResult& tresult)
@@ -161,8 +162,10 @@ void test_ISSUE_0002(OP::utest::TestResult& tresult)
         });
 
     atom_string_t result_prefix = "\0x80AAAAAg\0x81"_astr;
+    auto range_of_trie = trie->range();
+    using range_trie_t = typename decltype(range_of_trie)::element_type;
     auto source_range = OP::trie::make_mixed_range(
-        std::const_pointer_cast<const trie_t>(trie),
+        std::const_pointer_cast<trie_t const>( trie ),
         OP::trie::Ingredient<trie_t>::ChildOfKeyBegin(
             result_prefix),
         OP::trie::Ingredient<trie_t>::SiblingNext());

@@ -3,7 +3,8 @@
 
 #include <string>
 template <class Left, class Right>
-inline bool operator == (const std::basic_string<Left>& left,const std::basic_string<Right>& right)
+inline typename std::enable_if<!std::is_same<Left, Right>::value, bool>::type 
+operator == (const std::basic_string<Left>& left,const std::basic_string<Right>& right)
 {
     auto li = left.begin();
     auto ri = right.begin();

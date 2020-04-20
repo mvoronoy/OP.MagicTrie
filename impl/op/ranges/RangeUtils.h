@@ -23,22 +23,22 @@ namespace OP
                 return !range1.in_range(from1) && !range2.in_range(from2);
             }
 
-            //template <class TRange, class K, class V>
+            /**Compare arbitrary range with arbitrary map. Order is not controlled*/
             template <class TRange, class Map>
-            inline bool range_map_equals(const TRange& range1, const Map& range2)
+            inline bool range_map_equals(const TRange& range1, Map range2)
             {
                 auto from1 = range1.begin();
-                auto from2 = std::begin(range2);
-                auto to2 = std::end(range2);
-                for (; range1.in_range(from1) && from2 != to2; range1.next(from1), ++from2)
+                for (; range1.in_range(from1); range1.next(from1))
                 {
-                    if (OP::ranges::key_discovery::key(from1) != from2->first)
+                    auto found = range2.find(from1.key());
+                    if(found == range2.end())
                         return false;
+                    range2.erase(found);
                 }
-                return !range1.in_range(from1) && (from2 == to2);
+                return !range1.in_range(from1) && (range2.empty());
             }
-            template <class Iterator1, class Container>
-            inline bool map_equals(const PrefixRange<Iterator1, true>& range1, const Container& range2)
+            template <class K, class V, class Container>
+            inline bool map_equals(const RangeBase<K, V>& range1, const Container& range2)
             {
                 auto from1 = range1.begin();
                 auto from2 = std::begin(range2);
@@ -47,7 +47,7 @@ namespace OP
                 {
                     if (from1.key() != from2->first)
                         return false;
-                    if (*from1 != from2->second)
+                    if (from1.value() != from2->second)
                         return false;
                 
                 }
