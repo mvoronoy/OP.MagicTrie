@@ -126,13 +126,15 @@ namespace OP
             OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename SourceRange::iterator>, typename SourceRange::value_t >
         {
             using this_t = FlattenRange<SourceRange, DeflateFunction>;
+            using base_t = OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename SourceRange::iterator>, typename SourceRange::value_t >;
             using traits_t = details::FlattenTraits<SourceRange, DeflateFunction>;
 
             using applicator_result_t = typename traits_t::applicator_result_t;
             static_assert(applicator_result_t::is_ordered_c, "DeflateFunction must produce range that support ordering");
 
             using value_type = typename traits_t::value_type;
-
+            using iterator = typename base_t::iterator;
+            using key_comparator_t = typename base_t::key_comparator_t;
             using store_t = storage_policy::PriorityQueueSetStorage< applicator_result_t, key_comparator_t > ;
 
             FlattenRange(std::shared_ptr<SourceRange const> source

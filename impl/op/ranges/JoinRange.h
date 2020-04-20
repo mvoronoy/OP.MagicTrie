@@ -19,12 +19,14 @@ namespace OP
         {
             using this_t = JoinRange<SourceRange1, SourceRange2> ;
             using base_t = OrderedRange< typename SourceRange1::key_t, typename SourceRange1::value_t >;
+            using key_comparator_t = typename base_t::key_comparator_t;
+            using iterator = typename base_t::iterator;
+            using key_t = typename base_t::key_t;
+            using value_t = typename base_t::value_t;
 
             using left_iterator = typename SourceRange1::iterator ;
             using right_iterator = typename SourceRange2::iterator ;
 
-            using left_right_comparator_t =
-                std::function<int(const typename SourceRange1::key_t&, const typename SourceRange2::key_t&)>;
             /**
             * @param comparator - binary predicate `int(const iterator&, const iterator&)` that implements tripple compare of current 
             *    iterator positions (< 0, == 0, > 0)

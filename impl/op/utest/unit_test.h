@@ -68,7 +68,7 @@ namespace OP
                 throw OP::utest::TestFail(std::forward<X>(x));
             }
             template <class F, class ... Args >
-            inline std::function< std::result_of_t< F&(Args...) > > make_function(F&& f)
+            inline std::function< F(Args...) > make_function(F&& f)
             {
                 return std::forward<F>(f);
             }

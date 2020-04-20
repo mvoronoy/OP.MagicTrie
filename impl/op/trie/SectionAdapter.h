@@ -57,7 +57,6 @@ namespace OP
                 FunctionResultCachedPolicy<typename SourceRange::iterator, string_map_fnc_t<typename SourceRange::iterator> >,
                 OrderedRange< typename SourceRange::key_t, typename SourceRange::value_t >
             >
-            //public OP::ranges::OrderedRange< typename SourceRange::key_t, typename SourceRange::value_t >
         {
             static_assert(SourceRange::is_ordered_c, "Source range must support ordering");
             using this_t = TrieSectionAdapter<SourceRange>;
@@ -69,15 +68,21 @@ namespace OP
                 FunctionResultCachedPolicy<typename SourceRange::iterator, string_map_fnc_t >,
                 OrderedRange< typename SourceRange::key_t, typename SourceRange::value_t >
             >;
+            using base_t = filter_base_t;
+
             using traits_t = details::SectionRangeTraits<SourceRange>;
             using source_range_t = typename traits_t::source_range_t;
             using source_iterator_t = typename traits_t::source_iterator_t;
 
+            using key_eval_policy_t = typename filter_base_t::key_eval_policy_t;
+            using trunc_fnc_t = std::function<size_t(const atom_string_t&)>;
+
             using section_iterator_t = FunctionalRangeIterator<source_iterator_t, this_t, key_eval_policy_t>;
             using atom_string_t = typename traits_t::atom_string_t;
             
-            using key_eval_policy_t = typename filter_base_t::key_eval_policy_t;
-            using trunc_fnc_t = std::function<size_t(const atom_string_t&)>;
+            using iterator = typename base_t::iterator;
+            using key_t = typename base_t::key_t;
+            using value_t = typename base_t::value_t;
 
             TrieSectionAdapter(
                 std::shared_ptr<const source_range_t> source_range, 

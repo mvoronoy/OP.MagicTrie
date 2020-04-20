@@ -348,6 +348,9 @@ namespace OP
             using mixer_t = Mixer<trie_t, Mx ...>;
             using base_t = OP::ranges::OrderedRange< typename TTrie::key_t, typename TTrie::value_t>;
             using mixer_iterator_t = typename trie_t::iterator;
+            using iterator = typename base_t::iterator;
+            using key_t = typename base_t::key_t;
+            using value_t = typename base_t::value_t;
 
             MixAlgorithmRangeAdapter(std::shared_ptr<const trie_t> parent) noexcept
                 : base_t( [](const typename TTrie::key_t& left, const typename TTrie::key_t& right) -> int{ return left.compare(right);})
