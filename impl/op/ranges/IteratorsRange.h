@@ -19,6 +19,10 @@ namespace OP
         {
             using base_t = OrderedRange<typename Map::key_type, typename Map::mapped_type>;
 
+            using iterator = typename base_t::iterator;
+            using key_t = typename base_t::key_t;
+            using value_t = typename base_t::value_t;
+
             SortedMapRange(const Map& source)
                 : base_t([this](const key_t&l, const key_t&r)->int{return _source.key_comp()(l, r)?-1: _source.key_comp()(r, l)?1:0;})
                 , _source(source)

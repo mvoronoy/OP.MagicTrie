@@ -63,6 +63,12 @@ namespace OP
         struct UnionAllRange : public RangeBase<typename SourceRange::key_t, typename SourceRange::value_t>
         {
             using this_t = UnionAllRange<SourceRange>;
+            using base_t = RangeBase<typename SourceRange::key_t, typename SourceRange::value_t>;
+            using range_ptr = typename base_t::range_ptr;
+            using iterator = typename base_t::iterator;
+            using key_t = typename base_t::key_t;
+            using value_t = typename base_t::value_t;
+
             using united_ranges_t = std::vector<range_ptr>;
             using payload_t = UnionAllRangeIteratorPayload< this_t >;
 
