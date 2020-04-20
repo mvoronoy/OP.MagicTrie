@@ -22,8 +22,6 @@ namespace OP
 {
     namespace trie
     {
-
-
         /**Implement functor for subrange method to implement predicate that detects end of range iteration*/
         struct StartWithPredicate
         {
@@ -39,7 +37,7 @@ namespace OP
             template <class Iterator>
             bool operator()(const Iterator& check) const
             {
-                const auto & str = OP::ranges::key_discovery::key(check);
+                const auto & str = check.key();
                 if (str.length() < _prefix.length())
                     return false;
                 return std::equal(_prefix.begin(), _prefix.end(), str.begin());
@@ -141,6 +139,41 @@ namespace OP
                 typename Trie::iterator _begin(const Trie& trie) const
                 {
                     return trie.prefixed_begin(std::begin(_prefix), std::end(_prefix));
+                }
+            private:
+                const atom_string_t _prefix;
+            };
+            /** Ingredient for MixAlgorithmRangeAdapter - allows start iteration from first element that 
+            greater or equal than specific key. If key is no started with prefix:
+                - for lexicographic less key - then lower_bound starts from prefix
+                - for lexicographic greater key - then lower_bound returns end()
+            */
+            struct PrefixedLowerBound
+            {
+                template <class SharedArguments>
+                PrefixedLowerBound(const SharedArguments& args)
+                    : _prefix(std::get<atom_string_t>(args))
+                {
+                }
+                PrefixedLowerBound(atom_string_t prefix)
+                    : _prefix(std::move(prefix))
+                {
+                }
+                typename Trie::iterator _lower_bound(const Trie& trie, const atom_string_t& key) const
+                {
+                    auto kb = std::begin(key);
+                    auto ke = std::end(key);
+                    auto pb = std::begin(_prefix);
+                    auto pe = std::end(_prefix);
+                    //do kind of lexicographic compare to check if key starts with prefix 
+                    int cmpres = OP::ranges::str_lexico_comparator(pb, pe, kb, ke);
+                    if (pb == pe) // key starts from prefix
+                    {
+                        return trie.lower_bound(key);
+                    }
+                    if( cmpres > 0 )
+                        return trie.lower_bound(_prefix); //because key is less than _prefix => find from prefix
+                    return trie.end();
                 }
             private:
                 const atom_string_t _prefix;
@@ -309,53 +342,56 @@ namespace OP
         *   Allows trie to mimic OP::ranges::PrefixRange capabilities
         */
         template <class TTrie, class ... Mx>
-        struct MixAlgorithmRangeAdapter : public OP::ranges::OrderedRange< typename TTrie::iterator >
+        struct MixAlgorithmRangeAdapter : public OP::ranges::OrderedRange< typename TTrie::key_t, typename TTrie::value_t>
         {
             using trie_t = TTrie;
             using mixer_t = Mixer<trie_t, Mx ...>;
-            using iterator = typename trie_t::iterator;
-
+            using base_t = OP::ranges::OrderedRange< typename TTrie::key_t, typename TTrie::value_t>;
+            using mixer_iterator_t = typename trie_t::iterator;
 
             MixAlgorithmRangeAdapter(std::shared_ptr<const trie_t> parent) noexcept
-                : _parent(std::move(parent))
+                : base_t( [](const typename TTrie::key_t& left, const typename TTrie::key_t& right) -> int{ return left.compare(right);})
+                , _parent(std::move(parent))
                 , _mixer{}
             {
             }
 
             template <typename ...  Args>
             MixAlgorithmRangeAdapter(std::shared_ptr<const trie_t> parent, Args&& ... args) noexcept
-                : _parent(std::move(parent))
+                : base_t( [](const typename TTrie::key_t& left, const typename TTrie::key_t& right) -> int{ return left.compare(right);})
+                , _parent(std::move(parent))
                 , _mixer(std::make_tuple(std::forward<Args>(args)...))
             {
             }
 
             MixAlgorithmRangeAdapter(std::piecewise_construct_t _, std::shared_ptr<const trie_t> parent, Mx&& ... args) noexcept
-                : _parent(std::move(parent))
+                : base_t( [](const typename TTrie::key_t& left, const typename TTrie::key_t& right) -> int{ return left.compare(right);})
+                , _parent(std::move(parent))
                 , _mixer(std::forward<Mx>(args)...)
             {
             }
 
             iterator begin() const override
             {
-                return _mixer._begin(*_parent);
+                return iterator( std::const_pointer_cast<range_t const>(shared_from_this()),
+                    payload_t::factory(std::move(_mixer._begin(*_parent))));
             }
-            iterator end() const 
-            {
-                return _mixer.end(*_parent);
-            }
-
+           
             bool in_range(const iterator& check) const override
             {
-                return _mixer._in_range(*_parent, check);
+                if(!check)
+                    return false;
+                return _mixer._in_range(*_parent, check.impl< payload_t >()._mixer_it );
             }
             void next(iterator& pos) const override
             {
-                return _mixer._next(*_parent, pos);
+                return _mixer._next(*_parent, pos.impl< payload_t >()._mixer_it);
             }
 
-            iterator lower_bound(const typename iterator::key_type& key) const override
+            iterator lower_bound(const key_t& key) const override
             {
-                return _mixer._lower_bound(*_parent, key);
+                return iterator(std::const_pointer_cast<range_t const>(shared_from_this()),
+                    payload_t::factory(std::move(_mixer._lower_bound(*_parent, key))));
             }
             const std::shared_ptr<const trie_t>& get_parent() const
             {
@@ -363,8 +399,36 @@ namespace OP
             }
 
         private:
+
+            struct payload_t : public iterator::RangeIteratorImpl
+            {
+                static std::unique_ptr<typename iterator::RangeIteratorImpl> factory(mixer_iterator_t mixer_it)
+                {
+                    return std::unique_ptr<RangeIteratorImpl>(new payload_t(std::move(mixer_it)));
+                }
+                payload_t(mixer_iterator_t mixer_it)
+                    :_mixer_it(std::move(mixer_it))
+                {}
+                
+                const typename trie_t::key_t& key() const override
+                {
+                    return _mixer_it.key();
+                }
+                const typename trie_t::value_t& value() const override
+                {
+                    _ref_value_pack = _mixer_it.value();
+                    return _ref_value_pack;
+                }
+                std::unique_ptr<typename iterator::RangeIteratorImpl> clone() const override
+                {
+                    return factory(_mixer_it);
+                }
+                mixer_iterator_t _mixer_it;
+                mutable typename trie_t::value_t _ref_value_pack;
+            };
             std::shared_ptr<const trie_t> _parent;
             mixer_t _mixer;
+            
         };
         
         template <class TTrie, class ... Mx>

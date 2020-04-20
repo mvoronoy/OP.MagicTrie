@@ -530,7 +530,7 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
             tresult.assert_true(
                 tools::container_equals(begin_test.key(), test, &tools::sign_tolerant_cmp<atom_t>));
 
-            tresult.assert_true(*begin_test == (double)i);
+            tresult.assert_true(begin_test.value() == (double)i);
             container_ptr->next(begin_test);
         }
         auto a = std::begin(sorted_checks);
@@ -538,10 +538,10 @@ void test_TrieSubtree(OP::utest::TestResult &tresult)
         for (; container_ptr->in_range(begin_test); container_ptr->next(begin_test), ++a, ++cnt)
         {
             auto strain_str = (test + *a);
-            //print_hex(std::cout << "1)", strain_str);
-            //print_hex(std::cout << "2)", begin_test.key());
+            //print_hex(tresult.debug() << "1)", strain_str);
+            //print_hex(tresult.debug() << "2)", begin_test.key());
             tresult.assert_true(tools::container_equals(begin_test.key(), strain_str), "! strain == prefix");
-            tresult.assert_true(*begin_test == (double)strain_str.length());
+            tresult.assert_true(begin_test.value() == (double)strain_str.length());
         }
         tresult.assert_true(a == sorted_checks.end());
         tresult.assert_true(cnt > 0);
@@ -562,16 +562,12 @@ template <class R1, class R2, class Sample>
 void test_join(
     OP::utest::TestResult &tresult, std::shared_ptr< R1 const > r1, std::shared_ptr< R2 const > r2, const Sample& expected)
 {
-    auto comparator = [](const atom_string_t& left, const atom_string_t& right)->int {
-        return OP::ranges::str_lexico_comparator(left.begin(), left.end(),
-            right.begin(), right.end());
-    };
-    auto result1 = r1->join(r2, comparator);
+    auto result1 = r1->join(r2);
     //print_co(std::cout << "===========>", r1);
     compare_containers(tresult, *result1, expected);
     //print_co(std::cout << "===========>", r2);
     //std::cout <<"<<<<<<<<<<<\n";
-    auto result2 = r2->join(r1, comparator);
+    auto result2 = r2->join(r1);
     compare_containers(tresult, *result2, expected);
 }
 void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
@@ -603,16 +599,16 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
     atom_string_t query1 ("a"_atom);
     atom_string_t query2 ("ad"_atom);
     auto container1 = trie->prefixed_range(query1);
-    //container1.for_each([&tresult](auto& i) {
+    //tresult.info() << "====== container:1\n";
+    //container1->for_each([&tresult](auto& i) {
     //    print_hex(tresult.info(), i.key());
     //});
     
     auto container2 = trie->prefixed_range(query2);
-    //tresult.info() << "======\n";
-    //for (auto i = container2.begin(); container2.in_range(i); container2.next(i))
-    //{
+    //tresult.info() << "====== container:2\n";
+    //container2->for_each([&tresult](auto& i) {
     //    print_hex(tresult.info(), i.key());
-    //}
+    //});
     test_values.emplace(stems[0], 3.);
     test_join(tresult, container1, container2, test_values);
 
@@ -658,7 +654,7 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult &tresult)
         {"nb"_atom, 2},
         {"y"_atom, 1}
     };
-    auto join_src_range = OP::ranges::make_iterators_range(join_src);
+    auto join_src_range = OP::ranges::make_range_of_map(join_src);
 
     test_values.emplace("mdef"_atom, 4);
     test_values.emplace("mg"_atom, 2);
@@ -727,21 +723,22 @@ void test_Flatten(OP::utest::TestResult &tresult)
     });
     auto _1_range = trie->prefixed_range(atom_string_t((atom_t*)"1."));
     _1_range->for_each([](const auto& i) {
-        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+        std::cout << "{" << (const char*)i.key().c_str() << " = " << i.value() << "}\n";
     });
-    auto suffixes_range = _1_range->map([](const auto& i) {
+    auto suffixes_range = _1_range->map([](const typename decltype(_1_range)::element_type::iterator& i)->atom_string_t {
         return i.key().substr(2/*"1."*/);
     });
     suffixes_range->for_each([](const auto& i) {
-        std::cout << "{{" << (const char*)i.key().c_str() << ", " << *i << "}}\n";
+        std::cout << "{{" << (const char*)i.key().c_str() << ", " << i.value() << "}}\n";
     });
     //-->>>>
-    auto frange1 = make_flatten_range(suffixes_range, [&trie](const auto& i) {
+    using or_t = OP::ranges::OrderedRange<typename trie_t::key_t, typename trie_t::value_t>;
+    auto frange1 = suffixes_range->flatten( [&trie](const auto& i) -> std::shared_ptr<or_t const> {
         return trie->prefixed_range(i.key());
     });
     std::cout << "Flatten result:\n";
     frange1->for_each([](const auto& i) {
-        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+        std::cout << "{" << (const char*)i.key().c_str() << ", " << i.value() << "}\n";
     });
     auto _1_flatten = trie->flatten_subrange(suffixes_range);
     std::map<atom_string_t, double> strain1 = {
@@ -760,11 +757,11 @@ void test_Flatten(OP::utest::TestResult &tresult)
         {"2."_atom, 2.0},
         {"3."_atom, 3.0}
     };
-    auto r1_src1 = OP::ranges::make_iterators_range(src1);
-    auto fres2 = make_flatten_range(r1_src1, [&trie](const auto& i) {
-        const auto& k = OP::ranges::key_discovery::key(i);
+    auto r1_src1 = OP::ranges::make_range_of_map(src1);
+    auto fres2 = r1_src1->flatten( [&trie](const auto& i) {
+        const auto& k = i.key();
         return trie
-            ->prefixed_range(OP::ranges::key_discovery::key(i))
+            ->prefixed_range(i.key())
             /*[!] Uncoment to test compile time error "DeflateFunction must produce range that support ordering"
             ->map([&k](const auto& i) {
                 return OP::ranges::key_discovery::key(i).substr(k.length());
@@ -858,10 +855,10 @@ void test_TrieSectionRange(OP::utest::TestResult &tresult)
     tresult.debug() << "Test flatten-range scenario\n";
     auto lookup = trie->sibling_range("1."_astr);
     lookup->for_each([](const auto& i) {
-        std::cout << "////" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+        std::cout << "////" << (const char*)i.key().c_str() << ", " << i.value() << "}\n";
     });
     auto _4r = trie->sibling_range("1."_astr)->flatten([&](auto const& i) {
-        return trie->section_range(OP::ranges::key_discovery::key(i));
+        return trie->section_range(i.key());
     });
     std::map<atom_string_t, std::set<double>> strain4 = { 
         {"abc"_astr, {1, 2, 3.1}},
@@ -875,10 +872,10 @@ void test_TrieSectionRange(OP::utest::TestResult &tresult)
     const size_t n4r = _4r->count();
     tresult.assert_that<greater>(n4r, 0, OP_CODE_DETAILS(<< "Flatten range must not be empty"));
     _4r->for_each([&](const auto& i) {
-        std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
+        std::cout << "{" << (const char*)i.key().c_str() << "=" << i.value() << "}\n";
         //need manually compare
-        auto& key = OP::ranges::key_discovery::key(i);
-        auto value = OP::ranges::key_discovery::value(i);
+        auto& key = i.key();
+        auto value = i.value();
         auto found = strain4.find(key);
         tresult.assert_that<logical_not<equals>>(strain4.end(), found, OP_CODE_DETAILS(<< "Key not found:" << (const char*)key.c_str()));
         auto& value_set = found->second;
@@ -1046,15 +1043,19 @@ void test_Siblings(OP::utest::TestResult &tresult)
     });
     auto i_root = trie->find(std::string("abc.1"));
     trie->next_sibling(i_root);
-    tresult.assert_that<equals>(i_root.key(), (const atom_t*)"abc.2", "key mismatch");
+    tresult.assert_that<equals>(i_root.key(), "abc.2"_astr, "key mismatch");
     tresult.assert_that<equals>(*i_root, 1.2, "value mismatch");
     trie->next_sibling(i_root);
-    tresult.assert_that<equals>(i_root.key(), (const atom_t*)"abc.3", "key mismatch");
+    tresult.assert_that<equals>(i_root.key(), "abc.3"_astr, "key mismatch");
     tresult.assert_that<equals>(*i_root, 1.3, "value mismatch");
     trie->next_sibling(i_root);
     tresult.assert_that<equals>(i_root, trie->end(), "run end failed");
 
     auto i_sub = trie->find(std::string("abc.1.2"));
+    trie->next_sibling(i_sub);
+    tresult.assert_that<equals>(i_sub.key(), "abc.2"_astr, "key mismatch");
+
+    i_sub = trie->find(std::string("abc.3"));
     trie->next_sibling(i_sub);
     tresult.assert_that<equals>(i_sub, trie->end(), "run end failed");
 
@@ -1568,14 +1569,14 @@ void test_Range(OP::utest::TestResult &tresult)
         ->for_each([&](auto const & kv) {
         tresult.assert_true(tools::container_equals(kv.key(), i->first, &tools::sign_tolerant_cmp<atom_t>),
             OP_CODE_DETAILS("error for key=" << (const char*)i->first.c_str() << ", while obtained:" << (const char*)kv.key().c_str()));
-        tresult.assert_that<equals>(*kv, i->second,
-            OP_CODE_DETAILS(<< "Associated value error, has:" << *kv << ", expected:" << i->second));
+        tresult.assert_that<equals>(kv.value(), i->second,
+            OP_CODE_DETAILS(<< "Associated value error, has:" << kv.value() << ", expected:" << i->second));
         ++i;
     }), "wrong counter");
     //test take_while semantic
     atom_t last_letter = (atom_t)'z';
     tresult.assert_that<equals>(7, trie->range()
-        ->for_each([&](auto const & kv)->bool {
+        ->awhile([&](auto const & kv)->bool {
         last_letter = kv.key()[0];
         return kv.key()[0] <= (atom_t)'b';
     }), "wrong counter");

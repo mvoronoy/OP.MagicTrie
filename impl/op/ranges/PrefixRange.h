@@ -5,8 +5,8 @@
 #include <memory>
 #include <functional>
 #include <type_traits>
-#include <op/ranges/FunctionalRange.h>
 #include <op/common/Utils.h>
+#include <iterator>
 
 #ifdef _MSC_VER
 #pragma warning(disable : 4503)
@@ -16,205 +16,196 @@ namespace OP
 {
     namespace ranges
     {
+        template <class K, class V>
+        struct RangeBase;
 
         template <class K, class V>
         struct RangeIterator
         {
-            virtual const K& key() const = 0;
-            virtual const V& value() const = 0;
+            using iterator_category = std::forward_iterator_tag;
+            using key_t = K;
+            using value_type = V;
+            using value_t = V;
+
+            struct RangeIteratorImpl
+            {
+                virtual ~RangeIteratorImpl() = default;
+                virtual const K& key() const = 0;
+                virtual const V& value() const = 0;
+                virtual std::unique_ptr<RangeIteratorImpl> clone() const = 0;
+            };
+            using impl_t = RangeIteratorImpl;
+            using impl_ptr = std::unique_ptr<impl_t>;
+            using base_t = RangeIterator<K, V>;
+
+            RangeIterator(std::shared_ptr< RangeBase<K, V> const> owner,
+                impl_ptr && impl) noexcept
+                : _owner(std::move(owner))
+                , _impl(std::move(impl))
+                {}
+
+            RangeIterator(const RangeIterator& other) noexcept
+                : _owner(other._owner)
+                , _impl(other._impl ? other._impl->clone() : impl_ptr{nullptr})
+                {}
+
+            RangeIterator& operator = (const RangeIterator& other) noexcept
+            {
+                _owner = other._owner;
+                _impl = std::move(other._impl ? other._impl->clone() : impl_ptr{nullptr});
+                return *this;
+            }
+            std::pair<K, V> operator * () const
+            {
+                return std::pair<K, V>{key(), value()};
+            }
+
+            const K& key() const
+            {
+                return _impl->key();
+            }
+            const V& value() const
+            {
+                return _impl->value();
+            }
+            template <class U = impl_t>
+            U& impl()
+            {
+                return dynamic_cast<U&>(*_impl);
+            }
+            template <class U = impl_t>
+            const U& impl() const
+            {
+                return dynamic_cast<const U&>(*_impl);
+            }
+            
+            /**This operator is very primitive and allows check only equality to `end` to support STL operation
+            * @return true only when comparing this with `end()` at the end of range
+            */
+            bool operator == (const RangeIterator& other) const noexcept
+            {
+                if( !_owner )
+                    return !other._owner;
+                if( !_owner->in_range(*this) )
+                    return !other._owner || !other._owner->in_range(other);
+                return false;
+            }
+            bool operator != (const RangeIterator& other) const noexcept
+            {
+                return !operator == (other);
+            }
+            bool operator == (std::nullptr_t) const noexcept
+            {
+                return !_owner||!_impl;
+            }
+            bool operator != (std::nullptr_t) const noexcept
+            {
+                return !operator == (nullptr);
+            }
+            bool operator !() const noexcept
+            {
+                return operator == (nullptr);
+            }
+            base_t& operator ++ ()
+            {
+                _owner->next(*this);
+                return *this;
+            }
+            base_t operator ++ (int)
+            {
+                base_t result(*this);
+                _owner->next(*this);
+                return result;
+            }
+        private:
+            impl_ptr _impl;
+            std::shared_ptr< RangeBase<K, V> const > _owner;
         };
 
         template <class K, class V>
-        struct OrderedRangeBase
-        {
-            using iterator = RangeIterator<K, V>;
-            using iterator_ptr = std::unique_ptr<iterator>;
-            using range_t = OrderedRangeBase<K, V>;
-            using range_ptr = std::shared_ptr<base_t>;
+        struct OrderedRange;
 
-            virtual iterator_ptr begin() const = 0;
-            virtual iterator_ptr lower_bound(const K&) const = 0;
-            virtual bool in_range(const iterator_ptr & check) const = 0;
-            virtual void next(iterator_ptr & i) const = 0;
-            virtual range_ptr join(const range_ptr& other) const
-            merge() const
-        };
-
-
-        template <class Iterator, bool is_ordered>
-        struct PrefixRange;
-        
-        template <class SourceRange>
+        template <class SourceRange >
         struct FilteredRange;
-            
+        
         template <class SourceRange>
         struct OrderedFilteredRange;
 
-        template <class SourceRange1, class SourceRange2>
+        template <class SourceRange>
         struct UnionAllRange;
 
         template <class SourceRange, class DeflateFunction >
         struct FlattenRange;
 
-        namespace details {
-
-            template<class T,
-                class D = void>
-                struct DiscoverIteratorKeyType
-            {   // default definition
-                typedef D key_t;
-            };
-
-            template<class T>
-            struct DiscoverIteratorKeyType<T, std::void_t< decltype(std::declval<typename T::reference>().first)> >
-            {   // defined if iterator declared as std::map????::iterator and key-type detected as decltype of reference::first
-                typedef typename std::remove_reference< decltype(std::declval<typename T::reference>().first) >::type key_t;
-            };
-
-            template<class T>
-            struct DiscoverIteratorKeyType<T, std::void_t<typename T::key_type> >
-            {   // defined if iterator contains explicit definition of key_type
-                typedef typename T::key_type key_t;
-            };
-
-            /**
-            *   Traits class declares how flatten range is rendered
-            */
-            //template <class DeflateFunction, class SourceIterator>
-            //struct FlattenTraits
-            //{
-            //    using source_iterator_t = SourceIterator;
-
-            //    using pre_applicator_result_t = typename std::result_of<DeflateFunction(const source_iterator_t&)>::type;
-            //    /**Type of Range returned by DeflateFunction. Must be kind of OrderedRange
-            //    */
-            //    using applicator_result_t = typename std::conditional< //strip shared_ptr from pre_applicator_result_t if present
-            //        OP::utils::is_generic<pre_applicator_result_t, std::shared_ptr>::value,
-            //        typename pre_applicator_result_t::element_type,
-            //        pre_applicator_result_t>::type; //type of 
-            //    
-            //};
-        } //ns:details
-        namespace policy
+        namespace flatten_details
         {
-            /**Policy for PrefixRange::map that always evaluate new key for single iterator position. Result always uses
-            copy by value (or if available rvalue optimization)*/
-            struct no_cache {};
-            /**Policy for PrefixRange::map that evaluate new key for single iterator position only once, all other calls
-            return cached value. Result of iterator::key is const reference type*/
-            struct cached {};
+            template <class DF, class Iterator>
+            using DeflateResultType = typename std::result_of<DF(const Iterator&)>::type::element_type::key_t;
 
-            namespace details
-            {
-                template <class Iter, class Func, class Policy>
-                using effective_policy_t = typename std::conditional<
-                    std::is_same<Policy, policy::cached> ::value,
-                    FunctionResultCachedPolicy<Iter, Func>,
-                    typename std::conditional<
-                    std::is_same<Policy, policy::no_cache> ::value,
-                    FunctionResultNoCachePolicy<Iter, Func>,
-                    Policy
-                >::type >
-                    ::type
-                    ;
+            template <class DF, class Iterator>
+            using MapResultType = typename std::result_of<DF(const Iterator&)>::type;
+        }
 
-
-            }
-        } //ns:policy
-        
-        /**
-        *
-        */
-        template <class Iterator, bool is_ordered>
-        struct PrefixRange : std::enable_shared_from_this< PrefixRange<Iterator, is_ordered> >
+        /** Unordered range */
+        template <class K, class V>
+        struct RangeBase : public std::enable_shared_from_this< RangeBase<K, V> >
         {
-            static constexpr bool is_ordered_c = is_ordered;
-            typedef Iterator iterator;
-            typedef PrefixRange<Iterator, is_ordered> this_t;
+            static constexpr bool is_ordered_c = false;
+            using iterator = RangeIterator<K, V>;
+            using key_t = K;
+            using value_t = V;
 
-            virtual ~PrefixRange() = default;
+            using range_t = RangeBase<K, V>;
+            using range_ptr = std::shared_ptr<range_t const>;
 
+            virtual ~RangeBase() = default;
             virtual iterator begin() const = 0;
-            /** Acts same as begin, but allows skip some records before
-            * @param p predicate that should return true for the first matching and false to skip record
-            */
-            template <class UnaryPredicate>
-            iterator first_that(UnaryPredicate && p) const
+            virtual bool in_range(const iterator & check) const = 0;
+            virtual void next(iterator & i) const = 0;
+
+            iterator end() const
             {
-                auto i = begin();
-                for (; in_range(i) && !p(i); next(i))
-                {/* empty */
-                }
-                return i;
+                return iterator{nullptr, nullptr};
             }
 
-            virtual bool in_range(const iterator& check) const = 0;
-            virtual void next(iterator& pos) const = 0;
+            //range_ptr merge_all(range_ptr other) const;
 
-            template <class UnaryFunction, class KeyPolicy>
-            using functional_range_t = FunctionalRange<this_t, UnaryFunction, policy::details::effective_policy_t<iterator, UnaryFunction, KeyPolicy> >;
-            /**
-            *   \code std::result_of<UnaryFunction(typename iterator::value_type)>::type >::type
-            */
-            template <class KeyPolicy, class UnaryFunction>
-            inline std::shared_ptr< functional_range_t<UnaryFunction, KeyPolicy > > map(UnaryFunction && f) const
-            {
-                return std::make_shared<functional_range_t<UnaryFunction, KeyPolicy >>(*this, std::forward<UnaryFunction>(f));
-            }
+            template<class ...Rs>
+            range_ptr merge_all(Rs... other) const;
 
-            template <class UnaryFunction>
-            inline std::shared_ptr< functional_range_t<UnaryFunction, policy::no_cache> > map(UnaryFunction && f) const
-            {
-                return map<policy::no_cache>(std::forward<UnaryFunction>(f));
-            }
-            /**
-            *   Declare type for result of `filter` operation. Depending on suppot of this_t order. Fitlered range may or may not support order as well
+            /** 
+            * Convert one range to another with same number of items by applying functor to iterator
+            * @return new un-ordered range
             */
-            using filtered_range_t = std::conditional_t<
-                is_ordered,
-                OrderedFilteredRange<this_t>,
-                FilteredRange<this_t>
-            >;
-            /**
-            *   Produce new range that fitlers-out some record from this one
-            */
-            template <class UnaryPredicate>
-            std::shared_ptr< filtered_range_t> filter(UnaryPredicate f) const
-            {
-                return filter_impl(std::forward<UnaryPredicate>(f), 0);
-            }
-
-            template <class OtherRange>
-            inline std::shared_ptr< UnionAllRange<this_t, OtherRange> > merge_all(std::shared_ptr< OtherRange > & range,
-                typename UnionAllRange<this_t, OtherRange>::iterator_comparator_t && cmp) const;
+            template <class Converter>
+            std::shared_ptr< RangeBase<flatten_details::MapResultType<Converter, iterator>, V> const> map( Converter f ) const;
+            
+            template <class F>
+            range_ptr filter(F f) const;
             /** 
             *   Apply operation `f` to the each item of this range
-            *   \tparam Operation - functor that may have one of the following form:<ul>
-            *       <li> `void f(const& iterator)` - use to iterate all items </li>
-            *       <li> `bool f(const& iterator)` - use to iterate untill predicate returns true (take-while semantic)</li>
-            *   </ul>
+            *   \tparam Operation - functor in the following form `void f(const& iterator)` 
             *   \return number of items processed
+            *   \see `awhile` to conditionally stop iteration and `first_that` to find exact item
             */
             template <class Operation>
-            typename std::enable_if< /*Apply to `void Operation(const &iterator)` */
-                !std::is_convertible<
-                typename std::result_of<
-                Operation(const iterator&) >::type,
-                bool>::value, size_t
-            >::type for_each(Operation && f) const
+            size_t for_each(Operation && f) const
             {
                 size_t n = 0;
                 for (auto i = begin(); in_range(i); next(i), ++n)
-                {
+                {                                                                                                                 
                     f(i);
                 }
                 return n;
-
             }
-            template <class Operation>
-            typename std::enable_if</*Apply to `bool Operation(const &iterator)` */
-                std::is_convertible<typename std::result_of< Operation(const iterator&)>::type, bool>::value, size_t
-            >::type for_each(Operation && f) const
+
+            /** 
+            *   Apply operation `f` to the items of this range until `f` returns true
+            *   \tparam Operation - functor in the following form `bool f(const& iterator)` 
+            *   \return number of items processed
+            */
+            template <class Predicate>
+            size_t awhile(Predicate && f) const
             {
                 size_t n = 0;
                 for (auto i = begin(); in_range(i); next(i), ++n)
@@ -224,6 +215,17 @@ namespace OP
                     }
                 }
                 return n;
+            }
+            /** Acts same as begin, but allows skip some records before
+            * @param p predicate that should return true for the first matching and false to skip a record
+            */
+            iterator first_that(bool (*p)(const iterator&) ) const
+            {
+                auto i = begin();
+                for (; in_range(i) && !p(i); next(i))
+                {/* empty */
+                }
+                return i;
             }
             /**
             *   Count number of entries in this range. Since range may be big use this operation responsibly because complexity is O(N).
@@ -241,8 +243,9 @@ namespace OP
             /**Allows check if range is empty. Complexity is close to O(1) */
             bool empty() const
             {
-                return in_range(begin());
+                return !in_range(begin());
             }
+
             /**
             *  Produce range consisting of the results of replacing each element of this range with the contents `deflate_function`.
             * \tparam DeflateFunction functor that accepts this range iterator and returns 
@@ -251,25 +254,46 @@ namespace OP
             * \return ordered range merged together from produced by `deflate_function`
             */
             template <class DeflateFunction>
-            std::shared_ptr< FlattenRange<this_t, DeflateFunction > > flatten(DeflateFunction deflate_function) const;
+            std::shared_ptr< OrderedRange< flatten_details::DeflateResultType<DeflateFunction, iterator>, V > const > flatten(DeflateFunction deflate_function) const;
+        };
+        
+
+        /** Ordered range abstraction */
+        template <class K, class V>
+        struct OrderedRange : public RangeBase<K, V>
+        {
+            static constexpr bool is_ordered_c = true;
+            using ordered_range_t = OrderedRange<K, V>;
+            using ordered_range_ptr = std::shared_ptr<ordered_range_t const>;
+            using key_comparator_t = std::function<int(const K&, const K&)>;
+
+            virtual iterator lower_bound(const K&) const = 0;
+
+            ordered_range_ptr join(ordered_range_ptr range) const
+            {
+                //std::shared_ptr<OrderedRange<Iterator> const> the_ptr(std::static_pointer_cast<OrderedRange<Iterator> const> (shared_from_this()));
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                using range_impl_t = JoinRange<ordered_range_t, ordered_range_t>;
+                return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(range), key_comp()));
+            }
+
+            /** FIlter that keep ordering of this range hide the same function form parent RangeBase */
+            template <class UnaryPredicate>
+            ordered_range_ptr filter(UnaryPredicate f) const;
+
+            const key_comparator_t& key_comp() const
+            {
+                return _key_cmp;
+            }
+        protected:
+            OrderedRange(key_comparator_t key_cmp)
+                : _key_cmp(std::move(key_cmp))
+            {}
 
         private:
-
-            /** Case when filter supports orders*/
-            template <class UnaryPredicate, class Q = std::enable_if_t<is_ordered, std::shared_ptr< filtered_range_t> > >
-            Q filter_impl(UnaryPredicate && f, int) const
-            {
-                return std::make_shared<filtered_range_t>(
-                    shared_from_this(), std::forward<UnaryPredicate>(f));
-            }
-            /** Case when filter over non-ordered sequence*/
-            template <class UnaryPredicate>
-            std::shared_ptr< filtered_range_t > filter_impl(UnaryPredicate && f, ...) const
-            {
-                return std::make_shared<filtered_range_t>(
-                    shared_from_this(), std::forward<UnaryPredicate>(f));
-            }
+            key_comparator_t _key_cmp;
         };
+
 
         /**@return \li 0 if left range equals to right;
         \li < 0 - if left range is lexicographical less than right range;
@@ -294,41 +318,46 @@ namespace OP
        
         /**
         *   Implement range that filters source range by some `UnaryPredicate` criteria
-        * \tparam UnaryPredicate boolean functor that accepts iterator as input argument and returns true 
-        *       if position should appear in result.
         */
-        template <class SourceRange, class Base >
-        struct FilteredRangeBase : public Base
+        template <class SourceRange>
+        struct FilteredRange : public SourceRange
         {
-            using iterator = typename SourceRange::iterator;
-
-            template <class UnaryPredicate>
-            FilteredRangeBase(std::shared_ptr<const SourceRange > source_range, UnaryPredicate && predicate)
-                : _source_range(source_range)
-                , _predicate(std::forward<UnaryPredicate>(predicate))
+            using base_iter_t = typename SourceRange::iterator;
+            /** 
+            * \tparam UnaryPredicate boolean functor that accepts iterator as input argument and returns true 
+            * if position should appear in result.
+            */
+            template <class UnaryPredicate, class ... Tx>
+            FilteredRange(std::shared_ptr<const SourceRange > source_range, UnaryPredicate&& predicate, Tx&& ... args)
+                : SourceRange(std::forward<Tx>(args)...)
+                , _source_range(source_range)
+                , _predicate(std::move(predicate))
             {}
-            iterator begin() const override
+
+            base_iter_t begin() const 
             {
                 auto i = _source_range->begin();
                 seek(i);
                 return i;
             }
-            bool in_range(const iterator& check) const override
+            bool in_range(const base_iter_t& check) const
             {
                 return _source_range->in_range(check);
             }
-            void next(iterator& pos) const override
+            void next(base_iter_t& pos) const
             {
                 _source_range->next(pos);
                 seek(pos);
             }
 
         protected:
+
+
             std::shared_ptr<const SourceRange> source_range() const
             {
                 return _source_range;
             }
-            void seek(iterator& i)const
+            void seek(base_iter_t& i) const
             {
                 for (; _source_range->in_range(i); _source_range->next(i))
                 {
@@ -339,166 +368,20 @@ namespace OP
                 }
             }
         private:
-
             std::shared_ptr<const SourceRange> _source_range;
-            std::function<bool(const iterator&)> _predicate;
-        };
-
-        template <class SourceRange>
-        struct FilteredRange : public FilteredRangeBase<SourceRange, PrefixRange<typename SourceRange::iterator, false>>
-        {
-            using base_t = FilteredRangeBase<SourceRange, PrefixRange<typename SourceRange::iterator, false>>;
-            using base_t::base_t;
-        };
-
-        using shared_void_ptr = std::shared_ptr<void>;
-        template<typename T>
-        inline shared_void_ptr make_shared_void(T * ptr)
-        {
-            return std::shared_ptr<void>(ptr, [](void const * data) {
-                T const * p = static_cast<T const*>(data);
-                delete p;
-            });
-        }
-        /**
-        *   Helper class to add some payload for arbitrary iterator
-        */
-        template <class BaseIterator>
-        struct IteratorWrap : public BaseIterator
-        {
-            IteratorWrap(const BaseIterator & base_iter, shared_void_ptr payload) noexcept
-                : BaseIterator((base_iter))
-                , _payload(std::forward<shared_void_ptr>(payload))
-            {}
-            auto key() -> decltype(key_discovery::key(std::declval<const BaseIterator&>())) const
-            {
-                return key_discovery::key(*this);
-            }
-            const shared_void_ptr& payload() const
-            {
-                return _payload;
-            }
-        private:
-            shared_void_ptr _payload;
-        };
-
-        namespace key_discovery {
-
-            template <class BaseIterator>
-            inline auto key(const IteratorWrap<BaseIterator>& i) -> std::add_const_t< decltype(i.key()) >&
-            {
-                return i.key();
-            }
-
-            template <class BaseIterator>
-            inline auto value(const IteratorWrap<BaseIterator>& i) 
-                -> decltype( OP::ranges::key_discovery::value(static_cast<BaseIterator>(i) ))
-            {
-                return OP::ranges::key_discovery::value(static_cast<BaseIterator>(i) );
-            }
-
-            /**
-            *   Specialization of discovery key from iterators for types that support dereferncing of "first". For example it 
-            *   may be iterators produced by std::map
-            */
-            template <class I>
-            auto key(const I& i) -> decltype(i->first)
-            {
-                return i->first;
-            }
-            template <class I>
-            auto value(const I& i) -> decltype(i->second)
-            {
-                return i->second;
-            }
-            
-            
-            /**
-            *   Specialization of discovery key from iterators for types that may return value by "key()" method. For example it
-            *   may be iterators produced by other OrderedRange
-            */
-            template <class I>
-            auto key(const I& i) ->decltype(i.key())
-            {
-                return i.key();
-            }
-
-            template <class I>
-            auto value(const I& i) -> decltype(i.key(), *i )
-            {
-                return *i;
-            }
-        } //ns:key_discovery
-
-
-        template <class Iterator>
-        struct OrderedRange : public PrefixRange<Iterator, true>
-        {
-            using iterator = Iterator;
-            
-            using this_t = OrderedRange<iterator>;
-            using key_type = decltype(OP::ranges::key_discovery::key(std::declval<const iterator&>()));
-            using key_t = key_type;
-
-            template <class OtherRange>
-            using join_comparator_t =
-                std::function<int(const key_type&, const typename OtherRange::key_type&)>;
-            //typename join_range_t < OtherRange> ::iterator_comparator_t;
-
-            using key_comparator_t =
-                std::function<int(const key_type&, const key_type&)>;
-            
-            using join_iterator_t = IteratorWrap<iterator>;
-            using join_range_t = OrderedRange< join_iterator_t > ;
-
-            OrderedRange() = default;
-
-            OrderedRange(key_comparator_t key_cmp)
-                : _key_cmp(std::forward<key_comparator_t>(key_cmp))
-            {}
-
-
-            template <class OtherRange>
-            inline std::shared_ptr< join_range_t > join(std::shared_ptr< OtherRange const > range,
-                join_comparator_t<OtherRange> cmp) const;
-
-            template <class OtherRange>
-            inline std::shared_ptr< join_range_t > join(std::shared_ptr< OtherRange > range,
-                join_comparator_t<OtherRange> cmp) const
-            {
-                std::shared_ptr< OtherRange const > cast{ range };
-                return join(cast, cmp);
-            }
-
-            template <class OtherRange>
-            inline std::shared_ptr< join_range_t > join(std::shared_ptr< OtherRange const > range) const
-            {
-                return this->join(range, [this](auto const& left, auto const& right)->int {
-                    return key_comp()(left, right);
-                });
-            }
-            
-            const key_comparator_t& key_comp() const
-            {
-                return _key_cmp;
-            }
-            virtual iterator lower_bound(const key_type& key) const = 0;
-        
-        private:
-            key_comparator_t _key_cmp;
+            std::function<bool(const base_iter_t&)> _predicate;
         };
 
 
         template <class SourceRange>
         struct OrderedFilteredRange : 
-            public FilteredRangeBase<SourceRange, OrderedRange< typename SourceRange::iterator > >
+            public FilteredRange< SourceRange >
         {
-            using ordered_base_t = OrderedRange< typename SourceRange::iterator >;
-            using base_t = FilteredRangeBase<SourceRange, ordered_base_t>;
-            using iterator = typename SourceRange::iterator;
+            using base_t = FilteredRange<SourceRange>;
+
             using base_t::base_t;
 
-            iterator lower_bound(const typename ordered_base_t::key_type& key) const override
+            base_iter_t lower_bound(const typename base_t::key_t& key) const override
             {
                 auto lower = static_cast<const base_t&>(*source_range()).lower_bound(key);
                 seek(lower);
@@ -506,69 +389,92 @@ namespace OP
             } 
         };
 
-
-
 }//ns:ranges
 }//ns:OP
-
-
-#include <op/ranges/UnionAllRange.h>
+namespace std
+{
+    template<class K, class V> struct iterator_traits< OP::ranges::RangeIterator<K, V> >
+    {
+        typedef std::forward_iterator_tag iterator_category;
+        typedef void value_type;
+        typedef void difference_type;
+    };
+}
 #include <op/ranges/FlattenRange.h>
+#include <op/ranges/FunctionalRange.h>
 #include <op/ranges/JoinRange.h>
+#include <op/ranges/UnionAllRange.h>
 
 namespace OP{
     namespace ranges {
         
 
-        template<class Iterator, bool is_ordered>
-        template<class OtherRange>
-        inline std::shared_ptr<UnionAllRange<PrefixRange<Iterator, is_ordered>, OtherRange>> PrefixRange<Iterator, is_ordered>::merge_all(
-            std::shared_ptr< OtherRange> & other, typename UnionAllRange<PrefixRange<Iterator, is_ordered>, OtherRange>::iterator_comparator_t && cmp) const
+        template<class K, class V>
+        template<class ...Rs>
+        std::shared_ptr<RangeBase<K, V> const> RangeBase<K, V>::merge_all(Rs... other) const
         {
-            
-            typedef UnionAllRange<PrefixRange<typename Iterator, is_ordered>, OtherRange> merge_all_t;
-            return std::make_shared<merge_all_t>(
-                shared_from_this(),
-                other,
-                std::forward<typename merge_all_t::iterator_comparator_t>(cmp)
-            );
+            using merge_all_t = UnionAllRange<range_t>;
+            return std::shared_ptr<RangeBase<K, V> const>(new merge_all_t(
+                {
+                    std::const_pointer_cast<range_t const>(shared_from_this()),
+                    std::forward<Rs>(other)...
+                }
+            ));
         }
 
-        template<class Iterator, bool is_ordered>
-        template <class DeflateFunction>
-        std::shared_ptr< FlattenRange< PrefixRange<Iterator, is_ordered>, DeflateFunction > >  PrefixRange<Iterator, is_ordered>::flatten(DeflateFunction deflate_function) const
+        template<class K, class V>
+        template <class Converter>
+        std::shared_ptr< RangeBase<flatten_details::MapResultType<Converter, typename RangeBase<K, V>::iterator>, V> const> RangeBase<K, V>::map(Converter f) const
         {
-            using traits_t = details::FlattenTraits<this_t, DeflateFunction>;
+            using map_range_t = FunctionalRange<range_t, Converter>;
+            using result_key_t = flatten_details::MapResultType<Converter, typename RangeBase<K, V>::iterator>;
+
+            map_range_t *ptr = new map_range_t(
+                std::const_pointer_cast<range_t const>(shared_from_this()), std::move(f));
+            
+            return std::shared_ptr< RangeBase<result_key_t, V> const>(ptr);
+        }
+        template<class K, class V>
+        template <class UnaryPredicate>
+        std::shared_ptr< RangeBase<K, V> const> RangeBase<K, V>::filter(UnaryPredicate f) const
+        {
+            using filter_t = FilteredRange<range_t>;
+            return range_ptr ( new filter_t(
+                shared_from_this(), std::forward<UnaryPredicate>(f)) );
+        }
+
+        template<class K, class V>
+        template <class UnaryPredicate>
+        std::shared_ptr< OrderedRange<K, V> const> OrderedRange<K, V>::filter(UnaryPredicate f) const
+        {
+            using filter_t = OrderedFilteredRange< OrderedRange<K, V> >;
+            return ordered_range_ptr(new filter_t(
+                std::static_pointer_cast<ordered_range_t const>(shared_from_this()), std::forward<UnaryPredicate>(f), this->_key_cmp));
+        }
+
+        template<class K, class V>
+        template <class DeflateFunction>
+        std::shared_ptr< OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename RangeBase<K, V>::iterator>, V > const >
+            RangeBase<K, V>::flatten(DeflateFunction deflate_function) const
+        {
+            using traits_t = details::FlattenTraits<range_t, DeflateFunction>;
             static_assert(traits_t::applicator_result_t::is_ordered_c, "DeflateFunction function must produce ordered range, otherwise use unordered_flatten");
-            std::shared_ptr<this_t> source = std::const_pointer_cast<this_t>(shared_from_this());
-            auto ptr = new FlattenRange<this_t, DeflateFunction >(
-                source,
+            //std::shared_ptr<range_t> source = std::const_pointer_cast<range_t>(shared_from_this());
+            auto ptr = new FlattenRange<range_t, DeflateFunction >(
+                shared_from_this(),
                 std::forward<DeflateFunction>(deflate_function),
                 [](const auto& left, const auto& right) {
-                auto const &inpl_l = OP::ranges::key_discovery::key(left);
-                auto const &inpl_r = OP::ranges::key_discovery::key(right);
                 return OP::ranges::str_lexico_comparator(
-                    std::begin(inpl_l), std::end(inpl_l),
-                    std::begin(inpl_r), std::end(inpl_r)
+                    std::begin(left), std::end(left),
+                    std::begin(right), std::end(right)
                 );
             }
             );
-            std::shared_ptr< FlattenRange< PrefixRange<Iterator, is_ordered>, DeflateFunction > > result{
+            std::shared_ptr< OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename RangeBase<K, V>::iterator>, V > const > result{
                 ptr
             };
             return result;
                 //make_flatten_range(std::static_pointer_cast<const this_t>(shared_from_this()), std::forward<DeflateFunction>(deflate_function));
-        }
-
-        template <class Iterator>
-        template <class OtherRange>
-        inline std::shared_ptr< OrderedRange<IteratorWrap<Iterator>> > OrderedRange<Iterator>::join(std::shared_ptr<OtherRange const> range,
-            join_comparator_t<OtherRange> cmp) const
-        {
-            std::shared_ptr<OrderedRange<Iterator> const> the_ptr( std::static_pointer_cast<OrderedRange<Iterator> const> (shared_from_this()) );
-            using range_impl_t = JoinRange<this_t, OtherRange>;
-            auto r = new range_impl_t(the_ptr, range, std::forward<join_comparator_t<OtherRange>>(cmp));
-            return std::shared_ptr<join_range_t>(r);
         }
 }//ns:ranges
 }//ns:OP

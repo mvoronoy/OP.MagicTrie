@@ -24,7 +24,9 @@ namespace OP
 
         template <class TTrie>
         using PrefixSubrangeAdapter = MixAlgorithmRangeAdapter<TTrie, 
-            typename Ingredient<TTrie>::PrefixedBegin, typename Ingredient<TTrie>::PrefixedInRange >;
+            typename Ingredient<TTrie>::PrefixedBegin, 
+            typename Ingredient<TTrie>::PrefixedLowerBound,
+            typename Ingredient<TTrie>::PrefixedInRange >;
         
         /**Used to iterate over immediate children of parent iterator*/
         template <class TTrie>

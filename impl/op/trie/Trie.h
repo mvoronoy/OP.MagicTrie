@@ -39,13 +39,15 @@ namespace OP
         struct Trie : public std::enable_shared_from_this< Trie<TSegmentManager, Payload, initial_node_count> >
         {
         public:
-            typedef Payload payload_t;
-            typedef Trie<TSegmentManager, payload_t, initial_node_count> trie_t;
-            typedef trie_t this_t;
-            typedef TrieIterator<this_t> iterator;
-            typedef payload_t value_type;
-            typedef TrieNode<payload_t> node_t;
-            typedef TriePosition poistion_t;
+            using payload_t = Payload ;
+            using trie_t = Trie<TSegmentManager, payload_t, initial_node_count> ;
+            using this_t = trie_t ;
+            using iterator = TrieIterator<this_t>;
+            using value_type = payload_t;
+            using node_t = TrieNode<payload_t> ;
+            using poistion_t = TriePosition ;
+            using key_t = atom_string_t;
+            using value_t = payload_t;
 
             virtual ~Trie()
             {
@@ -172,13 +174,13 @@ namespace OP
                 }
                 
             }
-            using range_adapter_ptr = std::shared_ptr<TrieRangeAdapter<this_t>>;
+            using range_adapter_ptr = std::shared_ptr<TrieRangeAdapter<this_t> const>;
             /**
             *   @return range that embrace all records by pair [ begin(), end() )
             */
             range_adapter_ptr range() const
             {
-                return std::make_shared<TrieRangeAdapter<this_t> >(shared_from_this());
+                return std::make_shared<TrieRangeAdapter<this_t> const>(shared_from_this());
             }
 
             /** return first entry that contains prefix specified by string [begin, aend) 
@@ -229,7 +231,9 @@ namespace OP
                 atom_string_t prefix(begin, aend);
 
                 return make_mixed_range(shared_from_this(),
-                    typename Ingredient<this_t>::PrefixedBegin( prefix ), typename Ingredient<this_t>::PrefixedInRange (StartWithPredicate(prefix)) );                
+                    typename Ingredient<this_t>::PrefixedBegin( prefix ), 
+                    typename Ingredient<this_t>::PrefixedLowerBound(prefix),
+                    typename Ingredient<this_t>::PrefixedInRange (StartWithPredicate(prefix)) );                
             }
             /**
             *   Just shorthand notation for: 
@@ -242,17 +246,20 @@ namespace OP
             subrange_container_ptr prefixed_range(const AtomContainer& prefix) const
             {
                 return make_mixed_range(shared_from_this(),
-                    typename Ingredient<this_t>::PrefixedBegin(prefix), typename Ingredient<this_t>::PrefixedInRange(StartWithPredicate(prefix)) );
+                    typename Ingredient<this_t>::PrefixedBegin(prefix), 
+                    typename Ingredient<this_t>::PrefixedLowerBound(prefix),
+                    typename Ingredient<this_t>::PrefixedInRange(StartWithPredicate(prefix)) 
+                );
             }
 
             /**
             *   @return range that is flatten-range of all prefixes contained in param `container`.
             */
             template <class Range>
-            auto flatten_subrange(std::shared_ptr<Range>& container) const
+            auto flatten_subrange(std::shared_ptr<Range const>& container) const
             {
                 return make_flatten_range(container, [this](const auto& i) {
-                    return prefixed_range(OP::ranges::key_discovery::key(i));
+                    return prefixed_range(i.key());
                 });
             }
 
@@ -435,7 +442,7 @@ namespace OP
                 return make_mixed_range(
                     shared_from_this(), 
                     typename Ingredient<this_t>::ChildBegin{of_this}, 
-                    typename Ingredient<this_t>::ChildInRange{StartWithPredicate(OP::ranges::key_discovery::key(of_this))}
+                    typename Ingredient<this_t>::ChildInRange{StartWithPredicate(of_this.key())}
                 );
             }
 

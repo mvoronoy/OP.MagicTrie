@@ -14,120 +14,101 @@ namespace OP
     {
         
         template <class OwnerRange>
-        struct UnionAllRangeIterator :
-            public std::iterator<
-            std::forward_iterator_tag,
-            typename OwnerRange::left_iterator::value_type
-            >
+        struct UnionAllRangeIteratorPayload : public OwnerRange::iterator::RangeIteratorImpl
         {
-            typedef UnionAllRangeIterator<OwnerRange> this_t;
-            typedef typename OwnerRange::left_iterator::value_type value_type;
-            using key_type = decltype(key_discovery::key(std::declval<typename OwnerRange::left_iterator>()));
-
             friend OwnerRange;
-            UnionAllRangeIterator(std::shared_ptr<const OwnerRange> owner_range,
-                typename OwnerRange::left_iterator && left,
-                typename OwnerRange::right_iterator && right)
-                : _owner_range(owner_range)
-                , _left(std::move(left))
-                , _right(std::move(right))
+            using range_iterator = typename OwnerRange::iterator;
+            using base_t = typename range_iterator::RangeIteratorImpl;
+            using key_t = typename OwnerRange::key_t;
+            using value_t = typename OwnerRange::value_t;
+            using united_ranges_t = std::vector<
+                std::shared_ptr< RangeBase<key_t, value_t> const >
+            >;
+            UnionAllRangeIteratorPayload(united_ranges_t ranges,
+                range_iterator actual)
+                : _ranges(std::move(ranges))
+                , _actual(actual)
             {}
-            this_t& operator ++()
+            virtual const key_t& key() const
             {
-                _owner_range.next(*this);
-                return *this;
+                return _actual.key();
             }
-            this_t operator ++(int)
+            virtual const value_t& value() const
             {
-                this_t result = *this;
-                _owner_range.next(*this);
-                return result;
+                return _actual.value();
             }
-            value_type operator* () const
+            virtual std::unique_ptr<base_t> clone() const
             {
-                return _left_less ? *_left : *_right;
+                return std::unique_ptr<base_t>(new UnionAllRangeIteratorPayload(_ranges, _actual));
             }
-            key_type key() const
+        protected:
+            void seek_next()
             {
-                return _left_less ? key_discovery::key(_left) : key_discovery::key(_right);
+                if(_ranges.empty())
+                    return;
+                _ranges.back()->next(_actual);
+                if (!_ranges.back()->in_range(_actual))
+                {
+                    _ranges.pop_back();
+                    if(!_ranges.empty())
+                        _actual = std::move(_ranges.back()->begin());
+                }
             }
-
         private:
-            
-            std::shared_ptr<const OwnerRange> _owner_range;
-            bool _left_less = false;
-            typename OwnerRange::left_iterator _left;
-            typename OwnerRange::right_iterator _right;
+            united_ranges_t _ranges;
+            range_iterator _actual;
         };
 
-        template <class SourceRange1, class SourceRange2>
-        struct UnionAllRange : public PrefixRange<
-            UnionAllRangeIterator< UnionAllRange<SourceRange1, SourceRange2> >, false >
+        template <class SourceRange>
+        struct UnionAllRange : public RangeBase<typename SourceRange::key_t, typename SourceRange::value_t>
         {
-            typedef UnionAllRange<SourceRange1, SourceRange2> this_t;
-            typedef typename SourceRange1::iterator left_iterator;
-            typedef typename SourceRange2::iterator right_iterator;
+            using this_t = UnionAllRange<SourceRange>;
+            using united_ranges_t = std::vector<range_ptr>;
+            using payload_t = UnionAllRangeIteratorPayload< this_t >;
 
-            /*@! review to remove this assert
-            static_assert(
-                std::is_convertible<typename right_iterator::key_type, typename left_iterator::key_type>::value
-                && std::is_convertible<typename right_iterator::value_type, typename left_iterator::value_type>::value
-                , "Right iterator of merge must have convertible key/value type to left iterator");
-            */
-            typedef std::function<int(const left_iterator&, const right_iterator&)> iterator_comparator_t;
-            typedef UnionAllRangeIterator<this_t> iterator;
-            /**
-            * @param iterator_comparator - binary predicate `int(const iterator&, const iterator&)` that implements 'less' compare of current iterator positions
-            */
-
-            UnionAllRange(std::shared_ptr<const SourceRange1> r1, std::shared_ptr<const SourceRange2> r2, iterator_comparator_t && iterator_comparator)
-                : _left(r1)
-                , _right(r2)
-                , _iterator_comparator(std::forward<iterator_comparator_t>(iterator_comparator))
+            UnionAllRange(united_ranges_t ranges)
+                : _ranges(std::move(ranges))
             {
             }
             UnionAllRange() = delete;
             iterator begin() const override
             {
-                iterator result(std::static_pointer_cast<const this_t>(shared_from_this()), _left->begin(), _right->begin());
-                seek(result);
+                united_ranges_t actual_ranges; 
+                actual_ranges.reserve(_ranges.size());
+                //start copy from non-empty range
+                std::copy_if(std::begin(_ranges), std::end(_ranges), std::back_inserter(actual_ranges),
+                    [](const auto& i) { return !i->empty(); });
+                
+                std::unique_ptr<payload_t> payload;
+                if(!actual_ranges.empty())
+                {
+                    auto beg = actual_ranges.back()->begin();
+                    payload = std::unique_ptr<payload_t> (
+                            new payload_t(std::move(actual_ranges), std::move(beg)));
+                };
+                iterator result(
+                    std::const_pointer_cast<range_t const>(shared_from_this()), 
+                    std::move(payload));
                 return result;
             }
             bool in_range(const iterator& check) const override
             {
-                return _left->in_range(check._left) || _right->in_range(check._right);
+                if(!check)
+                    return false;
+                const auto& pload = check.impl<payload_t>();
+                return !pload._ranges.empty();
             }
             void next(iterator& pos) const override
             {
-                pos._left_less ? _left->next(pos._left):_right->next(pos._right);
-                seek(pos);
+                if(!pos)
+                    return;
+                auto& pload = pos.impl<payload_t>();
+                pload.seek_next();
             }
         private:
-            void seek(iterator &pos) const
-            {
-                bool good_left = _left->in_range(pos._left), good_right = _right->in_range(pos._right); 
-                if(good_right || good_left)
-                {
-                    auto diff = (good_right && good_left) 
-                        ? _iterator_comparator(pos._left, pos._right)
-                        : (good_right ? 1 : -1);
-                    pos._left_less = diff <= 0;
-                }
-            }
-            std::shared_ptr<const SourceRange1> _left;
-            std::shared_ptr<const SourceRange2> _right;
-            const iterator_comparator_t _iterator_comparator;
+            united_ranges_t _ranges;
         };
 
-        namespace key_discovery {
-
-            template <class SomeRange>
-            inline auto key(const UnionAllRangeIterator<SomeRange>& i) -> decltype(i.key())
-            {
-                return i.key();
-            }
-
-        }//ns: key_discovery
     } //ns: ranges
 } //ns: OP
 #endif //_OP_RANGES_UNION_ALL_RANGE__H_

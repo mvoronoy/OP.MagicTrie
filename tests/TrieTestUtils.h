@@ -25,8 +25,8 @@ void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const 
             OP_CODE_DETAILS()<<"step#"<< n << " has:" << ti.key().length() << ", while expected:" << mi->first.length());
         tresult.assert_true(tools::container_equals(ti.key(), mi->first, &tools::sign_tolerant_cmp<atom_t>),
             OP_CODE_DETAILS()<<"step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.key().c_str());
-        tresult.assert_that<equals>(OP::ranges::key_discovery::value(ti), mi->second,
-            OP_CODE_DETAILS()<<"Associated value error, has:" << OP::ranges::key_discovery::value(ti) << ", expected:" << mi->second );
+        tresult.assert_that<equals>(ti.value(), mi->second,
+            OP_CODE_DETAILS()<<"Associated value error, has:" << ti.value() << ", expected:" << mi->second );
     }
     if(mi != std::end(map))
     {

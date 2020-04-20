@@ -14,11 +14,13 @@ namespace OP
         namespace storage_policy
         {
             template <class Range>
-            struct StoragePolicy
+            struct StoragePolicy : public Range::iterator::RangeIteratorImpl
             {
-                typedef std::shared_ptr<const Range> range_ptr;
-                typedef std::pair<range_ptr, typename Range::iterator> flat_item_t;
-                typedef std::shared_ptr<flat_item_t> flat_item_ptr;
+                using range_ptr = std::shared_ptr<const Range> ;
+                using flat_item_t = std::pair<range_ptr, typename Range::iterator> ;
+                using flat_item_ptr = std::shared_ptr<flat_item_t>;
+                using key_t = typename Range::key_t;
+                using value_t = typename Range::value_t;
 
                 virtual ~StoragePolicy() = default;
                 virtual void push(flat_item_ptr& ) = 0;
@@ -26,12 +28,24 @@ namespace OP
                 virtual flat_item_ptr smallest() const = 0;
                 virtual bool is_empty() const = 0;
 
+
+                const key_t& key() const override
+                {
+                    return smallest()->second.key();
+                }
+                const value_t& value() const override
+                {
+                    return smallest()->second.value();
+                }
             };
-            template <class Range, class IteratorComparator>
+            template <class Range, class KeyComparator>
             struct PriorityQueueSetStorage : public StoragePolicy<Range>
             {
-                PriorityQueueSetStorage(const IteratorComparator& comparator) noexcept
+                PriorityQueueSetStorage(const KeyComparator& comparator) noexcept
                     : _item_set(flat_less(comparator))
+                {}
+                PriorityQueueSetStorage(const PriorityQueueSetStorage& other) noexcept
+                    : _item_set(other._item_set)
                 {}
                 void push(flat_item_ptr& item) override
                 {
@@ -51,21 +65,25 @@ namespace OP
                 {
                     return _item_set.empty();
                 }
+                std::unique_ptr<typename Range::iterator::RangeIteratorImpl> clone() const override
+                {
+                    return std::unique_ptr<RangeIteratorImpl>(new PriorityQueueSetStorage(*this));
+                }
             private:
                 struct flat_less
                 {
                     flat_less() = delete;
-                    flat_less(const IteratorComparator& comparator):
+                    flat_less(const KeyComparator& comparator):
                         _comparator(comparator)
                     {}
                     bool operator ()(const flat_item_ptr& left, const flat_item_ptr& right) const
                     {
                         assert(left->first->in_range(left->second) &&
                             right->first->in_range(right->second));
-                        auto test = _comparator(left->second, right->second);
+                        auto test = _comparator(left->second.key(), right->second.key());
                         return test > 0; // >0 implments 'greater' - to invert default priority_queue behaviour
                     }
-                    const IteratorComparator& _comparator;
+                    const KeyComparator& _comparator;
                 };
                 using flat_store_t = std::vector<flat_item_ptr>;
                 using flat_item_set_t = std::priority_queue<flat_item_ptr, flat_store_t, flat_less> ;
@@ -94,84 +112,40 @@ namespace OP
                 using key_t = typename applicator_result_t::key_t;
 
                 using value_type = typename applicator_result_t::iterator::value_type ;
-                using iterator_comparator_t = std::function<int(const typename applicator_result_t::iterator&, const typename applicator_result_t::iterator&)> ;
-                using store_t = typename storage_policy::PriorityQueueSetStorage< applicator_result_t, iterator_comparator_t > ;
+                using key_comparator_t = typename range_t::key_comparator_t;
+                using store_t = typename storage_policy::PriorityQueueSetStorage< applicator_result_t, key_comparator_t > ;
             };
 
         } //ns:details
 
-        template <class FlattenTraits>
-        struct FlattenRangeIterator 
-        {
-            using iterator_category = std::forward_iterator_tag;
-            using source_iterator_t = typename FlattenTraits::source_iterator_t;
-            using this_t = FlattenRangeIterator<FlattenTraits> ;
-            using value_type = typename FlattenTraits::value_type;
-            using key_type = typename FlattenTraits::key_type ;
-            using key_t = typename FlattenTraits::key_type;
-            using owner_range_t = typename FlattenTraits::range_t;
-            using store_t = typename FlattenTraits::store_t ;
-            friend FlattenTraits::range_t;
-
-            FlattenRangeIterator(std::shared_ptr< const owner_range_t > owner_range, std::unique_ptr<store_t> store) noexcept
-                : _owner_range(owner_range)
-                , _store(std::move(store))
-            {}
-            this_t& operator ++()
-            {
-                _owner_range.next(*this);
-                return *this;
-            }
-            this_t operator ++(int)
-            {
-                static_assert(false, "Sorry, no! There is no copy semantic for this kind of iterator");
-            }
-            value_type operator* () const
-            {
-                return *_store->smallest()->second;
-            }
-            key_type key() const
-            {
-                return _store->smallest()->second.key();
-            }
-
-        private:
-            std::shared_ptr< const owner_range_t> _owner_range;
-            std::unique_ptr<store_t> _store;
-        };
         /**
         * \tparam DeflateFunction functor that has spec: PrefixRange(const OriginIterator& )
         */
         template <class SourceRange, class DeflateFunction >
-        struct FlattenRange : public OrderedRange<
-            FlattenRangeIterator< details::FlattenTraits<SourceRange, DeflateFunction> >
-        >
+        struct FlattenRange : public 
+            OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename SourceRange::iterator>, typename SourceRange::value_t >
         {
             using this_t = FlattenRange<SourceRange, DeflateFunction>;
             using traits_t = details::FlattenTraits<SourceRange, DeflateFunction>;
-
-
-            using iterator = FlattenRangeIterator< traits_t> ;
 
             using applicator_result_t = typename traits_t::applicator_result_t;
             static_assert(applicator_result_t::is_ordered_c, "DeflateFunction must produce range that support ordering");
 
             using value_type = typename traits_t::value_type;
 
-            using iterator_comparator_t = typename traits_t::iterator_comparator_t;
-            using store_t = storage_policy::PriorityQueueSetStorage< applicator_result_t, iterator_comparator_t > ;
+            using store_t = storage_policy::PriorityQueueSetStorage< applicator_result_t, key_comparator_t > ;
 
-            FlattenRange(std::shared_ptr<SourceRange> source
+            FlattenRange(std::shared_ptr<SourceRange const> source
                 , DeflateFunction deflate
-                , iterator_comparator_t iterator_comparator) noexcept
-                : _source_range(source)
+                , key_comparator_t key_comparator) noexcept
+                : ordered_range_t(key_comparator)
+                , _source_range(source)
                 , _deflate(std::forward<DeflateFunction >(deflate))
-                , _iterator_comparator(std::forward<iterator_comparator_t>(iterator_comparator))
             {
             }
             iterator begin() const override
             {
-                auto store = std::make_unique< store_t >(_iterator_comparator);
+                auto store = std::make_unique< store_t >(key_comp());
                 _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
                     auto range_beg = range->begin();
@@ -184,11 +158,11 @@ namespace OP
                     );
                     store->push(new_itm);
                 });
-                return iterator(std::static_pointer_cast<const this_t>(shared_from_this()), std::move(store));
+                return iterator(shared_from_this(), std::move(store));
             }
             iterator lower_bound(const typename traits_t::key_type& key) const /*override*/
             {
-                auto store = std::make_unique< store_t >(_iterator_comparator);
+                auto store = std::make_unique< store_t >(key_comp());
                 _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
                     auto range_beg = range->begin();
@@ -201,44 +175,50 @@ namespace OP
                     );
                     store->push(new_itm);
                 });
-                return iterator(std::static_pointer_cast<const this_t>(shared_from_this()), std::move(store));
+                return iterator(shared_from_this(), std::move(store));
             }
 
             bool in_range(const iterator& check) const override
             {
-                return !(*check._store).is_empty();
+                if(!check)
+                    return false;
+                return !check.impl< store_t>().is_empty();
             }
             void next(iterator& pos) const override
             {
-                auto smallest = (*pos._store).pop();
+                auto &impl = pos.impl< store_t>();
+                auto smallest = impl.pop();
                 smallest->first->next( smallest->second );
                 if (smallest->first->in_range(smallest->second))
                 { //if iter is not exhausted put it back
-                    (*pos._store).push(smallest);
+                    impl.push(smallest);
                 }
             }
 
         private:
-            std::shared_ptr<SourceRange> _source_range;
-            const iterator_comparator_t _iterator_comparator;
+            std::shared_ptr<SourceRange const> _source_range;
             const DeflateFunction _deflate;
-
         };
 
-        template <class SourceRange, class DeflateFunction >
-        inline std::shared_ptr< FlattenRange<SourceRange, DeflateFunction > > make_flatten_range(std::shared_ptr<SourceRange> src, DeflateFunction && f)
+        template <class K, class V, class DeflateFunction >
+        inline std::shared_ptr< OrderedRange<flatten_details::DeflateResultType<DeflateFunction, RangeIterator<K, V>>, V > const>
+            make_flatten_range(std::shared_ptr<RangeBase<K, V> const> src, DeflateFunction f)
         {
-            return std::make_shared<FlattenRange<SourceRange, DeflateFunction > > (
+            return src->flatten(std::move(f));
+            /*using src_range_t = decltype(src)::element_type;
+            using flatten_range_t = FlattenRange<src_range_t, DeflateFunction >;
+            return std::shared_ptr<OrderedRange<flatten_details::DeflateResultType<DeflateFunction, typename src_range_t::iterator>, typename src_range_t::value_t >>  (
+                new flatten_range_t(
                 src, 
                 std::forward<DeflateFunction>(f), [](const auto& left, const auto& right) {
-                const auto& k_left = OP::ranges::key_discovery::key(left);
-                const auto& k_right = OP::ranges::key_discovery::key(right);
+                const auto& k_left = left.key();
+                const auto& k_right = right.key();
                 return OP::ranges::str_lexico_comparator(
                     std::begin(k_left), std::end(k_left),
                     std::begin(k_right), std::end(k_right)
                 );
-            });
-            
+            }));
+            */
         }
     } //ns:trie
 }//ns:OP

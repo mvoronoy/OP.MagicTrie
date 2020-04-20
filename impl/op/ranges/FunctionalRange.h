@@ -6,10 +6,7 @@ namespace OP
 {
     namespace ranges
     {
-        template <class Iterator, bool is_ordered>
-        struct PrefixRange;
 
-        
         /**Declares the policy what to do if function applied twice to the same origin iterator position.
         * This iterator caches result in internal storage. \see FunctionResultNoCachePolicy
         */
@@ -17,23 +14,35 @@ namespace OP
         struct FunctionResultCachedPolicy
         {
             typedef FunctionResultCachedPolicy<OriginIterator, UnaryFunction> this_t;
-            typedef typename std::result_of<UnaryFunction(const OriginIterator&)>::type key_t;
-            typedef const key_t& applicator_result_t;
-            //typedef decltype(UnaryFunction(const OriginIterator&)) applicator_result_t;
-            //typedef typename std::decay<applicator_result_t>::type key_t;
             
-            void on_after_change(OriginIterator& pos, const UnaryFunction& transform)
+            using key_t = OP::utils::return_type_t<UnaryFunction>;
+            using cached_key_t = const key_t&;
+            using applicator_t = std::function<key_t(const OriginIterator&)>;
+            using applicator_result_t = typename applicator_t::result_type;
+
+            FunctionResultCachedPolicy(applicator_t transform)
+                :_transform(std::move(transform))
+                {}
+
+            void on_after_change(const OriginIterator& pos)
             {
-                _cached = transform(pos);
+                _dirty = true;
             }
-            applicator_result_t get(const OriginIterator& /*ignored*/, const UnaryFunction& /*ignored*/) const
+            const key_t& get(const OriginIterator& pos) 
             {
+                if(_dirty)
+                {
+                    _cached = std::move(_transform(pos));
+                    _dirty = false;
+                }
                 return _cached;
             }
             //typedef typename std::result_of<decltype(&this_t::get)(this_t, const OriginIterator&, const UnaryFunction&)>::type
             //    applicator_result_t;
         private:
+            bool _dirty = true;
             key_t _cached;
+            applicator_t _transform;
         };
 
         /**Declares the policy what to do if function applied twice to the same origin iterator position.
@@ -43,116 +52,148 @@ namespace OP
         struct FunctionResultNoCachePolicy
         {
             typedef FunctionResultNoCachePolicy<OriginIterator, UnaryFunction> this_t;
-            //typedef typename std::result_of<UnaryFunction(const OriginIterator&)>::type key_t;
-            typedef typename std::result_of<UnaryFunction(const OriginIterator&)>::type applicator_result_t;
+            using key_t = OP::utils::return_type_t<UnaryFunction>;
+            using cached_key_t = key_t;
+            //using applicator_t = std::function<const key_t&(const OriginIterator&)>;
+            FunctionResultNoCachePolicy(UnaryFunction transform)
+                :_transform(std::move(transform))
+                {}
 
-            void on_after_change(OriginIterator& pos, const UnaryFunction& transform)
+            void on_after_change(const OriginIterator& pos)
             {
                 //do nothing
             }
-            applicator_result_t get(const OriginIterator& pos, const UnaryFunction& transform) const
+            cached_key_t&& get(const OriginIterator& pos)
             {
-                return transform(pos);
+                return std::move(_transform(pos));
             }
-        };
-
-        template <class SourceIterator, class OwnerRange>
-        struct FunctionalRangeIterator :
-            public std::iterator<std::forward_iterator_tag, typename SourceIterator::value_type>
-        {
-            typedef SourceIterator source_iterator_t;
-            typedef FunctionalRangeIterator<SourceIterator, OwnerRange> this_t;
-            typedef typename OwnerRange::key_eval_policy_t key_eval_policy_t;
-            typedef typename key_eval_policy_t::applicator_result_t key_type;
-            typedef typename SourceIterator::value_type value_type;
-
-            typedef typename key_eval_policy_t::applicator_result_t applicator_result_t;
-            friend OwnerRange;
-            FunctionalRangeIterator(const OwnerRange& owner_range, source_iterator_t source, key_eval_policy_t && key_eval) noexcept
-                : _owner_range(owner_range)
-                , _source(source)
-                , _key_eval_policy(std::forward<key_eval_policy_t>(key_eval))
-            {}
-            this_t& operator ++()
-            {
-                _owner_range.next(*this);
-                return *this;
-            }
-            this_t operator ++(int)
-            {
-                this_t result = *this;
-                _owner_range.next(*this);
-                return result;
-            }
-            value_type operator* () const
-            {
-                return *_source;
-            }
-            applicator_result_t key() const
-            {
-                return _key_eval_policy.get(_source, _owner_range.transform());
-            }
-
         private:
-            const OwnerRange& _owner_range;
-            source_iterator_t _source;
-            key_eval_policy_t _key_eval_policy;
+            UnaryFunction _transform;
         };
 
-        template <class SourceRange, class UnaryFunction, 
-            class KeyEvalPolicy = FunctionResultNoCachePolicy<typename SourceRange::iterator, UnaryFunction>, bool is_ordered = false  >
-        struct FunctionalRange : public PrefixRange<
-            FunctionalRangeIterator<
-                typename SourceRange::iterator, 
-                FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy>
-                >, is_ordered >
+        template <class SourceIterator, class OwnerRange, class KeyEvalPolicy>
+        struct FunctionalRangeIterator :
+            public OwnerRange::iterator::RangeIteratorImpl
         {
-            typedef FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy, is_ordered> this_t;
-            typedef FunctionalRangeIterator<
+            using base_t = typename OwnerRange::iterator::RangeIteratorImpl;
+            using source_iterator_t = SourceIterator;
+            using key_eval_policy_t = KeyEvalPolicy;
+            using key_t = typename KeyEvalPolicy::key_t;
+            using value_t = typename SourceIterator::value_t;
+            using cached_key_t = typename key_eval_policy_t::cached_key_t;
+
+            using this_t = FunctionalRangeIterator<SourceIterator, OwnerRange, KeyEvalPolicy>;
+
+            friend OwnerRange;
+            
+            FunctionalRangeIterator(source_iterator_t source, key_eval_policy_t && key_eval) noexcept
+                : _source(source)
+                , _key_eval_policy(std::move(key_eval))
+            {}
+
+            const value_t& value() const
+            {
+                return _source.value();
+            }
+            std::unique_ptr<base_t> clone() const
+            {
+                auto policy_copy = _key_eval_policy;
+                return std::unique_ptr<base_t>(
+                    new this_t(_source, std::move(policy_copy))
+                    );
+            }
+
+            const key_t& key() const
+            {
+                return _key_eval_policy.get(_source);
+            }
+            source_iterator_t& source()
+            {
+                return _source;
+            }
+            const source_iterator_t& source() const
+            {
+                return _source;
+            }
+            key_eval_policy_t& key_eval_policy() const
+            {
+                return _key_eval_policy;
+            }
+        private:
+            source_iterator_t _source;
+            mutable key_eval_policy_t _key_eval_policy; //need mutable since policy::get cannot be const
+        };
+
+        template <class SourceRange, class UnaryFunction,
+            class KeyEvalPolicy = FunctionResultCachedPolicy<typename SourceRange::iterator, UnaryFunction>,
+            class Base = RangeBase<typename KeyEvalPolicy::key_t, typename SourceRange::value_t> >
+        struct FunctionalRange : public Base
+        {
+            using this_t = FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy, Base >;
+            using base_t = Base;
+            using iterator = typename base_t::iterator;
+
+            using iterator_impl = FunctionalRangeIterator<
                 typename SourceRange::iterator,
-                typename this_t//FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy>
-            > iterator;
+                this_t,
+                KeyEvalPolicy
+            >;
 
-            typedef KeyEvalPolicy key_eval_policy_t;
-            using key_type = typename iterator::key_type;
-            using key_t = key_type;
+            using key_eval_policy_t = KeyEvalPolicy;
+            using key_t = typename key_eval_policy_t::key_t;
 
-            FunctionalRange(const SourceRange & source, UnaryFunction && transform) noexcept
-                : _source_range(source)
-                , _transform(std::forward<UnaryFunction >(transform))
+            template <typename... Ts>
+            FunctionalRange(std::shared_ptr<const SourceRange> source, UnaryFunction transform, Ts&& ...other) noexcept
+                : Base(std::forward<Ts>(other)...)
+                , _source_range(std::move(source))
+                , _key_eval_policy(std::move(transform))
             {
             }
 
             iterator begin() const override
             {
-                iterator res(*this, _source_range.begin(), key_eval_policy_t());
-                if (in_range(res))
-                {//notify policy that key was changed
-                    res._key_eval_policy.on_after_change(res._source, _transform);
+                auto res = _source_range->begin();
+                if (_source_range->in_range(res))
+                {
+                    auto policy_copy = _key_eval_policy; //clone
+                    policy_copy.on_after_change(res); //notify local policy copy that key was changed
+                    return iterator(
+                        std::const_pointer_cast<range_t const>(shared_from_this()),
+                        std::unique_ptr<iterator::RangeIteratorImpl>(
+                            new iterator_impl(std::move(res), std::move(policy_copy))));
                 }
-                return res;
+                return end();
             }
             bool in_range(const iterator& check) const override
             {
-                return _source_range.in_range(check._source);
+                if( !check )
+                    return false;
+                return _source_range->in_range(check.impl<iterator_impl>().source());
             }
             void next(iterator& pos) const override
             {
-                _source_range.next(pos._source);
-                
-                if (in_range(pos))
+                if(!pos)
+                    return;
+                auto& impl = pos.impl<iterator_impl>();
+                _source_range->next(impl.source());
+
+                if (_source_range->in_range(impl.source()))
                 {//notify policy that key was changed
-                    pos._key_eval_policy.on_after_change(pos._source, _transform);
+                    impl.key_eval_policy().on_after_change(impl.source());
                 }
             }
-            const UnaryFunction& transform() const
+        protected:
+            const std::shared_ptr<SourceRange const>& source_range() const
             {
-                return _transform;
+                return _source_range;
+            }
+            const key_eval_policy_t& key_eval_policy() const
+            {
+                return _key_eval_policy;
             }
         private:
-            
-            const SourceRange& _source_range;
-            UnaryFunction _transform;
+            std::shared_ptr<SourceRange const> _source_range;
+            key_eval_policy_t _key_eval_policy;
         };
     } //ns: ranges
 } //ns: OP
