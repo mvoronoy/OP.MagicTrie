@@ -435,7 +435,7 @@ namespace OP
         };
         
         template <class TTrie, class ... Mx>
-        std::shared_ptr< MixAlgorithmRangeAdapter<TTrie, Mx...> >
+        std::shared_ptr< MixAlgorithmRangeAdapter<TTrie, Mx...> const>
         make_mixed_range(std::shared_ptr<const TTrie> trie, Mx&& ...args)
         {
             using mixed_t = MixAlgorithmRangeAdapter<TTrie, Mx...>;

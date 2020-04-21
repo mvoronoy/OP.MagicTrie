@@ -8,6 +8,8 @@
 #include <op/ranges/IteratorsRange.h>
 #include <op/ranges/JoinRange.h>
 #include <op/ranges/RangeUtils.h>
+#include <op/ranges/SingletonRange.h>
+
 #include <map>
 #include <string>
 #include <utility>
@@ -382,7 +384,44 @@ void test_LowerBound(OP::utest::TestResult &tresult)
         );
     
 }
+void test_singletonRange(OP::utest::TestResult& tresult)
+{
+    tresult.info() << "apply lower_bound on container without native support\n";
 
+    auto r1 = OP::ranges::make_singleton_range("b"_astr, 1.);
+    auto r1_it = r1->begin();
+    tresult.assert_true(r1->in_range(r1_it), OP_CODE_DETAILS(<< "end of the range is wrong"));
+    tresult.assert_that<equals>(
+        r1_it.key(),
+        "b"_astr,
+        OP_CODE_DETAILS(<< "begin must point 'b'")
+    );
+    tresult.assert_that<equals>(
+        r1_it.value(),
+        1.0,
+        OP_CODE_DETAILS(<< "begin must point 'b'/1.0")
+    );
+    auto r1_end = r1->lower_bound("c"_astr);
+    tresult.assert_false(r1->in_range(r1_end), OP_CODE_DETAILS(<< "iterator must be at the end"));
+    
+    auto r1_end2 = r1->lower_bound("bb"_astr);
+    tresult.assert_false(r1->in_range(r1_end2), OP_CODE_DETAILS(<< "iterator must be at the end"));
+
+    auto r1_lb = r1->lower_bound("a"_astr);
+    tresult.assert_true(r1->in_range(r1_lb), OP_CODE_DETAILS(<< "iterator must be in the range"));
+    tresult.assert_that<equals>(
+        r1_lb.key(),
+        "b"_astr,
+        OP_CODE_DETAILS(<< "lower_bound must point 'b'/1.0")
+    );
+    auto r1_lb_eq = r1->lower_bound("b"_astr);
+    tresult.assert_true(r1->in_range(r1_lb_eq), OP_CODE_DETAILS(<< "iterator must be in the range"));
+    tresult.assert_that<equals>(
+        r1_lb_eq.key(),
+        "b"_astr,
+        OP_CODE_DETAILS(<< "lower_bound must point 'b'/1.0")
+        );
+}
 static auto module_suite = OP::utest::default_test_suite("Ranges")
 ->declare(test_RangeJoin, "join")
 ->declare(test_ApplyFncRange, "fnc")
@@ -391,5 +430,6 @@ static auto module_suite = OP::utest::default_test_suite("Ranges")
 ->declare(test_FirstThat, "first-that")
 ->declare(test_LowerBound, "lower_bound-base")
 ->declare(test_LowerBoundAllRanges, "lower_bound-on-containers")
+->declare(test_singletonRange, "singleton-range")
 
 ;
