@@ -104,6 +104,8 @@ namespace OP
             iterator begin() const override
             {
                 auto res = filter_base_t::begin();
+                if(!res)
+                    return res;
                 auto &functional_iter = res.impl<iterator_impl>();
                 if( skip_first_if_empty(functional_iter.source())
                     && source_range()->in_range(functional_iter.source()) )
