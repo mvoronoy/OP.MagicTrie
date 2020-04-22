@@ -49,7 +49,7 @@ namespace OP
                 , _impl(other._impl ? other._impl->clone() : impl_ptr{nullptr})
                 {}
 
-            RangeIterator& operator = (const RangeIterator& other) noexcept
+            RangeIterator& operator = (const base_t& other) noexcept
             {
                 _owner = other._owner;
                 _impl = std::move(other._impl ? other._impl->clone() : impl_ptr{nullptr});
@@ -82,7 +82,7 @@ namespace OP
             /**This operator is very primitive and allows check only equality to `end` to support STL operation
             * @return true only when comparing this with `end()` at the end of range
             */
-            bool operator == (const RangeIterator& other) const noexcept
+            bool operator == (const base_t& other) const noexcept
             {
                 if( !_owner )
                     return !other._owner;
@@ -90,7 +90,7 @@ namespace OP
                     return !other._owner || !other._owner->in_range(other);
                 return false;
             }
-            bool operator != (const RangeIterator& other) const noexcept
+            bool operator != (const base_t& other) const noexcept
             {
                 return !operator == (other);
             }
@@ -396,8 +396,8 @@ namespace std
     template<class K, class V> struct iterator_traits< OP::ranges::RangeIterator<K, V> >
     {
         typedef std::forward_iterator_tag iterator_category;
-        typedef void value_type;
-        typedef void difference_type;
+        typedef V value_type;
+        typedef int difference_type;
     };
 }
 #include <op/ranges/FlattenRange.h>

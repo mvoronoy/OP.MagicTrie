@@ -422,6 +422,62 @@ void test_singletonRange(OP::utest::TestResult& tresult)
         OP_CODE_DETAILS(<< "lower_bound must point 'b'/1.0")
         );
 }
+
+static void test_FlattenRange(OP::utest::TestResult& tresult)
+{
+    tresult.info() << "flatten range empty\n";
+
+    test_container_t src1;
+    auto r1_src1 = OP::ranges::make_range_of_map(src1);
+    auto flatten_range1 = r1_src1->flatten([](const auto& i){
+        return OP::ranges::make_singleton_range("x"_astr, 1.);
+    });
+    tresult.assert_false(flatten_range1->in_range(flatten_range1->begin()), OP_CODE_DETAILS(<< "Empty must generate empty flatten"));
+
+    src1.emplace("a", 1.0);
+    src1.emplace("ab", 1.0);
+    src1.emplace("b", 1.0);
+    src1.emplace("bc", 1.0);
+    src1.emplace("c", 1.0);
+    src1.emplace("cd", 1.0);
+    src1.emplace("d", 1.0);
+    src1.emplace("def", 1.0);
+    src1.emplace("g", 1.0);
+    src1.emplace("xyz", 1.0);
+
+    tresult.info() << "Test flatten range lazynes...\n";
+    tresult.assert_that<equals>(flatten_range1->count(), 1, OP_CODE_DETAILS(<< "Singleton result must produce exact 1 row"));
+    tresult.assert_that<equals>(flatten_range1->begin().key(), "x"_astr, OP_CODE_DETAILS(<< "Singleton produce 'x' fail"));
+
+    auto flatten_range2 = r1_src1->flatten([](const auto& i) {
+        std::map<std::string, double> result_map = {
+            {i.key() + "aa", i.value() + 0.1},
+            {i.key() + "bb", i.value() + 0.2},
+            {i.key() + "c", i.value() + 0.3},
+        };
+        return OP::ranges::make_range_of_map(std::move(result_map));
+        });
+    flatten_range2->for_each([&](const auto& i)
+        {
+           tresult.debug() << "f:{" << i.key() << "=" << i.value() << "}\n";
+        });
+    tresult.assert_that<equals>(flatten_range2->count(), src1.size()*3, OP_CODE_DETAILS(<< "Wrong count"));
+    tresult.assert_that<equals>(flatten_range2->begin().key(), "aaa", OP_CODE_DETAILS(<< "Wrong first element"));
+    tresult.assert_that<equals>(std::next(flatten_range2->begin()).key(), "abaa", OP_CODE_DETAILS(<< "Wrong second element"));
+    tresult.assert_that<equals>(std::next(flatten_range2->begin(), 2).key(), "abb", OP_CODE_DETAILS(<< "Wrong third element"));
+    tresult.assert_that<equals>(std::next(flatten_range2->begin(), 3).key(), "abbb", OP_CODE_DETAILS(<< "Wrong forth element"));
+
+    tresult.assert_that<equals>(flatten_range2->lower_bound("ax").key(), "baa", OP_CODE_DETAILS(<< "Wrong lower_bound first element"));
+    tresult.assert_that<equals>(flatten_range2->lower_bound("m").key(), "xyzaa", OP_CODE_DETAILS(<< "Wrong lower_bound last element"));
+    tresult.assert_that<equals>(flatten_range2->lower_bound("xyzbb").key(), "xyzbb", OP_CODE_DETAILS(<< "Wrong lower_bound last element"));
+
+    auto flatten_range3 = r1_src1->flatten([](const auto& ) {
+        return OP::ranges::make_empty_range<std::string, double>();
+    });
+    tresult.assert_false(flatten_range3->in_range(flatten_range3->begin()), OP_CODE_DETAILS(<< "Empty flatten must generate empty flatten"));
+
+}
+
 static auto module_suite = OP::utest::default_test_suite("Ranges")
 ->declare(test_RangeJoin, "join")
 ->declare(test_ApplyFncRange, "fnc")
@@ -431,5 +487,6 @@ static auto module_suite = OP::utest::default_test_suite("Ranges")
 ->declare(test_LowerBound, "lower_bound-base")
 ->declare(test_LowerBoundAllRanges, "lower_bound-on-containers")
 ->declare(test_singletonRange, "singleton-range")
+->declare(test_FlattenRange, "flatten")
 
 ;
