@@ -101,13 +101,14 @@ namespace OP
                 using range_t = FlattenRange<SourceRange, DeflateFunction>;
                 using source_iterator_t = typename SourceRange::iterator;
                 //need ensure that applicator_result_t is kind of PrefixRange
-                using pre_applicator_result_t = typename std::result_of<DeflateFunction(const source_iterator_t&)>::type;
+                using pre_applicator_result_t = std::result_of_t<DeflateFunction&&(const source_iterator_t&)>;
                 /**Type of Range returned by DeflateFunction. Must be kind of PrefixRange
                 */
-                using applicator_result_t = typename std::conditional< //strip shared_ptr from pre_applicator_result_t if present
-                    OP::utils::is_generic<pre_applicator_result_t, std::shared_ptr>::value,
-                    typename pre_applicator_result_t::element_type,
-                    pre_applicator_result_t>::type; //type of 
+                //using applicator_result_t = typename std::conditional< //strip shared_ptr from pre_applicator_result_t if present
+                //    OP::utils::is_generic<pre_applicator_result_t, std::shared_ptr>::value,
+                //    typename pre_applicator_result_t::element_type,
+                //    pre_applicator_result_t>::type; //type of 
+                using applicator_result_t = typename pre_applicator_result_t::element_type; 
                 using key_type = typename applicator_result_t::key_t ;
                 using key_t = typename applicator_result_t::key_t;
 
@@ -167,7 +168,7 @@ namespace OP
                 auto store = std::make_unique< store_t >(key_comp());
                 _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
-                    auto range_beg = range->begin();
+                    auto range_beg = range->lower_bound(key);
                     if (!range->in_range(range_beg)) //don't need add empty range
                     {
                         return;
@@ -188,13 +189,18 @@ namespace OP
             }
             void next(iterator& pos) const override
             {
+                if(!pos)
+                    return;
                 auto &impl = pos.impl< store_t>();
-                auto smallest = impl.pop();
-                smallest->first->next( smallest->second );
-                if (smallest->first->in_range(smallest->second))
-                { //if iter is not exhausted put it back
-                    impl.push(smallest);
-                }
+                auto const dupli_key = impl.key();
+                do{ //skip key dupplicates
+                    auto smallest = impl.pop();
+                    smallest->first->next( smallest->second );
+                    if (smallest->first->in_range(smallest->second))
+                    { //if iter is not exhausted put it back
+                        impl.push(smallest);
+                    }
+                }while(!impl.is_empty() && 0 == key_comp()(dupli_key, impl.key()));
             }
 
         private:
@@ -207,20 +213,6 @@ namespace OP
             make_flatten_range(std::shared_ptr<RangeBase<K, V> const> src, DeflateFunction f)
         {
             return src->flatten(std::move(f));
-            /*using src_range_t = decltype(src)::element_type;
-            using flatten_range_t = FlattenRange<src_range_t, DeflateFunction >;
-            return std::shared_ptr<OrderedRange<flatten_details::DeflateResultType<DeflateFunction, typename src_range_t::iterator>, typename src_range_t::value_t >>  (
-                new flatten_range_t(
-                src, 
-                std::forward<DeflateFunction>(f), [](const auto& left, const auto& right) {
-                const auto& k_left = left.key();
-                const auto& k_right = right.key();
-                return OP::ranges::str_lexico_comparator(
-                    std::begin(k_left), std::end(k_left),
-                    std::begin(k_right), std::end(k_right)
-                );
-            }));
-            */
         }
     } //ns:trie
 }//ns:OP

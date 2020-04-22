@@ -10,6 +10,7 @@ namespace OP
 {
     namespace ranges
     {
+
         /**
         *   Singleton range allows emulate range of excatly one item of key-value pair
         */
@@ -85,6 +86,43 @@ namespace OP
             const std::pair<K, V> _kv;
             Compare _compare;
         };
+
+        /** Always empty range */
+        template <class K, class V, class Compare = std::less<K> >
+        struct EmptyRange : public OrderedRange< K, V >
+        {
+            using key_t = K;
+            using base_t = OrderedRange< K, V >;
+            using iterator = typename base_t::iterator;
+
+            EmptyRange(Compare cmp = Compare())
+                : base_t([cmp](const key_t& l, const key_t& r)->int{
+                        return cmp(l, r) ? -1 : cmp(r, l) ? 1 : 0;
+                    })
+            {}
+
+            iterator begin() const override
+            {
+                return end();
+            }
+
+            bool in_range(const iterator& check) const override
+            {
+                return false;
+            }
+
+            void next(iterator& pos) const override
+            {
+                //do nothing
+            }
+
+            iterator lower_bound(const typename base_t::key_t& key) const override
+            {
+                return end();
+            }
+
+        };
+        
         template <class K, class V>
         std::shared_ptr< OrderedRange<K, V> const > make_singleton_range(K k, V v)
         {
@@ -94,6 +132,12 @@ namespace OP
         std::shared_ptr< OrderedRange<K, V> const > make_singleton_range(K k, V v, Compare cmp)
         {
             return std::shared_ptr< OrderedRange<K, V> const >(new SingletonRange<K, V>(std::move(k), std::move(v), std::move(cmp)));
+        }
+
+        template <class K, class V>
+        std::shared_ptr< OrderedRange<K, V> const > make_empty_range(K=K{}, V=V{})
+        {
+            return std::shared_ptr< OrderedRange<K, V> const >(new EmptyRange<K, V>());
         }
     }//ns:ranges
 }//ns:OP
