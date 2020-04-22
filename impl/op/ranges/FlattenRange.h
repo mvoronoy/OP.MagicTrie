@@ -94,6 +94,12 @@ namespace OP
         template <class SourceRange, class DeflateFunction >
         struct FlattenRange;
 
+#if (__cplusplus > 201402L) || (_MSVC_LANG > 201703L)
+#define OP_FNC_RESULT(expr, arg) std::invoke_result_t<expr, arg>
+#else 
+#define OP_FNC_RESULT(expr, arg) std::result_of_t<expr(arg)>
+#endif // cpp-ver
+
         namespace details {
             template <class SourceRange, class DeflateFunction >
             struct FlattenTraits
@@ -101,7 +107,7 @@ namespace OP
                 using range_t = FlattenRange<SourceRange, DeflateFunction>;
                 using source_iterator_t = typename SourceRange::iterator;
                 //need ensure that applicator_result_t is kind of PrefixRange
-                using pre_applicator_result_t = std::result_of_t<DeflateFunction&&(const source_iterator_t&)>;
+                using pre_applicator_result_t = OP_FNC_RESULT(DeflateFunction, const source_iterator_t&);
                 /**Type of Range returned by DeflateFunction. Must be kind of PrefixRange
                 */
                 //using applicator_result_t = typename std::conditional< //strip shared_ptr from pre_applicator_result_t if present
