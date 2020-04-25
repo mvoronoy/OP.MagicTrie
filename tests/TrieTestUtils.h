@@ -8,6 +8,8 @@
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const Map& map)
 {
+    tresult.assert_that<equals>(trie.size(), map.size(), "Size is wrong");
+
     auto mi = std::begin(map);
     //for (auto xp : map)
     //{

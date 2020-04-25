@@ -19,6 +19,9 @@ namespace OP
     {
         namespace storage_policy
         {
+            /** Abstract class that allows FlattenRange sort contained ranges.
+            * Partial implementation in fact should sort produced by DeflateFunction ranges by smallest item
+            */
             template <class Range>
             struct StoragePolicy : public Range::iterator::RangeIteratorImpl
             {
@@ -29,9 +32,13 @@ namespace OP
                 using value_t = typename Range::value_t;
 
                 virtual ~StoragePolicy() = default;
+                /** Place range to sorted container */
                 virtual void push(flat_item_ptr& ) = 0;
+                /** remove smallest range from conatiner */
                 virtual flat_item_ptr pop() = 0;
+                /** Get container that contains smallest element */
                 virtual flat_item_ptr smallest() const = 0;
+                /** Check if no inner ranges in container */
                 virtual bool is_empty() const = 0;
 
 
@@ -44,6 +51,9 @@ namespace OP
                     return smallest()->second.value();
                 }
             };
+
+            /** Implementation of StoragePolicy with std::priority_queue. With range size grow  
+            * memory consumption may became critical. Some external storage may required instead of this implmentation */
             template <class Range, class KeyComparator>
             struct PriorityQueueSetStorage : public StoragePolicy<Range>
             {
@@ -121,7 +131,26 @@ namespace OP
         } //ns:details
 
         /**
-        * \tparam DeflateFunction functor that has spec: PrefixRange(const OriginIterator& )
+        * FlattenRange allows map (project) one unordered range to another by flatten generated ranges into result ordered range. For example
+        * assume DeflateFunction produces range of 2 items by concatenation 'aa' an 'bb' to input `key`. Source code may look:
+        * \code
+            auto flatten_range = source_range->flatten([](const auto& i) {
+                std::map<std::string, double> result_map = {
+                {i.key() + "aa", i.value() + 0.1},
+                {i.key() + "bb", i.value() + 0.2},
+            };
+            return OP::ranges::make_range_of_map(std::move(result_map));
+            });
+        * \endcode 
+        * Running this code against source range 
+        * ~~~~
+        *   `{{"a", 1}, {"b", 2}, {"c", 3}}` 
+        * ~~~~~
+        * will produce:
+        * ~~~~
+        *   `{{"aaa", 1.1}, {"abb", 1.2}, {"baa", 2.1}, {"bbb", 2.2}, , {"caa", 3.1}, {"cbb", 3.2}}`
+        * ~~~~
+        * \tparam DeflateFunction functor that has spec: `shared_ptr<OrderedRange>(const iterator& )` - return new range from current item
         */
         template <class SourceRange, class DeflateFunction >
         struct FlattenRange : public 
@@ -139,6 +168,11 @@ namespace OP
             using key_comparator_t = typename base_t::key_comparator_t;
             using store_t = storage_policy::PriorityQueueSetStorage< applicator_result_t, key_comparator_t > ;
 
+            /** 
+            * \param source input unordered range
+            * \param deflate functor that produces ordered range from one item of source range
+            * \param key_comparator functor that compares 2 keys ( &lt;0, == 0, &gt;0 for less, equal and great corresponding )
+            */
             FlattenRange(std::shared_ptr<SourceRange const> source
                 , DeflateFunction deflate
                 , key_comparator_t key_comparator) noexcept
@@ -147,6 +181,7 @@ namespace OP
                 , _deflate(std::forward<DeflateFunction >(deflate))
             {
             }
+
             iterator begin() const override
             {
                 auto store = std::make_unique< store_t >(key_comp());
@@ -164,7 +199,8 @@ namespace OP
                 });
                 return iterator(shared_from_this(), std::move(store));
             }
-            iterator lower_bound(const typename traits_t::key_type& key) const /*override*/
+            
+            iterator lower_bound(const typename traits_t::key_type& key) const override
             {
                 auto store = std::make_unique< store_t >(key_comp());
                 _source_range->for_each([&](const auto& i) {
