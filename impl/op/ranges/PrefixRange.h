@@ -240,6 +240,8 @@ namespace OP
                 }
                 return n;
             }
+            size_t size() const
+            { return count(); }
             /**Allows check if range is empty. Complexity is close to O(1) */
             bool empty() const
             {

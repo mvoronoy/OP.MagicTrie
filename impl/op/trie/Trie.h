@@ -76,7 +76,7 @@ namespace OP
                 return static_cast<TSegmentManager&>( OP::trie::resolve_segment_manager( *_topology_ptr ));
             }
             /**Total number of items*/
-            std::uint64_t size()
+            std::uint64_t size() const
             {
                 return _topology_ptr->slot<TrieResidence>().count();
             }
@@ -522,10 +522,6 @@ namespace OP
 
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto value_assigner = [&]() {
-                    _topology_ptr->slot<TrieResidence>()
-                        .increase_count(+1) //number of terminals
-                        .increase_version() // version of trie
-                        ;
                     return value;
                 };
                 auto on_update = [&op_g](iterator& ) {
@@ -926,6 +922,10 @@ namespace OP
                         wr_node->set_child(*_topology_ptr, key, node_addr);
                     }
                 }
+                _topology_ptr->slot<TrieResidence>()
+                    .increase_count(+1) //number of terminals
+                    .increase_version() // version of trie
+                    ;
             }
             /**Insert or update value associated with specified key. The value is passed as functor evaluated on demand.
             * @param start_from - iterator to start, note it MUST be already synced. At exit
@@ -985,6 +985,12 @@ namespace OP
                 case stem::StemCompareResult::string_end:
                 {
                     assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
+                    //case about non-existing item
+                    _topology_ptr->slot<TrieResidence>()
+                        .increase_count(1) //number of terminals
+                        .increase_version() // version of trie
+                        ;
+
                     auto &back = iter.back();
                     FarAddress node_addr = back.address();
                     auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);

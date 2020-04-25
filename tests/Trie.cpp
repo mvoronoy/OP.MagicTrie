@@ -72,6 +72,7 @@ void test_TrieInsert(OP::utest::TestResult &tresult)
     std::string zero_ins { '_' };
     auto ir0 = trie->insert(zero_ins, 0.0);
     standard[zero_ins] = 0.0;
+    tresult.assert_that<equals>(trie->size(), 1, "Wrong counter val");
 
     const std::string stem1(260, 'a'); //total 260
     /*stem1_deviation1 - 1'a' for presence, 256'a' for exhausting stem container*/
@@ -220,6 +221,7 @@ void test_TrieInsertGrow(OP::utest::TestResult &tresult)
         tresult.assert_true(tools::container_equals(ins_res.first.key(), test, &tools::sign_tolerant_cmp<atom_t>));
         test_values[test] = (double)test.length();
     }
+    tresult.assert_that<equals>(rand_idx.size(), trie->size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 }
 void test_TrieUpdate(OP::utest::TestResult &tresult)
@@ -250,6 +252,7 @@ void test_TrieUpdate(OP::utest::TestResult &tresult)
         trie->insert(s.first, s.second);
         test_values.emplace(s.first, s.second);
     });
+    tresult.assert_that<equals>(sizeof(ini_data)/ sizeof(ini_data[0]), trie->size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //update all values 
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
@@ -268,6 +271,7 @@ void test_TrieUpdate(OP::utest::TestResult &tresult)
     trie->erase(copy_of, &n);
     tresult.assert_that<equals>(1, n, "wrong item specified");
     tresult.assert_that<equals>(0, trie->update(to_erase, 3.0), "update must not operate erased item");
+    tresult.assert_that<equals>(test_values.size(), trie->size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 }
 
@@ -295,7 +299,7 @@ void test_TrieGrowAfterUpdate(OP::utest::TestResult &tresult)
         x += 1.0;
     }
     //
-
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     const std::string& upd = test_seq[std::extent<decltype(test_seq)>::value / 2];
 }
@@ -326,6 +330,7 @@ void test_TrieLowerBound(OP::utest::TestResult &tresult)
     trie.reset();
     tmngr1 = OP::trie::SegmentManager::open<TransactedSegmentManager>(test_file_name);
     trie = trie_t::open(tmngr1);
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     x = 0.0;
     const atom_t *np = nullptr;
@@ -467,11 +472,12 @@ void test_TrieNoTran(OP::utest::TestResult &tresult)
             standard.emplace(rnd_buf, (double)rnd_buf.length());
         }
     }
-    compare_containers(tresult, *trie, standard);
+    tresult.assert_that<equals>(trie->size(), standard.size(), "Size is wrong");
     trie.reset();
     tmngr1 = OP::trie::SegmentManager::open<SegmentManager>(test_file_name);
     trie = trie_t::open(tmngr1);
     //
+    tresult.assert_that<equals>(trie->size(), standard.size(), "Size is wrong");
     compare_containers(tresult, *trie, standard);
 }
 void test_TrieSubtree(OP::utest::TestResult &tresult)
@@ -923,6 +929,7 @@ void test_Erase(OP::utest::TestResult &tresult)
     tresult.assert_that<equals>(tst_next, trie->erase(f, &cnt), "iterators aren't identical");
     tresult.assert_that<equals>(1, cnt, "Invalid count erased");
 
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 
     const p_t seq_data[] = {
@@ -943,6 +950,8 @@ void test_Erase(OP::utest::TestResult &tresult)
     test_values.erase(std::string((const char*)avg_key.c_str()));
     //
     std::cout << '\n';
+
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 
     const atom_string_t no_entry_key((const atom_t*)"no-entry");
@@ -1015,6 +1024,7 @@ void test_Erase(OP::utest::TestResult &tresult)
             //compare_containers(tresult, *trie, test_values);
         }
     }
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 }
 void test_Siblings(OP::utest::TestResult &tresult)
@@ -1198,6 +1208,7 @@ void test_TrieUpsert(OP::utest::TestResult &tresult)
         trie->insert(s.first, s.second);
         test_values.emplace(s.first, s.second);
     });
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //extend with upsert
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
@@ -1212,12 +1223,14 @@ void test_TrieUpsert(OP::utest::TestResult &tresult)
         trie->upsert(s1, 2.0);
         test_values.emplace(s1, 2.0);
     });
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //update with upsert
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
         trie->upsert(s.first, 3.0);
         test_values.find(s.first)->second = 3.0;
     });
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 }
 void test_TriePrefixedInsert(OP::utest::TestResult &tresult)
@@ -1251,6 +1264,7 @@ void test_TriePrefixedInsert(OP::utest::TestResult &tresult)
         trie->prefixed_insert(start_pair.first, s.first, s.second);
         test_values.emplace(s0 + s.first, s.second);
     });
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //special case to recover after erase
     atom_string_t abc_str((const atom_t*)"abc");
@@ -1264,6 +1278,8 @@ void test_TriePrefixedInsert(OP::utest::TestResult &tresult)
     abc_copy = abc_iter;
     trie->prefixed_insert(abc_iter, atom_string_t((const atom_t*)"bc.12"), 5.0);
     test_values[abc_str + (const atom_t*)"bc.12"] = 5.0;
+
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 
     //extend with INsert
@@ -1279,6 +1295,8 @@ void test_TriePrefixedInsert(OP::utest::TestResult &tresult)
         trie->prefixed_insert(start_pair.first, s1, 2.0);
         test_values.emplace(s0 + s1, 2.0);
     });
+
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //fail update with insert
     tresult.assert_true(trie->insert(abc_str, 3.0).second);
@@ -1291,6 +1309,8 @@ void test_TriePrefixedInsert(OP::utest::TestResult &tresult)
         tresult.assert_that<string_equals>(key_str, r.first.key(), "Value already exists");
 
     });
+
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 }
 
@@ -1309,6 +1329,8 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
     const atom_string_t s0((atom_t*)"a");
     auto start_pair = trie->insert(s0, -1.0);
     test_values.emplace(s0, -1.);
+
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 
     const p_t ini_data[] = {
@@ -1325,7 +1347,9 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
         trie->prefixed_upsert(start_pair.first, s.first, s.second);
         test_values.emplace(s0 + s.first, s.second);
     });
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
+
     //special case to recover after erase
     atom_string_t abc_str((const atom_t*)"abc");
     auto abc_iter = trie->find(abc_str);
@@ -1333,11 +1357,15 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
     auto abc_copy = abc_iter;
     tresult.assert_that<logical_not<equals>>(trie->end(), trie->erase(abc_copy), "Erase failed");
     test_values.erase(abc_str);
+
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //copy again
     abc_copy = abc_iter;
     trie->prefixed_upsert(abc_iter, atom_string_t((const atom_t*)"bc.12"), 5.0);
     test_values[abc_str + (const atom_t*)"bc.12"] = 5.0;
+
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 
     //extend with upsert
@@ -1353,6 +1381,7 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
         trie->prefixed_upsert(start_pair.first, s1, 2.0);
         test_values.emplace(s0 + s1, 2.0);
     });
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //update with upsert
     tresult.assert_true(trie->insert(abc_str, 3.0).second);
@@ -1366,6 +1395,7 @@ void test_TriePrefixedUpsert(OP::utest::TestResult &tresult)
 
         test_values.find(key_str)->second = 3.0;
     });
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 }
 
@@ -1386,6 +1416,7 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     auto check_iterator_restore{ start_pair.first };
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
     test_values.emplace(s0, -1.);
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 
     tresult.assert_that<equals>(1, trie->prefixed_erase_all(start_pair.first), OP_CODE_DETAILS());
@@ -1415,6 +1446,7 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
         trie->insert(s.first, s.second);
         test_values.emplace(s.first, s.second);
     });
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 
     auto abc_iter = trie->prefixed_key_erase_all(s0);
@@ -1422,6 +1454,7 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     for (auto wi = test_values.begin();
         (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'a' /*&& itm.first.length() > 1*/;})) != test_values.end();
         test_values.erase(wi++));
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //special case for restore iterator
     atom_string_t en2((const atom_t*)"bc");
@@ -1430,9 +1463,11 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
     tresult.assert_that<logical_not<equals>>(trie->end(), f2, OP_CODE_DETAILS());
     trie->erase(f2_copy);
     test_values.erase(en2);
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     f2_copy = f2;
     tresult.assert_that<equals>(0, trie->prefixed_erase_all(f2_copy), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //put back
     tresult.assert_true(trie->insert(en2, 0.).second);
@@ -1444,6 +1479,7 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult &tresult)
         test_values.erase(wi++));
 
     tresult.assert_that<equals>(3, trie->prefixed_erase_all(f2), OP_CODE_DETAILS());
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 
 }
@@ -1482,6 +1518,7 @@ void test_TriePrefixedKeyEraseAll(OP::utest::TestResult &tresult)
         trie->insert(s.first, s.second);
         test_values.emplace(s.first, s.second);
     });
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 
     auto abc_iter = trie->prefixed_key_erase_all(s0);
@@ -1489,6 +1526,7 @@ void test_TriePrefixedKeyEraseAll(OP::utest::TestResult &tresult)
     for (auto wi = test_values.begin();
         (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'a' && itm.first.length() > 1;})) != test_values.end();
         test_values.erase(wi++));
+    tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
     //special case for restore iterator
     atom_string_t en2((const atom_t*)"bc");
