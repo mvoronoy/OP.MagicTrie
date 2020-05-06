@@ -149,7 +149,7 @@ namespace OP
             *  -----------|---------|----------------
             *  abc        | abc.1   |  abc.1
             *  abc.1      | abc.2   |  abc.2
-            *  abc.2      | abc.222 |  abc.333
+            *  abc.2      | abc.222 |  abc.333   (!)
             *  abc.333    | abcdef  |  abcdef
             */
             void next_sibling(iterator& i) const
@@ -174,8 +174,35 @@ namespace OP
                     }
                     i.pop();
                 }
-                
             }
+
+            /** Gets next entry greater or equal than specific key. Used in `join` operations as more optimized 
+            * in compare with regular `next`.
+            */
+            template <class AtomString>
+            void next_lower_bound_of(iterator& i, const AtomString& key) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                
+                if (!std::get<bool>(sync_iterator(i)))
+                    return;
+                //find `i` and `key` common prefix
+                size_t com_prefix = 0; 
+                
+                for(size_t smallest = std::min(i.key().size(), key.size());
+                     com_prefix < smallest && i.key()[com_prefix] == key[com_prefix]; ++com_prefix)
+                {
+                    /*do nothing*/    
+                }
+                if (!com_prefix) //no common prefix at all, just position at right bound
+                {
+                    i = lower_bound(key);
+                    return;
+                }
+                i.pop_until_fit(static_cast<dim_t>(com_prefix)); //cut `i` on common prefix
+                i = std::move(lower_bound(i, key.substr(com_prefix)));
+            }
+
             using range_adapter_t = TrieRangeAdapter<this_t>;
             /**
             *   @return range that embrace all records by pair [ begin(), end() )
@@ -467,8 +494,12 @@ namespace OP
                 );
             }
             
-            /** utilize feature of Trie where all entrie below prefix are lexicographicaly ordered.
-            * This range provide access to ordered sequence of suffixes. In simplified view you can think about it as cut of trie entry*/
+            /** utilize feature of Trie where all entries below the single prefix are lexicographicaly ordered.
+            * This range provide access to ordered sequence of suffixes. In simplified view you can think 
+            * about it as a cutting right part of each string from trie
+            * @param begin - specifies begin iterator of prefix that will be cut-off
+            *  @param aend - specifies end iterator of prefix that will be cut-off
+            */
             template <class Atom>
             ordered_range_ptr section_range(Atom begin, Atom aend) const
             {
@@ -688,7 +719,8 @@ namespace OP
                 return result;
             }
             
-            /**Erase every entries that begins with prfix specified by iterator.
+            /**Erase every entries that begins with prfix specified by iterator. If trie contains entry excatly matched to 
+            * prefix then it is erased as well
             * @param prefx{in,out} - iterator to erase, at exit contains synced iterator (the same version as entire Trie)
             * @return number of erased items
             */
@@ -830,14 +862,7 @@ namespace OP
             containers::PersistedHashTable<topology_t> _hash_mngr;
             stem::StemStore<topology_t> _stem_mngr;
             ValueArrayManager<topology_t, payload_t> _value_mngr;
-            static nullable_atom_t _resolve_leftmost(const node_t& node, iterator* = nullptr)
-            {
-                return node.first();
-            };
-            static nullable_atom_t _resolve_next(const node_t& node, iterator* i)
-            {
-                return node.next((atom_t)i->back().key());
-            };
+
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments) noexcept
                 : _topology_ptr{ std::make_unique<topology_t>(segments) }
@@ -1259,9 +1284,9 @@ namespace OP
                 {//if stem exists should be placed to iterator
                     _stem_mngr.stem(ro_node->stems, ridx,
                         [&](const atom_t* begin, const atom_t* end, const stem::StemData& stem_header) {
-                        root_pos._deep = static_cast<decltype(root_pos._deep)>((end - begin) + 1);//+1 means value reserved for key
-                        (dest.*iterator_update)(std::move(root_pos), begin, end);
-                    }
+                            root_pos._deep = static_cast<decltype(root_pos._deep)>((end - begin) + 1);//+1 means value reserved for key
+                            (dest.*iterator_update)(std::move(root_pos), begin, end);
+                        }
                     );
                 }
                 else //no stem

@@ -47,84 +47,17 @@ namespace OP
                 unequals,
                 no_entry
             };
-            /*template <dim_t Max = max_stem_length_c>
-            struct StemString
-            {
-                typedef atom_t* data_ptr_t;
-                typedef const atom_t* cont_data_ptr_t;
-                enum
-                {
-                    max_length_c = Max
-                };
-                data_ptr_t begin()
-                {
-                    return _str;
-                }
-                data_ptr_t end()
-                {
-                    return _str + _length;
-                }
-                data_ptr_t max_end()
-                {
-                    return _str + max_length_c;
-                }
-                void set_length(atom_t l)
-                {
-                    _length = l;
-                }
-            private:
-                atom_t _length = 0;
-                atom_t _str[max_length_c];
-            };
-			*/
-            /**Abstraction that takes noded and allows iterate over stem contained in it. */
-            /*struct StemOfNode
-            {
-                typedef StemOfNode this_t;
-            
-                StemOfNode(atom_t key, dim_t offset, const atom_t* begin)
-                    : _key(key)
-                    , _offset(offset)
-                    , _begin(begin)
-                {
-                }
-            
-                atom_t operator *() const
-                {
-                    if (_offset == 0)
-                    {
-                        return _key;
-                    }
-                    return _begin[_offset - 1];
-                }
-                this_t& operator ++()
-                {
-                    ++_offset;
-                    return *this;
-                }
-                this_t operator ++(int)
-                {
-                    auto zhis = *this;
-                    ++_offset;
-                    return zhis;
-                }
-                bool operator == (const this_t& other) const
-                {
-                    return _key == other._key
-                        && _offset == other._offset
-                        && _begin == other._begin;
-                }
-                bool operator != (const this_t& other) const
-                {
-                    return !operator == (other);
-                }
-                
-            private:
-                atom_t _key;
-                dim_t _offset;
-                const atom_t *_begin;
-            };*/
-
+            /** Data placeholder for multiple stems.
+            Stem - is a plain string without any branching or associated data. It used to save space on branching or servant 
+            information. For example, assume Trie contains strings:
+            ~~~~~~~
+                aa
+                aabbbbbbbbbbb
+                aac
+            ~~~~~~
+            Then long chunk 'bbbbbbbbb' can be placed to stem - since have no branching
+            StemData is just fixed 2 dimension array of bytes to store such plain strings
+            */    
             struct StemData
             {
                 typedef atom_t* data_ptr_t;
@@ -150,6 +83,7 @@ namespace OP
                 /**Store length of all strings in stem container*/
                 dim_t stem_length[max_entries_c];
             };
+            /** Manager of StemData */
             template <class SegmentTopology>
             struct StemStore
             {
@@ -173,8 +107,8 @@ namespace OP
                     auto mem_size = header_size + width * str_max_height;
                     auto addr = memmngr.allocate(mem_size);
                     auto mem_block = _topology.segment_manager().writable_block(addr, mem_size);
-					auto stems_data_block = mem_block.subset(header_size);
-					WritableAccess<StemData> header(std::move(mem_block));
+                    auto stems_data_block = mem_block.subset(header_size);
+                    WritableAccess<StemData> header(std::move(mem_block));
                     header.make_new(width, str_max_height); //constructs header
                     return std::make_tuple(
                         ref_stems_t(addr),
@@ -273,11 +207,11 @@ namespace OP
                     assert(from < data_header->width);
                     assert(to < data_header->width);
 
-					auto raw_buffer = array_accessor<atom_t>(_topology,
-						st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement),
-							data_header->height * data_header->width);
-					segment_pos_t to_offset{ sizeof(atom_t)*data_header->height * to };
-					segment_pos_t from_offset {sizeof(atom_t)*data_header->height * from };
+                    auto raw_buffer = array_accessor<atom_t>(_topology,
+                        st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement),
+                            data_header->height * data_header->width);
+                    segment_pos_t to_offset{ sizeof(atom_t)*data_header->height * to };
+                    segment_pos_t from_offset {sizeof(atom_t)*data_header->height * from };
 
                     auto to_data = raw_buffer.subset(to_offset);
                     auto from_data = &raw_buffer[from_offset];
@@ -301,8 +235,8 @@ namespace OP
                     auto data_header = view<StemData>(_topology, st_address.address);
 
                     assert(key < data_header->width);
-					
-					auto raw_address = st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement);
+                    
+                    auto raw_address = st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement);
                     //going to block entire buffer to reduce segmentation    
                     auto raw_str = array_view<atom_t>(_topology, raw_address, data_header->height * data_header->width);
                     const atom_t * begin = raw_str + sizeof(atom_t)*data_header->height * key;
@@ -316,13 +250,13 @@ namespace OP
                     auto data_header = accessor<StemData>(_topology, st_address.address);
 
                     assert(key < data_header->width);
-					auto raw_address = st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement);
+                    auto raw_address = st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement);
                         
-					//going to block entire buffer to reduce segmentation
-					auto raw_str = array_view<atom_t>(_topology, raw_address, data_header->height * data_header->width);
-					const atom_t * begin = raw_str
-						+ sizeof(atom_t)*data_header->height * key;
-				
+                    //going to block entire buffer to reduce segmentation
+                    auto raw_str = array_view<atom_t>(_topology, raw_address, data_header->height * data_header->width);
+                    const atom_t * begin = raw_str
+                        + sizeof(atom_t)*data_header->height * key;
+                
                     callback(begin, begin + data_header->stem_length[key], *data_header);
                 }
                 inline dim_t stem_length(const ref_stems_t& st_address, atom_t key) const
@@ -332,6 +266,7 @@ namespace OP
                         view<StemData>(_topology, st_address.address);
                     return ro_access->stem_length[key];
                 }
+                /** Operation that helps move data from one StemData to other during reallocation */
                 struct MoveProcessor
                 {
                     friend struct this_t;
@@ -398,23 +333,6 @@ namespace OP
                 
             private:
                 
-				/*
-                template <class Tuple>
-                struct Helper
-                {
-                    template <size_t N>
-                    static inline std::uint8_t* move_into(std::uint8_t* memory, Tuple && source)
-                    {
-                        *reinterpret_cast<T*>(memory) = std::move(std::get< std::tuple_size<Tuple>::value - N >(source));
-                        memory += memory_requirement<std::tuple_element< std::tuple_size<Tuple>::value - N >::type>::requirement;
-                        return move_into<N - 1, Tuple>(memory, source);
-                    }
-                    template <>
-                    static inline std::uint8_t* move_into<0>(std::uint8_t* memory, Tuple && source)
-                    {
-                        return memory;
-                    }
-                };*/
                 SegmentTopology& _topology;
             };
         

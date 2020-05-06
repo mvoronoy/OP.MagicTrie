@@ -197,7 +197,7 @@ namespace OP
             {
                 emplace<decltype(begin)>(std::move(position), begin, end);
             }
-            /**Add position to iterator*/
+            /**Update last entry in this iterator, then add rest tail to iterator*/
             void update_back(const TriePosition& position, const atom_t* begin, const atom_t* end)
             {
                 if (position.key() > std::numeric_limits<atom_t>::max())
@@ -208,6 +208,18 @@ namespace OP
                 _prefix.back() = (atom_t)position.key();
                 _prefix.append(begin, end);
                 back = position;
+            }
+            /**Upsert (insert or update) */
+            void upsert_back(TriePosition&& position, const atom_t* begin, const atom_t* end)
+            {
+                if (position.key() > std::numeric_limits<atom_t>::max())
+                    throw std::out_of_range("Range must be in [0..255]");
+                if (_position_stack.empty() || _position_stack.back().address() == position.address() )
+                {
+                    emplace(std::move(position), begin, end);
+                    return;
+                }
+                update_back(std::move(position), begin, end);
             }
             TriePosition& back()
             {
@@ -222,6 +234,23 @@ namespace OP
                 auto cut_len = _position_stack.back()._deep;
                 _prefix.resize(_prefix.length() - cut_len);
                 _position_stack.pop_back();
+            }
+            /** by poping back shrinks current iterator until it not bigger than `desired` (may be less with respect to allign to node's stem length)
+            @param desired number of chars to leave. 
+            @return desired alligned that was really shrinked (alligned on deep value of last node)
+            */
+            void pop_until_fit(dim_t desired)
+            {
+                if( _prefix.length() <= desired )
+                    return; //nothing to do
+                dim_t cut_len;
+                for(cut_len = _position_stack.back()._deep; 
+                    (_prefix.length() - cut_len) > desired; 
+                    cut_len += _position_stack.back()._deep)
+                {
+                    _position_stack.pop_back();
+                }
+                _prefix.resize(_prefix.length() - cut_len);
             }
             /**Update last entry in iterator*/
             template <class Iterator>

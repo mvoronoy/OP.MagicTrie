@@ -271,7 +271,10 @@ namespace OP
 
             virtual iterator lower_bound(const K&) const = 0;
 
-            ordered_range_ptr join(ordered_range_ptr range) const
+            /** Perform conjunction of ranges. 
+            * \see JoinRange for implementation details
+            */
+            virtual ordered_range_ptr join(ordered_range_ptr range) const
             {
                 //std::shared_ptr<OrderedRange<Iterator> const> the_ptr(std::static_pointer_cast<OrderedRange<Iterator> const> (shared_from_this()));
                 auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
@@ -296,6 +299,19 @@ namespace OP
             key_comparator_t _key_cmp;
         };
 
+        /** 
+        * Specialization of OrderedRange that allows improve performance of join operation
+        * by exposing method `next_lower_bound_of`
+        */
+        template <class K, class V>
+        struct OrderedRangeOptimizedJoin : public OrderedRange<K, V>
+        {
+            using base_t = OrderedRange<K, V>;
+
+            using base_t::base_t;
+
+            virtual void next_lower_bound_of(iterator& i, const K& k) const = 0;
+        };
 
         /**@return \li 0 if left range equals to right;
         \li < 0 - if left range is lexicographical less than right range;
@@ -374,7 +390,9 @@ namespace OP
             std::function<bool(const base_iter_t&)> _predicate;
         };
 
-
+        /** Specialization of FilteredRange to support OrderedRange 
+        * \tparam SourceRange - any inherited from OrderedRange
+        */
         template <class SourceRange>
         struct OrderedFilteredRange : 
             public FilteredRange< SourceRange >

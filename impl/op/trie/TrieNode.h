@@ -118,7 +118,8 @@ namespace OP
                 }
             }
             /**
-            * @para track_back - iterator that is populated at exit. 
+            * Method matches this node with key specified by [begin, end)
+            * @param track_back - iterator that is populated at exit. 
             *   @return \li get<0> - compare result;
             *   \li get<1> length of string overlapped part;
             *   \li get<2> address of further children to continue navigation
