@@ -74,67 +74,6 @@ namespace OP
                 {
                     return this->_avail_bytes;
                 }
-                //segment_pos_t allocate(segment_pos_t to_alloc)
-                //{
-                //    guard_t l(_free_map_lock);
-                //    if (_avail_bytes < to_alloc)
-                //        throw trie::Exception(trie::er_no_memory);
-                //    auto found = _free_blocks.lower_bound(&MemoryBlockHeader(to_alloc));
-                //    if (found == _free_blocks.end()) //there is free blocks, but compression is needed
-                //        throw trie::Exception(trie::er_memory_need_compression);
-                //    auto current_pair = *found;
-                //    //before splittng remove block from map
-                //    free_block_erase(found);
-                //    auto new_block = current_pair->split_this(to_alloc);
-                //    if (new_block != current_pair) //new block was allocated
-                //    {
-                //        free_block_insert(current_pair);
-                //        _avail_bytes -= new_block->real_size();
-                //    }
-                //    else //when existing block is used it is not needed to use 'real_size' - because header alredy counted
-                //        _avail_bytes -= new_block->size();
-                //    return unchecked_to_offset(new_block->memory());
-                //}
-                //void deallocate(void *memblock)
-                //{
-                //    guard_t l(_free_map_lock);
-                //    if (!is_aligned(memblock, Segment::align_c)
-                //        || !check_pointer(memblock))
-                //        throw trie::Exception(trie::er_invalid_block);
-                //    std::uint8_t* pointer = reinterpret_cast<std::uint8_t*>(memblock);
-                //    MemoryBlockHeader* header = reinterpret_cast<MemoryBlockHeader*>(
-                //        pointer - aligned_sizeof<MemoryBlockHeader>(Segment::align_c));
-                //    if (!header->check_signature() || header->is_free())
-                //        throw trie::Exception(trie::er_invalid_block);
-                //    //check if prev or next can be joined
-                //    MemoryBlockHeader* to_merge = header;
-                //    to_merge->set_free(true);
-                //    for (;;)
-                //    {
-                //        if (to_merge->prev_block_offset() != SegmentDef::eos_c &&
-                //            to_merge->prev()->is_free())
-                //        { //previous block is also free, so 2 blocks can be merged together
-                //            auto adjacent = find_by_ptr(to_merge->prev());
-                //            _avail_bytes -= to_merge->prev()->size();//temporary deposit it from free space
-                //            assert(adjacent != _free_blocks.end());
-                //            free_block_erase(adjacent);
-                //            to_merge = to_merge->glue_prev();
-                //        }
-                //        else if (to_merge->has_next() && to_merge->next()->is_free())
-                //        {  //next block is also free - merge both
-                //            auto adjacent = find_by_ptr(to_merge->next());
-                //            _avail_bytes -= to_merge->next()->size();//temporary deposit it from free space
-                //            assert(adjacent != _free_blocks.end());
-                //            free_block_erase(adjacent);
-                //            to_merge = to_merge->next()->glue_prev();
-                //        }
-                //        else
-                //            break;
-                //    }
-                //    to_merge->set_free(true);
-                //    _avail_bytes += to_merge->size();
-                //    free_block_insert(to_merge);
-                //}
 
                 segment_pos_t to_offset(const void *memblock)
                 {

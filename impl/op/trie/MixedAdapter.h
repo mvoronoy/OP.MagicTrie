@@ -58,6 +58,10 @@ namespace OP
             OP_DECLARE_CLASS_HAS_MEMBER( _end )
             /** Declare SFINAE predicate to test  if class  has member _lower_bound */
             OP_DECLARE_CLASS_HAS_MEMBER( _lower_bound )
+
+            /** Declare SFINAE predicate to test if class  has member next_lower_bound_of */
+            OP_DECLARE_CLASS_HAS_MEMBER( next_lower_bound_of )
+            
         }
         
 
@@ -283,6 +287,7 @@ namespace OP
             {
                 return trie.lower_bound(key);
             } 
+
         };
         /** class aggregates together all algorithms */
         template <class Trie, class M, class ... Mx>
@@ -342,11 +347,11 @@ namespace OP
         *   Allows trie to mimic OP::ranges::PrefixRange capabilities
         */
         template <class TTrie, class ... Mx>
-        struct MixAlgorithmRangeAdapter : public OP::ranges::OrderedRange< typename TTrie::key_t, typename TTrie::value_t>
+        struct MixAlgorithmRangeAdapter : public OP::ranges::OrderedRangeOptimizedJoin< typename TTrie::key_t, typename TTrie::value_t>
         {
             using trie_t = TTrie;
             using mixer_t = Mixer<trie_t, Mx ...>;
-            using base_t = OP::ranges::OrderedRange< typename TTrie::key_t, typename TTrie::value_t>;
+            using base_t = OP::ranges::OrderedRangeOptimizedJoin< typename TTrie::key_t, typename TTrie::value_t>;
             using mixer_iterator_t = typename trie_t::iterator;
             using iterator = typename base_t::iterator;
             using key_t = typename base_t::key_t;
@@ -396,13 +401,20 @@ namespace OP
                 return iterator(std::const_pointer_cast<range_t const>(shared_from_this()),
                     payload_t::factory(std::move(_mixer._lower_bound(*_parent, key))));
             }
+            
+            void next_lower_bound_of(iterator& i, const key_t& k) const override
+            {
+                _next_lower_bound_of(i.impl< payload_t >()._mixer_it, k);
+            }
+
             const std::shared_ptr<const trie_t>& get_parent() const
             {
                 return _parent;
             }
 
-        private:
 
+
+        protected:
             struct payload_t : public iterator::RangeIteratorImpl
             {
                 static std::unique_ptr<typename iterator::RangeIteratorImpl> factory(mixer_iterator_t mixer_it)
@@ -429,6 +441,21 @@ namespace OP
                 mixer_iterator_t _mixer_it;
                 mutable typename trie_t::value_t _ref_value_pack;
             };
+            /** Method compiled only when class Trie supported next_lower_bound_of */
+            template <class Str, class U = std::enable_if_t<OP_CHECK_CLASS_HAS_MEMBER(TTrie, next_lower_bound_of)> >
+            void _next_lower_bound_of(typename TTrie::iterator& i, const Str& key) const
+            {
+                _parent->next_lower_bound_of(i, key);
+            }
+            /** Method compiled only when no definition of supported next_lower_bound_of in Trie class*/
+            template <class Str, typename std::enable_if<!OP_CHECK_CLASS_HAS_MEMBER(TTrie, next_lower_bound_of), int>::type = 0 >
+            void _next_lower_bound_of(typename TTrie::iterator& i, const Str& key) const
+            {
+                _parent->next(i);
+            }
+
+
+        private:
             std::shared_ptr<const trie_t> _parent;
             mixer_t _mixer;
             

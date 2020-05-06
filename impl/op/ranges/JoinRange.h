@@ -23,6 +23,7 @@ namespace OP
             using iterator = typename base_t::iterator;
             using key_t = typename base_t::key_t;
             using value_t = typename base_t::value_t;
+            using optimized_order_t = OrderedRangeOptimizedJoin<key_t, value_t>;
 
             using left_iterator = typename SourceRange1::iterator ;
             using right_iterator = typename SourceRange2::iterator ;
@@ -38,9 +39,13 @@ namespace OP
                 : base_t(std::move(comparator))
                 , _left(std::move(r1))
                 , _right(std::move(r2))
-                
+                , _left_optimized( dynamic_cast<const optimized_order_t*>(_left.get()) )
+                , _right_optimized( dynamic_cast<const optimized_order_t*>(_right.get()) )
+                , _seek_left( _left_optimized ? &this_t::left_next_optimized : &this_t::left_next)
+                , _seek_right( _right_optimized ? &this_t::right_next_optimized : &this_t::right_next)
             {
             }
+
             JoinRange() = delete;
 
             iterator begin() const override
@@ -114,8 +119,35 @@ namespace OP
                 /**Very special case when right == left, then ::next must be called for both iterators (not only for left)*/
                 bool _optimize_right_forward;
             };
-
-            void seek(IteratorPayload &pload) const
+            /** If optimization possible (`_left` inherited from OrderedRangeOptimizedJoin) this method applied in
+            * `seek` instead of regular next for `left` iterator
+            */
+            void left_next_optimized(left_iterator& left, right_iterator& right) const
+            {
+                _left_optimized->next_lower_bound_of(left, right.key());
+            }
+            /** If optimization possible (`_right` inherited from OrderedRangeOptimizedJoin) this method applied in
+            * `seek` instead of regular next for `right` iterator
+            */
+            void right_next_optimized(left_iterator& left, right_iterator& right) const
+            {
+                _right_optimized->next_lower_bound_of(right, left.key());
+            }
+            /** Method is dummy when join-optimization is not possible (`_left` is not a OrderedRangeOptimizedJoin).
+            */
+            void left_next(left_iterator& left, right_iterator& ) const
+            {
+                _left->next(left);
+            }
+            /** Method is dummy when join-optimization is not possible (`_right` is not a OrderedRangeOptimizedJoin).
+            */
+            void right_next(left_iterator& , right_iterator& right) const
+            {
+                _right->next(right);
+            }
+            /** Seek next position when left & right iterators satisfy citeria `key_comp()(...) == 0`
+            */ 
+            virtual void seek(IteratorPayload &pload) const
             {
                 pload._optimize_right_forward = false;
                 bool left_succeed = _left->in_range(pload._left);
@@ -125,7 +157,7 @@ namespace OP
                     auto diff = key_comp()(pload._left.key(), pload._right.key());
                     if (diff < 0) 
                     {
-                        _left->next(pload._left);
+                        (this->*_seek_left)(pload._left, pload._right);
                         left_succeed = _left->in_range(pload._left);
                     }
                     else {
@@ -134,14 +166,20 @@ namespace OP
                             pload._optimize_right_forward = true;
                             return;
                         }
-                        _right->next(pload._right);
+                        (this->*_seek_right)(pload._left, pload._right);
                         right_succeed = _right->in_range(pload._right);
                     }
                 }
-
             }
             std::shared_ptr<SourceRange1 const> _left;
+            const OrderedRangeOptimizedJoin<key_t, value_t>* _left_optimized;
+
             std::shared_ptr<SourceRange2 const> _right;
+            const OrderedRangeOptimizedJoin<key_t, value_t>* _right_optimized;
+
+            void(this_t::* _seek_left)(left_iterator&, right_iterator&) const;
+            void(this_t::* _seek_right)(left_iterator&, right_iterator&) const;
+
         };
 
     } //ns: ranges
