@@ -244,10 +244,11 @@ namespace OP
                 if( _prefix.length() <= desired )
                     return; //nothing to do
                 dim_t cut_len;
-                for(cut_len = _position_stack.back()._deep; 
+                for(cut_len = 0; 
                     (_prefix.length() - cut_len) > desired; 
-                    cut_len += _position_stack.back()._deep)
+                    )
                 {
+                    cut_len += _position_stack.back()._deep;
                     _position_stack.pop_back();
                 }
                 _prefix.resize(_prefix.length() - cut_len);
