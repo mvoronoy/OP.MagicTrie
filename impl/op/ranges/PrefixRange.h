@@ -260,6 +260,49 @@ namespace OP
         };
         
 
+        template <class Base>
+        struct PeekRange : public Base
+        {
+            using iterator = typename Base::iterator;
+            using ordered_range_t = typename Base::ordered_range_t;
+            using key_t = typename Base::key_t;
+
+            using peek_f = std::function<void(const iterator&)>;
+            PeekRange(std::shared_ptr<ordered_range_t const> wrap, peek_f && f)
+                : _wrap(std::move(wrap))
+                , _applicator(std::move(f))
+                {}
+            iterator begin() const override
+            {
+                auto i = _wrap->begin();
+                apply(i);
+                return std::move(i);    
+            }
+            bool in_range(const iterator & check) const override
+            {
+                return _wrap->in_range(check);
+            }
+            void next(iterator & i) const override
+            {
+                _wrap->next(i);
+                apply(i);
+            }
+            iterator lower_bound(const key_t&k) const
+            {
+                auto l = _wrap->lower_bound(k);
+                apply(l);
+                return std::move(l);
+            }
+        private:
+            void apply(const iterator & check) const
+            {
+                if( _wrap->in_range(check) )
+                    _applicator(check);
+            }
+            std::shared_ptr<ordered_range_t const> _wrap;
+            peek_f _applicator;
+            
+        };
         /** Ordered range abstraction */
         template <class K, class V>
         struct OrderedRange : public RangeBase<K, V>
@@ -290,6 +333,13 @@ namespace OP
             {
                 return _key_cmp;
             }
+            template <class F>
+            ordered_range_ptr peek(F f) const
+            {
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                return ordered_range_ptr(new PeekRange<ordered_range_t>(the_ptr, std::move(f)));
+            }
+
         protected:
             OrderedRange(key_comparator_t key_cmp)
                 : _key_cmp(std::move(key_cmp))
