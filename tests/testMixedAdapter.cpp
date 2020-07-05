@@ -11,7 +11,7 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/TransactedSegmentManager.h>
-#include <op/ranges/FlattenRange.h>
+
 #include <op/trie/MixedAdapter.h>
 #include <op/common/NamedArgs.h>
 
