@@ -2,6 +2,67 @@
 
 //*************************************************
 template <class TTrie>
+struct Payload : RangeIterator<typename TTrie::key_t, typename TTrie::value_t>::RangeIteratorImpl
+{
+    using origin_iterator_t = typename TTrie::iterator;
+    using trie_t = TTrie;
+    using base_t = typename RangeIterator<typename TTrie::key_t, typename TTrie::value_t>::RangeIteratorImpl;
+    using payload_t = Payload<TTrie>;
+
+    Payload() {
+        _states.reserve(5);
+    }
+
+    const typename trie_t::key_t& key() const override
+    {
+        return _states.back().key();
+    }
+    const typename trie_t::value_t& value() const override
+    {
+        _ref_value_pack = _states.back().value();
+        return _ref_value_pack;
+
+    }
+    virtual std::unique_ptr<base_t> clone() const
+    {
+        auto* clone = new payload_t();
+        clone->_states = _states;
+        return std::unique_ptr<RangeIteratorImpl>(clone);
+    }
+
+    void push(origin_iterator_t it)
+    {
+        _states.emplace_back(std::move(it));
+    }
+    void pop()
+    {
+        _states.pop_back();
+    }
+    bool context_empty() const
+    {
+        return _states.empty();
+    }
+    origin_iterator_t& current_iterator()
+    {
+        assert(!_states.empty());
+        return _states.back();
+    }
+    /** check if last iterator in stack matches (lexicogrpahically begin with) to previous iterators in stack */
+    bool matches() const
+    {
+        if (_states.size() < 2)
+            return false; //nothing to compare
+        auto const& context = _states[_states.size() - 2].key();
+        auto const& key = _states.back().key();
+        //implement "start with"
+        return context.length() <= key.length() &&
+            std::equal(context.begin(), context.end(), key.begin());
+    }
+    std::vector<origin_iterator_t> _states;
+    mutable typename trie_t::value_t _ref_value_pack = {};
+};
+
+template <class TTrie>
 struct GenArrayBase
 {
     using payload_t = Payload<TTrie>;
