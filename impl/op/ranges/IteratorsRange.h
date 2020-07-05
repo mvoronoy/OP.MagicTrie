@@ -11,6 +11,7 @@ namespace OP
     {
         namespace details
         {
+            /** Provide adapter to source map when caller want to keep const-reference on origin */
             template <class Map>
             struct map_reference_keeper
             {                                
@@ -22,6 +23,8 @@ namespace OP
                 }
                 const Map& _reference_keeper;
             };
+
+            /** Provide adapter to source map when caller want to make std::move operation on source */
             template <class Map>
             struct map_copying
             {
@@ -66,7 +69,10 @@ namespace OP
             }
             iterator begin() const override
             {
-                return iterator(shared_from_this(), std::make_unique<payload>(_source_resolver().begin()));
+                return iterator(
+                    shared_from_this(), 
+                    std::make_unique<payload>(_source_resolver().begin())
+                    );
             }
             iterator end() const
             {
