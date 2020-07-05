@@ -8,7 +8,8 @@
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const Map& map)
 {
-    tresult.assert_that<equals>(trie.size(), map.size(), "Size is wrong");
+    auto tsn = trie.size(), msn = map.size();
+    tresult.assert_that<equals>(tsn, msn, OP_CODE_DETAILS() << "Size is wrong, expected:" << msn << ", but: " << tsn);
 
     auto mi = std::begin(map);
     //for (auto xp : map)
@@ -37,6 +38,44 @@ void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const 
         for (; mi != std::end(map); ++mi)
         {
             os << "{" << (const char*)mi->first.c_str() << ", " << mi->second << "}\n";
+        }
+        tresult.fail(OP_CODE_DETAILS() << os.str());
+    }
+    if (trie.in_range(ti))
+    {
+        std::ostringstream os;
+        os << "Compared range contains extra items:\n";
+        for (; trie.in_range(ti); trie.next(ti))
+        {
+            os << "{" << (const char*)ti.key().c_str() << "}\n";
+        }
+        tresult.fail(OP_CODE_DETAILS() << os.str());
+    }
+}
+template <class Trie, class Map>
+void compare_containers_relaxed_order(OP::utest::TestResult& tresult, const Trie& trie, Map map)
+{
+    auto tsn = trie.size(), msn = map.size();
+    tresult.assert_that<equals>(tsn, msn, OP_CODE_DETAILS() << "Size is wrong, expected:" << msn << ", but: " << tsn);
+
+    auto ti = trie.begin();
+    int n = 0;
+    //order relaxed
+    for (; trie.in_range(ti) && !map.empty(); trie.next(ti), ++n)
+    {
+        //print_hex(tresult.info() << "1)", ti.key());
+        //print_hex(tresult.info() << "2)", mi->first);
+        const auto& key = ti.key();
+        tresult.assert_that<equals>(1, map.erase(key),
+            OP_CODE_DETAILS() << "step#" << n << ", sample map has no key=" << (const char*)key.c_str());
+    }
+    if (!map.empty())
+    {
+        std::ostringstream os;
+        os << "sample map contains extra items:\n";
+        for (auto mi : map)
+        {
+            os << "{" << (const char*)mi.first.c_str() << ", " << mi.second << "}\n";
         }
         tresult.fail(OP_CODE_DETAILS() << os.str());
     }
