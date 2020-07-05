@@ -288,6 +288,11 @@ namespace OP
                 return trie.lower_bound(key);
             } 
 
+            void _next_lower_bound_of(const Trie& trie, typename Trie::iterator& i, const atom_string_t& k) const
+            {
+                trie.next_lower_bound_of(i, k);
+            }
+
         };
         /** class aggregates together all algorithms */
         template <class Trie, class M, class ... Mx>
@@ -404,7 +409,7 @@ namespace OP
             
             void next_lower_bound_of(iterator& i, const key_t& k) const override
             {
-                _next_lower_bound_of(i.impl< payload_t >()._mixer_it, k);
+                _mixer._next_lower_bound_of(*_parent, i.impl< payload_t >()._mixer_it, k);
             }
 
             const std::shared_ptr<const trie_t>& get_parent() const
@@ -446,12 +451,6 @@ namespace OP
             void _next_lower_bound_of(typename TTrie::iterator& i, const Str& key) const
             {
                 _parent->next_lower_bound_of(i, key);
-            }
-            /** Method compiled only when no definition of supported next_lower_bound_of in Trie class*/
-            template <class Str, typename std::enable_if<!OP_CHECK_CLASS_HAS_MEMBER(TTrie, next_lower_bound_of), int>::type = 0 >
-            void _next_lower_bound_of(typename TTrie::iterator& i, const Str& key) const
-            {
-                _parent->next(i);
             }
 
 
