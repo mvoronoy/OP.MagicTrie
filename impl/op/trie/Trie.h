@@ -200,7 +200,8 @@ namespace OP
                     return;
                 }
                 i.pop_until_fit(static_cast<dim_t>(com_prefix)); //cut `i` on common prefix
-                i = std::move(lower_bound(i, key.substr(com_prefix)));
+                auto kbeg = key.begin()+com_prefix;
+                lower_bound_impl(kbeg, key.end(), i);
             }
 
             using range_adapter_t = TrieRangeAdapter<this_t>;
@@ -1147,7 +1148,7 @@ namespace OP
                 {
                     if (!prefix.is_end())
                     {
-                        next(prefix);
+                        _next(true, prefix);
                     }
                     return false; //not an exact match
                 }
