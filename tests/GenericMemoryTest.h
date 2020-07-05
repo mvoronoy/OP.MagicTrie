@@ -4,6 +4,9 @@
 
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
+#include <random>
+#include <algorithm>
+
 using namespace OP::utest;
 
 template <class Sm>
@@ -187,7 +190,12 @@ void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& resul
         else
             rand_buf[i] = mm.make_new<TestMemAlloc1>();
     }
-    std::random_shuffle(std::begin(rnd_indexes), std::end(rnd_indexes));
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    std::shuffle(std::begin(rnd_indexes), std::end(rnd_indexes), g);
+
     mngr3->_check_integrity();
     auto now = std::chrono::steady_clock::now();
     for (size_t i = 0; i < 1000; ++i)
