@@ -187,6 +187,7 @@ namespace OP
                 auto store = std::make_unique< store_t >(key_comp());
                 _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
+                    if( !range ) return; //don't need add empty range
                     auto range_beg = range->begin();
                     if (!range->in_range(range_beg)) //don't need add empty range
                     {
@@ -205,6 +206,7 @@ namespace OP
                 auto store = std::make_unique< store_t >(key_comp());
                 _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
+                    if( !range ) return; //don't need add empty range
                     auto range_beg = range->lower_bound(key);
                     if (!range->in_range(range_beg)) //don't need add empty range
                     {
