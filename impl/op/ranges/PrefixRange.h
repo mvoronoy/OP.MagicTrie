@@ -550,23 +550,6 @@ namespace OP
             using base_t = FilteredRange<SourceRange>;
             using base_t::base_t;
         };
-        /*
-        template <class SourceRange>
-        struct OrderedFilteredRange : 
-            public FilteredRange< SourceRange >
-        {
-            using base_t = FilteredRange<SourceRange>;
-
-            using base_t::base_t;
-
-            base_iter_t lower_bound(const typename base_t::key_t& key) const override
-            {
-                auto lower = static_cast<const base_t&>(*source_range()).lower_bound(key);
-                seek(lower);
-                return lower;
-            } 
-        };*/
-
 }//ns:ranges
 }//ns:OP
 namespace std
