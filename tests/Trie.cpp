@@ -1091,6 +1091,7 @@ void test_ChildSelector(OP::utest::TestResult& tresult)
         p_t((atom_t*)"abc.2", 1.),
         p_t((atom_t*)"abc.3", 1.3),
         p_t((atom_t*)"abc.333", 1.33)
+        p_t((atom_t*)"abd", 2.0)
     };
     std::map<std::string, double> test_values;
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
@@ -1134,7 +1135,8 @@ void test_ChildSelector(OP::utest::TestResult& tresult)
     r1_test.emplace(std::string(ini_data[1].first.begin(), ini_data[1].first.end()), ini_data[1].second);
     r1_test.emplace(std::string(ini_data[2].first.begin(), ini_data[2].first.end()), ini_data[2].second);
     r1_test.emplace(std::string(ini_data[3].first.begin(), ini_data[3].first.end()), ini_data[3].second);
-    r1_test.emplace(std::string(ini_data[4].first.begin(), ini_data[4].first.end()), ini_data[4].second);
+    // .333 is not a direct child
+    //r1_test.emplace(std::string(ini_data[4].first.begin(), ini_data[4].first.end()), ini_data[4].second);
 
     compare_containers(tresult, *r1, r1_test);
 
