@@ -259,23 +259,37 @@ namespace OP
             std::shared_ptr< OrderedRange< flatten_details::DeflateResultType<DeflateFunction, iterator>, V > const > flatten(DeflateFunction deflate_function) const;
         };
         
-
-        template <class Base>
-        struct PeekRange : public Base
+        namespace details 
         {
+            /** void structure for IdentityIteratorRange payload */
+            struct DummyIdentityRangePayload{};
+        }//ns::details
+        /** This abstract range used as a base for implementation of other ranges that can reuse origin iterator. 
+        *  IdentityIteratorRange is useful when derived class needs only filter and/or reposition result iterator. 
+        * \tparam Base - base range that is also wrapped 
+        * \tparam Payload - state keeping structure used between pair calls `on_before_reposition` and `on_after_reposition` 
+        */
+        template <class Base, class Payload = details::DummyIdentityRangePayload>
+        struct IdentityIteratorRange : public Base
+        {
+            using base_t = Base;
             using iterator = typename Base::iterator;
-            using ordered_range_t = typename Base::ordered_range_t;
             using key_t = typename Base::key_t;
+            using state_payload_t = Payload;
 
-            using peek_f = std::function<void(const iterator&)>;
-            PeekRange(std::shared_ptr<ordered_range_t const> wrap, peek_f && f)
-                : _wrap(std::move(wrap))
-                , _applicator(std::move(f))
+            using base_t::base_t;
+
+            template <class ... Tx>
+            IdentityIteratorRange(std::shared_ptr<base_t const> wrap, Tx&& ... args)
+                : base_t(std::forward<Tx>(args)...)
+                , _wrap(std::move(wrap))
                 {}
+
             iterator begin() const override
             {
+                state_payload_t state;
                 auto i = _wrap->begin();
-                apply(i);
+                on_after_reposition(i, state);
                 return std::move(i);    
             }
             bool in_range(const iterator & check) const override
@@ -284,25 +298,122 @@ namespace OP
             }
             void next(iterator & i) const override
             {
+                state_payload_t state;
+                on_before_reposition(i, state);
                 _wrap->next(i);
-                apply(i);
+                on_after_reposition(i, state);
             }
             iterator lower_bound(const key_t&k) const
             {
+                state_payload_t state;
                 auto l = _wrap->lower_bound(k);
-                apply(l);
+                on_after_reposition(l, state);
                 return std::move(l);
             }
-        private:
-            void apply(const iterator & check) const
-            {
-                if( _wrap->in_range(check) )
-                    _applicator(check);
-            }
-            std::shared_ptr<ordered_range_t const> _wrap;
-            peek_f _applicator;
+
+        protected:
+            /** Called right before re-position iterator on next value. Note this method is not called on `begin` 
+            * or `lower_bound` - when iteration begins
+            */
+            virtual void on_before_reposition(iterator& current, state_payload_t& state) const = 0;
+            /** Called after iterator position was altered (may be out of range). 
+            * @param current new state of iterator;
+            * @param state - inside `begin` and `lower_bound` this method invoked with
+            *               empty state. On `next` this argument contains result from `on_before_reposition`
+            */
+            virtual void on_after_reposition(iterator& current, state_payload_t& state) const = 0;
             
+            
+            const std::shared_ptr<base_t const>& wrap() const
+            { return _wrap; }
+            std::shared_ptr<base_t const>& wrap() 
+            { return _wrap; }
+        private:
+            std::shared_ptr<base_t const> _wrap;
+
         };
+
+        /** Implement range that allows peek current processed value without altering iteration or range-pipeline 
+        * Common use-case:
+        * \code
+        *   some_range
+        *   // peek a copy
+        *   .peek([&current](auto& i){ current = i.key(); })
+        *   // apply peek and map
+        *   .map([&current](auto& i){ return i.key() + current; })
+        * \endcode
+        */
+        template <class Base>
+        struct PeekRange : public IdentityIteratorRange<Base>
+        {
+            using base_t = Base;
+            using iterator = typename base_t::iterator;
+
+            using peek_f = std::function<void(iterator&)>;
+
+            PeekRange(std::shared_ptr<base_t const> wrap, peek_f && f)
+                : base_t(std::move(wrap))
+                , _applicator(std::move(f))
+                {}
+         private:
+            using state_payload_t = typename base_t::state_payload_t;
+            void on_before_reposition(iterator&, state_payload_t& ) const override
+            {/*do nothing*/}
+            void on_after_reposition(iterator& current, state_payload_t& ) const override
+            {
+                if( in_range(current) )
+                    _applicator(current);
+            }
+
+            std::shared_ptr<base_t const> _wrap;
+            peek_f _applicator;
+        };
+        namespace details
+        {
+            /** Keep key value for distinct operator */
+            template <class Key>
+            struct DistinctIdentityRangePayload
+            {
+                bool _has_value = false;
+                Key _key;
+            };
+        }//ns::details
+
+        /** Implement `distinct` operation for ordered ranges */
+        template <class Base>
+        struct DistinctRange : IdentityIteratorRange<Base, details::DistinctIdentityRangePayload<typename Base::key_t> >
+        {
+            using base_t = Base;
+            using super_t = IdentityIteratorRange<base_t, details::DistinctIdentityRangePayload<typename Base::key_t> >;
+            using iterator = typename base_t::iterator;
+
+            using super_t::super_t;//reuse all constructors
+
+         private:
+            using state_payload_t = typename super_t::state_payload_t;
+            void on_before_reposition(iterator& current, state_payload_t& payload) const override
+            {
+                if( in_range(current) )
+                {
+                    payload._has_value = true;
+                    payload._key = current.key();
+                }
+            }
+            void on_after_reposition(iterator& current, state_payload_t& payload) const override
+            {
+                if( payload._has_value )
+                {
+                    for(auto const* wp = wrap().get(); wp->in_range(current); wp->next(current))
+                    {
+                        if( wp->key_comp()(payload._key, current.key()) != 0 )
+                        {
+                            return;
+                        }
+                    }
+                }
+            }
+        };
+
         /** Ordered range abstraction */
         template <class K, class V>
         struct OrderedRange : public RangeBase<K, V>
@@ -313,6 +424,15 @@ namespace OP
             using key_comparator_t = std::function<int(const K&, const K&)>;
 
             virtual iterator lower_bound(const K&) const = 0;
+
+            virtual ordered_range_ptr distinct() const
+            {
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                using distinct_range_t = DistinctRange<ordered_range_t>;
+
+                return ordered_range_ptr(new distinct_range_t(the_ptr, key_comp()));
+                
+            }
 
             /** Perform conjunction of ranges. 
             * \see JoinRange for implementation details
@@ -388,61 +508,49 @@ namespace OP
         *   Implement range that filters source range by some `UnaryPredicate` criteria
         */
         template <class SourceRange>
-        struct FilteredRange : public SourceRange
+        struct FilteredRange : public IdentityIteratorRange<SourceRange>
         {
-            using base_iter_t = typename SourceRange::iterator;
+            using base_t = SourceRange;
+            using super_t = IdentityIteratorRange<base_t>;
+            using iterator = typename base_t::iterator;
             /** 
-            * \tparam UnaryPredicate boolean functor that accepts iterator as input argument and returns true 
+            * \tparam UnaryPredicate predicate that accepts iterator as input argument and returns true 
             * if position should appear in result.
             */
             template <class UnaryPredicate, class ... Tx>
             FilteredRange(std::shared_ptr<const SourceRange > source_range, UnaryPredicate&& predicate, Tx&& ... args)
-                : SourceRange(std::forward<Tx>(args)...)
-                , _source_range(source_range)
+                : super_t(std::move(source_range), std::forward<Tx>(args)...)
                 , _predicate(std::move(predicate))
             {}
 
-            base_iter_t begin() const 
+        private:
+            using state_payload_t = typename super_t::state_payload_t;
+            void on_before_reposition(iterator&, state_payload_t& ) const override
             {
-                auto i = _source_range->begin();
-                seek(i);
-                return i;
             }
-            bool in_range(const base_iter_t& check) const
+            void on_after_reposition(iterator& current, state_payload_t& payload) const override
             {
-                return _source_range->in_range(check);
-            }
-            void next(base_iter_t& pos) const
-            {
-                _source_range->next(pos);
-                seek(pos);
-            }
-
-        protected:
-
-
-            std::shared_ptr<const SourceRange> source_range() const
-            {
-                return _source_range;
-            }
-            void seek(base_iter_t& i) const
-            {
-                for (; _source_range->in_range(i); _source_range->next(i))
+                for(base_t const* wp = wrap().get(); wp->in_range(current); wp->next(current))
                 {
-                    if (_predicate(i))
+                    if (_predicate(current))
                     {
                         return;
                     }
                 }
             }
-        private:
-            std::shared_ptr<const SourceRange> _source_range;
-            std::function<bool(const base_iter_t&)> _predicate;
+            std::function<bool(iterator&)> _predicate;
         };
 
         /** Specialization of FilteredRange to support OrderedRange 
         * \tparam SourceRange - any inherited from OrderedRange
         */
+        template <class SourceRange>
+        struct OrderedFilteredRange : public FilteredRange< SourceRange >
+        {
+            using base_t = FilteredRange<SourceRange>;
+            using base_t::base_t;
+        };
+        /*
         template <class SourceRange>
         struct OrderedFilteredRange : 
             public FilteredRange< SourceRange >
@@ -457,7 +565,7 @@ namespace OP
                 seek(lower);
                 return lower;
             } 
-        };
+        };*/
 
 }//ns:ranges
 }//ns:OP

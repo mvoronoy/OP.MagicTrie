@@ -888,7 +888,7 @@ namespace OP
             inline std::string randomize<std::string>()
             {
                 std::string target;
-                return randomize_str( target, 12, 12,  []()->char {(static_cast<char>(std::rand() % ('_' - '0')) + '0'); } );
+                return randomize_str( target, 12, 12,  []()->char {return (static_cast<char>(std::rand() % ('_' - '0')) + '0'); } );
             }
 
             inline int random_value()

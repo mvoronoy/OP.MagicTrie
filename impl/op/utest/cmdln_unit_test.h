@@ -208,12 +208,22 @@ namespace OP
             OP::utest::TestRun::default_instance().options() = opts;
             auto all_result = 
                 OP::utest::TestRun::default_instance().run_if(test_case_filter);
+            std::map<std::string, size_t> summary_map;
+            int status = 0;
             for (auto result : all_result)
             {
                 if (!*result)
-                    return (int)result->status();
+                    status = (int)result->status();
+                auto agg = summary_map.emplace(result->status_to_str(), 0);
+                ++agg.first->second;
             }
-            return 0;
+            std::cout << "==--Total run results--==:\n";
+            //dump summary
+            for( auto agg : summary_map )
+            {
+                std::cout << "\t" << agg.first << std::setfill('-')<<std::setw(10)<< ">(" << agg.second << ")\n";
+            }
+            return status;
         }
         } //ns:cmdline
 

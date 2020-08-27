@@ -478,6 +478,53 @@ static void test_FlattenRange(OP::utest::TestResult& tresult)
     tresult.assert_false(flatten_range3->in_range(flatten_range3->begin()), OP_CODE_DETAILS(<< "Empty flatten must generate empty flatten"));
 }
 
+static void test_DistinctRange(OP::utest::TestResult& tresult)
+{
+    tresult.info() << "Test distinct range empty\n";
+
+    test_multimap_container_t src1;
+    auto r1_src1 = OP::ranges::make_range_of_map(src1);
+    auto distinct_range1 = r1_src1->distinct();
+    tresult.assert_true(distinct_range1->empty(), OP_CODE_DETAILS(<< "Empty must generate empty flatten"));
+
+    src1 = {{"a", 1.0}};
+    tresult.assert_true(OP::ranges::utils::map_equals(*distinct_range1, src1),
+        OP_CODE_DETAILS(<< "1:1 distinct failed"));
+
+    src1 = { {"a", 1.0}, {"a", 2.0} };
+    //check that we have 2 same keys
+    tresult.assert_true(OP::ranges::utils::map_equals(*r1_src1, src1),
+        OP_CODE_DETAILS(<< "Must have 2 same keys"));
+
+    test_container_t src_de_dup{src1.begin(), src1.end()};
+    tresult.assert_true(OP::ranges::utils::map_equals(*distinct_range1, src_de_dup),
+        OP_CODE_DETAILS(<< "Distinct must eliminate dupplicates"));
+    //check on unique map all values are consistent
+    test_container_t bulk_uniq_map;
+    std::generate_n(
+        std::inserter(bulk_uniq_map, bulk_uniq_map.begin()), 
+        101, 
+        [](){ return std::make_pair(OP::utest::tools::randomize<std::string>(), 11); }
+    );
+    auto distinct2 = OP::ranges::make_range_of_map(bulk_uniq_map)->distinct();
+    tresult.assert_true(OP::ranges::utils::map_equals(*distinct2, bulk_uniq_map),
+        OP_CODE_DETAILS(<< "101 error"));
+    //check multi-map with big dupplicates
+    test_multimap_container_t src2;
+    for(unsigned i = 0; i < 10; ++i)
+        for (unsigned j = 0; j < 10; ++j)
+        {   //create 10 duplicates
+            src2.emplace(std::make_pair(OP::utest::tools::randomize<std::string>(), j));
+        }
+    auto r2_src2 = OP::ranges::make_range_of_map(src2);
+    //check that we have (10 same keys)*10
+    tresult.assert_true(OP::ranges::utils::map_equals(*r2_src2, src2),
+        OP_CODE_DETAILS(<< "Must have 2 same keys"));
+    src_de_dup = { src2.begin(), src2.end() };
+    tresult.assert_true(OP::ranges::utils::map_equals(*r2_src2->distinct(), src_de_dup),
+        OP_CODE_DETAILS(<< "Distinct must eliminate dupplicates on 10*10"));
+
+}
 static auto module_suite = OP::utest::default_test_suite("Ranges")
 ->declare(test_RangeJoin, "join")
 ->declare(test_ApplyFncRange, "fnc")
@@ -488,5 +535,6 @@ static auto module_suite = OP::utest::default_test_suite("Ranges")
 ->declare(test_LowerBoundAllRanges, "lower_bound-on-containers")
 ->declare(test_singletonRange, "singleton-range")
 ->declare(test_FlattenRange, "flatten")
+->declare(test_DistinctRange, "distinct")
 
 ;

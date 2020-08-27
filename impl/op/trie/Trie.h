@@ -417,6 +417,26 @@ namespace OP
                 }
                 return iter;
             }
+            template <class Atom>
+            iterator find(const iterator& of_prefix, Atom& begin, Atom aend) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                iterator iter = of_prefix;
+                if (std::get<bool>(sync_iterator(iter)))
+                {
+                    if (lower_bound_impl(begin, aend, iter) && begin == aend)
+                    {
+                        return iter;
+                    }
+                    iter.clear();
+                }
+                return iter;
+            }
+            template <class AtomString>
+            iterator find(const iterator& of_prefix, const AtomString& container) const
+            {
+                return find(of_prefix, std::begin(container), std::end(container));
+            }
             /**
             *   Quick check if some string exists in this trie.
             *   @param containser - string to check. Type must support `std::begin` / `std::end` functions
@@ -469,13 +489,15 @@ namespace OP
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
             }
             /**Return range that allows iterate all immediate childrens of specified prefix*/
-            ordered_range_ptr children_range(iterator of_this) const
+            ordered_range_ptr children_range(const iterator& of_this) const
             {
                 return std::static_pointer_cast<ordered_range_t const>(
                     make_mixed_range(
                     shared_from_this(), 
                     typename Ingredient<this_t>::ChildBegin{of_this}, 
-                    typename Ingredient<this_t>::ChildInRange{StartWithPredicate(of_this.key())}
+                    typename Ingredient<this_t>::ChildInRange{StartWithPredicate(of_this.key())},
+                    typename Ingredient<this_t>::SiblingNext{}
+
                 ));
             }
 
