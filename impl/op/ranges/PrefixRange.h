@@ -346,13 +346,18 @@ namespace OP
         template <class Base>
         struct PeekRange : public IdentityIteratorRange<Base>
         {
-            using base_t = Base;
+            using super_base_t = Base;
+            using base_t = IdentityIteratorRange<Base>;
             using iterator = typename base_t::iterator;
 
             using peek_f = std::function<void(iterator&)>;
 
-            PeekRange(std::shared_ptr<base_t const> wrap, peek_f && f)
-                : base_t(std::move(wrap))
+            /** 
+            * \tparam Tx - when PeekRange used for OrderedRange pass there neccessary params (like comparator)
+            */
+            template <class ... Tx>
+            PeekRange(std::shared_ptr<super_base_t const> wrap, peek_f && f, Tx&& ... args)
+                : base_t(std::move(wrap), std::forward<Tx>(args)...)
                 , _applicator(std::move(f))
                 {}
          private:
@@ -434,7 +439,7 @@ namespace OP
                 
             }
 
-            /** Perform conjunction of ranges. 
+            /** produces range that joins this with oher sorted range
             * \see JoinRange for implementation details
             */
             virtual ordered_range_ptr join(ordered_range_ptr range) const
@@ -442,7 +447,23 @@ namespace OP
                 //std::shared_ptr<OrderedRange<Iterator> const> the_ptr(std::static_pointer_cast<OrderedRange<Iterator> const> (shared_from_this()));
                 auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
                 using range_impl_t = JoinRange<ordered_range_t, ordered_range_t>;
-                return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(range), key_comp()));
+                return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(range)));
+            }
+            /** Produce new range that select from this only items existing in 'other'. For unique ranges result is
+            * the same as `join`. But for ordered ranges with key dupplicates `join` and `if_exists` produce different results
+            * \see JoinRange<..., true> for implementation details
+            */
+            virtual ordered_range_ptr if_exists(ordered_range_ptr other) const
+            {
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                using range_impl_t = JoinRange<ordered_range_t, ordered_range_t, true>;
+                return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(other)));
+            }
+            virtual ordered_range_ptr if_exists(ordered_range_ptr other, key_comparator_t join_comparator) const
+            {
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                using range_impl_t = JoinRange<ordered_range_t, ordered_range_t, true>;
+                return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(other), join_comparator));
             }
 
             /** FIlter that keep ordering of this range hide the same function form parent RangeBase */
@@ -457,7 +478,7 @@ namespace OP
             ordered_range_ptr peek(F f) const
             {
                 auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
-                return ordered_range_ptr(new PeekRange<ordered_range_t>(the_ptr, std::move(f)));
+                return ordered_range_ptr(new PeekRange<ordered_range_t>(the_ptr, std::move(f), key_comp()));
             }
 
         protected:

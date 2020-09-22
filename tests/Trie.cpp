@@ -1090,7 +1090,7 @@ void test_ChildSelector(OP::utest::TestResult& tresult)
         p_t((atom_t*)"abc.1", 1.),
         p_t((atom_t*)"abc.2", 1.),
         p_t((atom_t*)"abc.3", 1.3),
-        p_t((atom_t*)"abc.333", 1.33)
+        p_t((atom_t*)"abc.333", 1.33),
         p_t((atom_t*)"abd", 2.0)
     };
     std::map<std::string, double> test_values;
@@ -1869,6 +1869,41 @@ void test_JoinRangeOverride(TestResult& tresult)
     compare_containers(tresult, *t2r1, test_values);
 
 }
+void test_AllPrefixesRange(OP::utest::TestResult& tresult) {
+    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<TransactedSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+    using testmap_t = std::map<atom_string_t, double, lexicographic_less<atom_string_t> >;
+    testmap_t test_values{
+        {"a"_astr, 1.},
+        {"aa"_astr, 1.1},
+        {"abc"_astr, 1.2},
+        {"abd"_astr, 1.2},
+    };
+
+    for(const auto& pair : test_values){
+        trie->insert(pair.first, pair.second);
+    };
+    auto arg_range = OP::ranges::make_range_of_map(testmap_t{{"a"_astr, 2.0}});
+    compare_containers(tresult, *trie->all_prefixes_range(arg_range), test_values);
+
+    arg_range = OP::ranges::make_range_of_map(testmap_t{ {"ab"_astr, 2.0} });
+    compare_containers(tresult, *trie->all_prefixes_range(arg_range), 
+        testmap_t{ 
+            {"abc"_astr, 1.2},
+            {"abd"_astr, 1.2},
+        });
+
+    arg_range = OP::ranges::make_range_of_map(testmap_t{ {"0"_astr, 2.0}, {"aa"_astr, 2.0}, {"abcd"_astr, 2.0}, });
+    compare_containers(tresult, *trie->all_prefixes_range(arg_range),
+        testmap_t{
+            {"aa"_astr, 1.1},
+        });
+
+}
 void test_ISSUE_0001(OP::utest::TestResult& tresult) {
     OP::trie::atom_string_t source_seq[] = {
         { 0x13,0x04,0x10,0x50,0x12,0xc1,0x5b,0xa1,0x0e,0x9e,0x16,0xdc,0xef,0x4c,0x6e,0x34,0x9b,0x96 },
@@ -2340,6 +2375,7 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
 ->declare(test_TrieCheckExists, "check_exists")
 ->declare(test_NextLowerBound, "next_lower_bound")
 ->declare(test_JoinRangeOverride, "override_join_range")
+->declare(test_AllPrefixesRange, "all_prefixes_range")
 ->declare(test_ISSUE_0001, "ISSUE_0001")
 ->declare(test_Playb, "playb")
 
