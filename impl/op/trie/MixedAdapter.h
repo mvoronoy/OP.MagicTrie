@@ -90,7 +90,7 @@ namespace OP
                     return trie.first_child(_iterator);
                 }
             private:
-                /** Mutable since Trie can update version of iterartot */
+                /** Mutable since Trie can update version of iterartor */
                 mutable typename Trie::iterator _iterator;
             };
             /** Ingredient for MixAlgorithmRangeAdapter - allows range use `find(key | `first_child` method instead of `begin` */
@@ -148,7 +148,7 @@ namespace OP
                 const atom_string_t _prefix;
             };
             /** Ingredient for MixAlgorithmRangeAdapter - allows start iteration from first element that 
-            greater or equal than specific key. If key is no started with prefix:
+            greater or equal than specific key. If key is not started with prefix:
                 - for lexicographic less key - then lower_bound starts from prefix
                 - for lexicographic greater key - then lower_bound returns end()
             */
@@ -363,7 +363,7 @@ namespace OP
             using value_t = typename base_t::value_t;
 
             MixAlgorithmRangeAdapter(std::shared_ptr<const trie_t> parent) noexcept
-                : base_t( [](const typename TTrie::key_t& left, const typename TTrie::key_t& right) -> int{ return left.compare(right);})
+                : base_t( [](const key_t& left, const key_t& right) -> int{ return left.compare(right);})
                 , _parent(std::move(parent))
                 , _mixer{}
             {
@@ -371,14 +371,14 @@ namespace OP
 
             template <typename ...  Args>
             MixAlgorithmRangeAdapter(std::shared_ptr<const trie_t> parent, Args&& ... args) noexcept
-                : base_t( [](const typename TTrie::key_t& left, const typename TTrie::key_t& right) -> int{ return left.compare(right);})
+                : base_t( [](const key_t& left, const key_t& right) -> int{ return left.compare(right);})
                 , _parent(std::move(parent))
                 , _mixer(std::make_tuple(std::forward<Args>(args)...))
             {
             }
 
             MixAlgorithmRangeAdapter(std::piecewise_construct_t _, std::shared_ptr<const trie_t> parent, Mx&& ... args) noexcept
-                : base_t( [](const typename TTrie::key_t& left, const typename TTrie::key_t& right) -> int{ return left.compare(right);})
+                : base_t( [](const key_t& left, const key_t& right) -> int{ return left.compare(right);})
                 , _parent(std::move(parent))
                 , _mixer(std::forward<Mx>(args)...)
             {
@@ -465,7 +465,7 @@ namespace OP
         make_mixed_range(std::shared_ptr<const TTrie> trie, Mx&& ...args)
         {
             using mixed_t = MixAlgorithmRangeAdapter<TTrie, Mx...>;
-            return std::make_shared<mixed_t>(std::piecewise_construct, trie, std::forward<Mx>(args)...);
+            return std::make_shared<mixed_t>(std::piecewise_construct, std::move(trie), std::forward<Mx>(args)...);
         }
 
     } //ns:trie
