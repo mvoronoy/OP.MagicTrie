@@ -417,8 +417,6 @@ namespace OP
                 return _parent;
             }
 
-
-
         protected:
             struct payload_t : public iterator::RangeIteratorImpl
             {
@@ -467,6 +465,7 @@ namespace OP
             using mixed_t = MixAlgorithmRangeAdapter<TTrie, Mx...>;
             return std::make_shared<mixed_t>(std::piecewise_construct, std::move(trie), std::forward<Mx>(args)...);
         }
+
 
     } //ns:trie
 }//ns:OP

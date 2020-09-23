@@ -284,20 +284,6 @@ namespace OP
                 );
             }
             /**
-            *  Create range that contains entries started from prefixes enumerated in param 'prefixes'
-            */
-            ordered_range_ptr all_prefixes_range(ordered_range_ptr prefixes) const
-            {
-                return range()
-                    ->peek([](const auto& i){})
-                    ->if_exists(prefixes, [](const auto& left, const auto& right){
-                        //'right' key is tajen from prefixes array so assuming (no assert needed) it shorter
-                        int cmp = left.compare(0, right.size(), right, 0, right.size());
-                        return cmp;
-                    });
-                    
-            }
-            /**
             *   @return range that is flatten-range of all prefixes contained in param `container`.
             */
             template <class Range>

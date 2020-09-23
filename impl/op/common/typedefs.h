@@ -33,6 +33,10 @@ namespace OP
         typedef std::pair<bool, atom_t> nullable_atom_t;
         typedef std::basic_string<atom_t> atom_string_t;
         
+        inline constexpr const atom_t operator "" _atom(char c)
+        {
+            return (atom_t)c;
+        }
         inline constexpr const atom_t* operator "" _atom(const char* str, size_t n)
         {
             return (const atom_t*)(str);

@@ -1881,6 +1881,7 @@ void test_AllPrefixesRange(OP::utest::TestResult& tresult) {
         {"a"_astr, 1.},
         {"aa"_astr, 1.1},
         {"abc"_astr, 1.2},
+        {"abca"_astr, 1.2},
         {"abd"_astr, 1.2},
     };
 
@@ -1888,21 +1889,64 @@ void test_AllPrefixesRange(OP::utest::TestResult& tresult) {
         trie->insert(pair.first, pair.second);
     };
     auto arg_range = OP::ranges::make_range_of_map(testmap_t{{"a"_astr, 2.0}});
-    compare_containers(tresult, *trie->all_prefixes_range(arg_range), test_values);
+    compare_containers(tresult, *OP::trie::prefixes_continuation_range (trie->range(), arg_range), test_values);
 
     arg_range = OP::ranges::make_range_of_map(testmap_t{ {"ab"_astr, 2.0} });
-    compare_containers(tresult, *trie->all_prefixes_range(arg_range), 
+    compare_containers(tresult, *OP::trie::prefixes_continuation_range(trie->range(), arg_range),
         testmap_t{ 
             {"abc"_astr, 1.2},
+            {"abca"_astr, 1.2},
             {"abd"_astr, 1.2},
         });
 
     arg_range = OP::ranges::make_range_of_map(testmap_t{ {"0"_astr, 2.0}, {"aa"_astr, 2.0}, {"abcd"_astr, 2.0}, });
-    compare_containers(tresult, *trie->all_prefixes_range(arg_range),
+    compare_containers(tresult, *OP::trie::prefixes_continuation_range(trie->range(), arg_range),
         testmap_t{
             {"aa"_astr, 1.1},
         });
 
+    testmap_t suffixes { {"aaa"_astr, 1.1},
+        {"b"_astr, 1.2},
+        {"ba"_astr, 1.2},
+        {"bax"_astr, 1.2},
+        {"x"_astr, 1.2},
+        {"xy"_astr, 1.2},
+    };
+    test_values.clear();
+    const auto control_pref = "klm"_astr;
+    for(auto& s : {"k"_astr, "l"_astr, "m"_astr, "n"_astr })
+    {   //create bunch of similar prefixes
+        auto root_pair = trie->insert(s, 1.0);
+        bool is_in_control = control_pref.find(s[0]) != control_pref.npos;
+        if(is_in_control)
+            test_values.emplace(s, 1.0);
+        for(const auto& ent : suffixes){
+            auto sufix_pair = trie->prefixed_insert(root_pair.first, ent.first, ent.second);
+            auto long_suffix_pair = trie->prefixed_insert(sufix_pair.first, "aa"_astr, 1.3);
+            if (is_in_control)
+            {
+                test_values.emplace(sufix_pair.first.key(), sufix_pair.first.value());
+                test_values.emplace(long_suffix_pair.first.key(), long_suffix_pair.first.value());
+            }
+        }
+    }
+    arg_range = OP::ranges::make_range_of_map(testmap_t{ {"0"_astr, 2.0}, {"k"_astr, 2.0}, {"l"_astr, 2.0}, {"m"_astr, 2.0}, {"x"_astr, 2.0} });
+    //atom_string_t previous;
+    //OP::trie::prefixes_continuation_range(trie->range(), arg_range)->for_each([&tresult](const auto& i){
+    //    tresult.debug() <<"{" << (const char*)i.key().c_str() << " = " << i.value() << "}\n";
+    //    });
+    compare_containers(tresult, *OP::trie::prefixes_continuation_range(trie->range(), arg_range), test_values);
+
+    //erase from test_values all started with 'l' or not containing 'ba'
+    for(auto er = test_values.begin(); er !=test_values.end(); )
+    {
+        if( er->first.find("l"_astr) == 0 || er->first.find("ba"_astr) == er->first.npos)
+            er = test_values.erase(er);
+        else
+            ++er;
+    }
+    arg_range = OP::ranges::make_range_of_map(testmap_t{ {"0ba"_astr, 2.0}, {"kba"_astr, 2.0}, {"mba"_astr, 2.0}, {"xba"_astr, 2.0} });
+    compare_containers(tresult, *OP::trie::prefixes_continuation_range(trie->range(), arg_range), test_values);
 }
 void test_ISSUE_0001(OP::utest::TestResult& tresult) {
     OP::trie::atom_string_t source_seq[] = {
