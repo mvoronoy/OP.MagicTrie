@@ -43,8 +43,8 @@ namespace OP
         *  Trie specific operation: create range that contains entries of 'from' that are started 
         * with prefixes enumerated in param 'prefixes'
         */
-        template <class RangeOfTrie>
-        std::shared_ptr<RangeOfTrie const> prefixes_continuation_range(const std::shared_ptr<RangeOfTrie const>& from, std::shared_ptr<RangeOfTrie const> prefixes) 
+        template <class RangeOfTrie, class R2>
+        auto prefixes_continuation_range(const std::shared_ptr<RangeOfTrie const>& from, std::shared_ptr<R2 const> prefixes)
         {
             static_assert(RangeOfTrie::is_ordered_c, "Expected ordered range for parameters 'from' and 'prefixes'");
             return from->if_exists(std::move(prefixes), [](const auto& left, const auto& right){

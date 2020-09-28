@@ -9,18 +9,18 @@ namespace OP
 
         /**Declares the policy what to do if function applied twice to the same origin iterator position.
         * This iterator caches result in internal storage. \see FunctionResultNoCachePolicy
+        * \tparam Rk - result target kay after apply mapping function
         */
-        template <class OriginIterator, class UnaryFunction>
+        template <class OriginIterator, class Rk>
         struct FunctionResultCachedPolicy
         {
-            typedef FunctionResultCachedPolicy<OriginIterator, UnaryFunction> this_t;
+            typedef FunctionResultCachedPolicy<OriginIterator, Rk> this_t;
             
-            using key_t = OP::utils::return_type_t<UnaryFunction>;
+            using key_t = Rk;
             using cached_key_t = const key_t&;
             using applicator_t = std::function<key_t(const OriginIterator&)>;
-            using applicator_result_t = typename applicator_t::result_type;
 
-            FunctionResultCachedPolicy(applicator_t transform)
+            FunctionResultCachedPolicy(applicator_t&& transform)
                 :_transform(std::move(transform))
                 {}
 
@@ -37,8 +37,6 @@ namespace OP
                 }
                 return _cached;
             }
-            //typedef typename std::result_of<decltype(&this_t::get)(this_t, const OriginIterator&, const UnaryFunction&)>::type
-            //    applicator_result_t;
         private:
             bool _dirty = true;
             key_t _cached;
@@ -47,15 +45,17 @@ namespace OP
 
         /**Declares the policy what to do if function applied twice to the same origin iterator position.
         * This iterator always re-invoke function to evaluate new result. \see FunctionResultCachedPolicy
+        * \tparam Rk - result target kay after apply mapping function
         */
-        template <class OriginIterator, class UnaryFunction>
+        template <class OriginIterator, class Rk>
         struct FunctionResultNoCachePolicy
         {
-            typedef FunctionResultNoCachePolicy<OriginIterator, UnaryFunction> this_t;
-            using key_t = OP::utils::return_type_t<UnaryFunction>;
+            typedef FunctionResultNoCachePolicy<OriginIterator, Rk> this_t;
+            using key_t = Rk;
             using cached_key_t = key_t;
-            //using applicator_t = std::function<const key_t&(const OriginIterator&)>;
-            FunctionResultNoCachePolicy(UnaryFunction transform)
+            using applicator_t = std::function<const key_t&(const OriginIterator&)>;
+
+            FunctionResultNoCachePolicy(applicator_t&& transform)
                 :_transform(std::move(transform))
                 {}
 
@@ -68,14 +68,14 @@ namespace OP
                 return std::move(_transform(pos));
             }
         private:
-            UnaryFunction _transform;
+            applicator_t _transform;
         };
 
         template <class SourceIterator, class OwnerRange, class KeyEvalPolicy>
         struct FunctionalRangeIterator :
-            public OwnerRange::iterator::RangeIteratorImpl
+            public RangeIterator<typename KeyEvalPolicy::key_t, typename SourceIterator::value_t>::RangeIteratorImpl
         {
-            using base_t = typename OwnerRange::iterator::RangeIteratorImpl;
+            using base_t = typename RangeIterator<typename KeyEvalPolicy::key_t, typename SourceIterator::value_t>::RangeIteratorImpl;
             using source_iterator_t = SourceIterator;
             using key_eval_policy_t = KeyEvalPolicy;
             using key_t = typename KeyEvalPolicy::key_t;
@@ -124,14 +124,15 @@ namespace OP
             mutable key_eval_policy_t _key_eval_policy; //need mutable since policy::get cannot be const
         };
 
-        template <class SourceRange, class UnaryFunction,
-            class KeyEvalPolicy = FunctionResultCachedPolicy<typename SourceRange::iterator, UnaryFunction>,
-            class Base = RangeBase<typename KeyEvalPolicy::key_t, typename SourceRange::value_t> >
+        template <class SourceRange, class Rk,
+            class KeyEvalPolicy = FunctionResultCachedPolicy<typename SourceRange::iterator, Rk>,
+            class Base = RangeBase<Rk, typename SourceRange::value_t> >
         struct FunctionalRange : public Base
         {
-            using this_t = FunctionalRange<SourceRange, UnaryFunction, KeyEvalPolicy, Base >;
+            using this_t = FunctionalRange<SourceRange, Rk, KeyEvalPolicy, Base >;
             using base_t = Base;
             using iterator = typename base_t::iterator;
+            using applicator_t = typename KeyEvalPolicy::applicator_t;
 
             using iterator_impl = FunctionalRangeIterator<
                 typename SourceRange::iterator,
@@ -140,10 +141,10 @@ namespace OP
             >;
 
             using key_eval_policy_t = KeyEvalPolicy;
-            using key_t = typename key_eval_policy_t::key_t;
+            using key_t = typename Rk;
 
             template <typename... Ts>
-            FunctionalRange(std::shared_ptr<const SourceRange> source, UnaryFunction transform, Ts&& ...other) noexcept
+            FunctionalRange(std::shared_ptr<const SourceRange> source, applicator_t transform, Ts&& ...other) noexcept
                 : Base(std::forward<Ts>(other)...)
                 , _source_range(std::move(source))
                 , _key_eval_policy(std::move(transform))
