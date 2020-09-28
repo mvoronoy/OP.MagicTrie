@@ -53,8 +53,8 @@ namespace OP
         struct TrieSectionAdapter : public
             FunctionalRange<
                 SourceRange, 
-                string_map_fnc_t<typename SourceRange::iterator>,
-                FunctionResultCachedPolicy<typename SourceRange::iterator, string_map_fnc_t<typename SourceRange::iterator> >,
+                typename SourceRange::key_t,
+                FunctionResultCachedPolicy<typename SourceRange::iterator, typename SourceRange::key_t >,
                 OrderedRange< typename SourceRange::key_t, typename SourceRange::value_t >
             >
         {
@@ -64,8 +64,8 @@ namespace OP
 
             using filter_base_t = FunctionalRange<
                 SourceRange,
-                string_map_fnc_t,
-                FunctionResultCachedPolicy<typename SourceRange::iterator, string_map_fnc_t >,
+                typename SourceRange::key_t,
+                FunctionResultCachedPolicy<typename SourceRange::iterator, typename SourceRange::key_t >,
                 OrderedRange< typename SourceRange::key_t, typename SourceRange::value_t >
             >;
             using base_t = filter_base_t;

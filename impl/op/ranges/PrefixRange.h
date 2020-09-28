@@ -175,10 +175,15 @@ namespace OP
 
             /** 
             * Convert one range to another with same number of items by applying functor to iterator
-            * @return new un-ordered range
+            * \tparam F - function mapper in form `ResultType(const iterator&)`
+            * @return new un-ordered range std::shared_ptr< RangeBase<Rk, V> const>
             */
-            template <class Converter>
-            std::shared_ptr< RangeBase<flatten_details::MapResultType<Converter, iterator>, V> const> map( Converter f ) const;
+            template <class F>
+            auto map( F f ) const
+            {
+                using result_t = decltype(f(begin()));
+                return map_impl<result_t>( std::move(f) ) ;
+            }
             
             template <class F>
             range_ptr filter(F f) const;
@@ -257,6 +262,10 @@ namespace OP
             */
             template <class DeflateFunction>
             std::shared_ptr< OrderedRange< flatten_details::DeflateResultType<DeflateFunction, iterator>, V > const > flatten(DeflateFunction deflate_function) const;
+        private:
+            template <class Rk>
+            std::shared_ptr< RangeBase<Rk, V> const> map_impl( std::function<Rk(const iterator&)>&& f ) const;
+
         };
         
         namespace details 
@@ -605,16 +614,15 @@ namespace OP{
         }
 
         template<class K, class V>
-        template <class Converter>
-        std::shared_ptr< RangeBase<flatten_details::MapResultType<Converter, typename RangeBase<K, V>::iterator>, V> const> RangeBase<K, V>::map(Converter f) const
+        template <class Rk>
+        std::shared_ptr< RangeBase<Rk, V> const> RangeBase<K, V>::map_impl( std::function<Rk(const iterator&)>&& f ) const
         {
-            using map_range_t = FunctionalRange<range_t, Converter>;
-            using result_key_t = flatten_details::MapResultType<Converter, typename RangeBase<K, V>::iterator>;
+            using map_range_t = FunctionalRange<range_t, Rk>;
 
             map_range_t *ptr = new map_range_t(
                 std::const_pointer_cast<range_t const>(shared_from_this()), std::move(f));
             
-            return std::shared_ptr< RangeBase<result_key_t, V> const>(ptr);
+            return std::shared_ptr< RangeBase<Rk, V> const>(ptr);
         }
         template<class K, class V>
         template <class UnaryPredicate>

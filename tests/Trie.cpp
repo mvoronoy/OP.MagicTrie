@@ -1947,6 +1947,22 @@ void test_AllPrefixesRange(OP::utest::TestResult& tresult) {
     }
     arg_range = OP::ranges::make_range_of_map(testmap_t{ {"0ba"_astr, 2.0}, {"kba"_astr, 2.0}, {"mba"_astr, 2.0}, {"xba"_astr, 2.0} });
     compare_containers(tresult, *OP::trie::prefixes_continuation_range(trie->range(), arg_range), test_values);
+    //just curious ....
+    auto k_range = 
+        make_mixed_range(std::static_pointer_cast<trie_t const>(trie),
+            typename Ingredient<trie_t>::PrefixedBegin("k"_astr),
+            typename Ingredient<trie_t>::PrefixedLowerBound("k"_astr),
+            typename Ingredient<trie_t>::PrefixedInRange(StartWithPredicate("k"_astr)))
+        ;
+    for (auto er = test_values.begin(); er != test_values.end(); )
+    {
+        if (er->first.find("k"_astr) != 0 )
+            er = test_values.erase(er);
+        else
+            ++er;
+    }
+    arg_range = OP::ranges::make_range_of_map(testmap_t{ {"0ba"_astr, 2.0}, {"kba"_astr, 2.0}, {"mba"_astr, 2.0}, {"xba"_astr, 2.0} });
+    compare_containers(tresult, *OP::trie::prefixes_continuation_range(k_range, arg_range), test_values);
 }
 void test_ISSUE_0001(OP::utest::TestResult& tresult) {
     OP::trie::atom_string_t source_seq[] = {
