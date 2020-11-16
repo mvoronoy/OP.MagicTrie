@@ -8,7 +8,7 @@ set(BOOST_ROOT $ENV{BOOST_ROOT})
 #       Boost.Interprocess depends on Boost.DateTime, which needs separate compilation. However, 
 #       the subset used by Boost.Interprocess does not need any separate compilation so the user 
 #       can define BOOST_DATE_TIME_NO_LIB to avoid Boost from trying to automatically link the Boost.DateTime
-add_compile_definitions(BOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
 find_package(Boost REQUIRED)
 set(Boost_DEBUG 1)
 
