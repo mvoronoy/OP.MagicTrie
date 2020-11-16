@@ -596,6 +596,12 @@ namespace OP
                     ));
                 return this->declare_case(pt);
             }
+            
+            TestSuite* declare_disabled(std::function<void(TestResult&)> f, std::string n = std::string())
+            {
+                return this;
+            }
+
             TestSuite* declare_exceptional(void (f)(TestResult&), std::string n = std::string())
             {
                 auto fwrap = std::function< void(TestResult&) >(f);

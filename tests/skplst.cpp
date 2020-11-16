@@ -6,6 +6,8 @@
 #include <numeric>
 #include <memory>
 #include <set>
+#include <algorithm>
+#include <random>
 
 struct Nav
 {
@@ -337,10 +339,13 @@ struct TestTrait
 };
 void random_population()
 {
+    std::random_device rd;
+    std::mt19937 random_gen(rd());
+
     std::vector<int> rnd;
     rnd.resize(1000);
     std::iota(rnd.begin(), rnd.end(), 0);//fill ascending
-    std::random_shuffle(rnd.begin(), rnd.end());
+    std::shuffle(rnd.begin(), rnd.end(), random_gen);
     //print(std::cout, rnd)<<std::endl;
 
     std::cout << "=========\n";
@@ -358,7 +363,7 @@ void random_population()
         prev = n;
     }
     //shuffle once again
-    std::random_shuffle(rnd.begin(), rnd.end());
+    std::shuffle(rnd.begin(), rnd.end(), random_gen);
     for (auto idx : rnd)
     {
         auto x = lst.pull_not_less(std::make_shared<Nav>(idx));

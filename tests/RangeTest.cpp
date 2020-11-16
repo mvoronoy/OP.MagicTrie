@@ -1,6 +1,7 @@
 #include <op/common/Range.h>
 #include <op/vtm/SegmentManager.h>
 #include <assert.h>
+#include <random>
 using namespace OP;
 using namespace OP::trie;
 void test_RangeContainer()
@@ -8,6 +9,10 @@ void test_RangeContainer()
     typedef RangeContainer<FarAddress> ranges_t;
     ranges_t r;
     FarAddress a1;
+    
+    std::random_device rd;
+    std::mt19937 random_gen(rd());
+ 
     try
     {
         a1 = r.pull_range();
@@ -22,7 +27,7 @@ void test_RangeContainer()
     std::vector<FarAddress> rand_v;
     for (unsigned i = 0; i < 1000; ++i)
         rand_v.emplace_back(FarAddress(0, i));
-    std::random_shuffle(rand_v.begin(), rand_v.end());
+    std::shuffle(rand_v.begin(), rand_v.end(), random_gen);
     for (auto n : rand_v)
         r.add_range(n);
     assert(r.size() == 1);

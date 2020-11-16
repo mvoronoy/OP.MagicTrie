@@ -321,7 +321,8 @@ namespace OP
         protected:
             SegmentManager(const char * file_name, bool create_new, bool is_readonly) :
                 _file_name(file_name),
-                _cached_segments(10)
+                _cached_segments(10),
+                _listener(nullptr)
             {
                 //file is opened always in RW mode
                 std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary

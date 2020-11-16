@@ -61,6 +61,7 @@ void print_hex(O& os, const T& t)
 }
 
 #include "TrieTestUtils.h"
+#include <random>
 void test_TrieInsert(OP::utest::TestResult& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
@@ -200,6 +201,9 @@ void test_TrieInsert(OP::utest::TestResult& tresult)
 
 void test_TrieInsertGrow(OP::utest::TestResult& tresult)
 {
+    std::random_device rd;
+    std::mt19937 random_gen(rd());
+
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
@@ -212,7 +216,7 @@ void test_TrieInsertGrow(OP::utest::TestResult& tresult)
     const std::string stems[] = { "abc", "", "x", std::string(256, 'z') };
     std::array<std::uint16_t, 255> rand_idx;
     std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
-    std::random_shuffle(std::begin(rand_idx), std::end(rand_idx));
+    std::shuffle(std::begin(rand_idx), std::end(rand_idx), random_gen);
     for (auto i : rand_idx)
     {
         std::string test = std::string(1, (std::string::value_type)i) +
@@ -494,6 +498,10 @@ void test_TrieNoTran(OP::utest::TestResult& tresult)
 }
 void test_TrieSubtree(OP::utest::TestResult& tresult)
 {
+
+    std::random_device rd;
+    std::mt19937 random_gen(rd());
+
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
@@ -505,7 +513,7 @@ void test_TrieSubtree(OP::utest::TestResult& tresult)
     const atom_string_t stems[] = { (atom_t*)"abc", (atom_t*)"x", atom_string_t(256, 'z') };
     std::array<std::uint16_t, 255> rand_idx;
     std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
-    std::random_shuffle(std::begin(rand_idx), std::end(rand_idx));
+    std::shuffle(std::begin(rand_idx), std::end(rand_idx), random_gen);
     auto n = 0;
     for (auto i : rand_idx)
     {
@@ -909,6 +917,9 @@ void test_TrieSectionRange(OP::utest::TestResult& tresult)
 }
 void test_Erase(OP::utest::TestResult& tresult)
 {
+    std::random_device rd;
+    std::mt19937 random_gen(rd());
+
     auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
@@ -997,7 +1008,7 @@ void test_Erase(OP::utest::TestResult& tresult)
     {
         atom_string_t long_base(str_limit, 0);
         std::iota(long_base.begin(), long_base.end(), static_cast<std::uint8_t>(i));
-        std::random_shuffle(long_base.begin(), long_base.end());
+        std::shuffle(long_base.begin(), long_base.end(), random_gen);
         std::vector<atom_string_t> chunks;
         for (auto k = 1; k < str_limit; k *= ((i & 1) ? 4 : 3))
         {
@@ -1005,7 +1016,7 @@ void test_Erase(OP::utest::TestResult& tresult)
             chunks.emplace_back(prefix);
         }
 
-        std::random_shuffle(chunks.begin(), chunks.end());
+        std::shuffle(chunks.begin(), chunks.end(), random_gen);
 
         std::for_each(chunks.begin(), chunks.end(), [&](const atom_string_t& pref) {
             auto t = trie->insert(pref, pref.length() + 0.0);
