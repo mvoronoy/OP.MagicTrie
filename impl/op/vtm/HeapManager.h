@@ -3,8 +3,8 @@
 
 #include <unordered_map>
 
-#include <OP/vtm/SegmentManager.h>
-#include <OP/vtm/MemoryBlock.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/MemoryBlock.h>
 #include <op/vtm/Skplst.h>
 
 namespace OP

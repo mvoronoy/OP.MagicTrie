@@ -1,10 +1,10 @@
 #ifndef _OP_TRIE_HASHTABLE__H_
 #define _OP_TRIE_HASHTABLE__H_
 
-#include <OP/common/typedefs.h>
-#include <OP/vtm/SegmentManager.h>
-#include <OP/vtm/PersistedReference.h>
-#include <OP/trie/Containers.h>
+#include <op/common/typedefs.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/PersistedReference.h>
+#include <op/trie/Containers.h>
 #include <unordered_map>
 namespace OP
 {

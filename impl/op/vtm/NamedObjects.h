@@ -1,7 +1,7 @@
 #ifndef _OP_TRIE_NAMEDOBJECTS__H_
 #define _OP_TRIE_NAMEDOBJECTS__H_
 
-#include <OP/vtm/SegmentManager.h>
+#include <op/vtm/SegmentManager.h>
 namespace OP
 {
     namespace trie

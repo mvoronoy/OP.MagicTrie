@@ -1,8 +1,8 @@
 #ifndef _OP_TRIE_TYPEHELPER__H_
 #define _OP_TRIE_TYPEHELPER__H_
 
-#include <OP/common/typedefs.h>
-#include <OP/vtm/SegmentManager.h>
+#include <op/common/typedefs.h>
+#include <op/vtm/SegmentManager.h>
 
 namespace OP
 {

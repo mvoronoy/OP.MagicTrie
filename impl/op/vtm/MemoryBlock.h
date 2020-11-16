@@ -1,7 +1,7 @@
 #ifndef _OP_TRIE_MEMORYBLOCK__H_
 #define _OP_TRIE_MEMORYBLOCK__H_
 
-#include <OP/vtm/SegmentManager.h>
+#include <op/vtm/SegmentManager.h>
 #include <op/vtm/Skplst.h>
 namespace OP
 {
