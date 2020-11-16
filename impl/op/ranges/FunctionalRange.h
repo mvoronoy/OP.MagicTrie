@@ -153,6 +153,8 @@ namespace OP
 
             iterator begin() const override
             {
+                if(!_source_range)
+                    return end();
                 auto res = _source_range->begin();
                 if (_source_range->in_range(res))
                 {
@@ -167,7 +169,7 @@ namespace OP
             }
             bool in_range(const iterator& check) const override
             {
-                if( !check )
+                if( !check || !_source_range )
                     return false;
                 return _source_range->in_range(check.impl<iterator_impl>().source());
             }
