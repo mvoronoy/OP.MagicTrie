@@ -435,6 +435,12 @@ void test_PrefixedFind(OP::utest::TestResult& tresult)
     trie->insert(std::string("ax1"), 3.0);
     lw_ch1 = trie->lower_bound(i_root, std::string(".123"));
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
+    
+    tresult.info()<<"check prefixed lower_bound after the range behaviour\n";
+    i_root = trie->find("zzz"_astr);
+    tresult.assert_false(trie->in_range(i_root), "iterator must be end()");
+    auto find_after_end = trie->lower_bound(i_root, "abc"_astr);
+    tresult.assert_that<equals>(find_after_end.key(), "abc"_astr, "iterator must point at 'abc'");
 
     tresult.info() << "prefixed find\n";
     auto fnd_aa = trie->find(std::string("aa"));
@@ -447,6 +453,11 @@ void test_PrefixedFind(OP::utest::TestResult& tresult)
     lw_ch1 = trie->lower_bound(fnd_aa, std::string("1"));
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"aa1", "key mismatch");
 
+    tresult.info() << "check prefixed find after the range behaviour\n";
+    i_root = trie->find("zzz"_astr);
+    tresult.assert_false(trie->in_range(i_root), "iterator must be end()");
+    find_after_end = trie->find(i_root, "abc"_astr);
+    tresult.assert_that<equals>(find_after_end.key(), "abc"_astr, "iterator must point at 'abc'");
 }
 
 void test_TrieNoTran(OP::utest::TestResult& tresult)
