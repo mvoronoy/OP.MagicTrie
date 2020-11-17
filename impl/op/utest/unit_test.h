@@ -39,7 +39,7 @@
 *   OP_UTEST_ASSERT(1==0, << "Logic is a power! Following number:" << 57);
 */
 #define OP_UTEST_ASSERT(condition, ...) ([](bool test)->void{ \
-        if(!test){ OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ); } \
+        if(!test){ OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS() << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ ).result() ); } \
     }(condition))
 
 /**The same as OP_UTEST_ASSERT but unconditionally failed*/

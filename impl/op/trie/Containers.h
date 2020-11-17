@@ -140,8 +140,8 @@ namespace OP
             typedef typename Container::key_t value_type;
             typedef std::ptrdiff_t difference_type;
             typedef std::ptrdiff_t distance_type;
-            typedef typename atom_t* pointer;
-            typedef typename atom_t& reference;
+            typedef atom_t* pointer;
+            typedef atom_t& reference;
 
             NodeTableIterator(const container_t* container, size_t offset) :
                 _container(container),
@@ -220,23 +220,19 @@ namespace OP
             fdef_4  = _f_userdefined_ << 4
         };
 
-        template <class Payload, node_size_t capacity>
+        template <class Payload, node_size_t TCapacity>
         struct NodeHashTable : public ByteKeyContainer<Payload>
         {
             enum
             {
-                capacity_c = capacity,
+                capacity_c = TCapacity,
                 bitmask_c = capacity_c - 1 /*on condition capacity is power of 2*/,
                 neighbor_width_c = _internal::max_hash_neighbors<capacity_c>::value_c
             };
             typedef NodeHashTable<Payload, capacity_c> this_t;
-            typedef NodeTableIterator<typename this_t> iterator;
+            typedef NodeTableIterator<this_t> iterator;
             typedef atom_t key_t;
 
-            static size_t allocation_size(node_size_t capacity)
-            {
-                return sizeof(Content) * capacity_c;
-            }
             static const std::array<node_size_t, 5>& known_capacity()
             {
                 static const std::array<node_size_t, 5> rv = { 8, 16, 32, 64, 128 };
