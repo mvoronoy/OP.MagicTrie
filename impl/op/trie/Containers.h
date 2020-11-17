@@ -355,7 +355,7 @@ namespace OP
             iterator& next(iterator& i, typename iterator::distance_type offset = 1) const
             {
                 //note following 'for' plays with unsigned-byte arithmetic
-                iterator::distance_type inc = offset > 0 ? 1 : -1;
+                typename iterator::distance_type inc = offset > 0 ? 1 : -1;
                 for (i._offset += inc; offset && i._offset < capacity(); i._offset += inc)
                     if (container()[i._offset]._flag & fpresence_c)
                     {
@@ -478,7 +478,7 @@ namespace OP
             public NavigableByteRangeContainer<Payload>
         {
             typedef NodeSortedArray<Payload, capacity> this_t;
-            typedef NodeTableIterator<typename this_t> iterator;
+            typedef NodeTableIterator<this_t> iterator;
             enum
             {
                 capacity_c = capacity,
