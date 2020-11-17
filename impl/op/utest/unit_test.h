@@ -25,7 +25,7 @@
 * Usage:
 * \code
 * ...
-* OP_CODE_DETAILS( << "Dtail of exception with number " << 57 );
+* OP_CODE_DETAILS() << "Detail of exception with number " << 57;
 
 * \endcode
 */

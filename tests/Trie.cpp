@@ -95,7 +95,7 @@ void test_TrieInsert(OP::utest::TestResult& tresult)
     auto ir2 = trie->insert(std::begin(stem1), std::end(stem1), v_order + 101.0);
     tresult.assert_false(
         ir2.second,
-        OP_CODE_DETAILS("Duplicate insert must not be allowed"));
+        OP_CODE_DETAILS()<<"Duplicate insert must not be allowed");
     tresult.assert_true(trie->size() == 2);
 
     auto ir3 = trie->insert(stem1_deviation1.cbegin(), stem1_deviation1.cend(), v_order);
@@ -1628,7 +1628,7 @@ void test_Range(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(9, trie->range()
         ->for_each([&](auto const& kv) {
             tresult.assert_true(tools::container_equals(kv.key(), i->first, &tools::sign_tolerant_cmp<atom_t>),
-                OP_CODE_DETAILS("error for key=" << (const char*)i->first.c_str() << ", while obtained:" << (const char*)kv.key().c_str()));
+                OP_CODE_DETAILS(<< "error for key=" << (const char*)i->first.c_str() << ", while obtained:" << (const char*)kv.key().c_str()));
             tresult.assert_that<equals>(kv.value(), i->second,
                 OP_CODE_DETAILS(<< "Associated value error, has:" << kv.value() << ", expected:" << i->second));
             ++i;
