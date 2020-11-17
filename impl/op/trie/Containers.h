@@ -223,6 +223,8 @@ namespace OP
         template <class Payload, node_size_t TCapacity>
         struct NodeHashTable : public ByteKeyContainer<Payload>
         {
+            using base_t = ByteKeyContainer<Payload>;
+            using payload_t = typename base_t::payload_t;
             enum
             {
                 capacity_c = TCapacity,
@@ -309,7 +311,7 @@ namespace OP
                 std::for_each(container(), container() + size(), [](Content& c){ c._flag = 0; });
                 _count = 0;
             }
-            Payload& value(const iterator& index)
+            payload_t& value(const iterator& index)
             {
                 //static_assert(!std::is_same(Payload, EmptyPayload), "No value array for this container");
                 if (index._offset >= capacity_c
