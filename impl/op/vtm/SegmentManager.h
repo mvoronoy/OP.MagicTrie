@@ -303,7 +303,7 @@ namespace OP
             * @tparam F functor that accept 2 arguments of type ( segment_idx_t index_of segement, SegmentManager& segment_manager )
             */
             template <class F>
-            void foreach_segment(F& f)
+            void foreach_segment(F f)
             {
                 _fbuf.seekp(0, std::ios_base::end);
                 auto end = (size_t)_fbuf.tellp();
