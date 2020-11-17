@@ -24,7 +24,7 @@ void generic_test(OP::utest::TestResult &tresult, B& container)
     for (auto i = 0; i < container.capacity(); ++i)
     {
         tresult.assert_true(
-            ((i & 1) ? !container.get(i) : container.get(i)), OP_CODE_DETAILS("Value must be " << (i & ~1)));
+            ((i & 1) ? !container.get(i) : container.get(i)), OP_CODE_DETAILS()<<"Value must be " << (i & ~1));
         container.toggle(i);
     }
     for (auto i = 0; i < container.capacity(); ++i)
