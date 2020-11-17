@@ -235,6 +235,12 @@ namespace OP
             {
                 return _result_multiplex;
             }
+            template <class T>
+            detail& operator << (T && t)
+            {
+                as_stream() << std::forward<T>(t);
+                return *this;
+            }
         private:
             std::ostringstream _result;
             _inner::multiplex_stream _result_multiplex;
@@ -246,12 +252,6 @@ namespace OP
             return det;
         }
 
-        template <class T>
-        inline detail& operator << (detail& det, const T& t)
-        {
-            det.as_stream() << t;
-            return det;
-        }
         inline std::ostream& operator << (std::ostream& os, const detail& det)
         {
             os << det.result().c_str();
@@ -909,7 +909,7 @@ namespace OP
                 return randomize(r, 256);
             }*/
             template <class Container1, class Container2, class ErrorHandler>
-            inline bool compare(const Container1& co1, const Container2& co2, ErrorHandler& on_error = [](const typename Container2::value_type& ){})
+            inline bool compare(const Container1& co1, const Container2& co2, ErrorHandler& on_error = [](const typename Container2::value_type& v){})
             {
                 std::multiset<typename Container1::value_type> s1(std::begin(co1), std::end(co1));
                 for (auto x : co2)
