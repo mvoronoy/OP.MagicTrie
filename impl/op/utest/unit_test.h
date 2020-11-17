@@ -909,7 +909,7 @@ namespace OP
                 return randomize(r, 256);
             }*/
             template <class Container1, class Container2, class ErrorHandler>
-            inline bool compare(const Container1& co1, const Container2& co2, ErrorHandler& on_error = [](const typename Container2::value_type& v){})
+            inline bool compare(const Container1& co1, const Container2& co2, ErrorHandler& on_error = [](const typename Container2::value_type& ){})
             {
                 std::multiset<typename Container1::value_type> s1(std::begin(co1), std::end(co1));
                 for (auto x : co2)

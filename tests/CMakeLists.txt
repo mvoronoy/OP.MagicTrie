@@ -17,6 +17,9 @@ IF (Boost_FOUND)
     ADD_DEFINITIONS( "-DHAS_BOOST" )
 ENDIF()
 
+message("~*~*~*~*~*~*~*~*~*~*~*")
+message("boost inc:${Boost_INCLUDE_DIR}")
+
 enable_testing()
 
 # Add source to this project's executable.
