@@ -687,26 +687,6 @@ namespace OP
             };
 
         };
-        /** Specialization for functions without arguments, it can use OP_UTEST_ASSERT
-        * instead of access to TestResult methods
-        */
-        template <>
-        void TestSuite::FunctionalTestCase< std::function<void()> >::run(TestResult& retval)
-        {
-            _function();
-        }
-        inline std::ostream& TestResult::info() const
-        {
-            return _log_level >= ResultLevel::info ? _suite->info() : _null_stream;
-        }
-        
-        template <class Name>
-        inline std::shared_ptr<TestSuite> default_test_suite(Name && name)
-        {
-            auto r = std::make_shared<TestSuite>(std::forward<Name>(name), std::cout, std::cerr);
-            TestRun::default_instance().declare(r);
-            return r;
-        };
 
         struct TestReport
         {
@@ -830,6 +810,7 @@ namespace OP
                 }
                 void(*_prev_handler)(int);
             };
+
             template <class Predicate, class Function>
             void for_each_case_if(TestSuite &suite, Predicate && p, Function && f)
             {
@@ -928,9 +909,9 @@ namespace OP
                 return randomize(r, 256);
             }*/
             template <class Container1, class Container2, class ErrorHandler>
-            inline bool compare(const Container1& co1, const Container2& co2, ErrorHandler& on_error = [](const Container2::value_type& v){})
+            inline bool compare(const Container1& co1, const Container2& co2, ErrorHandler& on_error = [](const typename Container2::value_type& v){})
             {
-                std::multiset<Container1::value_type> s1(std::begin(co1), std::end(co1));
+                std::multiset<typename Container1::value_type> s1(std::begin(co1), std::end(co1));
                 for (auto x : co2)
                 {
                     auto found = s1.find(x);
@@ -982,6 +963,30 @@ namespace OP
                 return (unsigned char)left == right;
             }
         }
+        //
+        //  Later inline impl
+        //
+        /** Specialization for functions without arguments, it can use OP_UTEST_ASSERT
+        * instead of access to TestResult methods
+        */
+        template <>
+        void TestSuite::FunctionalTestCase< std::function<void()> >::run(TestResult& retval)
+        {
+            _function();
+        }
+        inline std::ostream& TestResult::info() const
+        {
+            return _log_level >= ResultLevel::info ? _suite->info() : _null_stream;
+        }
+        
+        template <class Name>
+        inline std::shared_ptr<TestSuite> default_test_suite(Name && name)
+        {
+            auto r = std::make_shared<TestSuite>(std::forward<Name>(name), std::cout, std::cerr);
+            TestRun::default_instance().declare(r);
+            return r;
+        };
+
     } //utest
 }//OP
 #endif //_UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
