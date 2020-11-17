@@ -18,7 +18,7 @@ IF (Boost_FOUND)
 ENDIF()
 
 message("~*~*~*~*~*~*~*~*~*~*~*")
-message("boost inc:${Boost_INCLUDE_DIR}")
+message("boost inc:${Boost_INCLUDE_DIRS}")
 
 enable_testing()
 

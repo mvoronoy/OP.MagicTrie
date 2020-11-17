@@ -247,9 +247,9 @@ namespace OP
         }
 
         template <class T>
-        inline detail& operator << (detail& det, T && t)
+        inline detail& operator << (detail& det, const T& t)
         {
-            det.as_stream() << std::forward<T>(t);
+            det.as_stream() << t;
             return det;
         }
         inline std::ostream& operator << (std::ostream& os, const detail& det)
