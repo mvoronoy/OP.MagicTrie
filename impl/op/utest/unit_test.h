@@ -38,7 +38,10 @@
 * ...
 *   OP_UTEST_ASSERT(1==0, << "Logic is a power! Following number:" << 57);
 */
-#define OP_UTEST_ASSERT(condition, ...) (void)((!!(condition)) || OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
+#define OP_UTEST_ASSERT(condition, ...) ([](bool test)->void{ \
+        if(!test){ OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ); } \
+    }(condition))
+
 /**The same as OP_UTEST_ASSERT but unconditionally failed*/
 #define OP_UTEST_FAIL(...) (void)(OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
 namespace OP
@@ -67,6 +70,8 @@ namespace OP
             {
                 throw OP::utest::TestFail(std::forward<X>(x));
             }
+
+            /*
             template <class F, class ... Args >
             inline std::function< F(Args...) > make_function(F&& f)
             {
@@ -76,7 +81,7 @@ namespace OP
             inline std::function< void() > make_function(void f())
             {
                 return std::function< void() >(f);
-            }
+            } */
             /**
             *
             *   @copyright teebuf and teestream
