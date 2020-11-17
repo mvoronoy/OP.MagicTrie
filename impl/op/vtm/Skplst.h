@@ -87,7 +87,7 @@ namespace OP
             */
             OP_CONSTEXPR(OP_EMPTY_ARG) static segment_pos_t byte_size()
             {
-                return align_on(
+                return OP::utils::align_on(
                     static_cast<segment_pos_t>(sizeof(ForwardListBase) * bitmask_size_c),
                     SegmentHeader::align_c);
             }

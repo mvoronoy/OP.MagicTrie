@@ -26,7 +26,7 @@ void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
     {
         OP::vtm::TransactionGuard op_g(topology.segment_manager().begin_transaction());
         auto pos = mngr.allocate();
-        auto &wr = *topology.segment_manager().wr_at<FixedSizeMemoryManager::payload_t>(pos);
+        auto &wr = *topology.segment_manager().wr_at<typename FixedSizeMemoryManager::payload_t>(pos);
         
         tresult.assert_true(wr.inc == 57);
         wr.inc += i;
@@ -41,7 +41,7 @@ void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
     //test all values kept correct value
     for (auto i = 0; i < test_nodes_count_c; ++i)
     {
-        auto to_test = view<FixedSizeMemoryManager::payload_t>(topology, allocated_addrs[i]);
+        auto to_test = view<typename FixedSizeMemoryManager::payload_t>(topology, allocated_addrs[i]);
         tresult.assert_true(i + 57 == to_test->inc, "Invalid value stored");
     }
 }
