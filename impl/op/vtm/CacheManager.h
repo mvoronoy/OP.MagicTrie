@@ -31,7 +31,7 @@ namespace OP{
             {
                 auto rk = std::make_unique<ReferenceKey>(k);
                 guard_t l(_map_lock);
-                map_t::iterator found = _map.find(rk);
+                typename map_t::iterator found = _map.find(rk);
                 if (found != _map.end())
                 {
                     found->first->float_up(_root.get());
@@ -46,7 +46,7 @@ namespace OP{
                 auto rk = std::make_unique<ReferenceKey>(k);
                 guard_t l(_map_lock);
 
-                map_t::iterator found = _map.find(rk);
+                typename map_t::iterator found = _map.find(rk);
                 if (found == _map.end())
                 {
                     //cycling list have biggest 'prev' root
@@ -65,7 +65,7 @@ namespace OP{
             {
                 auto rk = std::make_unique<ReferenceKey>(k);
                 guard_t l(_map_lock);
-                map_t::iterator found = _map.find(rk);
+                typename map_t::iterator found = _map.find(rk);
                 if (found == _map.end())
                 {
                     auto inserted = this->_map.insert(
@@ -139,7 +139,7 @@ namespace OP{
             bool _erase(const Key& k)
             {
                 auto rk = std::make_unique<ReferenceKey>(k);
-                map_t::iterator found = _map.find(rk);
+                typename map_t::iterator found = _map.find(rk);
                 if (found == _map.end())
                     return false;
                 on_before_erase(found->first->key, found->second);

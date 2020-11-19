@@ -226,11 +226,11 @@ namespace OP
         {
             Range<T> search(index, 1);
             auto result_pair = _free_ranges.insert(search);
-            range_set_t::iterator right = result_pair.first;
+            auto right = result_pair.first;
             ++right;
             if (right == _free_ranges.end())
                 right = result_pair.first;
-            range_set_t::iterator begin = result_pair.first;
+            auto begin = result_pair.first;
             if (begin != _free_ranges.begin()) //make step left
                 --begin;
             optimize_left(begin, right);
