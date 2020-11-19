@@ -473,15 +473,16 @@ namespace OP
 
 
 
-        template <class Payload, node_size_t capacity>
+        template <class Payload, node_size_t TCapacity>
         struct NodeSortedArray :
             public NavigableByteRangeContainer<Payload>
         {
-            typedef NodeSortedArray<Payload, capacity> this_t;
+            using payload_t = Payload;
+            typedef NodeSortedArray<Payload, TCapacity> this_t;
             typedef NodeTableIterator<this_t> iterator;
             enum
             {
-                capacity_c = capacity,
+                capacity_c = TCapacity,
                 chunk_limit_c = 8
             };
             typedef std::pair<const atom_t*, const atom_t*> key_t;
@@ -642,7 +643,7 @@ namespace OP
                     return std::make_pair(container()[i._offset].chunk, container()[i._offset].chunk + container()[i._offset].layout.len);
                 throw std::out_of_range("invalid index");
             }
-            Payload& value(const iterator& i)
+            payload_t& value(const iterator& i)
             {
                 //static_assert(!std::is_same(Payload, EmptyPayload), "No value array for this container");
                 if (i._offset >= size())
