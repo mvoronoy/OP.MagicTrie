@@ -516,7 +516,8 @@ namespace OP
             template <class Str>
             iterator insert(Str&& string)
             {
-                return this->insert(std::begin(string), std::end(string));
+                auto sbeg = std::begin(string);
+                return this->insert(sbeg, std::end(string));
             }
             /**
             *   @param begin (in/out) - starting pointer of data chunk to store inside container. At exit contains
