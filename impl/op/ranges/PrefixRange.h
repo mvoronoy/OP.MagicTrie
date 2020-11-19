@@ -417,7 +417,7 @@ namespace OP
             {
                 if( payload._has_value )
                 {
-                    for(auto const* wp = wrap().get(); wp->in_range(current); wp->next(current))
+                    for(auto const* wp = super_t::wrap().get(); wp->in_range(current); wp->next(current))
                     {
                         if( wp->key_comp()(payload._key, current.key()) != 0 )
                         {
