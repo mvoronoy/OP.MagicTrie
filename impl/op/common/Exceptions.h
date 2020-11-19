@@ -51,7 +51,7 @@ namespace OP
         {
             explicit Exception(ErrorCode code):
                 _code(code),
-                std::logic_error(""){}
+                std::logic_error(std::to_string((unsigned)code)){}
 
             Exception(ErrorCode code, const char * error):
                 _code(code),
