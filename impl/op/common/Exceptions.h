@@ -47,15 +47,15 @@ namespace OP
             /**Transactional memory blocks cannot be overlapped. Blocks may be nested, adjasted or separated. */
             er_overlapping_block = 43
         };
-        struct Exception : public std::exception
+        struct Exception : public std::logic_error
         {
             explicit Exception(ErrorCode code):
                 _code(code),
-                std::exception(){}
+                std::logic_error(""){}
 
             Exception(ErrorCode code, const char * error):
                 _code(code),
-                std::exception(error){}
+                std::logic_error(error){}
             operator ErrorCode () const
             {
                 return _code;
