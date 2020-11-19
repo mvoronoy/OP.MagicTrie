@@ -126,7 +126,7 @@ namespace OP
             inline size_t of_array(const SegmentOptions& previous)
             {
                 return
-                    align_on(sizeof(T)*n, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
+                    OP::utils::align_on(sizeof(T)*n, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
             }
             template <class T>
             struct of_array_dyn
@@ -139,7 +139,7 @@ namespace OP
                 size_t operator ()(const SegmentOptions& previous) const
                 {
                     return
-                        align_on(sizeof(T)*_count, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
+                        OP::utils::align_on(sizeof(T)*_count, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
                 }
             private:
                 size_t _count;
@@ -153,7 +153,7 @@ namespace OP
             template <class T, size_t n = 1>
             inline size_t of_assorted(const SegmentOptions& previous)
             {
-                return n*(aligned_sizeof<T>(previous.memory_alignment()) + previous.memory_alignment());
+                return n*(OP::utils::aligned_sizeof<T>(previous.memory_alignment()) + previous.memory_alignment());
             }
             /**Increase total amount of already reserved bytes by some percentage value. Used with SegmentOptions::heuristic_size. For example:
             *\code
@@ -325,8 +325,10 @@ namespace OP
                 _listener(nullptr)
             {
                 //file is opened always in RW mode
-                std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary
-                    | (create_new ? std::ios_base::trunc : 0);
+                std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary;
+                if(create_new)
+                    mode |=  std::ios_base::trunc;
+
                 _fbuf.open(file_name, mode);
                 if (_fbuf.bad())
                     throw trie::Exception(trie::er_file_open, file_name);
