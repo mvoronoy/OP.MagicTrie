@@ -187,7 +187,7 @@ namespace OP
     {
         auto leftmost = std::min(range_op::pos(lar), range_op::pos(rar));
         return TRange(leftmost, 
-			static_cast<TRange::distance_t>( 
+			static_cast<typename TRange::distance_t>( 
 				std::max(range_op::right(lar), range_op::right(rar)) - leftmost));
     }
     template <class TRange>
@@ -198,7 +198,7 @@ namespace OP
         auto rightmost_left = std::max(
 			range_op::pos(lar), range_op::pos(rar));
         return rightmost_left < leftmost_right 
-            ? TRange(rightmost_left, static_cast<TRange::distance_t>(leftmost_right - rightmost_left))
+            ? TRange(rightmost_left, static_cast<typename TRange::distance_t>(leftmost_right - rightmost_left))
             : TRange(rightmost_left, 0);
     }
 

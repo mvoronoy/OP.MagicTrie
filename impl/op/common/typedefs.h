@@ -5,6 +5,7 @@
 #include <limits>
 #include <cstddef>
 #include <string>
+#include <iomanip>
 
 #if defined( _MSC_VER ) && defined(max)
 #undef max
