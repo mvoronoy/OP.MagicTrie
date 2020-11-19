@@ -337,7 +337,7 @@ namespace OP{
                 return _data.get(pos);
             }
             template <class Factory>
-            ptr_t get(index_t pos, Factory& factory)
+            ptr_t get(index_t pos, Factory factory)
             {
                 return _data.get(pos, factory);
             }

@@ -60,6 +60,7 @@ namespace OP
             SegmentOptions& memory_alignment(segment_pos_t memory_alignment)
             {
                 _memory_alignment = memory_alignment;
+                return *this;
             }
             /**
             * Segment is a big chunk of virtual memory where the all other memory blocks are allocated.
@@ -279,7 +280,7 @@ namespace OP
             template <class T>
             T* wr_at(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
-                return this->writable_block(pos, memory_requirement<T>::requirement, hint).at<T>(0);
+                return this->writable_block(pos, OP::utils::memory_requirement<T>::requirement, hint).at<T>(0);
             }
             /**
             *  By the given memory pointer tries to restore origin far-pos.
@@ -398,16 +399,16 @@ namespace OP
                 details::segment_helper_p region = _cached_segments.get(
                     index,
                     [&](segment_idx_t key)
-                {
-                    render_new = true;
-                    auto offset = key * this->_segment_size;
-                    auto result = std::make_shared<details::SegmentHelper>(
-                        this->_mapping,
-                        offset,
-                        this->_segment_size);
+                    {
+                        render_new = true;
+                        auto offset = key * this->_segment_size;
+                        auto result = std::make_shared<details::SegmentHelper>(
+                            this->_mapping,
+                            offset,
+                            this->_segment_size);
                     
-                    return result;
-                }
+                        return result;
+                    }
                 );
                 if (render_new)
                 {
