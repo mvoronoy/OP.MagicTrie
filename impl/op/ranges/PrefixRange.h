@@ -436,6 +436,7 @@ namespace OP
             using ordered_range_t = OrderedRange<K, V>;
             using ordered_range_ptr = std::shared_ptr<ordered_range_t const>;
             using key_comparator_t = std::function<int(const K&, const K&)>;
+            using iterator = typename RangeBase<K,V>::iterator;
 
             virtual iterator lower_bound(const K&) const = 0;
 

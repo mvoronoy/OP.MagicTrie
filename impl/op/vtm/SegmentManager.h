@@ -548,7 +548,7 @@ namespace OP
             template <class T>
             T& slot()
             {
-                return dynamic_cast<T&>(*_slots[get_type_index<T, TSlot...>::value]);
+                return dynamic_cast<T&>(*_slots[OP::utils::get_type_index<T, TSlot...>::value]);
             }
             void _check_integrity()
             {
@@ -582,7 +582,7 @@ namespace OP
                 //start write toplogy right after header
                 TopologyHeader* header = manager
                     .writable_block(FarAddress(new_segment, current_offset), addres_table_size_c)
-                    .at<TopologyHeader>(0);
+                    .template at<TopologyHeader>(0);
                 current_offset += addres_table_size_c;
                 header->_slots_count = 0;
 
