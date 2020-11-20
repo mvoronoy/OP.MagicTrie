@@ -274,13 +274,13 @@ namespace OP
                 return MemoryChunk(ro.count(), std::move(addr), std::move(ro.segment()));
             }
             /** Shorthand for \code
-                readonly_block(pos, sizeof(T)).at<T>(0)
+                writable_block(pos, sizeof(T)).at<T>(0)
             \endcode
             */
             template <class T>
             T* wr_at(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
-                return this->writable_block(pos, OP::utils::memory_requirement<T>::requirement, hint).at<T>(0);
+                return this->writable_block(pos, OP::utils::memory_requirement<T>::requirement, hint).template at<T>(0);
             }
             /**
             *  By the given memory pointer tries to restore origin far-pos.
