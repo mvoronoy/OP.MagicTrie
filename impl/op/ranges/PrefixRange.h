@@ -395,7 +395,7 @@ namespace OP
 
         /** Implement `distinct` operation for ordered ranges */
         template <class Base>
-        struct DistinctRange : IdentityIteratorRange<Base, details::DistinctIdentityRangePayload<typename Base::key_t> >
+        struct DistinctRange : public IdentityIteratorRange<Base, details::DistinctIdentityRangePayload<typename Base::key_t> >
         {
             using base_t = Base;
             using super_t = IdentityIteratorRange<base_t, details::DistinctIdentityRangePayload<typename Base::key_t> >;
@@ -407,7 +407,7 @@ namespace OP
             using state_payload_t = typename super_t::state_payload_t;
             void on_before_reposition(iterator& current, state_payload_t& payload) const override
             {
-                if( in_range(current) )
+                if( this->in_range(current) )
                 {
                     payload._has_value = true;
                     payload._key = current.key();

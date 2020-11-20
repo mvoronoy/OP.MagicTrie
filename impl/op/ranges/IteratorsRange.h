@@ -86,7 +86,8 @@ namespace OP
             }
             void next(iterator& pos) const override
             {
-                ++pos.impl<payload>()._i;
+                auto &pld = pos.impl<payload>();
+                ++pld._i;
             }
 
             iterator lower_bound(const typename base_t::key_t& key) const override
