@@ -133,7 +133,7 @@ namespace OP
                 }
                 return SegmentDef::far_null_c;
             }
-            void insert(traits_t& traits, typename traits_t::pos_t t, ForwardListBase* ref, const MemoryBlockHeader* ref_memory_block)
+            void insert(const traits_t& traits, typename traits_t::pos_t t, ForwardListBase* ref, const MemoryBlockHeader* ref_memory_block)
             {
                 OP_CONSTEXPR(const static) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
 
