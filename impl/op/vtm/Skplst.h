@@ -8,7 +8,7 @@
 #include <op/common/Utils.h>
 #include <op/vtm/Transactional.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/MemoryBlock.h>
+#include <op/vtm/MemoryBlockHeader.h>
 
 namespace OP
 {
@@ -22,7 +22,6 @@ namespace OP
             ForwardListBase() :next(SegmentDef::far_null_c){}
             entry_pos_t next;
         };
-        struct MemoryBlockHeader;
 
         /***/
         template <class Traits, size_t bitmask_size_c = 32>
