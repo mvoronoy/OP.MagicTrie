@@ -69,7 +69,7 @@ namespace OP
                 _segment_manager(manager),
                 _list_pos(start)
             {
-                static_assert(std::is_base_of<ForwardListBase, traits_t::target_t>::value, "To use skip-list you need inherit T from ForwardListBase");
+                static_assert(std::is_base_of<ForwardListBase, typename traits_t::target_t>::value, "To use skip-list you need inherit T from ForwardListBase");
             }
 
             far_pos_t pull_not_less(traits_t& traits, typename Traits::key_t key)
@@ -154,7 +154,7 @@ namespace OP
                     auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
                     const MemoryBlockHeader * mem_header = mem_header_block.at<MemoryBlockHeader>(0);
 
-                    auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(traits_t::target_t));
+                    auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(typename traits_t::target_t));
                     typename traits_t::const_ptr_t curr = curr_block.at<typename traits_t::target_t>(0);
 
                     if (!traits.less(mem_header->size(), key))

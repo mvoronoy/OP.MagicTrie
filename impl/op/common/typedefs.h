@@ -25,6 +25,7 @@
 #define OP_NOEXCEPT noexcept 
 #endif //
 
+#define OP_TEMPL_METH(method) template method
 
 namespace OP
 {

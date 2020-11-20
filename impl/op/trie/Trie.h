@@ -61,7 +61,7 @@ namespace OP
                 auto r = std::shared_ptr<this_t>(new this_t(segment_manager));
                 //make root for trie
                 OP::vtm::TransactionGuard op_g(segment_manager->begin_transaction()); //invoke begin/end write-op
-                r->_topology_ptr->slot<TrieResidence>().set_root_addr(r->new_node());
+                r->_topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().set_root_addr(r->new_node());
 
                 op_g.commit();
                 return r;
@@ -78,22 +78,22 @@ namespace OP
             /**Total number of items*/
             std::uint64_t size() const
             {
-                return _topology_ptr->slot<TrieResidence>().count();
+                return _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().count();
             }
             node_version_t version() const
             {
-                return _topology_ptr->slot<TrieResidence>().current_version();
+                return _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().current_version();
             }
             /**Number of allocated nodes*/
             std::uint64_t nodes_count()
             {
-                return _topology_ptr->slot<TrieResidence>().nodes_allocated();
+                return _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().nodes_allocated();
             }
 
             iterator begin() const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto next_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                auto next_addr = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().get_root_addr();
                 iterator i(this);
                 auto lres = load_iterator(next_addr, i,
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); },
@@ -632,7 +632,7 @@ namespace OP
                 auto &v = values[ridx];
                 assert(v.has_data());
                 v.set_data(std::move(value));
-                _topology_ptr->slot<TrieResidence>()
+                _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
                     .increase_version() // version of trie
                     ;
                 return 1;
@@ -709,7 +709,7 @@ namespace OP
                     return end();
                 auto result{ pos };
                 ++result ;
-                const auto root_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                const auto root_addr = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().get_root_addr();
                 bool erase_child_and_exit = false; //flag mean stop iteration
                 for (bool first = true; pos.deep() ; pos.pop(), first = false)
                 {
@@ -733,7 +733,7 @@ namespace OP
                         erase_child_and_exit = true;
                     }
                 }
-                _topology_ptr->slot<TrieResidence>()
+                _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
                     .increase_count(-1) //number of terminals
                     .increase_version() // version of trie
                     ;
@@ -794,7 +794,7 @@ namespace OP
                     remove_node(node_addr, *wr_node);
                 }
                 parent_wr_node->set_child(*_topology_ptr, static_cast<atom_t>(prefix.back().key()), FarAddress());
-                auto& residence = _topology_ptr->slot<TrieResidence>()
+                auto& residence = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
                     .increase_count(erased_terminals) //number of terminals
                     .increase_version() // version of trie
                     ;
@@ -899,8 +899,8 @@ namespace OP
             */
             FarAddress new_node(containers::HashTableCapacity capacity = containers::HashTableCapacity::_8)
             {
-                auto node_pos = _topology_ptr->slot<node_manager_t>().allocate();
-                auto node = _topology_ptr->segment_manager().wr_at<node_t>(node_pos);
+                auto node_pos = _topology_ptr->OP_TEMPL_METH(slot)<node_manager_t>().allocate();
+                auto node = _topology_ptr->segment_manager().template wr_at<node_t>(node_pos);
                 //auto node = new (node_block.pos()) node_t;
 
                 // create hash-reindexer
@@ -914,7 +914,7 @@ namespace OP
 
                 node->payload = _value_mngr.create((dim_t)capacity);
 
-                auto &res = _topology_ptr->slot<TrieResidence>();
+                auto &res = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>();
                 node->uid.uid = res.generate_node_id();
                 res.increase_nodes_allocated(+1);
                 return node_pos;
@@ -924,8 +924,8 @@ namespace OP
                 _hash_mngr.destroy(node.reindexer);
                 _stem_mngr.destroy(node.stems);
                 _value_mngr.destroy(node.payload);
-                _topology_ptr->slot<node_manager_t>().deallocate(addr);
-                auto &res = _topology_ptr->slot<TrieResidence>();
+                _topology_ptr->OP_TEMPL_METH(slot)<node_manager_t>().deallocate(addr);
+                auto &res = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>();
                 res.increase_nodes_allocated(-1);
             }
             /**
@@ -969,7 +969,7 @@ namespace OP
                         wr_node->set_child(*_topology_ptr, key, node_addr);
                     }
                 }
-                _topology_ptr->slot<TrieResidence>()
+                _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
                     .increase_count(+1) //number of terminals
                     .increase_version() // version of trie
                     ;
@@ -1033,7 +1033,7 @@ namespace OP
                 {
                     assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
                     //case about non-existing item
-                    _topology_ptr->slot<TrieResidence>()
+                    _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
                         .increase_count(1) //number of terminals
                         .increase_version() // version of trie
                         ;
@@ -1096,7 +1096,7 @@ namespace OP
                 }
                 else
                 { //start from root node
-                    node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                    node_addr = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().get_root_addr();
                 }
                 for (;;)
                 {
@@ -1176,7 +1176,7 @@ namespace OP
                 case stem::StemCompareResult::no_entry:
                 {
                     auto start_from = prefix.is_end()
-                        ? _topology_ptr->slot<TrieResidence>().get_root_addr()
+                        ? _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().get_root_addr()
                         : nav_res.child_node;//prefix.back().address();
                     auto lres = load_iterator(//need reload since after common_prefix may not be complete
                         start_from, prefix,
