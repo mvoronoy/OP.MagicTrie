@@ -8,7 +8,7 @@
 #include <op/common/Utils.h>
 #include <op/vtm/Transactional.h>
 #include <op/vtm/SegmentManager.h>
-
+#include <op/vtm/MemoryBlock.h>
 
 namespace OP
 {
