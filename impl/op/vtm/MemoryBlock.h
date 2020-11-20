@@ -10,39 +10,6 @@ namespace OP
     namespace trie
     {
         
-        /**
-        *   When Memory block is released it have to be placed to special re-cycling container.
-        *   This structure is placed inside MemoryBlockHeader (so doesn't consume space) to support 
-        *   sorted navigation between free memory blocks.
-        */
-        struct FreeMemoryBlock : public OP::trie::ForwardListBase
-        {
-            /**Special constructor for objects allocated in existing memory*/
-            FreeMemoryBlock(emplaced_t)
-            {
-            }
-            /*const MemoryBlockHeader* get_header() const
-            {
-                return reinterpret_cast<const MemoryBlockHeader*>(
-                    reinterpret_cast<const std::uint8_t*>(this) - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c)
-                    );
-            }*/
-            /**
-            *   Taking this far address convert it to far address of associated MemoryBlockHeader
-            */
-            static far_pos_t get_header_addr(far_pos_t this_addr)
-            {
-                return this_addr - OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-            }
-            /**
-            *   Taking this far address convert it to far address of associated MemoryBlockHeader
-            */
-            static far_pos_t get_addr_by_header(far_pos_t header_addr)
-            {
-                return header_addr + OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-            }
-            
-        };
         struct FreeMemoryBlockTraits
         {
             typedef FreeMemoryBlock target_t;

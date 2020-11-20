@@ -16,14 +16,6 @@ namespace OP
     {
         using namespace OP::utils;
 
-        struct ForwardListBase
-        {
-            typedef far_pos_t entry_pos_t;
-            ForwardListBase() :next(SegmentDef::far_null_c){}
-            entry_pos_t next;
-        };
-
-        struct FreeMemoryBlock;
 
         /***/
         template <class Traits, size_t bitmask_size_c = 32>
