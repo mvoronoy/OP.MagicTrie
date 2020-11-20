@@ -14,6 +14,7 @@ namespace OP
 {
     namespace trie
     {
+        using namespace OP::utils;
         /**
         @tparam Capacity number of #Payload entries in this container
         */

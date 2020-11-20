@@ -14,6 +14,8 @@ namespace OP
 {
     namespace trie
     {
+        using namespace OP::utils;
+
         struct ForwardListBase
         {
             typedef far_pos_t entry_pos_t;
@@ -21,59 +23,7 @@ namespace OP
             entry_pos_t next;
         };
         struct MemoryBlockHeader;
-        //template <class Traits>
-        //struct ListEntry : public ForwardListBase<Traits>
-        //{
-        //    typedef typename traits_t::ptr_t ptr_t;
-        //    typedef typename traits_t::key_t key_t;
 
-        //    ListEntry() :
-        //        _count(0),
-        //        _value(Traits::eos())
-        //    {
-        //    }
-
-        //    /**@return always valid pointer, that can be used to insert item or find element.
-        //    *           To detect if value found just check if `(**result)` is not equal `ListEntity::eos` */
-        //    entry_pos_t* prev_lower_bound(key_t key, Traits& traits)
-        //    {
-        //        entry_pos_t* ins_pos = &_value;
-        //        while (!Traits::is_eos(*ins_pos))
-        //        {
-        //            Traits::reference_t curr = traits.deref(*ins_pos);
-        //            if (traits.less(key, traits.key(curr)))
-        //                return ins_pos;
-        //            ins_pos = &traits.next(curr);
-        //        }
-        //        //run out of existing keys or entry is empty
-        //        return ins_pos;
-        //    }
-        //    template <class F>
-        //    entry_pos_t pull_that(Traits& traits, F& f)
-        //    {
-        //        entry_pos_t* ins_pos = &_value;
-        //        entry_pos_t* result = ins_pos;
-        //        ptr_t last = nullptr;
-        //        while (!Traits::is_eos(*ins_pos))
-        //        {
-        //            Traits::const_reference_t curr = traits.const_deref(*ins_pos);
-        //            if (f(curr))
-        //            {
-        //                auto rv = *ins_pos;
-        //                if (ins_pos == result) //peek first item
-        //                    _value = traits.next(curr);
-        //                else
-        //                    traits.set_next(*last, traits.next(curr));
-        //                return rv;
-        //            }
-        //            result = ins_pos;
-        //            last = &curr;
-        //            ins_pos = &traits.next(curr);
-        //        }
-        //        //run out of existing keys or entry is empty
-        //        return *ins_pos;
-        //    }
-        //};
         /***/
         template <class Traits, size_t bitmask_size_c = 32>
         struct Log2SkipList
