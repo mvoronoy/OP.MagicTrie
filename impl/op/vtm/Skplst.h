@@ -23,6 +23,8 @@ namespace OP
             entry_pos_t next;
         };
 
+        struct FreeMemoryBlock;
+
         /***/
         template <class Traits, size_t bitmask_size_c = 32>
         struct Log2SkipList
