@@ -22,7 +22,7 @@ namespace OP
         struct MemoryChunkBase /*: public OP::Range<std::uint8_t *, segment_pos_t>*/
         {
             //typedef OP::Range<std::uint8_t *> base_t;
-            MemoryChunkBase() {}
+            MemoryChunkBase() = default;
             MemoryChunkBase(
 				far_pos_t pos_offset,
 				const std::shared_ptr<std::uint8_t>& pos, 

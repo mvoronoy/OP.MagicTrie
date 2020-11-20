@@ -452,12 +452,7 @@ namespace OP
             /** produces range that joins this with oher sorted range
             * \see JoinRange for implementation details
             */
-            virtual ordered_range_ptr join(ordered_range_ptr range) const
-            {
-                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (this->shared_from_this()));
-                using range_impl_t = JoinRange<ordered_range_t, ordered_range_t>;
-                return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(range)));
-            }
+            virtual ordered_range_ptr join(ordered_range_ptr range) const;
             /** Produce new range that select from this only items existing in 'other'. For unique ranges result is
             * the same as `join`. But for ordered ranges with key dupplicates `join` and `if_exists` produce different results
             * \see JoinRange<..., true> for implementation details
@@ -640,6 +635,14 @@ namespace OP{
             using filter_t = OrderedFilteredRange< OrderedRange<K, V> >;
             return ordered_range_ptr(new filter_t(
                 std::static_pointer_cast<ordered_range_t const>(this->shared_from_this()), std::forward<UnaryPredicate>(f), this->_key_cmp));
+        }
+               
+        template<class K, class V>
+        std::shared_ptr< OrderedRange<K, V> const> OrderedRange<K, V>::join(ordered_range_ptr range) const
+        {
+            auto the_ptr(std::static_pointer_cast<ordered_range_t const> (this->shared_from_this()));
+            using range_impl_t = JoinRange<ordered_range_t, ordered_range_t>;
+            return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(range)));
         }
 
         template<class K, class V>

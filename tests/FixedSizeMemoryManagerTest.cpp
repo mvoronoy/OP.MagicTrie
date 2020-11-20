@@ -26,7 +26,7 @@ void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
     {
         OP::vtm::TransactionGuard op_g(topology.segment_manager().begin_transaction());
         auto pos = mngr.allocate();
-        auto &wr = *topology.segment_manager().wr_at<typename FixedSizeMemoryManager::payload_t>(pos);
+        auto &wr = *topology.segment_manager().template wr_at<typename FixedSizeMemoryManager::payload_t>(pos);
         
         tresult.assert_true(wr.inc == 57);
         wr.inc += i;
