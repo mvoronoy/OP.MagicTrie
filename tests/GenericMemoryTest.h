@@ -8,6 +8,7 @@
 #include <algorithm>
 
 using namespace OP::utest;
+using namespace OP::trie;
 
 template <class Sm>
 void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& result)

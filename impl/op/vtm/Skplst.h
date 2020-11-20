@@ -155,7 +155,7 @@ namespace OP
                     const MemoryBlockHeader * mem_header = mem_header_block.at<MemoryBlockHeader>(0);
 
                     auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(traits_t::target_t));
-                    traits_t::const_ptr_t curr = curr_block.at<traits_t::target_t>(0);
+                    typename traits_t::const_ptr_t curr = curr_block.at<typename traits_t::target_t>(0);
 
                     if (!traits.less(mem_header->size(), key))
                     {
@@ -172,31 +172,6 @@ namespace OP
         private:
             SegmentManager& _segment_manager;
             OP::trie::far_pos_t _list_pos;
-            /**Using O(ln(n)) complexity evaluate slot for specific key*/
-            //template <class K>
-            //size_t key_slot(traits_t& traits, K& k)
-            //{
-            //    auto count = bitmask_size_c;
-            //    size_t it, step, first = 0;
-            //    while (count > 0) 
-            //    {
-            //        it = first; 
-            //        step = count / 2; 
-            //        it+= step;
-            //        if (traits.less(1 << it, k)) {
-            //            first = ++it; 
-            //            count -= step + 1; 
-            //        }
-            //        else
-            //            count = step;
-            //    }
-            //    //after all `first` is not less entry for `key` or smthng > bitmask_size_c
-            //    if( first >= bitmask_size_c )
-            //    {//place the rest (that are too big) to last entry
-            //        first = bitmask_size_c - 1;
-            //    }
-            //    return first;
-            //}
         private:
 
             FarAddress entry_offset_by_idx(size_t index) const
