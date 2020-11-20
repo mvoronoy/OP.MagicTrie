@@ -23,7 +23,7 @@ namespace OP
             template <class TSegmentManager>
             T* ref(TSegmentManager& manager)
             {
-                return manager.wr_at<T>(address);
+                return manager.OP_TEMPL_METH(wr_at)<T>(address);
             }
             bool is_null() const
             {
@@ -32,7 +32,7 @@ namespace OP
             template <class ... Args>
             T* construct(Args&& ... args)
             {
-                return new (manager.wr_at<T>(address)) T(std::forward<Args>(args)...);
+                return new (manager.OP_TEMPL_METH(wr_at)<T>(address)) T(std::forward<Args>(args)...);
             }
         };
         template <class T>

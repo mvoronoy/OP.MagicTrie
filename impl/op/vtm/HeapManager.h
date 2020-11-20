@@ -411,13 +411,7 @@ namespace OP
                     return;
                 _opened_segments.resize(segment + 1);
             }
-            /**Merge together 2 adjacent memory blocks
-            * @param merge_with_right block that may have 
-            */
-            FreeMemoryBlock* merge_free_blocks(far_pos_t merge_with_right)
-            {
-                
-            }
+            
             void do_deallocate(MemoryChunk& header_block)
             {
                 //Mark segment and memory for FreeMemoryBlock as available for write

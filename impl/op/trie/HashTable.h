@@ -149,7 +149,7 @@ namespace OP
                 {
                     assert((dim_t)capacity < 256);
 
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     
                     auto byte_size = memory_requirement<HashTableData>::requirement +
                         memory_requirement<HashTableData::content_t>::requirement * (dim_t)capacity;
@@ -168,7 +168,7 @@ namespace OP
                 }
                 void destroy(const trie::PersistedReference<HashTableData>& htbl)
                 {
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     memmngr.deallocate(htbl.address);
                 }
                 /**
@@ -215,7 +215,7 @@ namespace OP
                     }
                     return hash;
                 }
-                void clear(const trie::PersistedReference<HashTableData>& ref_data) const
+                /*void clear(const trie::PersistedReference<HashTableData>& ref_data)
                 {
                     auto table_head = accessor<HashTableData>(_topology, ref_data.address);
                     auto hash_data = array_accessor<HashTableData::content_t>(_topology,
@@ -224,7 +224,7 @@ namespace OP
                     std::for_each(&hash_data[0], hash_data[table_head->capacity], 
                         [](HashTableData::content_t& c) { c = 0; });
                     _count = 0;
-                }
+                }         */
 
                 ReadonlyAccess<HashTableData> table_head(const trie::PersistedReference<HashTableData>& ref_data) const
                 {
