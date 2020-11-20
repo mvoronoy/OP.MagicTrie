@@ -442,7 +442,7 @@ namespace OP
 
             virtual ordered_range_ptr distinct() const
             {
-                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (this->shared_from_this()));
                 using distinct_range_t = DistinctRange<ordered_range_t>;
 
                 return ordered_range_ptr(new distinct_range_t(the_ptr, key_comp()));
@@ -454,8 +454,7 @@ namespace OP
             */
             virtual ordered_range_ptr join(ordered_range_ptr range) const
             {
-                //std::shared_ptr<OrderedRange<Iterator> const> the_ptr(std::static_pointer_cast<OrderedRange<Iterator> const> (shared_from_this()));
-                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (this->shared_from_this()));
                 using range_impl_t = JoinRange<ordered_range_t, ordered_range_t>;
                 return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(range)));
             }
@@ -465,13 +464,13 @@ namespace OP
             */
             virtual ordered_range_ptr if_exists(ordered_range_ptr other) const
             {
-                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (this->shared_from_this()));
                 using range_impl_t = JoinRange<ordered_range_t, ordered_range_t, true>;
                 return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(other)));
             }
             virtual ordered_range_ptr if_exists(ordered_range_ptr other, key_comparator_t join_comparator) const
             {
-                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (this->shared_from_this()));
                 using range_impl_t = JoinRange<ordered_range_t, ordered_range_t, true>;
                 return ordered_range_ptr(new range_impl_t(std::move(the_ptr), std::move(other), join_comparator));
             }
@@ -487,7 +486,7 @@ namespace OP
             template <class F>
             ordered_range_ptr peek(F f) const
             {
-                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (shared_from_this()));
+                auto the_ptr(std::static_pointer_cast<ordered_range_t const> (this->shared_from_this()));
                 return ordered_range_ptr(new PeekRange<ordered_range_t>(the_ptr, std::move(f), key_comp()));
             }
 
@@ -608,7 +607,7 @@ namespace OP{
             using merge_all_t = UnionAllRange<range_t>;
             return std::shared_ptr<RangeBase<K, V> const>(new merge_all_t(
                 {
-                    std::const_pointer_cast<range_t const>(shared_from_this()),
+                    std::const_pointer_cast<range_t const>(this->shared_from_this()),
                     std::forward<Rs>(other)...
                 }
             ));
@@ -621,7 +620,7 @@ namespace OP{
             using map_range_t = FunctionalRange<range_t, Rk>;
 
             map_range_t *ptr = new map_range_t(
-                std::const_pointer_cast<range_t const>(shared_from_this()), std::move(f));
+                std::const_pointer_cast<range_t const>(this->shared_from_this()), std::move(f));
             
             return std::shared_ptr< RangeBase<Rk, V> const>(ptr);
         }
@@ -631,7 +630,7 @@ namespace OP{
         {
             using filter_t = FilteredRange<range_t>;
             return range_ptr ( new filter_t(
-                shared_from_this(), std::forward<UnaryPredicate>(f)) );
+                this->shared_from_this(), std::forward<UnaryPredicate>(f)) );
         }
 
         template<class K, class V>
@@ -640,7 +639,7 @@ namespace OP{
         {
             using filter_t = OrderedFilteredRange< OrderedRange<K, V> >;
             return ordered_range_ptr(new filter_t(
-                std::static_pointer_cast<ordered_range_t const>(shared_from_this()), std::forward<UnaryPredicate>(f), this->_key_cmp));
+                std::static_pointer_cast<ordered_range_t const>(this->shared_from_this()), std::forward<UnaryPredicate>(f), this->_key_cmp));
         }
 
         template<class K, class V>
@@ -650,9 +649,9 @@ namespace OP{
         {
             using traits_t = details::FlattenTraits<range_t, DeflateFunction>;
             static_assert(traits_t::applicator_result_t::is_ordered_c, "DeflateFunction function must produce ordered range, otherwise use unordered_flatten");
-            //std::shared_ptr<range_t> source = std::const_pointer_cast<range_t>(shared_from_this());
+
             auto ptr = new FlattenRange<range_t, DeflateFunction >(
-                shared_from_this(),
+                this->shared_from_this(),
                 std::forward<DeflateFunction>(deflate_function),
                 [](const auto& left, const auto& right) {
                 return OP::ranges::str_lexico_comparator(
@@ -661,11 +660,10 @@ namespace OP{
                 );
             }
             );
-            std::shared_ptr< OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename RangeBase<K, V>::iterator>, V > const > result{
+            std::shared_ptr< OrderedRange< flatten_details::DeflateResultType<DeflateFunction, iterator>, V > const > result{
                 ptr
             };
             return result;
-                //make_flatten_range(std::static_pointer_cast<const this_t>(shared_from_this()), std::forward<DeflateFunction>(deflate_function));
         }
 }//ns:ranges
 }//ns:OP
