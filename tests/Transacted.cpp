@@ -274,7 +274,7 @@ void test_FarAddress(OP::utest::TestResult &tresult)
 void test_TransactedSegmentGenericMemoryAlloc(OP::utest::TestResult &tresult)
 {
     const char seg_file_name[] = "t-segementation.test";
-    test_MemoryManager<TransactedSegmentManager>(seg_file_name, tresult);
+    GenericMemoryTest::test_MemoryManager<TransactedSegmentManager>(seg_file_name, tresult);
 
 }
 #include <windows.h>

@@ -329,7 +329,7 @@ namespace OP{
             typedef K index_t;
             SparseCache(index_t capacity)
                 : _capacity(capacity)
-                , _data(new ptr_t[_capacity])
+                , _data(new ptr_t[capacity])
             {
                 assert(_capacity > 0);
             }
@@ -363,7 +363,7 @@ namespace OP{
                 ensure(pos);
                 auto r = _data[pos];
                 if (!r)
-                    r = factory(pos);
+                    _data[pos] = r = factory(pos);
                 return r;
             }
         private:
@@ -372,8 +372,8 @@ namespace OP{
 
             const static index_t capacity_step_c = 16;
 
-            container_t _data;
             index_t _capacity;
+            container_t _data;
             mutable std::shared_mutex _lock;
 
             void ensure(index_t pos)
