@@ -501,6 +501,7 @@ namespace OP
             using base_t = OrderedRange<K, V>;
 
             using base_t::base_t;
+            using iterator = typename base_t::iterator;
 
             virtual void next_lower_bound_of(iterator& i, const K& k) const = 0;
         };
@@ -552,7 +553,7 @@ namespace OP
             }
             void on_after_reposition(iterator& current, state_payload_t& payload) const override
             {
-                for (base_t const* wp = wrap().get(); wp->in_range(current); wp->next(current))
+                for (base_t const* wp = super_t::wrap().get(); wp->in_range(current); wp->next(current))
                 {
                     if (_predicate(current))
                     {

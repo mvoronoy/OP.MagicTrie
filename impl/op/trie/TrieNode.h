@@ -275,8 +275,8 @@ namespace OP
                     throw std::invalid_argument("key doesn't contain data");
                 return vad.data;
             }
-            template <class TSegmentTopology, class Payload>
-            void set_value(TSegmentTopology& topology, atom_t key, Payload&& value)
+            template <class TSegmentTopology, class TData>
+            void set_value(TSegmentTopology& topology, atom_t key, TData&& value)
             {
                 atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
