@@ -217,11 +217,11 @@ namespace OP
                 /** extract predicate from shared argument std::tuple from */
                 template <class SharedArguments>
                 TakeWhileInRange(const SharedArguments& args)
-                    : _check_predicate(std::get<bool(const typename Trie::iterator&)>(args)) noexcept
+                    : _predicate(std::get<bool(const typename Trie::iterator&)>(args)) noexcept
                 {}
 
                 TakeWhileInRange(bool(*predicate)(const typename Trie::iterator&)) noexcept
-                    : _check_predicate(std::move(predicate))
+                    : _predicate(std::move(predicate))
                 {}
 
                 bool _in_range(const Trie& trie, const typename Trie::iterator& i) const
@@ -423,7 +423,7 @@ namespace OP
             {
                 static std::unique_ptr<typename iterator::RangeIteratorImpl> factory(mixer_iterator_t mixer_it)
                 {
-                    return std::unique_ptr<RangeIteratorImpl>(new payload_t(std::move(mixer_it)));
+                    return std::unique_ptr<typename iterator::RangeIteratorImpl>(new payload_t(std::move(mixer_it)));
                 }
                 payload_t(mixer_iterator_t mixer_it)
                     :_mixer_it(std::move(mixer_it))
