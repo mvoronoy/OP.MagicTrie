@@ -357,6 +357,7 @@ namespace OP
             using trie_t = TTrie;
             using mixer_t = Mixer<trie_t, Mx ...>;
             using base_t = OP::ranges::OrderedRangeOptimizedJoin< typename TTrie::key_t, typename TTrie::value_t>;
+            using range_t = typename base_t::range_t;
             using mixer_iterator_t = typename trie_t::iterator;
             using iterator = typename base_t::iterator;
             using key_t = typename base_t::key_t;
@@ -386,7 +387,7 @@ namespace OP
 
             iterator begin() const override
             {
-                return iterator( std::const_pointer_cast<range_t const>(shared_from_this()),
+                return iterator( std::const_pointer_cast<range_t const>(this->shared_from_this()),
                     payload_t::factory(std::move(_mixer._begin(*_parent))));
             }
            
@@ -394,22 +395,22 @@ namespace OP
             {
                 if(!check)
                     return false;
-                return _mixer._in_range(*_parent, check.impl< payload_t >()._mixer_it );
+                return _mixer._in_range(*_parent, check.OP_TEMPL_METH(impl)< payload_t >()._mixer_it );
             }
             void next(iterator& pos) const override
             {
-                return _mixer._next(*_parent, pos.impl< payload_t >()._mixer_it);
+                return _mixer._next(*_parent, pos.OP_TEMPL_METH(impl)< payload_t >()._mixer_it);
             }
 
             iterator lower_bound(const key_t& key) const override
             {
-                return iterator(std::const_pointer_cast<range_t const>(shared_from_this()),
+                return iterator(std::const_pointer_cast<range_t const>(this->shared_from_this()),
                     payload_t::factory(std::move(_mixer._lower_bound(*_parent, key))));
             }
             
             void next_lower_bound_of(iterator& i, const key_t& k) const override
             {
-                _mixer._next_lower_bound_of(*_parent, i.impl< payload_t >()._mixer_it, k);
+                _mixer._next_lower_bound_of(*_parent, i.OP_TEMPL_METH(impl)< payload_t >()._mixer_it, k);
             }
 
             const std::shared_ptr<const trie_t>& get_parent() const

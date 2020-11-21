@@ -65,12 +65,12 @@ namespace OP
             }
             inline this_t& operator -- ()
             {
-                static_assert(false, "Not implemented yet");
+                assert(false);//, "Not implemented yet");
                 return *this;
             }
             inline this_t operator -- (int)
             {
-                assert(false)//, "Not implemented yet");
+                assert(false);//, "Not implemented yet");
                 this_t result(*this);
                 return result;
             }

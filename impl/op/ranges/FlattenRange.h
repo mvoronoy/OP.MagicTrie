@@ -229,13 +229,13 @@ namespace OP
             {
                 if(!check)
                     return false;
-                return !check.impl< store_t>().is_empty();
+                return !check.OP_TEMPL_METH(impl)< store_t>().is_empty();
             }
             void next(iterator& pos) const override
             {
                 if(!pos)
                     return;
-                auto &impl = pos.impl< store_t>();
+                auto &impl = pos.OP_TEMPL_METH(impl)< store_t>();
                 auto const dupli_key = impl.key();
                 do{ //skip key dupplicates
                     auto smallest = impl.pop();
