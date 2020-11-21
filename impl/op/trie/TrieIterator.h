@@ -27,8 +27,8 @@ namespace OP
             typedef TrieIterator<Container> this_t;
 
         private:
-            friend typename Container;
-            friend typename Container::node_t;
+            friend Container;
+            friend Container::node_t;
 
             typedef std::vector<TriePosition> node_stack_t;
             node_stack_t _position_stack;

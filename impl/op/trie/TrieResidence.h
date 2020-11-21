@@ -74,7 +74,7 @@ namespace OP
             */
             TrieResidence& increase_count(std::int64_t delta)
             {
-                auto& header = accessor<TrieHeader>(*_segment_manager, _segment_address);
+                auto header = accessor<TrieHeader>(*_segment_manager, _segment_address);
                 assert(delta >= 0 || header->_count >= static_cast<std::uint64_t>(std::abs(delta)));
                 header->_count += delta;
                 return *this;
@@ -86,7 +86,7 @@ namespace OP
             */
             TrieResidence& increase_nodes_allocated(std::int64_t delta)
             {
-                auto& header = accessor<TrieHeader>(*_segment_manager, _segment_address);
+                auto header = accessor<TrieHeader>(*_segment_manager, _segment_address);
                 assert(delta >= 0 || header->_nodes_allocated >= static_cast<std::uint64_t>(std::abs(delta)));
                 header->_nodes_allocated += delta;
                 return *this;
