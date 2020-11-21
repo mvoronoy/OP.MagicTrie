@@ -161,7 +161,8 @@ namespace OP
             OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename SourceRange::iterator>, typename SourceRange::value_t >
         {
             using this_t = FlattenRange<SourceRange, DeflateFunction>;
-            using base_t = OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename SourceRange::iterator>, typename SourceRange::value_t >;
+            using ordered_range_t = OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename SourceRange::iterator>, typename SourceRange::value_t >;
+            using base_t = ordered_range_t ;
             using traits_t = details::FlattenTraits<SourceRange, DeflateFunction>;
 
             using applicator_result_t = typename traits_t::applicator_result_t;
@@ -188,7 +189,7 @@ namespace OP
 
             iterator begin() const override
             {
-                auto store = std::make_unique< store_t >(key_comp());
+                auto store = std::make_unique< store_t >(this->key_comp());
                 _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
                     if( !range ) return; //don't need add empty range
@@ -202,12 +203,12 @@ namespace OP
                     );
                     store->push(new_itm);
                 });
-                return iterator(shared_from_this(), std::move(store));
+                return iterator(this->shared_from_this(), std::move(store));
             }
             
             iterator lower_bound(const typename traits_t::key_type& key) const override
             {
-                auto store = std::make_unique< store_t >(key_comp());
+                auto store = std::make_unique< store_t >(this->key_comp());
                 _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
                     if( !range ) return; //don't need add empty range
@@ -221,7 +222,7 @@ namespace OP
                     );
                     store->push(new_itm);
                 });
-                return iterator(shared_from_this(), std::move(store));
+                return iterator(this->shared_from_this(), std::move(store));
             }
 
             bool in_range(const iterator& check) const override
@@ -243,7 +244,7 @@ namespace OP
                     { //if iter is not exhausted put it back
                         impl.push(smallest);
                     }
-                }while(!impl.is_empty() && 0 == key_comp()(dupli_key, impl.key()));
+                }while(!impl.is_empty() && 0 == this->key_comp()(dupli_key, impl.key()));
             }
 
         private:

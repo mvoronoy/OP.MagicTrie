@@ -28,7 +28,7 @@ namespace OP
 
         private:
             friend Container;
-            friend Container::node_t;
+            friend typename Container::node_t;
 
             typedef std::vector<TriePosition> node_stack_t;
             node_stack_t _position_stack;
@@ -70,7 +70,7 @@ namespace OP
             }
             inline this_t operator -- (int)
             {
-                static_assert(false, "Not implemented yet");
+                assert(false)//, "Not implemented yet");
                 this_t result(*this);
                 return result;
             }
