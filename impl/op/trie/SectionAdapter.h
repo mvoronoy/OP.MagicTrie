@@ -125,7 +125,7 @@ namespace OP
                     return iterator(
                         std::const_pointer_cast<typename base_t::range_t const>(this->shared_from_this()),
                         std::unique_ptr<typename iterator::RangeIteratorImpl>(
-                            new iterator_impl(std::move(res), std::move(policy_copy))));
+                            new base_t::iterator_impl(std::move(res), std::move(policy_copy))));
                 }
                 return end();
             }
