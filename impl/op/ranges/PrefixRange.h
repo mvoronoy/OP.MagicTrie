@@ -670,9 +670,11 @@ namespace OP {
                 this->shared_from_this(),
                 std::forward<DeflateFunction>(deflate_function),
                 [](const auto& left, const auto& right) {
+                    auto l_iter = std::begin(left);
+                    auto r_iter = std::begin(right);
                     return OP::ranges::str_lexico_comparator(
-                        std::begin(left), std::end(left),
-                        std::begin(right), std::end(right)
+                        l_iter, std::end(left),
+                        r_iter, std::end(right)
                     );
                 }
             );

@@ -163,7 +163,7 @@ namespace OP
                     policy_copy.on_after_change(res); //notify local policy copy that key was changed
                     return iterator(
                         std::const_pointer_cast<range_t const>(this->shared_from_this()),
-                        std::unique_ptr<iterator::RangeIteratorImpl>(
+                        std::unique_ptr<typename iterator::impl_t>(
                             new iterator_impl(std::move(res), std::move(policy_copy))));
                 }
                 return this->end();

@@ -70,7 +70,7 @@ namespace OP
             iterator begin() const override
             {
                 return iterator(
-                    shared_from_this(), 
+                    this->shared_from_this(), 
                     std::make_unique<payload>(_source_resolver().begin())
                     );
             }
@@ -82,18 +82,19 @@ namespace OP
             {
                 if(!check)
                     return false;
-                return check.impl<payload>()._i != _source_resolver().end();
+                return check.OP_TEMPL_METH(impl)<payload>()._i != _source_resolver().end();
             }
             void next(iterator& pos) const override
             {
-                auto &pld = pos.impl<payload>();
+                auto &pld = pos.OP_TEMPL_METH(impl)<payload>();
                 ++pld._i;
             }
 
             iterator lower_bound(const typename base_t::key_t& key) const override
             {
                 return iterator(
-                    shared_from_this(), std::make_unique<payload>(_source_resolver().lower_bound(key)));
+                    this->shared_from_this(), 
+                    std::make_unique<payload>(_source_resolver().lower_bound(key)));
             }
         private:
             std::function< const Map& ()> _source_resolver;
