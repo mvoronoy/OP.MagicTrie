@@ -146,7 +146,7 @@ namespace OP
                     auto address = st_address.address + static_cast<segment_pos_t>( memory_requirement<StemData>::requirement
                         + data_header->height * key );
                     auto f_str = _topology.segment_manager().writable_block(
-                        address, data_header->height).at<atom_t>(0);
+                        address, data_header->height).OP_TEMPL_METH(at)<atom_t>(0);
 
                     auto& size = data_header->stem_length[key];
                     assert(size == 0);
@@ -271,7 +271,7 @@ namespace OP
                 /** Operation that helps move data from one StemData to other during reallocation */
                 struct MoveProcessor
                 {
-                    friend struct this_t;
+                    friend this_t;
                     void move(dim_t from, dim_t to)
                     {
                         assert(from < _from_header->width);

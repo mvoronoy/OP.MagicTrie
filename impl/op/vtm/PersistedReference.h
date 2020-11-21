@@ -56,7 +56,7 @@ namespace OP
             template <class TSegmentManager>
             T* ref(TSegmentManager& manager, segment_pos_t index)
             {
-                return manager.wr_at<T>(address) + index;
+                return manager.OP_TEMPL_METH(wr_at)<T>(address) + index;
             }
         };
     }//ns:trie
