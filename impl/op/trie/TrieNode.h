@@ -108,8 +108,8 @@ namespace OP
                         }
                         //correct result type as one of string_end, equals, stem_end
                         retval.compare_result = f_str != f_str_end
-                            ? (StemCompareResult::string_end)
-                            : (begin == end ? StemCompareResult::equals : StemCompareResult::stem_end);
+                            ? (stem::StemCompareResult::string_end)
+                            : (begin == end ? stem::StemCompareResult::equals : stem::StemCompareResult::stem_end);
                     });
                 }
                 else 
