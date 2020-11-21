@@ -106,7 +106,7 @@ namespace OP
                 auto res = filter_base_t::begin();
                 if(!res)
                     return res;
-                auto &functional_iter = res.OP_TEMPL_METH(impl)<iterator_impl>();
+                auto &functional_iter = res.OP_TEMPL_METH(impl)<typename base_t::iterator_impl>();
                 if( skip_first_if_empty(functional_iter.source())
                     && this->source_range()->in_range(functional_iter.source()) )
                 { //notify cache about changes
@@ -123,7 +123,7 @@ namespace OP
                     auto policy_copy = this->key_eval_policy(); //clone
                     policy_copy.on_after_change(res); //notify local policy copy that key was changed
                     return iterator(
-                        std::const_pointer_cast<range_t const>(this->shared_from_this()),
+                        std::const_pointer_cast<typename base_t::range_t const>(this->shared_from_this()),
                         std::unique_ptr<typename iterator::RangeIteratorImpl>(
                             new iterator_impl(std::move(res), std::move(policy_copy))));
                 }

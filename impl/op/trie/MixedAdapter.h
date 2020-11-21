@@ -216,8 +216,8 @@ namespace OP
             {
                 /** extract predicate from shared argument std::tuple from */
                 template <class SharedArguments>
-                TakeWhileInRange(const SharedArguments& args)
-                    : _predicate(std::get<bool(const typename Trie::iterator&)>(args)) noexcept
+                TakeWhileInRange(const SharedArguments& args) noexcept
+                    : _predicate(std::get<bool(const typename Trie::iterator&)>(args)) 
                 {}
 
                 TakeWhileInRange(bool(*predicate)(const typename Trie::iterator&)) noexcept
