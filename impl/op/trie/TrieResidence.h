@@ -45,7 +45,6 @@ namespace OP
                     : _root{}
                     , _count(0)
                     , _nodes_allocated(0)
-                    , _nodes_uid_gen(0)
                     , _version(0)
                 {}
                 /**Where root resides*/
@@ -54,7 +53,6 @@ namespace OP
                 std::uint64_t _count;
                 /**Number of nodes (pages) allocated*/
                 std::uint64_t _nodes_allocated;
-                std::uint64_t _nodes_uid_gen;
                 node_version_t _version;
             };
             
@@ -93,15 +91,9 @@ namespace OP
                 header->_nodes_allocated += delta;
                 return *this;
             }
-            /**Provide unique identifier for each node allocated*/
-            std::uint64_t generate_node_id()
-            {
-                return OP::trie::uinc(accessor<TrieHeader>(*_segment_manager, _segment_address)->_nodes_uid_gen);
-            }
-            /**On any trie change modofication version is increased*/
+            /**On any trie modification version is increased*/
             TrieResidence& increase_version()
             {
-
                 OP::trie::uinc(accessor<TrieHeader>(*_segment_manager, _segment_address)->_version);
                 return *this;
             }

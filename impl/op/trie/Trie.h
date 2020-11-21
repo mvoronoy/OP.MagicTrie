@@ -915,7 +915,6 @@ namespace OP
                 node->payload = _value_mngr.create((dim_t)capacity);
 
                 auto &res = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>();
-                node->uid.uid = res.generate_node_id();
                 res.increase_nodes_allocated(+1);
                 return node_pos;
             }
@@ -958,7 +957,7 @@ namespace OP
                     wr_node->insert(*_topology_ptr, begin, end, fassign);
                     auto deep = static_cast<dim_t>(begin - local_begin);
                     result.emplace(
-                        TriePosition(wr_node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
+                        TriePosition(wr_node.address(), (atom_t)*local_begin/*key*/, deep, wr_node->version,
                         (begin == end) ? term_has_data : term_has_child),
                         local_begin + 1, begin
                     );
@@ -1300,7 +1299,7 @@ namespace OP
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, pos.second);
 
-                poistion_t root_pos(node_addr, ro_node->uid, pos.second, 0, ro_node->version);
+                poistion_t root_pos(node_addr, pos.second, 0, ro_node->version);
 
                 if (!ro_node->stems.is_null())
                 {//if stem exists should be placed to iterator

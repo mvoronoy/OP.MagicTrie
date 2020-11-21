@@ -12,19 +12,7 @@ namespace OP
     namespace trie
     {
         typedef std::uint32_t node_version_t;
-        struct NodeUid
-        {
-            std::uint64_t uid;
-        };
-        inline bool operator == (const NodeUid& left, const NodeUid& right)
-        {
-            return left.uid == right.uid;
-        }
-        inline bool operator != (const NodeUid& left, const NodeUid& right)
-        {
-            return !(left == right);
-        }
-        
+
         /** Represent single node of Trie*/
         template <class Payload>
         struct TrieNode
@@ -55,8 +43,6 @@ namespace OP
             ref_reindex_hash_t reindexer;
             ref_stems_t stems;
             ref_values_t payload;
-            /**Unique signature of node*/
-            NodeUid uid;
             dim_t capacity;
 
             TrieNode() noexcept
@@ -146,7 +132,7 @@ namespace OP
                 value_manager_t value_manager(topology);
                 auto& term = value_manager.view(payload, (dim_t)capacity)[index];
                 TriePosition pos(this_node_addr, 
-                    this->uid, key, 1/*dedicated for presence*/, this->version);
+                    key, 1/*dedicated for presence*/, this->version);
 
                 retval.compare_result = stem::StemCompareResult::equals;
                 if (!stems.is_null())

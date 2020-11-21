@@ -16,9 +16,8 @@ namespace OP
         struct TriePosition
         {
             
-            TriePosition(FarAddress node_addr, NodeUid uid, dim_t key, dim_t deep, node_version_t version, Terminality term = term_no) noexcept
+            TriePosition(FarAddress node_addr, dim_t key, dim_t deep, node_version_t version, Terminality term = term_no) noexcept
                 : _node_addr(node_addr)
-                , _uid(uid)
                 , _key(key)
                 , _deep(deep)
                 , _terminality(term)
@@ -26,7 +25,6 @@ namespace OP
             {}
             TriePosition() noexcept
                 : _node_addr{}
-                , _uid{}
                 , _key(dim_nil_c)
                 , _terminality(term_no)
                 , _deep{0}
@@ -37,7 +35,6 @@ namespace OP
                 return _node_addr == other._node_addr //first compare node address as simplest comparison
                     && _key == other._key //check in-node position then
                     && _deep == other._deep
-                    && _uid == other._uid //and only when all other checks succeeded make long check of uid
                     ;
             }
             node_version_t version() const
@@ -66,8 +63,6 @@ namespace OP
                 return _terminality;
             }
             FarAddress _node_addr;
-            /**Unique signature of node*/
-            NodeUid _uid;
             /**horizontal position in node*/
             dim_t _key;
             /**Vertical position in node, for nodes without stem it is 0, for nodes with stem it is 
