@@ -57,6 +57,10 @@ namespace OP
             template <class Range, class KeyComparator>
             struct PriorityQueueSetStorage : public StoragePolicy<Range>
             {
+                using base_t = StoragePolicy<Range>;
+                using flat_item_ptr = typename base_t::flat_item_ptr;
+                using iterartor_impl_t = typename Range::iterator::RangeIteratorImpl;
+
                 PriorityQueueSetStorage(const KeyComparator& comparator) noexcept
                     : _item_set(flat_less(comparator))
                 {}
@@ -81,9 +85,9 @@ namespace OP
                 {
                     return _item_set.empty();
                 }
-                std::unique_ptr<typename Range::iterator::RangeIteratorImpl> clone() const override
+                std::unique_ptr<iterartor_impl_t > clone() const override
                 {
-                    return std::unique_ptr<RangeIteratorImpl>(new PriorityQueueSetStorage(*this));
+                    return std::unique_ptr<iterartor_impl_t >(new PriorityQueueSetStorage(*this));
                 }
             private:
                 struct flat_less
