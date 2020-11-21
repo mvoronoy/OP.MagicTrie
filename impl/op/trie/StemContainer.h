@@ -14,6 +14,8 @@ namespace OP
 {
     namespace trie
     {
+        using namespace OP::utils;
+
         namespace stem
         {
             typedef std::int16_t offset_t;
@@ -101,7 +103,7 @@ namespace OP
                 */
                 inline std::tuple<ref_stems_t, WritableAccess<StemData>, WritableAccess<atom_t> > create(dim_t width, dim_t str_max_height)
                 {
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     //query data enough for StemData and stems strings
                     auto header_size = memory_requirement<StemData>::requirement;
                     auto mem_size = header_size + width * str_max_height;
@@ -120,7 +122,7 @@ namespace OP
                 /**Destroy previously allocated by #create stem container*/
                 void destroy(const ref_stems_t& stems)
                 {
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     memmngr.deallocate(stems.address);
                 }
                 /**Place new sequence specified by [begin-end) range as new item to this storage
@@ -185,7 +187,7 @@ namespace OP
                 inline void trunc_str(const ref_stems_t& st_address, atom_t key, dim_t shorten) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
-                    auto data_header = _topology.segment_manager().wr_at<StemData>(st_address.address);
+                    auto data_header = _topology.segment_manager().OP_TEMPL_METH(wr_at)<StemData>(st_address.address);
                     trunc_str(*data_header, key, shorten);
                     //g.commit();
                 }

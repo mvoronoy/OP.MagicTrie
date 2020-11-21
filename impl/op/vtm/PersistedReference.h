@@ -29,8 +29,8 @@ namespace OP
             {
                 return address == SegmentDef::far_null_c;
             }
-            template <class ... Args>
-            T* construct(Args&& ... args)
+            template <class TSegmentManager, class ... Args>
+            T* construct(TSegmentManager& manager, Args&& ... args)
             {
                 return new (manager.OP_TEMPL_METH(wr_at)<T>(address)) T(std::forward<Args>(args)...);
             }

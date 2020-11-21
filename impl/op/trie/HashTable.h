@@ -215,16 +215,6 @@ namespace OP
                     }
                     return hash;
                 }
-                /*void clear(const trie::PersistedReference<HashTableData>& ref_data)
-                {
-                    auto table_head = accessor<HashTableData>(_topology, ref_data.address);
-                    auto hash_data = array_accessor<HashTableData::content_t>(_topology,
-                        content_item_address(ref_data.address, 0),
-                        table_head->capacity);
-                    std::for_each(&hash_data[0], hash_data[table_head->capacity], 
-                        [](HashTableData::content_t& c) { c = 0; });
-                    _count = 0;
-                }         */
 
                 ReadonlyAccess<HashTableData> table_head(const trie::PersistedReference<HashTableData>& ref_data) const
                 {

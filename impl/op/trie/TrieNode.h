@@ -29,7 +29,7 @@ namespace OP
         template <class Payload>
         struct TrieNode
         {
-            typedef typename Payload payload_t;
+            typedef Payload payload_t;
             typedef TrieNode<payload_t> this_t;
 
             /*declare 256-bit presence bitset*/
@@ -97,7 +97,7 @@ namespace OP
                 if (!stems.is_null())
                 { //there is a stem
                     stem::StemStore<TSegmentTopology> stem_manager(topology);
-                    stem_manager.stem(stems, key, [&](const atom_t *f_str, const atom_t *f_str_end, const StemData& stem_header) {
+                    stem_manager.stem(stems, key, [&](const atom_t *f_str, const atom_t *f_str_end, const stems_t& stem_header) {
                         for (; f_str != f_str_end && begin != end; ++back.deep, ++begin, ++f_str)
                         {
                             if (*f_str != *begin)
@@ -327,7 +327,7 @@ namespace OP
                     
                 dim_t reindex_target;
                 //extract stem from current node
-                stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stem::StemData& stem_header) -> void{
+                stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stems_t& stem_header) -> void{
                     assert(in_stem_pos <= (src_end - src_begin));
                     auto start = src_begin + in_stem_pos;
                     reindex_target = target_node->insert_stem(topology, start, src_end);
