@@ -4,6 +4,7 @@
 #include <op/trie/HashTable.h>
 #include <op/trie/StemContainer.h>
 #include <op/trie/ValueArray.h>
+#include <op/trie/TriePosition.h>
 #include <op/vtm/PersistedReference.h>
 #include <op/common/Bitset.h>
 
@@ -11,7 +12,6 @@ namespace OP
 {
     namespace trie
     {
-        typedef std::uint32_t node_version_t;
 
         /** Represent single node of Trie*/
         template <class Payload>
