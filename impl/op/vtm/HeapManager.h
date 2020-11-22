@@ -2,6 +2,7 @@
 #define _OP_TRIE_MEMORYMANAGER__H_
 
 #include <unordered_map>
+#include <vector>
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryBlock.h>
