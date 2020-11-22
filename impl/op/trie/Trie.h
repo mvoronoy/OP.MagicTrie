@@ -910,7 +910,7 @@ namespace OP
                 auto cr_result = std::move(_stem_mngr.create(
                     (dim_t)capacity,
                     TrieDef::max_stem_length_c));
-                node->stems = std::get<node_t::ref_stems_t>(cr_result);
+                node->stems = std::get<typename node_t::ref_stems_t>(cr_result);
 
                 node->payload = _value_mngr.create((dim_t)capacity);
 
