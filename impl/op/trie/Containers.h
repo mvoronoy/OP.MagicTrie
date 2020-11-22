@@ -235,12 +235,6 @@ namespace OP
             typedef NodeTableIterator<this_t> iterator;
             typedef atom_t key_t;
 
-            static const std::array<node_size_t, 5>& known_capacity()
-            {
-                static const std::array<node_size_t, 5> rv = { 8, 16, 32, 64, 128 };
-                return rv;
-            }
-
             NodeHashTable() :
                 _count(0),
                 _memory_block{}
@@ -491,11 +485,7 @@ namespace OP
             {
                 return sizeof(chunk_t) * capacity;
             }
-            static const std::vector<size_t>& known_capacity()
-            {
-                static const std::vector<size_t> rv = { 8, 16, 32, 64, 128 };
-                return rv;
-            }
+
             NodeSortedArray() :
                 _count(0)
             {
