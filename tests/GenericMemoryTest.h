@@ -158,7 +158,7 @@ struct GenericMemoryTest{
         //now test merging of adjacency blocks
         for (size_t i = 0; i < 7; i += 2)
         {
-            auto ro_ptr = segmentMngr3->readonly_block(stripes[i], sizeof(TestSeq)).at<std::uint8_t>(0);
+            auto ro_ptr = segmentMngr3->readonly_block(stripes[i], sizeof(TestSeq)).OP_TEMPL_METH(at)<std::uint8_t>(0);
             
             result.assert_true(tools::range_equals(
                 TestSeq, TestSeq + sizeof(TestSeq), ro_ptr, ro_ptr+sizeof(TestSeq)), "striped block corrupted");

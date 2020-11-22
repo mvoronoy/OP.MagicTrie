@@ -194,11 +194,11 @@ namespace OP
                     auto range = _deflate(i);
                     if( !range ) return; //don't need add empty range
                     auto range_beg = range->begin();
-                    if (!range->in_range(range_beg)) //don't need add empty range
-                    {
+                    if (!range->in_range(range_beg)) 
+                    {//don't need add empty range
                         return;
                     }
-                    auto new_itm = std::make_shared<store_t::flat_item_t> (
+                    auto new_itm = std::make_shared<typename store_t::flat_item_t> (
                         std::move(range), std::move(range_beg)
                     );
                     store->push(new_itm);
@@ -217,7 +217,7 @@ namespace OP
                     {
                         return;
                     }
-                    auto new_itm = std::make_shared<store_t::flat_item_t> (
+                    auto new_itm = std::make_shared<typename store_t::flat_item_t> (
                         std::move(range), std::move(range_beg)
                     );
                     store->push(new_itm);
