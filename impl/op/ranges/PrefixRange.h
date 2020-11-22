@@ -38,8 +38,9 @@ namespace OP
             using impl_ptr = std::unique_ptr<impl_t>;
             using base_t = RangeIterator<K, V>;
 
+            template <class IteratorImpl>
             RangeIterator(std::shared_ptr< RangeBase<K, V> const> owner,
-                impl_ptr&& impl) noexcept
+                IteratorImpl&& impl) noexcept
                 : _owner(std::move(owner))
                 , _impl(std::move(impl))
             {}

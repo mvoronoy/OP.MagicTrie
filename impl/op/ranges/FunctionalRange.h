@@ -135,7 +135,7 @@ namespace OP
             using range_t = typename base_t::range_t;
             using applicator_t = typename KeyEvalPolicy::applicator_t;
 
-            using iterator_impl = FunctionalRangeIterator<
+            using iterator_impl_t = FunctionalRangeIterator<
                 typename SourceRange::iterator,
                 this_t,
                 KeyEvalPolicy
@@ -164,7 +164,7 @@ namespace OP
                     return iterator(
                         std::const_pointer_cast<range_t const>(this->shared_from_this()),
                         std::unique_ptr<typename iterator::impl_t>(
-                            new iterator_impl(std::move(res), std::move(policy_copy))));
+                            new iterator_impl_t(std::move(res), std::move(policy_copy))));
                 }
                 return this->end();
             }
@@ -172,13 +172,13 @@ namespace OP
             {
                 if( !check || !_source_range )
                     return false;
-                return _source_range->in_range(check.OP_TEMPL_METH(impl)<iterator_impl>().source());
+                return _source_range->in_range(check.OP_TEMPL_METH(impl)<iterator_impl_t>().source());
             }
             void next(iterator& pos) const override
             {
                 if(!pos)
                     return;
-                auto& impl = pos.OP_TEMPL_METH(impl)<iterator_impl>();
+                auto& impl = pos.OP_TEMPL_METH(impl)<iterator_impl_t>();
                 _source_range->next(impl.source());
 
                 if (_source_range->in_range(impl.source()))

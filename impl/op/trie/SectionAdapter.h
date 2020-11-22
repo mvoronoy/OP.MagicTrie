@@ -81,6 +81,7 @@ namespace OP
             using atom_string_t = typename traits_t::atom_string_t;
             
             using iterator = typename base_t::iterator;
+            using iterator_impl_t = typename base_t::iterator_impl_t;
             using key_t = typename base_t::key_t;
             using value_t = typename base_t::value_t;
 
@@ -106,7 +107,7 @@ namespace OP
                 auto res = filter_base_t::begin();
                 if(!res)
                     return res;
-                auto &functional_iter = res.OP_TEMPL_METH(impl)<typename base_t::iterator_impl>();
+                auto &functional_iter = res.OP_TEMPL_METH(impl)<iterator_impl_t>();
                 if( skip_first_if_empty(functional_iter.source())
                     && this->source_range()->in_range(functional_iter.source()) )
                 { //notify cache about changes
@@ -124,8 +125,8 @@ namespace OP
                     policy_copy.on_after_change(res); //notify local policy copy that key was changed
                     return iterator(
                         std::const_pointer_cast<typename base_t::range_t const>(this->shared_from_this()),
-                        std::unique_ptr<typename iterator::RangeIteratorImpl>(
-                            new base_t::iterator_impl(std::move(res), std::move(policy_copy))));
+                        std::unique_ptr<iterator_impl_t>(
+                           new iterator_impl_t(std::move(res), std::move(policy_copy))));
                 }
                 return end();
             }
