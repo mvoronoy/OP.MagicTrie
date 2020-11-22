@@ -115,7 +115,7 @@ namespace OP
             }
             iterator end() const
             {
-                return iterator(this, iterator::end_marker_t{});
+                return iterator(this, typename iterator::end_marker_t{});
             }
             bool in_range(const iterator& check) const 
             {
