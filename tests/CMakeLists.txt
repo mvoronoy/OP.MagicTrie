@@ -32,7 +32,6 @@ add_executable (trie_test
     "RangeTest.cpp"
     "SegmentManagerTest.cpp"
     "SegmentToplogyTest.cpp"
-    "skplst.cpp" 
     "StemContainer.cpp"
     "testMixedAdapter.cpp"
     "tr.cpp"
