@@ -9,6 +9,7 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/trie/Containers.h>
 #include <op/vtm/PersistedReference.h>
+#include <op/vtm/HeapManager.h>
 
 namespace OP
 {
