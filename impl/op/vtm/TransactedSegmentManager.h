@@ -813,7 +813,7 @@ namespace OP
             }
             using opened_transactions_t = std::unordered_map<std::thread::id, transaction_impl_ptr_t> ;
             using lock_t = std::recursive_mutex ;
-            using guard_t = std::unique_lock<typename lock_t>;
+            using guard_t = std::unique_lock<lock_t>;
 
 
             lock_t _map_lock;
