@@ -210,7 +210,7 @@ namespace OP
             */
             ordered_range_ptr range() const
             {
-                return ordered_range_ptr(new range_adapter_t(shared_from_this()));
+                return ordered_range_ptr(new range_adapter_t(this->shared_from_this()));
             }
 
             /** return first entry that contains prefix specified by string [begin, aend) 
@@ -259,7 +259,7 @@ namespace OP
                 atom_string_t prefix(begin, aend);
 
                 return std::static_pointer_cast<ordered_range_t const>(
-                    make_mixed_range(shared_from_this(),
+                    make_mixed_range(this->shared_from_this(),
                     typename Ingredient<this_t>::PrefixedBegin( prefix ), 
                     typename Ingredient<this_t>::PrefixedLowerBound(prefix),
                     typename Ingredient<this_t>::PrefixedInRange (StartWithPredicate(prefix)) )
@@ -276,7 +276,7 @@ namespace OP
             ordered_range_ptr prefixed_range(const AtomContainer& prefix) const
             {
                 return std::static_pointer_cast<ordered_range_t const>(
-                    make_mixed_range(shared_from_this(),
+                    make_mixed_range(this->shared_from_this(),
                         typename Ingredient<this_t>::PrefixedBegin(prefix), 
                         typename Ingredient<this_t>::PrefixedLowerBound(prefix),
                         typename Ingredient<this_t>::PrefixedInRange(StartWithPredicate(prefix)) 
@@ -492,7 +492,7 @@ namespace OP
             {
                 return std::static_pointer_cast<ordered_range_t const>(
                     make_mixed_range(
-                    shared_from_this(), 
+                    this->shared_from_this(), 
                     typename Ingredient<this_t>::ChildBegin{of_this}, 
                     typename Ingredient<this_t>::ChildInRange{StartWithPredicate(of_this.key())},
                     typename Ingredient<this_t>::SiblingNext{}
@@ -505,12 +505,12 @@ namespace OP
             /**Return range that allows iterate all immediate childrens of specified prefix*/
             ordered_range_ptr sibling_range(const atom_string_t& key) const
             {
-                return ordered_range_ptr(new sibling_range_t(shared_from_this(), key));
+                return ordered_range_ptr(new sibling_range_t(this->shared_from_this(), key));
             }
             /**Return range that allows iterate all immediate childrens of specified prefix*/
             ordered_range_ptr sibling_range(iterator pos) const
             {
-                auto zhis = shared_from_this();
+                auto zhis = this->shared_from_this();
                 return ordered_range_ptr( 
                     new sibling_range_t(zhis, [pos{std::move(pos)}]() { return pos; })
                 );
@@ -555,7 +555,7 @@ namespace OP
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto node = view<node_t>(*_topology_ptr, position.address());
                 if (position.key() < (dim_t)containers::HashTableCapacity::_256)
-                    return node->get_presence(*_topology_ptr, (atom_t)pos.key());
+                    return node->get_presence(*_topology_ptr, (atom_t)position.key());
                 op_g.rollback();
                 throw std::invalid_argument("position has no value associated");
             }

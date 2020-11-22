@@ -128,7 +128,7 @@ namespace OP
                         std::unique_ptr<iterator_impl_t>(
                            new iterator_impl_t(std::move(res), std::move(policy_copy))));
                 }
-                return end();
+                return this->end();
             }
         private:
             static int key_compare(const atom_string_t& left, const atom_string_t& right)

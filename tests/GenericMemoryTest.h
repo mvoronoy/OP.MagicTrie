@@ -131,7 +131,7 @@ struct GenericMemoryTest{
         for (size_t i = 0; i < 7; ++i)
         {
             auto b_pos = mngr2.slot<HeapManagerSlot>().allocate(sizeof(TestSeq));
-            auto b = segmentMngr2->writable_block(b_pos, sizeof(TestSeq)).at<std::uint8_t>(0);
+            auto b = segmentMngr2->writable_block(b_pos, sizeof(TestSeq)).OP_TEMPL_METH(at)<std::uint8_t>(0);
             memcpy(b, TestSeq, sizeof(TestSeq));
             stripes[i] = b_pos;
         }

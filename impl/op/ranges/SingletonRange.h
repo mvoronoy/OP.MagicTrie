@@ -53,7 +53,7 @@ namespace OP
             {
                 int cmp = this->key_comp()(_kv.first, key);
                 return cmp < 0
-                    ? end()
+                    ? this->end()
                     : iterator(
                         this->shared_from_this(), std::make_unique<payload_t>(&_kv));
             }
