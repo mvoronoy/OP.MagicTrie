@@ -5,18 +5,17 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 
+
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const Map& map)
 {
+    using namespace OP::utest;
+
     auto tsn = trie.size(), msn = map.size();
     tresult.assert_that<equals>(tsn, msn, OP_CODE_DETAILS() << "Size is wrong, expected:" << msn << ", but: " << tsn);
 
     auto mi = std::begin(map);
-    //for (auto xp : map)
-    //{
-    //    print_hex(tresult.info(), xp.first );
-    //    tresult.info() << /*xp.first << */'=' << xp.second << '\n';
-    //}
+    
     auto ti = trie.begin();
     int n = 0;
     //order must be the same
