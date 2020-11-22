@@ -5,6 +5,7 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 
+using namespace OP::utest;
 
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const Map& map)
