@@ -98,8 +98,8 @@ namespace OP
                 auto lres = load_iterator(next_addr, i,
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); },
                     &iterator::emplace);
-                for (auto next_addr = tuple_ref<FarAddress>(lres);
-                    tuple_ref<bool>(lres) &&
+                for (auto next_addr = std::get<FarAddress>(lres);
+                    std::get<bool>(lres) &&
                     Terminality::term_has_data != (i.back().terminality() & Terminality::term_has_data);
                     )
                 {
@@ -163,13 +163,13 @@ namespace OP
                     auto lres = load_iterator(i.back().address(), i,
                             [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
                             &iterator::update_back);
-                    if (tuple_ref<bool>(lres))
+                    if (std::get<bool>(lres))
                     { //navigation right succeeded
                         if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
                         {//i already points to correct entry
                             return;
                         }
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), i);
+                        enter_deep_until_terminal(std::get<FarAddress>(lres), i);
                         return;
                     }
                     i.pop();
@@ -910,7 +910,7 @@ namespace OP
                 auto cr_result = std::move(_stem_mngr.create(
                     (dim_t)capacity,
                     TrieDef::max_stem_length_c));
-                node->stems = tuple_ref<node_t::ref_stems_t>(cr_result);
+                node->stems = std::get<node_t::ref_stems_t>(cr_result);
 
                 node->payload = _value_mngr.create((dim_t)capacity);
 
@@ -1183,14 +1183,14 @@ namespace OP
                         return ro_node->next_or_this(*begin);
                     },
                         &iterator::emplace);
-                    if (!tuple_ref<bool>(lres))
+                    if (!std::get<bool>(lres))
                     {
                         prefix.clear();
                         return false;
                     }
                     if (is_not_set(prefix.back().terminality(), Terminality::term_has_data))
                     {
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), prefix);
+                        enter_deep_until_terminal(std::get<FarAddress>(lres), prefix);
                     }
                     return false; //not an exact match
                 }
@@ -1202,10 +1202,10 @@ namespace OP
                         return make_nullable(prefix.back().key());
                     },
                         &iterator::update_back);
-                    assert(tuple_ref<bool>(lres));
+                    assert(std::get<bool>(lres));
                     if (is_not_set(prefix.back().terminality(), Terminality::term_has_data))
                     {
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), prefix);
+                        enter_deep_until_terminal(std::get<FarAddress>(lres), prefix);
                     }
                     return false;//not an exact match
                 }
@@ -1360,13 +1360,13 @@ namespace OP
                     auto lres = load_iterator(i.back().address(), i,
                         [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
                         &iterator::update_back);
-                    if (tuple_ref<bool>(lres))
+                    if (std::get<bool>(lres))
                     { //navigation right succeeded
                         if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
                         {//i already points to correct entry
                             return;
                         }
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), i);
+                        enter_deep_until_terminal(std::get<FarAddress>(lres), i);
                         return;
                     }
                     //here since no way neither down nor right
