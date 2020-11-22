@@ -15,7 +15,7 @@ static OP_CONSTEXPR(const) unsigned test_nodes_count_c = 101;
 template <class FixedSizeMemoryManager, class SegmentTopology>
 void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
 {
-    auto &mngr = topology.slot<FixedSizeMemoryManager>();
+    auto &mngr = topology.OP_TEMPL_METH(slot)<FixedSizeMemoryManager>();
     auto b100 = mngr.allocate();
     mngr.deallocate(b100);
     tresult.assert_true(topology.segment_manager().available_segments() == 1);
@@ -62,7 +62,7 @@ void test_NodeManager(OP::utest::TestResult &tresult)
     };
     typedef FixedSizeMemoryManager<TestPayload, test_nodes_count_c> test_node_manager_t;
 
-    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(node_file_name, 
+    auto tmngr1 = OP::trie::SegmentManager::OP_TEMPL_METH(create_new)<TransactedSegmentManager>(node_file_name, 
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 

@@ -52,7 +52,7 @@ inline dim_t insert_success(const std::pair<dim_t, bool>& pair)
 template <class T>
 void test_ContainerStoreMax(T* container, bool grant_unique = true)
 {
-    typedef std::basic_string<OP::trie::StemStore::atom_t> tst_str_t;
+    typedef std::basic_string<typename OP::trie::stem::StemStore::atom_t> tst_str_t;
     std::unordered_set<tst_str_t> random_control;
     auto rnd_str = [&random_control, container]()->tst_str_t {
         auto len = (std::rand() % 1000) + 1;
@@ -66,7 +66,7 @@ void test_ContainerStoreMax(T* container, bool grant_unique = true)
         }
     };
 
-    typedef std::map<OP::trie::StemStore::dim_t, tst_str_t> swatch_t;
+    typedef std::map<typename OP::trie::StemStore::dim_t, tst_str_t> swatch_t;
     swatch_t swatches;
     while (swatches.size() < container->width())
     {
@@ -115,13 +115,6 @@ void test_ContainerStoreMax(T* container, bool grant_unique = true)
         auto rnd_begin = std::begin(kv.second);
         tresult.assert_true(safe_equal(pair_seq.first, pair_seq.second, rnd_begin, rnd_begin + accomodate_size), OP_CODE_DETAILS());
     }
-}
-void test_StemStoreMax()
-{
-    //auto tst1 = std::unique_ptr<OP::trie::StemStore>(OP::trie::StemStore::create(256, 255));;
-    //for (auto i = 0; i < tst1->width(); ++i)
-    //    tresult.assert_true(tst1->length(i) == 0, OP_CODE_DETAILS());
-    //test_ContainerStoreMax(tst1.get());;
 }
 void test_StemStoreIndex(OP::utest::TestResult &tresult)
 {
@@ -215,3 +208,15 @@ void test_StemStoreIndex(OP::utest::TestResult &tresult)
     //tresult.assert_true(15 == index->find_prefix(b_seq7, std::end(seq7)), OP_CODE_DETAILS());
     //tresult.assert_true(b_seq7 == std::end(seq7), OP_CODE_DETAILS());
 }
+
+void test_StemStoreMax(OP::utest::TestResult &tresult)
+{
+    auto tst1 = std::unique_ptr<StemStore>(StemStore::create(256, 255));;
+    for (auto i = 0; i < tst1->width(); ++i)
+        tresult.assert_true(tst1->length(i) == 0, OP_CODE_DETAILS());
+    test_ContainerStoreMax(tst1.get());;
+}
+
+static auto module_suite = OP::utest::default_test_suite("Stems")
+->declare(test_StemStoreMax, "max")
+;

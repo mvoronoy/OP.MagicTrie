@@ -272,6 +272,7 @@ namespace OP
                     _shadow_buffer = std::move(other._shadow_buffer);
                     _ro_deletion_order = std::move(other._ro_deletion_order);
                     other._ro_deletion_order = 0;
+                    return *this;
                 }
                 ~BlockUse()
                 {
@@ -532,18 +533,15 @@ namespace OP
             typedef std::shared_ptr<TransactionImpl> transaction_impl_ptr_t;
             struct LockDisposer : public BlockDisposer
             {
-                LockDisposer(transaction_impl_ptr_t& owner, RWR& entry)
+                LockDisposer(transaction_impl_ptr_t& owner, RWR entry)
                     : _owner(owner)
                     , _entry(entry)
                 {
-                    
                 }
                 void on_leave_scope(MemoryChunkBase& closing) OP_NOEXCEPT
                 {
-
                     if( _owner->is_active() )//process only on active transactions (that have some open blocks))
                         _owner->_owner->release_readonly_block(_owner.get(), _entry);
-                    
                 }
             private:
                 transaction_impl_ptr_t _owner;

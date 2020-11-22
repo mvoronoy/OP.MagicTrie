@@ -107,22 +107,11 @@ namespace OP
         Range(pos_t pos, Distance count) :
             _pos(pos), _count(count){}
         
-        Range(this_t && other) OP_NOEXCEPT :
-            _pos(other._pos),
-            _count(other._count)
-        {
-        }
-        Range(const this_t & other) OP_NOEXCEPT :
-            _pos(other._pos),
-            _count(other._count)
-        {
-        }
-        this_t& operator = (this_t&& right) OP_NOEXCEPT
-        {
-            _pos = right._pos;
-            _count = right._count;
-            return *this;
-        }
+        Range(this_t && other) OP_NOEXCEPT  = default;
+
+        Range(const this_t & other) OP_NOEXCEPT = default;
+
+        this_t& operator = (this_t&& right) OP_NOEXCEPT = default;
 
         ~Range() = default;
 
