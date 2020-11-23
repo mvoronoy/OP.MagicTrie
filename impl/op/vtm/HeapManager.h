@@ -189,7 +189,9 @@ namespace OP
                 auto mem_block = this->_segment_manager->writable_block(result, 
                     mem_req, WritableBlockHint::new_c);
                 //use placement constructor for each item
-                for (auto p = mem_block.at<memory_requirement<T>::type>(0); items_count; --items_count, ++p)
+                for (auto p = mem_block.OP_TEMPL_METH(at)<typename memory_requirement<T>::type>(0); 
+                    items_count; 
+                    --items_count, ++p)
                     new (p) T(std::forward<Types>(args)...);
                 g.commit();
                 return result;
