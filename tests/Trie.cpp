@@ -238,7 +238,8 @@ void test_TrieUpdate(OP::utest::TestResult& tresult)
     typedef Trie<TransactedSegmentManager, double> trie_t;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
-    tresult.assert_that<equals>(0, trie->update(trie->end(), 0.0), "update of end is not allowed");
+    auto tmp_end = trie->end();
+    tresult.assert_that<equals>(0, trie->update(tmp_end, 0.0), "update of end is not allowed");
 
     typedef std::pair<atom_string_t, double> p_t;
 
