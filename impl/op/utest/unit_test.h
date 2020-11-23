@@ -564,7 +564,7 @@ namespace OP
             }
 
 
-            TestSuite* declare(std::function<void(TestResult&)> f, std::string n = std::string())
+            inline TestSuite* declare(std::function<void(TestResult&)> f, std::string n = std::string())
             {
                 std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
                 return this->declare_case(
@@ -574,7 +574,7 @@ namespace OP
                     )
                     );
             }
-            TestSuite* declare(std::function<void(void)> f, std::string n = std::string())
+            inline TestSuite* declare(std::function<void(void)> f, std::string n = std::string())
             {
                 std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
                 std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(f)>(
@@ -583,23 +583,13 @@ namespace OP
                     ));
                 return this->declare_case(pt);
             }
-            TestSuite* declare(void (f)(TestResult&), std::string n = std::string())
-            {
-                auto fwrap = std::function< void(TestResult&) >(f);
-                std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
-                std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(fwrap)>(
-                    std::move(name),
-                    std::move(fwrap)
-                    ));
-                return this->declare_case(pt);
-            }
             
-            TestSuite* declare_disabled(std::function<void(TestResult&)> f, std::string n = std::string())
+            inline TestSuite* declare_disabled(std::function<void(TestResult&)> f, std::string n = std::string())
             {
                 return this;
             }
 
-            TestSuite* declare_exceptional(void (f)(TestResult&), std::string n = std::string())
+            inline TestSuite* declare_exceptional(void (f)(TestResult&), std::string n = std::string())
             {
                 auto fwrap = std::function< void(TestResult&) >(f);
                 std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
