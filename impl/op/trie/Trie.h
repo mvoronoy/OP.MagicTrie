@@ -956,7 +956,7 @@ namespace OP
                     auto local_begin = begin;
                     wr_node->insert(*_topology_ptr, begin, end, fassign);
                     auto deep = static_cast<dim_t>(begin - local_begin);
-                    result.emplace(
+                    result._emplace(
                         TriePosition(wr_node.address(), (atom_t)*local_begin/*key*/, deep, wr_node->version,
                         (begin == end) ? term_has_data : term_has_child),
                         local_begin + 1, begin

@@ -119,7 +119,7 @@ namespace OP
         protected:
             /**Add position to iterator*/
             template <class Iterator>
-            void emplace(TriePosition&& position, Iterator begin, Iterator end)
+            void _emplace(TriePosition&& position, Iterator begin, Iterator end)
             {
                 if (position.key() > std::numeric_limits<atom_t>::max())
                     throw std::out_of_range("Range must be in [0..255]");
@@ -131,7 +131,7 @@ namespace OP
             }
             void emplace(TriePosition&& position, const atom_t* begin, const atom_t* end)
             {
-                emplace<decltype(begin)>(std::move(position), begin, end);
+                _emplace<decltype(begin)>(std::move(position), begin, end);
             }
             /**Update last entry in this iterator, then add rest tail to iterator*/
             void update_back(const TriePosition& position, const atom_t* begin, const atom_t* end)
