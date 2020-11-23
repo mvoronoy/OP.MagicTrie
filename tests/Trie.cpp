@@ -1839,6 +1839,7 @@ void test_JoinRangeOverride(TestResult& tresult)
     rnd_val.reserve(avg_str_len);
     for (size_t i = 0; i < trie_limit; ++i)
     {
+        tresult.info()<<".";
         OP::utest::tools::randomize_str(rnd_val, avg_str_len, avg_str_len, [](){
                 static const char res[] = 
                     "0123456789"\
@@ -1853,7 +1854,7 @@ void test_JoinRangeOverride(TestResult& tresult)
             trie3->insert(rnd_val, i);
         test_values.emplace(rnd_val, i);
     }
-    tresult.info()<<"Done populating #1, #2, #3 \n Compare with test-values...";
+    tresult.info()<<"\nDone populating #1, #2, #3 \n Compare with test-values...";
     compare_containers(tresult, *trie1, test_values);
 
     //thin-out map for later compare
