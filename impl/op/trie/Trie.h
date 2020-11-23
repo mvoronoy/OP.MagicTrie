@@ -947,7 +947,7 @@ namespace OP
             }
             /**Place string to node without any additional checks*/
             template <class AtomIterator, class FValueAssigner>
-            void unconditional_insert(FarAddress node_addr, AtomIterator& begin, AtomIterator end, iterator& result, FValueAssigner& fassign)
+            void unconditional_insert(FarAddress node_addr, AtomIterator& begin, AtomIterator end, iterator& result, FValueAssigner fassign)
             {
                 while (begin != end)
                 {
