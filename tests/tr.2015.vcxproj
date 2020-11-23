@@ -27,26 +27,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -150,20 +150,23 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\impl\op\common\FetchTicket.h" />
     <ClInclude Include="..\impl\op\common\Unsigned.h" />
+    <ClInclude Include="..\impl\op\ranges\OrderedRange.h" />
+    <ClInclude Include="..\impl\op\ranges\TakeWhileRange.h" />
     <ClInclude Include="..\impl\op\service\BackgroundWorker.h" />
     <ClInclude Include="..\impl\op\common\Bitset.h" />
     <ClInclude Include="..\impl\op\common\func_iter.h" />
     <ClInclude Include="..\impl\op\trie\HashTable.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\FlattenRange.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\FunctionalRange.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\JoinRange.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\PredicateRange.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\RangeUtils.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\UnionAllRange.h" />
+    <ClInclude Include="..\impl\op\ranges\FlattenRange.h" />
+    <ClInclude Include="..\impl\op\ranges\FunctionalRange.h" />
+    <ClInclude Include="..\impl\op\ranges\IteratorsRange.h" />
+    <ClInclude Include="..\impl\op\ranges\JoinRange.h" />
+    <ClInclude Include="..\impl\op\ranges\RangeUtils.h" />
+    <ClInclude Include="..\impl\op\ranges\PrefixRange.h" />
+    <ClInclude Include="..\impl\op\ranges\UnionAllRange.h" />
     <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
+    <ClInclude Include="..\impl\op\trie\TrieRangeAdapter.h" />
     <ClInclude Include="..\impl\op\utest\unit_test.h" />
     <ClInclude Include="..\impl\op\utest\unit_test_is.h" />
     <ClInclude Include="..\impl\op\vtm\MemoryBlock.h" />
@@ -188,6 +191,7 @@
     <ClInclude Include="..\impl\op\vtm\PersistedReference.h" />
     <ClInclude Include="..\impl\op\common\Utils.h" />
     <ClInclude Include="..\impl\op\trie\ValueArray.h" />
+    <ClInclude Include="AtomStrLiteral.h" />
     <ClInclude Include="GenericMemoryTest.h" />
     <ClInclude Include="test_comparators.h" />
   </ItemGroup>
@@ -202,6 +206,9 @@
     <ClCompile Include="SegmentToplogyTest.cpp" />
     <ClCompile Include="skplst.cpp" />
     <ClCompile Include="StemContainer.cpp" />
+    <ClCompile Include="testMixedAdapter.cpp">
+      <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
+    </ClCompile>
     <ClCompile Include="tr.cpp">
       <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
       <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</PreprocessToFile>

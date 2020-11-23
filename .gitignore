@@ -27,15 +27,17 @@
 *.out
 *.app
 /tests/Debug/tr.log
-/tests/Debug/vc120.idb
-/tests/Debug/vc120.pdb
-/tests/x64/Debug/tr.tlog
+*.idb
+*.pdb
 /tests/x64/Debug
 
 # Misk
 *.sdf
 *.opensdf
 *.suo
+*.vsp*
+*.ipch
+*.tlog
 
 # Test result
 *.test

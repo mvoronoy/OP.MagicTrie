@@ -40,6 +40,7 @@
     <ClCompile Include="ranges\CommonRangesOpTest.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="testMixedAdapter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GenericMemoryTest.h" />
@@ -113,12 +114,8 @@
     <ClInclude Include="..\impl\op\common\Bitset.h">
       <Filter>OP\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\TrieIterator.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\IteratorsRange.h">
-      <Filter>OP\trie\ranges</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\trie\ranges\SuffixRange.h">
-      <Filter>OP\trie\ranges</Filter>
+    <ClInclude Include="..\impl\op\ranges\IteratorsRange.h">
+      <Filter>OP\ranges</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\vtm\HeapManager.h">
       <Filter>OP\vtm</Filter>
@@ -126,24 +123,21 @@
     <ClInclude Include="..\impl\op\vtm\MemoryChunks.h">
       <Filter>OP\vtm</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\ranges\JoinRange.h">
-      <Filter>OP\trie\ranges</Filter>
+    <ClInclude Include="..\impl\op\ranges\JoinRange.h">
+      <Filter>OP\ranges</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\ranges\FunctionalRange.h">
-      <Filter>OP\trie\ranges</Filter>
+    <ClInclude Include="..\impl\op\ranges\FunctionalRange.h">
+      <Filter>OP\ranges</Filter>
     </ClInclude>
     <ClInclude Include="test_comparators.h" />
-    <ClInclude Include="..\impl\op\trie\ranges\RangeUtils.h">
-      <Filter>OP\trie\ranges</Filter>
+    <ClInclude Include="..\impl\op\ranges\RangeUtils.h">
+      <Filter>OP\ranges</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\ranges\FlattenRange.h">
-      <Filter>OP\trie\ranges</Filter>
+    <ClInclude Include="..\impl\op\ranges\FlattenRange.h">
+      <Filter>OP\ranges</Filter>
     </ClInclude>
-    <ClInclude Include="..\impl\op\trie\ranges\UnionAllRange.h">
-      <Filter>OP\trie\ranges</Filter>
-    </ClInclude>
-    <ClInclude Include="..\impl\op\trie\ranges\PredicateRange.h">
-      <Filter>OP\trie\ranges</Filter>
+    <ClInclude Include="..\impl\op\ranges\UnionAllRange.h">
+      <Filter>OP\ranges</Filter>
     </ClInclude>
     <ClInclude Include="..\impl\op\common\Unsigned.h">
       <Filter>OP\common</Filter>
@@ -153,6 +147,27 @@
     </ClInclude>
     <ClInclude Include="..\impl\op\utest\unit_test_is.h">
       <Filter>OP\utest</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieIterator.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\common\FetchTicket.h">
+      <Filter>OP\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\trie\TrieRangeAdapter.h">
+      <Filter>OP\trie</Filter>
+    </ClInclude>
+    <ClInclude Include="AtomStrLiteral.h">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\PrefixRange.h">
+      <Filter>OP\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\OrderedRange.h">
+      <Filter>OP\ranges</Filter>
+    </ClInclude>
+    <ClInclude Include="..\impl\op\ranges\TakeWhileRange.h">
+      <Filter>OP\ranges</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -177,7 +192,7 @@
     <Filter Include="OP\common">
       <UniqueIdentifier>{98cd2d51-239f-4e6f-a1db-0a7a182e371d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="OP\trie\ranges">
+    <Filter Include="OP\ranges">
       <UniqueIdentifier>{44b1ef9b-5a05-4ecc-a162-ad7d03940ef9}</UniqueIdentifier>
     </Filter>
     <Filter Include="OP\utest">

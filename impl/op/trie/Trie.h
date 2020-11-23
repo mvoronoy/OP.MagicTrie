@@ -19,9 +19,9 @@
 #include <op/trie/TrieNode.h>
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
-#include <op/trie/ranges/IteratorsRange.h>
-#include <op/trie/ranges/PredicateRange.h>
-
+#include <op/trie/TrieRangeAdapter.h>
+#include <op/trie/SectionAdapter.h>
+#include <op/ranges/IteratorsRange.h>
 namespace OP
 {
     namespace trie
@@ -36,18 +36,20 @@ namespace OP
         
 
         template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 1024>
-        struct Trie
+        struct Trie : public std::enable_shared_from_this< Trie<TSegmentManager, Payload, initial_node_count> >
         {
         public:
-            typedef Payload payload_t;
-            typedef Trie<TSegmentManager, payload_t, initial_node_count> trie_t;
-            typedef trie_t this_t;
-            typedef TrieIterator<this_t> iterator;
-            typedef SuffixRange<typedef iterator> suffix_range_t;
-            typedef std::unique_ptr<suffix_range_t> suffix_range_ptr;
-            typedef payload_t value_type;
-            typedef TrieNode<payload_t> node_t;
-            typedef TriePosition poistion_t;
+            using payload_t = Payload ;
+            using trie_t = Trie<TSegmentManager, payload_t, initial_node_count> ;
+            using this_t = trie_t ;
+            using iterator = TrieIterator<this_t>;
+            using value_type = payload_t;
+            using node_t = TrieNode<payload_t> ;
+            using poistion_t = TriePosition ;
+            using key_t = atom_string_t;
+            using value_t = payload_t;
+            using ordered_range_t = OrderedRange<atom_string_t, value_t>;
+            using ordered_range_ptr = std::shared_ptr<ordered_range_t const>;
 
             virtual ~Trie()
             {
@@ -59,7 +61,7 @@ namespace OP
                 auto r = std::shared_ptr<this_t>(new this_t(segment_manager));
                 //make root for trie
                 OP::vtm::TransactionGuard op_g(segment_manager->begin_transaction()); //invoke begin/end write-op
-                r->_topology_ptr->slot<TrieResidence>().set_root_addr(r->new_node());
+                r->_topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().set_root_addr(r->new_node());
 
                 op_g.commit();
                 return r;
@@ -69,31 +71,35 @@ namespace OP
                 auto r = std::shared_ptr<this_t>(new this_t(segment_manager));
                 return r;
             }
-            /**Total number of items*/
-            std::uint64_t size()
+            TSegmentManager& segment_manager()
             {
-                return _topology_ptr->slot<TrieResidence>().count();
+                return static_cast<TSegmentManager&>( OP::trie::resolve_segment_manager( *_topology_ptr ));
+            }
+            /**Total number of items*/
+            std::uint64_t size() const
+            {
+                return _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().count();
             }
             node_version_t version() const
             {
-                return _topology_ptr->slot<TrieResidence>().current_version();
+                return _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().current_version();
             }
             /**Number of allocated nodes*/
             std::uint64_t nodes_count()
             {
-                return _topology_ptr->slot<TrieResidence>().nodes_allocated();
+                return _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().nodes_allocated();
             }
 
             iterator begin() const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto next_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                auto next_addr = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().get_root_addr();
                 iterator i(this);
                 auto lres = load_iterator(next_addr, i,
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); },
                     &iterator::emplace);
-                for (auto next_addr = tuple_ref<FarAddress>(lres);
-                    tuple_ref<bool>(lres) &&
+                for (auto next_addr = std::get<FarAddress>(lres);
+                    std::get<bool>(lres) &&
                     Terminality::term_has_data != (i.back().terminality() & Terminality::term_has_data);
                     )
                 {
@@ -109,7 +115,7 @@ namespace OP
             }
             iterator end() const
             {
-                return iterator(this);
+                return iterator(this, typename iterator::end_marker_t{});
             }
             bool in_range(const iterator& check) const 
             {
@@ -124,43 +130,107 @@ namespace OP
                     _next(true, i);
                 }
             }
+            /**
+            * Iterate next item that is not prefixed by current (`i`). In other words selct right of this or parent. In compare with
+            * regular `next` doesn't enter to child way of current iterator (`i`).
+            * For example:
+            * Given prefixes:
+            * \code
+            * "abc"
+            * "abc.1"
+            * "abc.2"
+            * "abc.222", //not a sibling since 'abc.2' has a it as a child
+            * "abc.333"
+            * "abcdef"
+            * \endcode
+            * Have following in the result:
+            *  
+            *  Source `i` | next(i) | next_sibling(i)
+            *  -----------|---------|----------------
+            *  abc        | abc.1   |  abc.1
+            *  abc.1      | abc.2   |  abc.2
+            *  abc.2      | abc.222 |  abc.333   (!)
+            *  abc.333    | abcdef  |  abcdef
+            */
             void next_sibling(iterator& i) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 
-                if (!std::get<bool>(sync_iterator(i)) || i.is_end())
-                    return;
-                auto lres = load_iterator(i.back().address(), i,
-                        [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
-                        &iterator::update_back);
-                if (tuple_ref<bool>(lres))
-                { //navigation right succeeded
-                    if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
-                    {//i already points to correct entry
+                if (!std::get<bool>(sync_iterator(i)))
+                    return;    
+                while(!i.is_end())
+                { 
+                    auto lres = load_iterator(i.back().address(), i,
+                            [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
+                            &iterator::update_back);
+                    if (std::get<bool>(lres))
+                    { //navigation right succeeded
+                        if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
+                        {//i already points to correct entry
+                            return;
+                        }
+                        enter_deep_until_terminal(std::get<FarAddress>(lres), i);
                         return;
                     }
-                    enter_deep_until_terminal(tuple_ref<FarAddress>(lres), i);
+                    i.pop();
+                }
+            }
+
+            /** Gets next entry greater or equal than specific key. Used in `join` operations as more optimized 
+            * in compare with regular `next`.
+            */
+            template <class AtomString>
+            void next_lower_bound_of(iterator& i, const AtomString& key) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                
+                if (!std::get<bool>(sync_iterator(i)))
+                    return;
+                //find `i` and `key` common prefix
+                size_t com_prefix = 0; 
+                
+                for(size_t smallest = std::min(i.key().size(), key.size());
+                     com_prefix < smallest && i.key()[com_prefix] == key[com_prefix]; ++com_prefix)
+                {
+                    /*do nothing*/    
+                }
+                if (!com_prefix) //no common prefix at all, just position at right bound
+                {
+                    i = lower_bound(key);
                     return;
                 }
-                i.clear();
+                i.pop_until_fit(static_cast<dim_t>(com_prefix)); //cut `i` on common prefix
+                auto kbeg = key.begin()+com_prefix;
+                lower_bound_impl(kbeg, key.end(), i);
             }
-            typedef PredicateRange<iterator> range_container_t;
-            typedef std::shared_ptr<range_container_t> range_container_ptr;
 
-            template <class IterateAtom>
-            range_container_ptr subrange(IterateAtom begin, IterateAtom aend) const
+            using range_adapter_t = TrieRangeAdapter<this_t>;
+            /**
+            *   @return range that embrace all records by pair [ begin(), end() )
+            */
+            ordered_range_ptr range() const
             {
-                StartWithPredicate<range_container_t::iterator> end_predicate(atom_string_t(begin, aend));
+                return ordered_range_ptr(new range_adapter_t(this->shared_from_this()));
+            }
+
+            /** return first entry that contains prefix specified by string [begin, aend) 
+            *   @param begin - first symbol of string to lookup
+            *   @param aend - end of string to lookup
+            *   \tparam IterateAtom iterator of string
+            */
+            template <class IterateAtom>
+            iterator prefixed_begin(IterateAtom begin, IterateAtom aend) const
+            {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 iterator i(this);
                 auto nav = common_prefix(begin, aend, i);
-                if (begin != aend) //no such prefix
-                    return std::make_shared<range_container_t>(end(), AlwaysFalseRangePredicate<range_container_t::iterator>());
+                if (begin != aend) //no such prefix since begin wasn't exhausted
+                    return end();
                 auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == stem::StemCompareResult::equals //prefix fully matches to existing terminal
-                if(nav.compare_result == stem::StemCompareResult::string_end) //prefix partially matches to some prefix
-                { //correct string at back of iterator
+                if(nav.compare_result == stem::StemCompareResult::string_end) //key partially matches to some prefix
+                { //correct string at the back of iterator
                     auto lres = load_iterator(i_beg.back().address(), i_beg,
                         [&i](ReadonlyAccess<node_t>& ) { 
                             return make_nullable(i.back().key());
@@ -173,42 +243,79 @@ namespace OP
                     }
                 }
                 //
-                //_next(false, i_end);
-                //return range_container_t(i_beg, i_end);
-                return std::make_shared<range_container_t>(i_beg, end_predicate);
+                return i_beg;
+            }
+
+            using subrange_container_t = PrefixSubrangeAdapter<this_t>;
+            /**
+            *   Construct a range that address all string started from string specified by [begin, aend)
+            *   @param begin - first symbol of string to lookup
+            *   @param aend - end of string to lookup
+            *   \tparam IterateAtom iterator of string 
+            */
+            template <class IterateAtom>
+            ordered_range_ptr prefixed_range(IterateAtom begin, IterateAtom aend) const
+            {
+                atom_string_t prefix(begin, aend);
+
+                return std::static_pointer_cast<ordered_range_t const>(
+                    make_mixed_range(this->shared_from_this(),
+                    typename Ingredient<this_t>::PrefixedBegin( prefix ), 
+                    typename Ingredient<this_t>::PrefixedLowerBound(prefix),
+                    typename Ingredient<this_t>::PrefixedInRange (StartWithPredicate(prefix)) )
+                );
             }
             /**
-            *   Just shorthand for: 
+            *   Just shorthand notation for: 
             *   \code
             *   subrange(std::begin(container), std::end(container))
             *   \endcode
             * @param string any string of bytes that supports std::begin/ std::end functions
             */
             template <class AtomContainer>
-            range_container_ptr subrange(const AtomContainer& string) const
+            ordered_range_ptr prefixed_range(const AtomContainer& prefix) const
             {
-                return this->subrange(std::begin(string), std::end(string));
+                return std::static_pointer_cast<ordered_range_t const>(
+                    make_mixed_range(this->shared_from_this(),
+                        typename Ingredient<this_t>::PrefixedBegin(prefix), 
+                        typename Ingredient<this_t>::PrefixedLowerBound(prefix),
+                        typename Ingredient<this_t>::PrefixedInRange(StartWithPredicate(prefix)) 
+                    )
+                );
             }
-
             /**
             *   @return range that is flatten-range of all prefixes contained in param `container`.
             */
             template <class Range>
-            auto flatten_subrange(std::shared_ptr<Range>& container) const
+            ordered_range_ptr flatten_subrange(std::shared_ptr<Range const>& container) const
             {
                 return make_flatten_range(container, [this](const auto& i) {
-                    return subrange(i.key());
+                    return prefixed_range(i.key());
                 });
             }
 
 
+            /**
+            @return an iterator pointing to the first element that is not less than (i.e. greater or equal to) key 
+                specified as [begin, aend).
+            @param begin - specifies begin iterator of searching key
+            @param aend - specifies end iterator of searching key
+            */
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom aend) const
             {
-                return lower_bound(end(), begin, aend);
+                auto tmp_end = end();
+                return lower_bound(tmp_end, begin, aend);
             }
-            template <class Container>
-            iterator lower_bound(const Container& container) const
+            /**
+            *   Just shorthand notation for:
+            *   \code
+            *   lower_bound(std::begin(container), std::end(container))
+            *   \endcode
+            * @param container any enumerable bytes that supports `std::begin` / `std::end` functions
+            */
+            template <class AtomString>
+            iterator lower_bound(const AtomString& container) const
             {
                 auto beg = std::begin(container);
                 return lower_bound(beg, std::end(container));
@@ -245,16 +352,30 @@ namespace OP
                 auto result = lower_bound_impl(b2, look_for.end(), i2);
                 if( !i2.is_end() )
                 {
-                    begin += i2.key().length() - break_at;
+                    std::ptrdiff_t offset = static_cast<std::ptrdiff_t>(i2.key().size() - break_at);
+                    begin += offset;
                 }
                 return i2;
             }
-            template <class AtomContainer>
-            iterator lower_bound(iterator& of_prefix, const AtomContainer& container) const
+            /**
+            *   Just shorthand notation for:
+            *   \code
+            *   lower_bound(of_prefix, std::begin(container), std::end(container))
+            *   \endcode
+            * @param container any enumerable bytes that supports `std::begin` / `std::end` functions
+            */
+            template <class AtomString>
+            iterator lower_bound(iterator& of_prefix, const AtomString& container) const
             {
                 auto b = std::begin(container);
                 return lower_bound(of_prefix, b, std::end(container));
             }
+            /**
+                Find exact matching of string specified by [begin, aend) parameters
+                @param begin of string to search
+                @param aend - the end of string to search
+                @return iterator that points on found string. In case if no such key result equals to `end()`
+            */
             template <class Atom>
             iterator find(Atom& begin, Atom aend) const
             {
@@ -266,21 +387,29 @@ namespace OP
                 }
                 return end();
             }
-            template <class AtomContainer>
-            iterator find(const AtomContainer& container) const
+            /**
+            *   Just shorthand notation for:
+            *   \code
+            *   find(std::begin(container), std::end(container))
+            *   \endcode
+            * @param container any enumerable bytes that supports `std::begin` / `std::end` functions
+            */
+            template <class AtomString>
+            iterator find(const AtomString& container) const
             {
                 auto b = std::begin(container);
                 return find(b, std::end(container));
             }
-            template <class AtomContainer>
-            iterator find(iterator& of_prefix, const AtomContainer& container) const
+            template <class AtomString>
+            iterator find(iterator& of_prefix, const AtomString& container) const
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
-                auto iter = end ();
+                iterator iter = end ();
                 if (std::get<bool>(sync_iterator(of_prefix)))
                 {
                     iter = of_prefix;
-                    if (lower_bound_impl(begin, aend, &of_prefix) && begin == aend)
+                    auto begin = std::begin(container), aend = std::end(container);
+                    if (lower_bound_impl(begin, aend, iter) && begin == aend)
                     {
                         return iter;
                     }
@@ -288,6 +417,44 @@ namespace OP
                 }
                 return iter;
             }
+            template <class Atom>
+            iterator find(const iterator& of_prefix, Atom& begin, Atom aend) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                iterator iter = of_prefix;
+                if (std::get<bool>(sync_iterator(iter)))
+                {
+                    if (lower_bound_impl(begin, aend, iter) && begin == aend)
+                    {
+                        return iter;
+                    }
+                    iter.clear();
+                }
+                return iter;
+            }
+            template <class AtomString>
+            iterator find(const iterator& of_prefix, const AtomString& container) const
+            {
+                return find(of_prefix, std::begin(container), std::end(container));
+            }
+            /**
+            *   Quick check if some string exists in this trie.
+            *   @param containser - string to check. Type must support `std::begin` / `std::end` functions
+            *   @return true if exists exact string matching. Note, if trie contains only `abc`, and you check `ab` 
+            *   method returns fals since it is not exact matching
+            */
+            template <class AtomString>
+            bool check_exists(const AtomString& container) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
+                auto b = std::begin(container);
+                iterator iter = end();
+                
+                auto nav_res = common_prefix(b, std::end(container), iter);
+
+                return (nav_res.compare_result == stem::StemCompareResult::equals);
+            }
+
             /**
             *   Get first child element resided below position specified by @param `of_this`. Since all values in Trie are lexicographically 
             *   ordred the return iterator indicate smallest immediate children
@@ -322,10 +489,52 @@ namespace OP
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
             }
             /**Return range that allows iterate all immediate childrens of specified prefix*/
-            range_container_ptr children_range(iterator& of_this)
+            ordered_range_ptr children_range(const iterator& of_this) const
             {
-                range_container_ptr result(new ChildRange(*this, first_child(of_this)));
-                return result;
+                return std::static_pointer_cast<ordered_range_t const>(
+                    make_mixed_range(
+                    this->shared_from_this(), 
+                    typename Ingredient<this_t>::ChildBegin{of_this}, 
+                    typename Ingredient<this_t>::ChildInRange{StartWithPredicate(of_this.key())},
+                    typename Ingredient<this_t>::SiblingNext{}
+
+                ));
+            }
+
+            using sibling_range_t = SiblingRangeAdapter<this_t>;
+
+            /**Return range that allows iterate all immediate childrens of specified prefix*/
+            ordered_range_ptr sibling_range(const atom_string_t& key) const
+            {
+                return ordered_range_ptr(new sibling_range_t(this->shared_from_this(), key));
+            }
+            /**Return range that allows iterate all immediate childrens of specified prefix*/
+            ordered_range_ptr sibling_range(iterator pos) const
+            {
+                auto zhis = this->shared_from_this();
+                return ordered_range_ptr( 
+                    new sibling_range_t(zhis, [pos{std::move(pos)}]() { return pos; })
+                );
+            }
+            
+            /** utilize feature of Trie where all entries below the single prefix are lexicographicaly ordered.
+            * This range provide access to ordered sequence of suffixes. In simplified view you can think 
+            * about it as a cutting right part of each string from trie
+            * @param begin - specifies begin iterator of prefix that will be cut-off
+            *  @param aend - specifies end iterator of prefix that will be cut-off
+            */
+            template <class Atom>
+            ordered_range_ptr section_range(Atom begin, Atom aend) const
+            {
+                atom_string_t prefix{ begin, aend };
+                return section_range(std::move(prefix));
+            }            
+            template <class AtomString>
+            ordered_range_ptr section_range(AtomString prefix) const
+            {
+                auto source = prefixed_range(std::begin(prefix), std::end(prefix));
+                using result_t = TrieSectionAdapter<typename decltype(source)::element_type>;
+                return ordered_range_ptr( new result_t(source, std::move(prefix)) );
             }
 
             value_type value_of(poistion_t pos) const
@@ -347,7 +556,7 @@ namespace OP
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto node = view<node_t>(*_topology_ptr, position.address());
                 if (position.key() < (dim_t)containers::HashTableCapacity::_256)
-                    return node->get_presence(*_topology_ptr, (atom_t)pos.key());
+                    return node->get_presence(*_topology_ptr, (atom_t)position.key());
                 op_g.rollback();
                 throw std::invalid_argument("position has no value associated");
             }
@@ -364,16 +573,13 @@ namespace OP
             {
                 if (begin == aend)
                     return std::make_pair(iterator(this), false); //empty string cannot be inserted
+
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto value_assigner = [&]() {
-                    _topology_ptr->slot<TrieResidence>()
-                        .increase_count(+1) //number of terminals
-                        .increase_version() // version of trie
-                        ;
                     return value;
                 };
                 auto on_update = [&op_g](iterator& ) {
-                    op_g.rollback(); //do nothing on update
+                    op_g.rollback(); //do nothing on update TODO: check case of nested transaction if smthng is destroyed
                 };
                 return upsert_impl(end(), begin, aend, value_assigner, on_update);
             }
@@ -383,19 +589,86 @@ namespace OP
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
             }
+            template <class AtomIterator>
+            std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, Payload value)
+            {
+                if (begin == aend)
+                    return std::make_pair(end(), false); //empty string is not operatable
 
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true/*commit automatically*/);
+                auto sync_res = sync_iterator(of_prefix);
+                if (!std::get<bool>(sync_res))
+                { //no entry for previous iterator
+                    return insert(std::get<atom_string_t>(sync_res).append(begin, aend), std::move(value));
+                }
+                auto value_assigner = [&]() {
+                    return std::move(value);
+                };
+                auto on_update = [&](iterator& pos) {
+                    //do nothing on update
+                };
+                return upsert_impl(of_prefix, begin, aend, value_assigner, on_update);
+            }
+            template <class AtomContainer>
+            std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, const AtomContainer& container, Payload payload)
+            {
+                return prefixed_insert(of_prefix, std::begin(container), std::end(container), payload);
+            }
+            /**
+            *   @return number of items updated (1 or 0)
+            */
+            size_t update(iterator& pos, Payload && value)
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                auto sync_res = sync_iterator(pos);
+                if (!std::get<bool>(sync_iterator(pos)) || pos.is_end())
+                { //no entry for previous iterator
+                    return 0;
+                }
+                assert(is_set(pos.back().terminality(), Terminality::term_has_data));
+                //get the node in readonly way, but access values for write
+                auto ro_node = view<node_t>(*_topology_ptr, pos.back().address());
+                auto ridx = ro_node->reindex(*_topology_ptr, (atom_t)pos.back().key());
+                auto values = _value_mngr.accessor(ro_node->payload, ro_node->capacity);
+                auto &v = values[ridx];
+                assert(v.has_data());
+                v.set_data(std::move(value));
+                _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
+                    .increase_version() // version of trie
+                    ;
+                return 1;
+            }
+            /**Update or insert value specified by key that formed as `[begin, end)`. 
+            * @param value - payload to be assigned anyway 
+            * @return pair of iterator and boolean indicator. When insert succeeded iterator is a position of
+            *       just inserted item, otherwise it points to already existing key. Boolean indicator is false when
+            *       item already exists and true when it was inserted
+            */
             template <class AtomIterator>
             std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, Payload && value)
             {
-                return prefixed_upsert(end(), begin, aend, std::move(value));
+                auto temp_end = end();
+                return prefixed_upsert(temp_end, begin, aend, std::move(value));
             }
+            /**Update or insert value specified by key. In other words
+            *   place a string bellow pointer specified by iterator.
+            * @param key - a container that supports std::begin/std::end semantic
+            * @param value - payload to be assigned anyway 
+            * @return pair of iterator and boolean indicator. When insert succeeded iterator is a position of
+            *       just inserted item, otherwise it points to already existing key. Boolean indicator is false when
+            *       item already exists and true when it was inserted
+            */
             template <class AtomContainer>
-            std::pair<iterator, bool> upsert(const AtomContainer& container, Payload&& value)
+            std::pair<iterator, bool> upsert(const AtomContainer& key, Payload&& value)
             {
-                return upsert(std::begin(container), std::end(container), std::move(value));
+                return upsert(std::begin(key), std::end(key), std::move(value));
             }
             /**Update or insert value specified by key that formed as `prefix.key + [begin, end)`. In other words
             *   place a string bellow pointer specified by iterator. 
+            * @param value - payload to be assigned anyway 
+            * @return pair of iterator and boolean indicator. When insert succeeded iterator is a position of
+            *       just inserted item, otherwise it points to already existing key. Boolean indicator is false when
+            *       item already exists and true when it was inserted
             */
             template <class AtomIterator>
             std::pair<iterator, bool> prefixed_upsert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, Payload value)
@@ -438,7 +711,7 @@ namespace OP
                     return end();
                 auto result{ pos };
                 ++result ;
-                const auto root_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                const auto root_addr = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().get_root_addr();
                 bool erase_child_and_exit = false; //flag mean stop iteration
                 for (bool first = true; pos.deep() ; pos.pop(), first = false)
                 {
@@ -462,16 +735,22 @@ namespace OP
                         erase_child_and_exit = true;
                     }
                 }
-                _topology_ptr->slot<TrieResidence>()
+                _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
                     .increase_count(-1) //number of terminals
                     .increase_version() // version of trie
                     ;
                 if (count) { *count = 1; }
                 return result;
             }
-            
-            /**Erase every entries that strictly below of the specified iterator, the point of iterator is not erased.
-            * @param prefx{in,out} - iterator to erase, at exist contains synced iterator (the same version as entire Trie)
+            /**Simplfied form of erase(iterator&, size_t*)*/
+            iterator erase(iterator && pos)
+            {
+                iterator snapshot = std::move(pos);
+                return erase(snapshot, nullptr);
+            }
+            /**Erase every entries that begins with prfix specified by iterator. If trie contains entry excatly matched to 
+            * prefix then it is erased as well
+            * @param prefx{in,out} - iterator to erase, at exit contains synced iterator (the same version as entire Trie)
             * @return number of erased items
             */
             size_t prefixed_erase_all(iterator& prefix)
@@ -488,8 +767,10 @@ namespace OP
                 }
                 if (is_not_set(prefix.back().terminality(), Terminality::term_has_child))
                 { //no child below, so skip any erase
-                    return 0;
-                }
+                    size_t counter = 0;
+                    prefix = erase(prefix, &counter);
+                    return counter;
+                } 
                 auto parent_wr_node = accessor<node_t>(*_topology_ptr, prefix.back().address());
                 auto back = classify_back(parent_wr_node, prefix);
                 std::stack<FarAddress> to_process;
@@ -502,7 +783,7 @@ namespace OP
 
                     auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
                     auto node_data = _value_mngr.accessor(wr_node->payload, wr_node->capacity);
-                    std::int64_t terminal_erased = 0;
+                    
                     for (auto res = wr_node->first(); res.first; res = wr_node->next(res.second))
                     {
                         auto idex = wr_node->reindex(*_topology_ptr, res.second);
@@ -520,7 +801,7 @@ namespace OP
                     remove_node(node_addr, *wr_node);
                 }
                 parent_wr_node->set_child(*_topology_ptr, static_cast<atom_t>(prefix.back().key()), FarAddress());
-                auto& residence = _topology_ptr->slot<TrieResidence>()
+                auto& residence = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
                     .increase_count(erased_terminals) //number of terminals
                     .increase_version() // version of trie
                     ;
@@ -529,6 +810,77 @@ namespace OP
                 prefix.back()._terminality &= ~Terminality::term_has_child;
                 return std::abs(erased_terminals);
             }
+            /**
+            *   Remove all that starts with prefix
+            */
+            template <class AtomContainer>
+            size_t prefixed_key_erase_all(const AtomContainer& prefix)
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
+                size_t result = 0;
+                for (iterator it(this->lower_bound(prefix)); it != this->end(); )
+                {
+                    auto key_beg = std::begin(it.key());
+                    auto prefix_end = std::end(prefix);
+
+                    if (it.key().size() < prefix.size()) {
+                        //check if prefix lexically_less than it.key => stop
+                        auto key_end = std::end(it.key());
+                        if (std::mismatch(key_beg, key_end, std::begin(prefix), prefix_end).first == key_end) //case when key contained in prefix => just skip
+                        {
+                            ++it;
+                            continue;
+                        }
+                        break; //all other prefixes doesn't match and lexically bigger
+                    }
+                    //check found starts with 'prefix'
+                    if (std::mismatch(key_beg, key_beg + prefix.size(), std::begin(prefix), prefix_end).second == prefix_end) 
+                    { //key starts from prefix
+                        result += prefixed_erase_all(it);
+                    }
+                    else
+                        break;
+                }
+                return result;
+            }
+            /**
+            *   Allows to apply multiple modification operations in a transaction. In fact this just decoration 
+            * for \code
+            *  OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction(), true);
+            *  try{
+            *  .. multiple operations that modifies trie ...
+            *  }catch(...){
+            *       op_g.rollback();
+            *       throw;
+            *  }
+            * \endcode
+            */
+            template <class F>
+            auto apply(F& f) -> typename std::result_of<F(this_t&)>::type
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //autocommit on return
+                try{
+                    return f(*this);
+                }catch(...){
+                    op_g.rollback();
+                    throw;
+                }
+            }
+            /**
+            *   Allows to apply multiple readonly operations in a transaction. In fact this just decoration 
+            * for \code
+            *  OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction(), false);
+            *  .. multiple operations that modifies trie ...
+            *  op_g.commit()
+            * \endcode
+            */
+            template <class F>
+            auto apply(F const & f) const -> typename std::result_of<F(const this_t&)>::type
+            {
+                OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true); //autocommit on return
+                return f(*this);
+            }
+
         private:
             typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
             typedef SegmentTopology<
@@ -539,30 +891,7 @@ namespace OP
             containers::PersistedHashTable<topology_t> _hash_mngr;
             stem::StemStore<topology_t> _stem_mngr;
             ValueArrayManager<topology_t, payload_t> _value_mngr;
-            static nullable_atom_t _resolve_leftmost(const node_t& node, iterator* = nullptr)
-            {
-                return node.first();
-            };
-            static nullable_atom_t _resolve_next(const node_t& node, iterator* i)
-            {
-                return node.next((atom_t)i->back().key());
-            };
-            /**Used to iterate over immediate children*/
-            struct ChildRange : public PredicateRange<iterator>
-            {
-                typedef typename trie_t::iterator super_iter_t;
-                typedef PredicateRange<super_iter_t> super_t;
-                ChildRange(const trie_t &owner, const super_iter_t& begin)
-                    : super_t(begin, [](const auto& iter_check) {return !iter_check.is_end();})
-                    , _owner(owner)
-                {}
-                void next(iterator& pos) const override
-                {
-                    _owner.next_sibling(pos);
-                }
-            private:
-                const trie_t &_owner;
-            };
+
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments) noexcept
                 : _topology_ptr{ std::make_unique<topology_t>(segments) }
@@ -577,8 +906,8 @@ namespace OP
             */
             FarAddress new_node(containers::HashTableCapacity capacity = containers::HashTableCapacity::_8)
             {
-                auto node_pos = _topology_ptr->slot<node_manager_t>().allocate();
-                auto node = _topology_ptr->segment_manager().wr_at<node_t>(node_pos);
+                auto node_pos = _topology_ptr->OP_TEMPL_METH(slot)<node_manager_t>().allocate();
+                auto node = _topology_ptr->segment_manager().template wr_at<node_t>(node_pos);
                 //auto node = new (node_block.pos()) node_t;
 
                 // create hash-reindexer
@@ -588,12 +917,11 @@ namespace OP
                 auto cr_result = std::move(_stem_mngr.create(
                     (dim_t)capacity,
                     TrieDef::max_stem_length_c));
-                node->stems = tuple_ref<node_t::ref_stems_t>(cr_result);
+                node->stems = std::get<typename node_t::ref_stems_t>(cr_result);
 
                 node->payload = _value_mngr.create((dim_t)capacity);
 
-                auto &res = _topology_ptr->slot<TrieResidence>();
-                node->uid.uid = res.generate_node_id();
+                auto &res = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>();
                 res.increase_nodes_allocated(+1);
                 return node_pos;
             }
@@ -602,8 +930,8 @@ namespace OP
                 _hash_mngr.destroy(node.reindexer);
                 _stem_mngr.destroy(node.stems);
                 _value_mngr.destroy(node.payload);
-                _topology_ptr->slot<node_manager_t>().deallocate(addr);
-                auto &res = _topology_ptr->slot<TrieResidence>();
+                _topology_ptr->OP_TEMPL_METH(slot)<node_manager_t>().deallocate(addr);
+                auto &res = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>();
                 res.increase_nodes_allocated(-1);
             }
             /**
@@ -626,7 +954,7 @@ namespace OP
             }
             /**Place string to node without any additional checks*/
             template <class AtomIterator, class FValueAssigner>
-            void unconditional_insert(FarAddress node_addr, AtomIterator& begin, AtomIterator end, iterator& result, FValueAssigner& fassign)
+            void unconditional_insert(FarAddress node_addr, AtomIterator& begin, AtomIterator end, iterator& result, FValueAssigner fassign)
             {
                 while (begin != end)
                 {
@@ -635,8 +963,8 @@ namespace OP
                     auto local_begin = begin;
                     wr_node->insert(*_topology_ptr, begin, end, fassign);
                     auto deep = static_cast<dim_t>(begin - local_begin);
-                    result.emplace(
-                        TriePosition(wr_node.address(), wr_node->uid, (atom_t)*local_begin/*key*/, deep, wr_node->version,
+                    result._emplace(
+                        TriePosition(wr_node.address(), (atom_t)*local_begin/*key*/, deep, wr_node->version,
                         (begin == end) ? term_has_data : term_has_child),
                         local_begin + 1, begin
                     );
@@ -647,6 +975,10 @@ namespace OP
                         wr_node->set_child(*_topology_ptr, key, node_addr);
                     }
                 }
+                _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
+                    .increase_count(+1) //number of terminals
+                    .increase_version() // version of trie
+                    ;
             }
             /**Insert or update value associated with specified key. The value is passed as functor evaluated on demand.
             * @param start_from - iterator to start, note it MUST be already synced. At exit
@@ -706,6 +1038,12 @@ namespace OP
                 case stem::StemCompareResult::string_end:
                 {
                     assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
+                    //case about non-existing item
+                    _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>()
+                        .increase_count(1) //number of terminals
+                        .increase_version() // version of trie
+                        ;
+
                     auto &back = iter.back();
                     FarAddress node_addr = back.address();
                     auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
@@ -746,7 +1084,7 @@ namespace OP
             template <class Atom>
             typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter) const
             {
-                auto retval = node_t::nav_result_t();
+                typename node_t::nav_result_t retval{};
                 if (end == begin)
                 {
                     return retval;
@@ -764,7 +1102,7 @@ namespace OP
                 }
                 else
                 { //start from root node
-                    node_addr = _topology_ptr->slot<TrieResidence>().get_root_addr();
+                    node_addr = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().get_root_addr();
                 }
                 for (;;)
                 {
@@ -795,8 +1133,8 @@ namespace OP
                 } //for(;;)
                 return retval;
             }
-            template <class ChildLocator>
-            iterator position_child(iterator& of_this, ChildLocator& locator) const
+            template <class FChildLocator>
+            iterator position_child(iterator& of_this, FChildLocator locator) const
             {
                 if (!std::get<bool>(sync_iterator(of_this)) || of_this == end() ||
                     is_not_set(of_this.back().terminality(), Terminality::term_has_child))
@@ -804,6 +1142,12 @@ namespace OP
                     return end(); //no way down
                 }
                 iterator result(of_this);
+                position_child_unsafe(result, locator);
+                return result;
+            }
+            template <class FChildLocator>
+            void position_child_unsafe(iterator& result, FChildLocator locator) const
+            {
                 auto cls = classify_back(result);
                 auto addr = std::get<FarAddress>(cls);
                 do
@@ -814,9 +1158,7 @@ namespace OP
                     assert(std::get<0>(lres)); //empty nodes are not allowed
                     addr = std::get<1>(lres);
                 } while (is_not_set(result.back().terminality(), Terminality::term_has_data));
-                return result;
             }
-
             /**
             * @return true when result matches exactly to specified string [begin, aend)
             */
@@ -833,14 +1175,14 @@ namespace OP
                 {
                     if (!prefix.is_end())
                     {
-                        next(prefix);
+                        _next(true, prefix);
                     }
                     return false; //not an exact match
                 }
                 case stem::StemCompareResult::no_entry:
                 {
                     auto start_from = prefix.is_end()
-                        ? _topology_ptr->slot<TrieResidence>().get_root_addr()
+                        ? _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>().get_root_addr()
                         : nav_res.child_node;//prefix.back().address();
                     auto lres = load_iterator(//need reload since after common_prefix may not be complete
                         start_from, prefix,
@@ -848,14 +1190,14 @@ namespace OP
                         return ro_node->next_or_this(*begin);
                     },
                         &iterator::emplace);
-                    if (!tuple_ref<bool>(lres))
+                    if (!std::get<bool>(lres))
                     {
                         prefix.clear();
                         return false;
                     }
                     if (is_not_set(prefix.back().terminality(), Terminality::term_has_data))
                     {
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), prefix);
+                        enter_deep_until_terminal(std::get<FarAddress>(lres), prefix);
                     }
                     return false; //not an exact match
                 }
@@ -867,10 +1209,10 @@ namespace OP
                         return make_nullable(prefix.back().key());
                     },
                         &iterator::update_back);
-                    assert(tuple_ref<bool>(lres));
+                    assert(std::get<bool>(lres));
                     if (is_not_set(prefix.back().terminality(), Terminality::term_has_data))
                     {
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), prefix);
+                        enter_deep_until_terminal(std::get<FarAddress>(lres), prefix);
                     }
                     return false;//not an exact match
                 }
@@ -953,7 +1295,7 @@ namespace OP
             * @return pair
             */
             template <class FFindEntry, class FIteratorUpdate>
-            std::tuple<bool, FarAddress> load_iterator(const FarAddress& node_addr, iterator& dest, FFindEntry& pos_locator, FIteratorUpdate iterator_update) const
+            std::tuple<bool, FarAddress> load_iterator(const FarAddress& node_addr, iterator& dest, FFindEntry pos_locator, FIteratorUpdate iterator_update) const
             {
                 auto ro_node = view<node_t>(*_topology_ptr, node_addr);
                 nullable_atom_t pos = pos_locator(ro_node);
@@ -964,15 +1306,15 @@ namespace OP
                 //eval hashed index of key
                 auto ridx = ro_node->reindex(*_topology_ptr, pos.second);
 
-                poistion_t root_pos(node_addr, ro_node->uid, pos.second, 0, ro_node->version);
+                poistion_t root_pos(node_addr, pos.second, 0, ro_node->version);
 
                 if (!ro_node->stems.is_null())
                 {//if stem exists should be placed to iterator
                     _stem_mngr.stem(ro_node->stems, ridx,
                         [&](const atom_t* begin, const atom_t* end, const stem::StemData& stem_header) {
-                        root_pos._deep = static_cast<decltype(root_pos._deep)>((end - begin) + 1);//+1 means value reserved for key
-                        (dest.*iterator_update)(std::move(root_pos), begin, end);
-                    }
+                            root_pos._deep = static_cast<decltype(root_pos._deep)>((end - begin) + 1);//+1 means value reserved for key
+                            (dest.*iterator_update)(std::move(root_pos), begin, end);
+                        }
                     );
                 }
                 else //no stem
@@ -1025,13 +1367,13 @@ namespace OP
                     auto lres = load_iterator(i.back().address(), i,
                         [&i](ReadonlyAccess<node_t>&ro_node) { return ro_node->next((atom_t)i.back().key()); },
                         &iterator::update_back);
-                    if (tuple_ref<bool>(lres))
+                    if (std::get<bool>(lres))
                     { //navigation right succeeded
                         if ((i.back().terminality() & Terminality::term_has_data) == Terminality::term_has_data)
                         {//i already points to correct entry
                             return;
                         }
-                        enter_deep_until_terminal(tuple_ref<FarAddress>(lres), i);
+                        enter_deep_until_terminal(std::get<FarAddress>(lres), i);
                         return;
                     }
                     //here since no way neither down nor right
@@ -1051,25 +1393,9 @@ namespace OP
                     start_from = std::get<1>(lres);
                 } while (is_not_set(i.back().terminality(), Terminality::term_has_data));
             }
-            /**Implement functor for subrange method to implement predicate that detects end of range iteration*/
-            template <class Iterator>
-            struct StartWithPredicate
-            {
-                StartWithPredicate(atom_string_t && prefix)
-                    : _prefix(std::move(prefix))
-                {
-                }
-                bool operator()(const Iterator& check) const
-                {
-                    auto && str = check.key();
-                    if (str.length() < _prefix.length())
-                        return false;
-                    return std::equal(_prefix.begin(), _prefix.end(), str.begin());
-                }
-            private:
-                atom_string_t _prefix;
-            };
-        };
-    }
-}
+        }; 
+
+    } //ns:trie
+}//ns:OP
+
 #endif //_OP_TRIE_TRIE__H_

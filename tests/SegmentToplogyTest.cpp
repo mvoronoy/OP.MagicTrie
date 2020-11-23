@@ -3,6 +3,7 @@
 #include <op/vtm/MemoryChunks.h>
 #include <op/vtm/HeapManager.h>
 using namespace OP::trie;
+using namespace OP::utils;
 
 struct TestMemAlloc1
 {

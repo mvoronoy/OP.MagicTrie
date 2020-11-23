@@ -15,20 +15,24 @@ namespace OP
             
             struct bool_result
             {
-                explicit bool_result(bool r)
-                    : test_result(r) {}
+                constexpr explicit bool_result(bool r)
+                    : test_result(r) 
+                {
+                }
+                
                 bool_result() = delete;
-                bool operator () () const
+
+                constexpr bool operator () () const
                 {
                     return test_result;
                 }
 
-                bool operator ! () const
+                constexpr bool operator ! () const
                 {
                     return !test_result;
                 }
 
-                operator bool() const
+                constexpr operator bool() const
                 {
                     return test_result;
                 }
@@ -38,10 +42,10 @@ namespace OP
 
         } //ns:details
 
-        template <class Marker, class Left, class ... Right>
-        inline bool that(Left&& left, Right&& ... right)
+        template <class Marker, class ... T>
+        inline bool that(T&& ... right)
         {
-            return Marker::impl<Left, Right...>(std::forward<Left>(left), std::forward<Right>(right)...);
+            return Marker(std::forward<T>(right)...);
         }
         
         //
@@ -52,61 +56,67 @@ namespace OP
         //  Marker:equals
         //
         /** Marker specifies equality operation between two arguments */
-        struct equals
+        struct equals : public details::bool_result
         {
             template <class Left, class Right>
-            struct impl : details::bool_result
-            {
-                impl(Left left, Right right)
+            constexpr equals(Left left, Right right)
                     : details::bool_result(left == right)
                 {
                 }
-
-            };
         };
-        /** Marker specifies equality operation between two arguments */
-        struct less
+        /** Marker specifies strictly less operation between two arguments */
+        struct less : public details::bool_result
         {
             template <class Left, class Right>
-            struct impl : details::bool_result
-            {
-                impl(Left left, Right right)
+            constexpr less(Left left, Right right)
                     : details::bool_result(left < right)
                 {
                 }
-
-            };
         };
+        /** Marker specifies strictly greater operation between two arguments */
+        struct greater : public details::bool_result
+        {
+            template <class Left, class Right>
+            constexpr greater(Left left, Right right)
+                    : details::bool_result(right < left) //note less is used!
+                {
+                }
+        };
+        /** Marker specifies strictly less operation between two arguments */
+        struct is_null : public details::bool_result
+        {
+            template <class Inst>
+            constexpr is_null(Inst inst)
+                : details::bool_result(inst == nullptr)
+            {
+            }
+        };
+
+        //--------------------------------------
         /** Using other marker invert (negate) semantic, for example:
         * \li that<not<equals>>(1, 2) ; //negate equality
         * \li that<not<less>>(1, 2) ; //negate less
         */
         template <class Marker>
-        struct not
+        struct negate : public details::bool_result
         {
             template < class ... Ts>
-            struct impl : details::bool_result
+            constexpr negate(Ts&& ... ts)
+                    : details::bool_result(!Marker(std::forward<Ts>(ts)...))
             {
-                impl(Ts&& ... ts)
-                    : details::bool_result(! typename Marker::impl<Ts...>(std::forward<Ts>(ts)...))
-                {
-                }
-            };
+            }
         };
+        template <class Marker>
+        using logical_not = negate<Marker>;
 
         /**Marker around container_equals that can be used with assert_that<> */
-        struct string_equals
+        struct string_equals : public details::bool_result
         {
             template <class Str1, class Str2>
-            struct impl : details::bool_result
+            constexpr string_equals(const Str1& left, const Str2& right)
+                : details::bool_result(left.compare(right) == 0)
             {
-                
-                impl(const Str1& left, const Str2& right)
-                    : details::bool_result(left.compare(right) == 0)
-                {
-                }
-
-            };
+            }
         };
     } //utest
 }//OP

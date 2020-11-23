@@ -8,72 +8,15 @@
 #include <op/common/Utils.h>
 #include <op/vtm/Transactional.h>
 #include <op/vtm/SegmentManager.h>
-
+#include <op/vtm/MemoryBlockHeader.h>
 
 namespace OP
 {
     namespace trie
     {
-        struct ForwardListBase
-        {
-            typedef far_pos_t entry_pos_t;
-            ForwardListBase() :next(SegmentDef::far_null_c){}
-            entry_pos_t next;
-        };
-        struct MemoryBlockHeader;
-        //template <class Traits>
-        //struct ListEntry : public ForwardListBase<Traits>
-        //{
-        //    typedef typename traits_t::ptr_t ptr_t;
-        //    typedef typename traits_t::key_t key_t;
+        using namespace OP::utils;
 
-        //    ListEntry() :
-        //        _count(0),
-        //        _value(Traits::eos())
-        //    {
-        //    }
 
-        //    /**@return always valid pointer, that can be used to insert item or find element.
-        //    *           To detect if value found just check if `(**result)` is not equal `ListEntity::eos` */
-        //    entry_pos_t* prev_lower_bound(key_t key, Traits& traits)
-        //    {
-        //        entry_pos_t* ins_pos = &_value;
-        //        while (!Traits::is_eos(*ins_pos))
-        //        {
-        //            Traits::reference_t curr = traits.deref(*ins_pos);
-        //            if (traits.less(key, traits.key(curr)))
-        //                return ins_pos;
-        //            ins_pos = &traits.next(curr);
-        //        }
-        //        //run out of existing keys or entry is empty
-        //        return ins_pos;
-        //    }
-        //    template <class F>
-        //    entry_pos_t pull_that(Traits& traits, F& f)
-        //    {
-        //        entry_pos_t* ins_pos = &_value;
-        //        entry_pos_t* result = ins_pos;
-        //        ptr_t last = nullptr;
-        //        while (!Traits::is_eos(*ins_pos))
-        //        {
-        //            Traits::const_reference_t curr = traits.const_deref(*ins_pos);
-        //            if (f(curr))
-        //            {
-        //                auto rv = *ins_pos;
-        //                if (ins_pos == result) //peek first item
-        //                    _value = traits.next(curr);
-        //                else
-        //                    traits.set_next(*last, traits.next(curr));
-        //                return rv;
-        //            }
-        //            result = ins_pos;
-        //            last = &curr;
-        //            ins_pos = &traits.next(curr);
-        //        }
-        //        //run out of existing keys or entry is empty
-        //        return *ins_pos;
-        //    }
-        //};
         /***/
         template <class Traits, size_t bitmask_size_c = 32>
         struct Log2SkipList
@@ -87,7 +30,7 @@ namespace OP
             */
             OP_CONSTEXPR(OP_EMPTY_ARG) static segment_pos_t byte_size()
             {
-                return align_on(
+                return OP::utils::align_on(
                     static_cast<segment_pos_t>(sizeof(ForwardListBase) * bitmask_size_c),
                     SegmentHeader::align_c);
             }
@@ -119,7 +62,7 @@ namespace OP
                 _segment_manager(manager),
                 _list_pos(start)
             {
-                static_assert(std::is_base_of<ForwardListBase, traits_t::target_t>::value, "To use skip-list you need inherit T from ForwardListBase");
+                static_assert(std::is_base_of<ForwardListBase, typename traits_t::target_t>::value, "To use skip-list you need inherit T from ForwardListBase");
             }
 
             far_pos_t pull_not_less(traits_t& traits, typename Traits::key_t key)
@@ -183,7 +126,7 @@ namespace OP
                 }
                 return SegmentDef::far_null_c;
             }
-            void insert(traits_t& traits, typename traits_t::pos_t t, ForwardListBase* ref, const MemoryBlockHeader* ref_memory_block)
+            void insert(const traits_t& traits, typename traits_t::pos_t t, ForwardListBase* ref, const MemoryBlockHeader* ref_memory_block)
             {
                 OP_CONSTEXPR(const static) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
 
@@ -204,8 +147,8 @@ namespace OP
                     auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
                     const MemoryBlockHeader * mem_header = mem_header_block.at<MemoryBlockHeader>(0);
 
-                    auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(traits_t::target_t));
-                    traits_t::const_ptr_t curr = curr_block.at<traits_t::target_t>(0);
+                    auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(typename traits_t::target_t));
+                    typename traits_t::const_ptr_t curr = curr_block.at<typename traits_t::target_t>(0);
 
                     if (!traits.less(mem_header->size(), key))
                     {
@@ -222,31 +165,6 @@ namespace OP
         private:
             SegmentManager& _segment_manager;
             OP::trie::far_pos_t _list_pos;
-            /**Using O(ln(n)) complexity evaluate slot for specific key*/
-            //template <class K>
-            //size_t key_slot(traits_t& traits, K& k)
-            //{
-            //    auto count = bitmask_size_c;
-            //    size_t it, step, first = 0;
-            //    while (count > 0) 
-            //    {
-            //        it = first; 
-            //        step = count / 2; 
-            //        it+= step;
-            //        if (traits.less(1 << it, k)) {
-            //            first = ++it; 
-            //            count -= step + 1; 
-            //        }
-            //        else
-            //            count = step;
-            //    }
-            //    //after all `first` is not less entry for `key` or smthng > bitmask_size_c
-            //    if( first >= bitmask_size_c )
-            //    {//place the rest (that are too big) to last entry
-            //        first = bitmask_size_c - 1;
-            //    }
-            //    return first;
-            //}
         private:
 
             FarAddress entry_offset_by_idx(size_t index) const

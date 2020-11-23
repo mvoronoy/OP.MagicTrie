@@ -15,7 +15,7 @@ static OP_CONSTEXPR(const) unsigned test_nodes_count_c = 101;
 template <class FixedSizeMemoryManager, class SegmentTopology>
 void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
 {
-    auto &mngr = topology.slot<FixedSizeMemoryManager>();
+    auto &mngr = topology.OP_TEMPL_METH(slot)<FixedSizeMemoryManager>();
     auto b100 = mngr.allocate();
     mngr.deallocate(b100);
     tresult.assert_true(topology.segment_manager().available_segments() == 1);
@@ -26,7 +26,7 @@ void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
     {
         OP::vtm::TransactionGuard op_g(topology.segment_manager().begin_transaction());
         auto pos = mngr.allocate();
-        auto &wr = *topology.segment_manager().wr_at<FixedSizeMemoryManager::payload_t>(pos);
+        auto &wr = *topology.segment_manager().template wr_at<typename FixedSizeMemoryManager::payload_t>(pos);
         
         tresult.assert_true(wr.inc == 57);
         wr.inc += i;
@@ -41,7 +41,7 @@ void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
     //test all values kept correct value
     for (auto i = 0; i < test_nodes_count_c; ++i)
     {
-        auto to_test = view<FixedSizeMemoryManager::payload_t>(topology, allocated_addrs[i]);
+        auto to_test = view<typename FixedSizeMemoryManager::payload_t>(topology, allocated_addrs[i]);
         tresult.assert_true(i + 57 == to_test->inc, "Invalid value stored");
     }
 }
@@ -62,7 +62,7 @@ void test_NodeManager(OP::utest::TestResult &tresult)
     };
     typedef FixedSizeMemoryManager<TestPayload, test_nodes_count_c> test_node_manager_t;
 
-    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(node_file_name, 
+    auto tmngr1 = OP::trie::SegmentManager::OP_TEMPL_METH(create_new)<TransactedSegmentManager>(node_file_name, 
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 

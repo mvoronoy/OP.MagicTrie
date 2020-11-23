@@ -1,10 +1,10 @@
 #ifndef _OP_TRIE_HASHTABLE__H_
 #define _OP_TRIE_HASHTABLE__H_
 
-#include <OP/common/typedefs.h>
-#include <OP/vtm/SegmentManager.h>
-#include <OP/vtm/PersistedReference.h>
-#include <OP/trie/Containers.h>
+#include <op/common/typedefs.h>
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/PersistedReference.h>
+#include <op/trie/Containers.h>
 #include <unordered_map>
 namespace OP
 {
@@ -149,7 +149,7 @@ namespace OP
                 {
                     assert((dim_t)capacity < 256);
 
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     
                     auto byte_size = memory_requirement<HashTableData>::requirement +
                         memory_requirement<HashTableData::content_t>::requirement * (dim_t)capacity;
@@ -168,7 +168,7 @@ namespace OP
                 }
                 void destroy(const trie::PersistedReference<HashTableData>& htbl)
                 {
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     memmngr.deallocate(htbl.address);
                 }
                 /**
@@ -185,8 +185,12 @@ namespace OP
                     return do_insert(table_head, hash_data, key);
                 }
 
-                /**@return number of erased - 0 or 1*/
-                unsigned erase(const trie::PersistedReference<HashTableData>& ref_data, atom_t key)
+                /**
+                * @tparam OnMoveCallback - functor that is called if internal space of hash-table is optimized (shrinked). Argumnets (from, to)
+                * @return position where data has been erased (or not found if no such key)
+                */
+                template <class FOnMoveCallback>
+                unsigned erase(const trie::PersistedReference<HashTableData>& ref_data, atom_t key, FOnMoveCallback on_move_callback)
                 {
                     auto table_head = accessor<HashTableData>(_topology, ref_data.address);
                     unsigned hash = static_cast<unsigned>(key) & (table_head->capacity - 1); //assuming that capacity is ^ 2
@@ -198,31 +202,18 @@ namespace OP
                     {
                         if (0 == (fpresence_c & HashTableData::get_flag(hash_data, hash)))
                         { //nothing at this pos
-                            return 0;
+                            return hash;
                         }
                         if (HashTableData::get_value(hash_data, hash) == key)
                         {//make erase
                             table_head->size--;
                             //may be rest of neighbors sequence may be shifted by 1, so scan in backward
 
-                            hash = restore_on_erase(table_head, hash_data, hash);
-                            //just release pos
-                            HashTableData::set_value(hash_data, hash, 0);
-                            return 1;
+                            return restore_on_erase(table_head, hash_data, hash, on_move_callback);
                         }
                         ++hash %= table_head->capacity; //keep in boundary
                     }
-                    return ~0u;
-                }
-                void clear(const trie::PersistedReference<HashTableData>& ref_data) const
-                {
-                    auto table_head = accessor<HashTableData>(_topology, ref_data.address);
-                    auto hash_data = array_accessor<HashTableData::content_t>(_topology,
-                        content_item_address(ref_data.address, 0),
-                        table_head->capacity);
-                    std::for_each(&hash_data[0], hash_data[table_head->capacity], 
-                        [](HashTableData::content_t& c) { c = 0; });
-                    _count = 0;
+                    return hash;
                 }
 
                 ReadonlyAccess<HashTableData> table_head(const trie::PersistedReference<HashTableData>& ref_data) const
@@ -359,23 +350,23 @@ namespace OP
                     return std::make_pair(dim_nil_c, false); //no capacity
                 }
                 /** Optimize space before some item is removed
+                * @tparam OnMoveCallback - functor that is called if internal space of hash-table is optimized (shrinked). Argumnets (from, to)
                 * @return - during optimization this method may change origin param 'erase_pos', so to real erase use index returned
                 */
+                template <class OnMoveCallback>
                 unsigned restore_on_erase(WritableAccess<HashTableData>& table_head,
-                    WritableAccess<HashTableData::content_t>& hash_data, unsigned erase_pos)
+                    WritableAccess<HashTableData::content_t>& hash_data, unsigned erase_pos, OnMoveCallback& on_move_callback)
                 {
                     const unsigned bitmask = details::bitmask((HashTableCapacity)table_head->capacity);//assuming that capacity is ^ 2
 
-                    unsigned erased_hash =  
-                    static_cast<unsigned>(HashTableData::get_value(hash_data, erase_pos)) & bitmask;
-
+                    unsigned erased_hash = static_cast<unsigned>(HashTableData::get_value(hash_data, erase_pos)) & bitmask;
                     unsigned limit = (erase_pos + table_head->neighbor_width) % table_head->capacity; //start from last available neighbor
 
                     for (unsigned i = (erase_pos + 1) % table_head->capacity; i != limit; ++i %= table_head->capacity)
                     {
                         if (!HashTableData::has_flag(hash_data, i, fpresence_c))
-                            return erase_pos; //stop optimization and erase item at pos
-                        unsigned local_hash = 
+                            break; //stop optimization and erase item at pos
+                        unsigned local_hash =
                             static_cast<unsigned>(HashTableData::get_value(hash_data, i)) & bitmask;
                         bool item_in_right_place = i == local_hash;
                         if (item_in_right_place)
@@ -384,11 +375,13 @@ namespace OP
                         if (!less_pos(x, local_hash, table_head->capacity)/*equivalent of <=*/)
                         {
                             copy_to(hash_data, erase_pos, i);
+                            on_move_callback(i, erase_pos);
                             erase_pos = i;
                             erased_hash = local_hash;
                             limit = (erase_pos + table_head->neighbor_width) % table_head->capacity;
                         }
                     }
+                    HashTableData::reset_flag(hash_data, erase_pos, fpresence_c);
                     return erase_pos;
                 }
                 /** test if tst_min is less than tst_max on condition of cyclyng nature of hash buffer, so (page_c = 8):
@@ -400,7 +393,7 @@ namespace OP
                     less(0x5, 0xF) == true
                     less(0xF, 0x5) == false
                 */
-                bool less_pos(unsigned tst_min, unsigned tst_max, unsigned capacity) const
+                static bool less_pos(unsigned tst_min, unsigned tst_max, unsigned capacity) 
                 {
                     int dif = static_cast<int>(tst_min) - static_cast<int>(tst_max);
                     unsigned a = std::abs(dif);
@@ -409,7 +402,7 @@ namespace OP
                     return dif < 0;
                 }
                 template <class Accessor>
-                void copy_to(Accessor &acc, unsigned to, unsigned src)
+                static void copy_to(Accessor &acc, unsigned to, unsigned src)
                 {
                     acc[to] = acc[src];
                 }

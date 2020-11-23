@@ -4,11 +4,11 @@
 #include <type_traits>
 #include <tuple>
 #include <atomic>
-#include <OP/common/typedefs.h>
+#include <op/common/typedefs.h>
 
 namespace OP
 {
-    namespace trie
+    namespace utils
     {
         /**
         *   Allows get index of type in variadic template parameters.
@@ -118,25 +118,6 @@ namespace OP
             return std::get< tuple_ref_index<T, Tuple>::value >(tuple);
         }
 
-        //template <typename Base, typename Tuple, std::size_t I = 0>
-        //struct tuple_ref_hierarchy_index {};
-
-        //template <typename Base, typename Head, typename... Tail, std::size_t I>
-        //struct tuple_ref_hierarchy_index<Base, std::tuple<Head, Tail...>, I>  
-        //    : std::conditional<std::is_base_of<Base, Head>::value
-        //                     , std::integral_constant<std::size_t, I>
-        //                     , tuple_ref_hierarchy_index<Base, std::tuple<Tail...>, I+1>
-        //                     >::type
-        //{
-        //};
-        //template <typename Base, typename Tuple>
-        //auto tuple_ref_by_inheritance(Tuple&& tuple)
-        //    -> decltype(std::get<tuple_ref_hierarchy_index<Base, typename std::decay<Tuple>::type>::value>(std::forward<Tuple>(tuple)))
-        //{
-        //    return std::get<
-        //        tuple_ref_hierarchy_index<Base, typename std::decay<Tuple>::type>::value>(
-        //            std::forward<Tuple>(tuple));
-        //}
 
         /**Allows to check if parameter T is defined from other template. Usage:
         *   \code
@@ -189,61 +170,6 @@ namespace OP
             };
         };
 
-
-        template <class I>
-        struct FetchTicket
-        {
-            FetchTicket():
-                _ticket_number(0),
-                _turn(0)
-            {
-            }
-
-            void lock()
-            {
-                size_t r_turn = _ticket_number.fetch_add(1);
-                while (!_turn.compare_exchange_weak(r_turn, r_turn))
-                    /*empty body std::this_thread::yield()*/;
-            }
-            void unlock()
-            {
-                _turn.fetch_add(1);
-            }
-
-            std::atomic<I> _ticket_number;
-            std::atomic<I> _turn;
-
-        };
-        //////////////////////////////////
-        /**
-        *   Wrapper to grant RAI operation by invoking pair of methods
-        */
-        template < class T, 
-            void (T::*start_op)(), 
-            void (T::*end_op)() >
-        struct operation_guard_t
-        {
-            operation_guard_t(T& ref) :
-                _ref(&ref),
-                _is_closed(false)
-            {
-                (_ref->*start_op)();
-            }
-            void close()
-            {
-                if (!_is_closed)
-                    (_ref->*end_op)();
-                _is_closed = true;
-            }
-            ~operation_guard_t()
-            {
-                close();
-            }
-        private:
-            T* _ref;
-            bool _is_closed;
-        };
-
         template <class T, class Y>
         OP_CONSTEXPR(OP_EMPTY_ARG) inline T align_on(T address, Y base)
         {
@@ -256,26 +182,122 @@ namespace OP
             return (address / base)*base;
         }
         template <class T, class Y>
-        OP_CONSTEXPR(OP_EMPTY_ARG) inline segment_pos_t aligned_sizeof(Y base)
+        OP_CONSTEXPR(OP_EMPTY_ARG) inline std::uint32_t aligned_sizeof(Y base)
         {
-            return align_on(static_cast<segment_pos_t>(sizeof(T)), base);
+            return align_on(static_cast<std::uint32_t>(sizeof(T)), base);
         }
         template <class T, class Y>
         inline bool is_aligned(T address, Y base)
         {
             return ((size_t)(address) % base) == 0;
         }
-        /**get segment part from far address*/
-        inline segment_idx_t segment_of_far(far_pos_t pos)
-        {
-            return static_cast<segment_idx_t>(pos >> 32);
-        }
-        /**get offset part from far address*/
-        inline segment_pos_t pos_of_far(far_pos_t pos)
-        {
-            return static_cast<segment_pos_t>(pos);
-        }
+        /** Detect result type of arbitrary function/functor/lambda/member 
+        * Thanks to: https://stackoverflow.com/a/27823546/149818
+        */
+        template <typename F>
+        struct return_type_impl;
 
-    } //trie
+        template <typename R, typename... Args>
+        struct return_type_impl<R(Args...)> { using type = R; };
+
+        template <typename R, typename... Args>
+        struct return_type_impl<R(Args..., ...)> { using type = R; };
+
+        template <typename R, typename... Args>
+        struct return_type_impl<R(*)(Args...)> { using type = R; };
+
+        template <typename R, typename... Args>
+        struct return_type_impl<R(*)(Args..., ...)> { using type = R; };
+
+        template <typename R, typename... Args>
+        struct return_type_impl<R(&)(Args...)> { using type = R; };
+
+        template <typename R, typename... Args>
+        struct return_type_impl<R(&)(Args..., ...)> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...)> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...)> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) &> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) &> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) &&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) &&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) const> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) const> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) const&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) const&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) const&&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) const&&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) volatile> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) volatile> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) volatile&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) volatile&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) volatile&&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) volatile&&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) const volatile> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) const volatile> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) const volatile&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) const volatile&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args...) const volatile&&> { using type = R; };
+
+        template <typename R, typename C, typename... Args>
+        struct return_type_impl<R(C::*)(Args..., ...) const volatile&&> { using type = R; };
+
+        template <typename T, typename = void>
+        struct return_type
+            : return_type_impl<T> {};
+
+        template <typename T>
+        struct return_type<T, decltype(void(&T::operator()))>
+            : return_type_impl<decltype(&T::operator())> {};
+
+        template <typename T>
+        using return_type_t = typename return_type<T>::type;
+
+    } //utils
 } //OP
 #endif //_OP_TRIE_UTILS__H_

@@ -127,6 +127,7 @@ namespace OP
         template <class Container>
         struct NodeTableIterator
         {
+
             typedef Container container_t;
 #ifdef __MINGW32__
             friend class Container;
@@ -137,10 +138,10 @@ namespace OP
             typedef NodeTableIterator<Container> this_t;
             typedef std::random_access_iterator_tag iterator_category;
             typedef typename Container::key_t value_type;
-            typedef int difference_type;
-            typedef int distance_type;
-            typedef typename atom_t* pointer;
-            typedef typename atom_t& reference;
+            typedef std::ptrdiff_t difference_type;
+            typedef std::ptrdiff_t distance_type;
+            typedef atom_t* pointer;
+            typedef atom_t& reference;
 
             NodeTableIterator(const container_t* container, size_t offset) :
                 _container(container),
@@ -170,17 +171,23 @@ namespace OP
             {
                 return !operator==(other);
             }
-            this_t operator + (int value_c) const
+            this_t operator + (distance_type value) const
             {
                 this_t rv(*this);
-                return _container->next(rv, value_c);
+                return _container->next(rv, value);
             }
-            this_t operator - (int value_c) const
+            this_t operator - (distance_type value) const
             {
                 this_t rv(*this);
-                return _container->next(rv, -value_c);
+                return _container->next(rv, -value);
             }
-
+            
+            distance_type operator - (const this_t & other) const
+            {
+                this_t rv(*this);
+                return _offset - other._offset;
+            }
+            
             bool operator < (const this_t & other) const
             {
                 return this->_offset < other._offset;
@@ -213,28 +220,20 @@ namespace OP
             fdef_4  = _f_userdefined_ << 4
         };
 
-        template <class Payload, node_size_t capacity>
+        template <class Payload, node_size_t TCapacity>
         struct NodeHashTable : public ByteKeyContainer<Payload>
         {
+            using base_t = ByteKeyContainer<Payload>;
+            using payload_t = typename base_t::payload_t;
             enum
             {
-                capacity_c = capacity,
+                capacity_c = TCapacity,
                 bitmask_c = capacity_c - 1 /*on condition capacity is power of 2*/,
                 neighbor_width_c = _internal::max_hash_neighbors<capacity_c>::value_c
             };
             typedef NodeHashTable<Payload, capacity_c> this_t;
-            typedef NodeTableIterator<typename this_t> iterator;
+            typedef NodeTableIterator<this_t> iterator;
             typedef atom_t key_t;
-
-            static size_t allocation_size(node_size_t capacity)
-            {
-                return sizeof(Content) * capacity_c;
-            }
-            static const std::array<node_size_t, 5>& known_capacity()
-            {
-                static const std::array<node_size_t, 5> rv = { 8, 16, 32, 64, 128 };
-                return rv;
-            }
 
             NodeHashTable() :
                 _count(0),
@@ -306,7 +305,7 @@ namespace OP
                 std::for_each(container(), container() + size(), [](Content& c){ c._flag = 0; });
                 _count = 0;
             }
-            Payload& value(const iterator& index)
+            payload_t& value(const iterator& index)
             {
                 //static_assert(!std::is_same(Payload, EmptyPayload), "No value array for this container");
                 if (index._offset >= capacity_c
@@ -350,7 +349,7 @@ namespace OP
             iterator& next(iterator& i, typename iterator::distance_type offset = 1) const
             {
                 //note following 'for' plays with unsigned-byte arithmetic
-                iterator::distance_type inc = offset > 0 ? 1 : -1;
+                typename iterator::distance_type inc = offset > 0 ? 1 : -1;
                 for (i._offset += inc; offset && i._offset < capacity(); i._offset += inc)
                     if (container()[i._offset]._flag & fpresence_c)
                     {
@@ -468,15 +467,16 @@ namespace OP
 
 
 
-        template <class Payload, node_size_t capacity>
+        template <class Payload, node_size_t TCapacity>
         struct NodeSortedArray :
             public NavigableByteRangeContainer<Payload>
         {
-            typedef NodeSortedArray<Payload, capacity> this_t;
-            typedef NodeTableIterator<typename this_t> iterator;
+            using payload_t = Payload;
+            typedef NodeSortedArray<Payload, TCapacity> this_t;
+            typedef NodeTableIterator<this_t> iterator;
             enum
             {
-                capacity_c = capacity,
+                capacity_c = TCapacity,
                 chunk_limit_c = 8
             };
             typedef std::pair<const atom_t*, const atom_t*> key_t;
@@ -485,11 +485,7 @@ namespace OP
             {
                 return sizeof(chunk_t) * capacity;
             }
-            static const std::vector<size_t>& known_capacity()
-            {
-                static const std::vector<size_t> rv = { 8, 16, 32, 64, 128 };
-                return rv;
-            }
+
             NodeSortedArray() :
                 _count(0)
             {
@@ -510,7 +506,8 @@ namespace OP
             template <class Str>
             iterator insert(Str&& string)
             {
-                return this->insert(std::begin(string), std::end(string));
+                auto sbeg = std::begin(string);
+                return this->insert(sbeg, std::end(string));
             }
             /**
             *   @param begin (in/out) - starting pointer of data chunk to store inside container. At exit contains
@@ -637,7 +634,7 @@ namespace OP
                     return std::make_pair(container()[i._offset].chunk, container()[i._offset].chunk + container()[i._offset].layout.len);
                 throw std::out_of_range("invalid index");
             }
-            Payload& value(const iterator& i)
+            payload_t& value(const iterator& i)
             {
                 //static_assert(!std::is_same(Payload, EmptyPayload), "No value array for this container");
                 if (i._offset >= size())

@@ -1,8 +1,8 @@
 #ifndef _OP_TRIE_TYPEHELPER__H_
 #define _OP_TRIE_TYPEHELPER__H_
 
-#include <OP/common/typedefs.h>
-#include <OP/vtm/SegmentManager.h>
+#include <op/common/typedefs.h>
+#include <op/vtm/SegmentManager.h>
 
 namespace OP
 {
@@ -23,16 +23,16 @@ namespace OP
             template <class TSegmentManager>
             T* ref(TSegmentManager& manager)
             {
-                return manager.wr_at<T>(address);
+                return manager.OP_TEMPL_METH(wr_at)<T>(address);
             }
             bool is_null() const
             {
                 return address == SegmentDef::far_null_c;
             }
-            template <class ... Args>
-            T* construct(Args&& ... args)
+            template <class TSegmentManager, class ... Args>
+            T* construct(TSegmentManager& manager, Args&& ... args)
             {
-                return new (manager.wr_at<T>(address)) T(std::forward<Args>(args)...);
+                return new (manager.OP_TEMPL_METH(wr_at)<T>(address)) T(std::forward<Args>(args)...);
             }
         };
         template <class T>
@@ -56,7 +56,7 @@ namespace OP
             template <class TSegmentManager>
             T* ref(TSegmentManager& manager, segment_pos_t index)
             {
-                return manager.wr_at<T>(address) + index;
+                return manager.OP_TEMPL_METH(wr_at)<T>(address) + index;
             }
         };
     }//ns:trie

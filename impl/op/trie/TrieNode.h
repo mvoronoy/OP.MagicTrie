@@ -4,6 +4,7 @@
 #include <op/trie/HashTable.h>
 #include <op/trie/StemContainer.h>
 #include <op/trie/ValueArray.h>
+#include <op/trie/TriePosition.h>
 #include <op/vtm/PersistedReference.h>
 #include <op/common/Bitset.h>
 
@@ -11,25 +12,12 @@ namespace OP
 {
     namespace trie
     {
-        typedef std::uint32_t node_version_t;
-        struct NodeUid
-        {
-            std::uint64_t uid;
-        };
-        inline bool operator == (const NodeUid& left, const NodeUid& right)
-        {
-            return left.uid == right.uid;
-        }
-        inline bool operator != (const NodeUid& left, const NodeUid& right)
-        {
-            return !(left == right);
-        }
-        
+
         /** Represent single node of Trie*/
         template <class Payload>
         struct TrieNode
         {
-            typedef typename Payload payload_t;
+            typedef Payload payload_t;
             typedef TrieNode<payload_t> this_t;
 
             /*declare 256-bit presence bitset*/
@@ -55,8 +43,6 @@ namespace OP
             ref_reindex_hash_t reindexer;
             ref_stems_t stems;
             ref_values_t payload;
-            /**Unique signature of node*/
-            NodeUid uid;
             dim_t capacity;
 
             TrieNode() noexcept
@@ -97,7 +83,7 @@ namespace OP
                 if (!stems.is_null())
                 { //there is a stem
                     stem::StemStore<TSegmentTopology> stem_manager(topology);
-                    stem_manager.stem(stems, key, [&](const atom_t *f_str, const atom_t *f_str_end, const StemData& stem_header) {
+                    stem_manager.stem(stems, key, [&](const atom_t *f_str, const atom_t *f_str_end, const stems_t& stem_header) {
                         for (; f_str != f_str_end && begin != end; ++back.deep, ++begin, ++f_str)
                         {
                             if (*f_str != *begin)
@@ -108,8 +94,8 @@ namespace OP
                         }
                         //correct result type as one of string_end, equals, stem_end
                         retval.compare_result = f_str != f_str_end
-                            ? (StemCompareResult::string_end)
-                            : (begin == end ? StemCompareResult::equals : StemCompareResult::stem_end);
+                            ? (stem::StemCompareResult::string_end)
+                            : (begin == end ? stem::StemCompareResult::equals : stem::StemCompareResult::stem_end);
                     });
                 }
                 else 
@@ -118,7 +104,8 @@ namespace OP
                 }
             }
             /**
-            * @para track_back - iterator that is populated at exit. 
+            * Method matches this node with key specified by [begin, end)
+            * @param track_back - iterator that is populated at exit. 
             *   @return \li get<0> - compare result;
             *   \li get<1> length of string overlapped part;
             *   \li get<2> address of further children to continue navigation
@@ -145,7 +132,7 @@ namespace OP
                 value_manager_t value_manager(topology);
                 auto& term = value_manager.view(payload, (dim_t)capacity)[index];
                 TriePosition pos(this_node_addr, 
-                    this->uid, key, 1/*dedicated for presence*/, this->version);
+                    key, 1/*dedicated for presence*/, this->version);
 
                 retval.compare_result = stem::StemCompareResult::equals;
                 if (!stems.is_null())
@@ -185,7 +172,7 @@ namespace OP
                         retval.child_node = term.get_child();
                     }
                 }
-                track_back.emplace(std::move(pos), origin_begin, begin);
+                track_back._emplace(std::move(pos), origin_begin, begin);
                 return retval;
             }
             
@@ -194,8 +181,8 @@ namespace OP
             *  @param payload_factory - may or not be used (if source string too long and should be placed to other page)
             *  @return true when end of iteration was reached and value assigned, false mean no value inserted
             */
-            template <class TSegmentTopology, class Atom, class ProducePayload>
-            bool insert(TSegmentTopology& topology, Atom& begin, const Atom end, ProducePayload& payload_factory)
+            template <class TSegmentTopology, class Atom, class FProducePayload>
+            bool insert(TSegmentTopology& topology, Atom& begin, const Atom end, FProducePayload payload_factory)
             {
                 ++version;
                 auto reindex_res = insert_stem(topology, begin, end);
@@ -216,16 +203,9 @@ namespace OP
                 ++version;
                 containers::PersistedHashTable<TSegmentTopology> hash_mngr(topology);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-                //no need to operate by stem
-                dim_t reindexed = key;
-                auto has_reindexer = !this->reindexer.is_null();
-                if (has_reindexer) //reindex may absent for 256 table
-                {
-                    auto table_head = hash_mngr.table_head(this->reindexer);
-                    reindexed = hash_mngr.find(table_head, key);
-                    assert(reindexed != hash_mngr.nil_c);
-                }
                 assert(presence.get(key));
+                //no need to operate by stem
+                dim_t reindexed = reindex(topology, key);
                 if (erase_data)
                 {
                     value_manager.accessor(payload, capacity)[reindexed].clear_data();
@@ -234,11 +214,20 @@ namespace OP
                 { //when child presented need keep sequence in this node
                     return false;
                 }
+                stem::StemStore<TSegmentTopology> stem_manager(topology);
                 //no child, so wipe content
-                if (has_reindexer)
+                if (!this->reindexer.is_null())
                 {
-                    hash_mngr.erase(this->reindexer, static_cast<atom_t>(reindexed));
+                    auto erase_pos = hash_mngr.erase(this->reindexer, key, [&](unsigned from, unsigned to) {
+                        //extract stem from current node
+                        stem_manager.move_stem(stems, from, to);
+                        value_manager.move(payload, capacity, from, to);
+                    });
+                    stem_manager.trunc_str(this->stems, static_cast<atom_t>(erase_pos), 0);
                 }
+                else 
+                    stem_manager.trunc_str(this->stems, static_cast<atom_t>(reindexed), 0);
+
                 presence.clear(key);
                 //@! think to reduce space of hashtable
                 return presence.first_set() == presence_t::nil_c; //erase entire node if no more entries
@@ -272,8 +261,8 @@ namespace OP
                     throw std::invalid_argument("key doesn't contain data");
                 return vad.data;
             }
-            template <class TSegmentTopology, class Payload>
-            void set_value(TSegmentTopology& topology, atom_t key, Payload&& value)
+            template <class TSegmentTopology, class TData>
+            void set_value(TSegmentTopology& topology, atom_t key, TData&& value)
             {
                 atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
@@ -324,7 +313,7 @@ namespace OP
                     
                 dim_t reindex_target;
                 //extract stem from current node
-                stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stem::StemData& stem_header) -> void{
+                stem_manager.stemw(stems, ridx, [&](const atom_t* src_begin, const atom_t* src_end, stems_t& stem_header) -> void{
                     assert(in_stem_pos <= (src_end - src_begin));
                     auto start = src_begin + in_stem_pos;
                     reindex_target = target_node->insert_stem(topology, start, src_end);
@@ -441,8 +430,8 @@ namespace OP
                 ++version;
             }
             /**Apply `move_callback` to each existing item to move from previous container to new container (like a value- or stem- containers) */
-            template <class Remap, class MoveCallback>
-            void copy_stuff(Remap& remap, MoveCallback& move_callback)
+            template <class Remap, class FMoveCallback>
+            void copy_stuff(Remap& remap, FMoveCallback move_callback)
             {
                 for (auto i = presence.presence_begin(); i != presence.presence_end(); ++i)
                 {

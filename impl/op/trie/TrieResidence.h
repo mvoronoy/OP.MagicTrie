@@ -7,6 +7,7 @@ namespace OP
 {
     namespace trie
     {
+        using namespace ::OP::utils;
         /**
         *   Small slot to keep arbitrary Trie information in 0 segment
         */
@@ -44,7 +45,6 @@ namespace OP
                     : _root{}
                     , _count(0)
                     , _nodes_allocated(0)
-                    , _nodes_uid_gen(0)
                     , _version(0)
                 {}
                 /**Where root resides*/
@@ -53,7 +53,6 @@ namespace OP
                 std::uint64_t _count;
                 /**Number of nodes (pages) allocated*/
                 std::uint64_t _nodes_allocated;
-                std::uint64_t _nodes_uid_gen;
                 node_version_t _version;
             };
             
@@ -75,7 +74,7 @@ namespace OP
             */
             TrieResidence& increase_count(std::int64_t delta)
             {
-                auto& header = accessor<TrieHeader>(*_segment_manager, _segment_address);
+                auto header = accessor<TrieHeader>(*_segment_manager, _segment_address);
                 assert(delta >= 0 || header->_count >= static_cast<std::uint64_t>(std::abs(delta)));
                 header->_count += delta;
                 return *this;
@@ -87,20 +86,14 @@ namespace OP
             */
             TrieResidence& increase_nodes_allocated(std::int64_t delta)
             {
-                auto& header = accessor<TrieHeader>(*_segment_manager, _segment_address);
+                auto header = accessor<TrieHeader>(*_segment_manager, _segment_address);
                 assert(delta >= 0 || header->_nodes_allocated >= static_cast<std::uint64_t>(std::abs(delta)));
                 header->_nodes_allocated += delta;
                 return *this;
             }
-            /**Provide unique identifier for each node allocated*/
-            std::uint64_t generate_node_id()
-            {
-                return OP::trie::uinc(accessor<TrieHeader>(*_segment_manager, _segment_address)->_nodes_uid_gen);
-            }
-            /**On any trie change modofication version is increased*/
+            /**On any trie modification version is increased*/
             TrieResidence& increase_version()
             {
-
                 OP::trie::uinc(accessor<TrieHeader>(*_segment_manager, _segment_address)->_version);
                 return *this;
             }

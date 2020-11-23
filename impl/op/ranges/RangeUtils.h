@@ -1,15 +1,17 @@
-#ifndef _OP_TRIE_RANGES_RANGE_UTILS__H_
-#define _OP_TRIE_RANGES_RANGE_UTILS__H_
-#include <op/trie/ranges/SuffixRange.h>
+#ifndef _OP_RANGES_RANGE_UTILS__H_
+#define _OP_RANGES_RANGE_UTILS__H_
+#include <op/ranges/PrefixRange.h>
+#include <op/ranges/OrderedRange.h>
+#include <op/ranges/UnionAllRange.h>
+
 
 namespace OP
 {
-    namespace trie {
+    namespace ranges {
         namespace utils {
 
-
-            template <class Iterator1, class Iterator2>
-            inline bool key_equals(const SuffixRange<Iterator1>& range1, const SuffixRange<Iterator2>& range2)
+            template <class TRange1, class TRange2>
+            inline bool key_equals(const TRange1& range1, const TRange2& range2)
             {
                 auto from1 = range1.begin();
                 auto from2 = range2.begin();
@@ -21,21 +23,22 @@ namespace OP
                 return !range1.in_range(from1) && !range2.in_range(from2);
             }
 
-            template <class Iterator1, class Container>
-            inline bool key_equals(const SuffixRange<Iterator1>& range1, const Container& range2)
+            /**Compare arbitrary range with arbitrary map. Order is not controlled*/
+            template <class TRange, class Map>
+            inline bool range_map_equals(const TRange& range1, Map range2)
             {
                 auto from1 = range1.begin();
-                auto from2 = std::begin(range2);
-                auto to2 = std::end(range2);
-                for (; range1.in_range(from1) && from2 != to2; range1.next(from1), ++from2)
+                for (; range1.in_range(from1); range1.next(from1))
                 {
-                    if (from1.key() != from2->first)
+                    auto found = range2.find(from1.key());
+                    if(found == range2.end())
                         return false;
+                    range2.erase(found);
                 }
-                return !range1.in_range(from1) && (from2 == to2);
+                return !range1.in_range(from1) && (range2.empty());
             }
-            template <class Iterator1, class Container>
-            inline bool map_equals(const SuffixRange<Iterator1>& range1, const Container& range2)
+            template <class K, class V, class Container>
+            inline bool map_equals(const RangeBase<K, V>& range1, const Container& range2)
             {
                 auto from1 = range1.begin();
                 auto from2 = std::begin(range2);
@@ -44,7 +47,7 @@ namespace OP
                 {
                     if (from1.key() != from2->first)
                         return false;
-                    if (*from1 != from2->second)
+                    if (from1.value() != from2->second)
                         return false;
                 
                 }
@@ -52,7 +55,7 @@ namespace OP
             }
 
         } //ns:utils
-    } //ns:trie
+    } //ns:ranges
 }//ns:op
-#endif //_OP_TRIE_RANGES_RANGE_UTILS__H_
+#endif //_OP_RANGES_RANGE_UTILS__H_
 

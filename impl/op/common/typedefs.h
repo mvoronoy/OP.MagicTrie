@@ -5,6 +5,11 @@
 #include <limits>
 #include <cstddef>
 #include <string>
+#include <iomanip>
+
+#if defined( _MSC_VER ) && defined(max)
+#undef max
+#endif
 
 #define OP_EMPTY_ARG
 #ifdef _MSC_VER
@@ -20,6 +25,7 @@
 #define OP_NOEXCEPT noexcept 
 #endif //
 
+#define OP_TEMPL_METH(method) template method
 
 namespace OP
 {
@@ -28,6 +34,21 @@ namespace OP
         typedef std::uint8_t atom_t;
         typedef std::pair<bool, atom_t> nullable_atom_t;
         typedef std::basic_string<atom_t> atom_string_t;
+        
+        inline constexpr const atom_t operator "" _atom(char c)
+        {
+            return (atom_t)c;
+        }
+        inline constexpr const atom_t* operator "" _atom(const char* str, size_t n)
+        {
+            return (const atom_t*)(str);
+        }
+
+        inline OP::trie::atom_string_t operator "" _astr(const char* str, size_t n)
+        {
+            return OP::trie::atom_string_t{reinterpret_cast<const atom_t*>(str), n};
+        }
+
         typedef std::uint16_t dim_t;
         typedef std::uint_fast16_t fast_dim_t;
         enum : dim_t
@@ -109,6 +130,17 @@ namespace OP
                 return address == SegmentDef::far_null_c;
             }
         };
+        /**get segment part from far address*/
+        inline segment_idx_t segment_of_far(far_pos_t pos)
+        {
+            return static_cast<segment_idx_t>(pos >> 32);
+        }
+        /**get offset part from far address*/
+        inline segment_pos_t pos_of_far(far_pos_t pos)
+        {
+            return static_cast<segment_pos_t>(pos);
+        }
+
         template <typename ch, typename char_traits>
         std::basic_ostream<ch, char_traits>& operator<<(std::basic_ostream<ch, char_traits> &os, FarAddress const& addr)
         {

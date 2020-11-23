@@ -9,11 +9,14 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/trie/Containers.h>
 #include <op/vtm/PersistedReference.h>
+#include <op/vtm/HeapManager.h>
 
 namespace OP
 {
     namespace trie
     {
+        using namespace OP::utils;
+
         namespace stem
         {
             typedef std::int16_t offset_t;
@@ -47,84 +50,17 @@ namespace OP
                 unequals,
                 no_entry
             };
-            template <dim_t Max = max_stem_length_c>
-            struct StemString
-            {
-                typedef atom_t* data_ptr_t;
-                typedef const atom_t* cont_data_ptr_t;
-                enum
-                {
-                    max_length_c = Max
-                };
-                data_ptr_t begin()
-                {
-                    return _str;
-                }
-                data_ptr_t end()
-                {
-                    return _str + _length;
-                }
-                data_ptr_t max_end()
-                {
-                    return _str + max_length_c;
-                }
-                void set_length(atom_t l)
-                {
-                    _length = l;
-                }
-            private:
-                atom_t _length = 0;
-                atom_t _str[max_length_c];
-            };
-
-            /**Abstraction that takes noded and allows iterate over stem contained in it. */
-            struct StemOfNode
-            {
-                typedef StemOfNode this_t;
-            
-                StemOfNode(atom_t key, dim_t offset, const atom_t* begin)
-                    : _key(key)
-                    , _offset(offset)
-                    , _begin(begin)
-                {
-                }
-            
-                atom_t operator *() const
-                {
-                    if (_offset == 0)
-                    {
-                        return _key;
-                    }
-                    return _begin[_offset - 1];
-                }
-                this_t& operator ++()
-                {
-                    ++_offset;
-                    return *this;
-                }
-                this_t operator ++(int)
-                {
-                    auto zhis = *this;
-                    ++_offset;
-                    return zhis;
-                }
-                bool operator == (const this_t& other) const
-                {
-                    return _key == other._key
-                        && _offset == other._offset
-                        && _begin == other._begin;
-                }
-                bool operator != (const this_t& other) const
-                {
-                    return !operator == (other);
-                }
-                
-            private:
-                atom_t _key;
-                dim_t _offset;
-                const atom_t *_begin;
-            };
-
+            /** Data placeholder for multiple stems.
+            Stem - is a plain string without any branching or associated data. It used to save space on branching or servant 
+            information. For example, assume Trie contains strings:
+            ~~~~~~~
+                aa
+                aabbbbbbbbbbb
+                aac
+            ~~~~~~
+            Then long chunk 'bbbbbbbbb' can be placed to stem - since have no branching
+            StemData is just fixed 2 dimension array of bytes to store such plain strings
+            */    
             struct StemData
             {
                 typedef atom_t* data_ptr_t;
@@ -150,6 +86,7 @@ namespace OP
                 /**Store length of all strings in stem container*/
                 dim_t stem_length[max_entries_c];
             };
+            /** Manager of StemData */
             template <class SegmentTopology>
             struct StemStore
             {
@@ -167,15 +104,15 @@ namespace OP
                 */
                 inline std::tuple<ref_stems_t, WritableAccess<StemData>, WritableAccess<atom_t> > create(dim_t width, dim_t str_max_height)
                 {
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     //query data enough for StemData and stems strings
                     auto header_size = memory_requirement<StemData>::requirement;
                     auto mem_size = header_size + width * str_max_height;
                     auto addr = memmngr.allocate(mem_size);
                     auto mem_block = _topology.segment_manager().writable_block(addr, mem_size);
+                    auto stems_data_block = mem_block.subset(header_size);
                     WritableAccess<StemData> header(std::move(mem_block));
                     header.make_new(width, str_max_height); //constructs header
-                    auto stems_data_block = mem_block.subset(header_size);
                     return std::make_tuple(
                         ref_stems_t(addr),
                         std::move(header),
@@ -186,7 +123,7 @@ namespace OP
                 /**Destroy previously allocated by #create stem container*/
                 void destroy(const ref_stems_t& stems)
                 {
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     memmngr.deallocate(stems.address);
                 }
                 /**Place new sequence specified by [begin-end) range as new item to this storage
@@ -204,15 +141,13 @@ namespace OP
                 template <class T>
                 inline void accommodate(const ref_stems_t& st_address, atom_t key, T& begin, T &&end)
                 {
-                    //assert(begin != end);
-                    //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     //write-lock header part
                     auto data_header = accessor<StemData>(_topology, st_address.address);
                     assert(key < data_header->width);
                     auto address = st_address.address + static_cast<segment_pos_t>( memory_requirement<StemData>::requirement
                         + data_header->height * key );
                     auto f_str = _topology.segment_manager().writable_block(
-                        address, data_header->height).at<atom_t>(0);
+                        address, data_header->height).OP_TEMPL_METH(at)<atom_t>(0);
 
                     auto& size = data_header->stem_length[key];
                     assert(size == 0);
@@ -223,7 +158,6 @@ namespace OP
                     }
                     data_header->summary_length += size;
                     ++data_header->count;
-                    //g.commit();
                 }
                 /**
                 *   Detect substr contained in stem. 
@@ -254,7 +188,7 @@ namespace OP
                 inline void trunc_str(const ref_stems_t& st_address, atom_t key, dim_t shorten) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
-                    auto data_header = _topology.segment_manager().wr_at<StemData>(st_address.address);
+                    auto data_header = _topology.segment_manager().OP_TEMPL_METH(wr_at)<StemData>(st_address.address);
                     trunc_str(*data_header, key, shorten);
                     //g.commit();
                 }
@@ -268,6 +202,28 @@ namespace OP
                     data.stem_length[key] = shorten;
                 }
                 /**
+                * Move one column to another one, source is truncated to 0
+                */
+                inline void move_stem(const ref_stems_t& st_address, atom_t from, atom_t to) const
+                {
+                    auto data_header = accessor<StemData>(_topology, st_address.address);
+                    assert(from < data_header->width);
+                    assert(to < data_header->width);
+
+                    auto raw_buffer = array_accessor<atom_t>(_topology,
+                        st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement),
+                            data_header->height * data_header->width);
+                    segment_pos_t to_offset{ static_cast<segment_pos_t>(sizeof(atom_t))*data_header->height * to };
+                    segment_pos_t from_offset { static_cast<segment_pos_t>(sizeof(atom_t))*data_header->height * from };
+
+                    auto to_data = raw_buffer.subset(to_offset);
+                    auto from_data = &raw_buffer[from_offset];
+                    to_data.byte_copy(from_data, data_header->stem_length[from]);
+                    data_header->summary_length -= data_header->stem_length[to];
+                    data_header->stem_length[to] = data_header->stem_length[from];
+                    data_header->stem_length[from] = 0;
+                }
+                /**
                 *   Resolve stem matched to specified key
                 *   @return tuple of:
                 *   -# const pointer to first atom of stem
@@ -276,30 +232,34 @@ namespace OP
                 *   @tparam callback - functor with signature `callback(const atom_t* begin, const atom_t* end, const StemData& stem_header)`
                 */
                 template <class FBack>
-                void stem(const ref_stems_t& st_address, atom_t key, FBack& callback) const
+                void stem(const ref_stems_t& st_address, atom_t key, FBack callback) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     auto data_header = view<StemData>(_topology, st_address.address);
 
                     assert(key < data_header->width);
-                    auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header->height * key };
-                    auto f_str = array_view<atom_t>(_topology, address, data_header->height);
-                    const atom_t * begin = f_str;
+                    
+                    auto raw_address = st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement);
+                    //going to block entire buffer to reduce segmentation    
+                    auto raw_str = array_view<atom_t>(_topology, raw_address, data_header->height * data_header->width);
+                    const atom_t * begin = raw_str + sizeof(atom_t)*data_header->height * key;
                     callback(begin, begin + data_header->stem_length[key], *data_header);
                 }
-                /** access stem for writing */
+                /** access stem for writing. Regardless of write operation callback accept const-string */
                 template <class FBack>
-                void stemw(const ref_stems_t& st_address, atom_t key, FBack& callback) const
+                void stemw(const ref_stems_t& st_address, atom_t key, FBack callback) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     auto data_header = accessor<StemData>(_topology, st_address.address);
 
                     assert(key < data_header->width);
-                    auto address = st_address.address + segment_pos_t{ memory_requirement<StemData>::requirement
-                        + sizeof(atom_t)*data_header->height * key };
-                    auto f_str = array_view<atom_t>(_topology, address, data_header->height);
-                    const atom_t * begin = f_str;
+                    auto raw_address = st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement);
+                        
+                    //going to block entire buffer to reduce segmentation
+                    auto raw_str = array_view<atom_t>(_topology, raw_address, data_header->height * data_header->width);
+                    const atom_t * begin = raw_str
+                        + sizeof(atom_t)*data_header->height * key;
+                
                     callback(begin, begin + data_header->stem_length[key], *data_header);
                 }
                 inline dim_t stem_length(const ref_stems_t& st_address, atom_t key) const
@@ -309,9 +269,10 @@ namespace OP
                         view<StemData>(_topology, st_address.address);
                     return ro_access->stem_length[key];
                 }
+                /** Operation that helps move data from one StemData to other during reallocation */
                 struct MoveProcessor
                 {
-                    friend struct this_t;
+                    friend this_t;
                     void move(dim_t from, dim_t to)
                     {
                         assert(from < _from_header->width);
@@ -372,25 +333,9 @@ namespace OP
                         tuple_ref<trie::PersistedReference<StemData> >(new_stem)
                         );
                 }
+                
             private:
                 
-
-                template <class Tuple>
-                struct Helper
-                {
-                    template <size_t N>
-                    static inline std::uint8_t* move_into(std::uint8_t* memory, Tuple && source)
-                    {
-                        *reinterpret_cast<T*>(memory) = std::move(std::get< std::tuple_size<Tuple>::value - N >(source));
-                        memory += memory_requirement<std::tuple_element< std::tuple_size<Tuple>::value - N >::type>::requirement;
-                        return move_into<N - 1, Tuple>(memory, source);
-                    }
-                    template <>
-                    static inline std::uint8_t* move_into<0>(std::uint8_t* memory, Tuple && source)
-                    {
-                        return memory;
-                    }
-                };
                 SegmentTopology& _topology;
             };
         
