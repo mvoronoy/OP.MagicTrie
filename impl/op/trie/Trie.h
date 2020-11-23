@@ -1077,7 +1077,7 @@ namespace OP
             template <class Atom>
             typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter) const
             {
-                auto retval = node_t::nav_result_t();
+                typename node_t::nav_result_t retval{};
                 if (end == begin)
                 {
                     return retval;

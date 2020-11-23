@@ -181,8 +181,8 @@ namespace OP
             *  @param payload_factory - may or not be used (if source string too long and should be placed to other page)
             *  @return true when end of iteration was reached and value assigned, false mean no value inserted
             */
-            template <class TSegmentTopology, class Atom, class ProducePayload>
-            bool insert(TSegmentTopology& topology, Atom& begin, const Atom end, ProducePayload& payload_factory)
+            template <class TSegmentTopology, class Atom, class FProducePayload>
+            bool insert(TSegmentTopology& topology, Atom& begin, const Atom end, FProducePayload payload_factory)
             {
                 ++version;
                 auto reindex_res = insert_stem(topology, begin, end);
