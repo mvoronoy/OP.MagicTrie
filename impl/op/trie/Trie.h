@@ -1288,7 +1288,7 @@ namespace OP
             * @return pair
             */
             template <class FFindEntry, class FIteratorUpdate>
-            std::tuple<bool, FarAddress> load_iterator(const FarAddress& node_addr, iterator& dest, FFindEntry& pos_locator, FIteratorUpdate iterator_update) const
+            std::tuple<bool, FarAddress> load_iterator(const FarAddress& node_addr, iterator& dest, FFindEntry pos_locator, FIteratorUpdate iterator_update) const
             {
                 auto ro_node = view<node_t>(*_topology_ptr, node_addr);
                 nullable_atom_t pos = pos_locator(ro_node);
