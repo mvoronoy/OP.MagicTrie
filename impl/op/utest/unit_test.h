@@ -1,5 +1,6 @@
-#ifndef _UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
-#define _UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
+#pragma once
+#ifndef _OP_UNIT_TEST__H_
+#define _OP_UNIT_TEST__H_
 
 #include <vector>
 #include <deque>
@@ -582,17 +583,6 @@ namespace OP
                     ));
                 return this->declare_case(pt);
             }
-            TestSuite* declare(void (f)(), std::string n = std::string())
-            {
-                auto fwrap = std::function< void() >(f);
-                std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
-                std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(fwrap)>(
-                    std::move(name),
-                    std::move(fwrap)
-                    ));
-                return this->declare_case(pt);
-
-            }
             TestSuite* declare(void (f)(TestResult&), std::string n = std::string())
             {
                 auto fwrap = std::function< void(TestResult&) >(f);
@@ -996,4 +986,4 @@ namespace OP
 
     } //utest
 }//OP
-#endif //_UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
+#endif //_OP_UNIT_TEST__H_
