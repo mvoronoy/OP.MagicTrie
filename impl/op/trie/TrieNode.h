@@ -430,8 +430,8 @@ namespace OP
                 ++version;
             }
             /**Apply `move_callback` to each existing item to move from previous container to new container (like a value- or stem- containers) */
-            template <class Remap, class MoveCallback>
-            void copy_stuff(Remap& remap, MoveCallback& move_callback)
+            template <class Remap, class FMoveCallback>
+            void copy_stuff(Remap& remap, FMoveCallback move_callback)
             {
                 for (auto i = presence.presence_begin(); i != presence.presence_end(); ++i)
                 {
