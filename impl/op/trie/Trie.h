@@ -1126,8 +1126,8 @@ namespace OP
                 } //for(;;)
                 return retval;
             }
-            template <class ChildLocator>
-            iterator position_child(iterator& of_this, ChildLocator& locator) const
+            template <class FChildLocator>
+            iterator position_child(iterator& of_this, FChildLocator locator) const
             {
                 if (!std::get<bool>(sync_iterator(of_this)) || of_this == end() ||
                     is_not_set(of_this.back().terminality(), Terminality::term_has_child))
@@ -1138,8 +1138,8 @@ namespace OP
                 position_child_unsafe(result, locator);
                 return result;
             }
-            template <class ChildLocator>
-            void position_child_unsafe(iterator& result, ChildLocator& locator) const
+            template <class FChildLocator>
+            void position_child_unsafe(iterator& result, FChildLocator locator) const
             {
                 auto cls = classify_back(result);
                 auto addr = std::get<FarAddress>(cls);
