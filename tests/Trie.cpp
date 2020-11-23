@@ -1813,20 +1813,21 @@ void test_JoinRangeOverride(TestResult& tresult)
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
-    auto tmngr2 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>((std::string("(2)")+test_file_name).c_str(),
+    auto tmngr2 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>((std::string("2_")+test_file_name).c_str(),
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
-    auto tmngr3 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>((std::string("(3)") + test_file_name).c_str(),
+    auto tmngr3 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>((std::string("3_") + test_file_name).c_str(),
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
     typedef Trie<TransactedSegmentManager, size_t> trie_t;
+    tresult.info()<<"create trie #1...\n";
     std::shared_ptr<trie_t> trie1 = trie_t::create_new(tmngr1);
 
-    typedef Trie<TransactedSegmentManager, size_t> trie_t;
+    tresult.info()<<"create trie #2...\n";
     std::shared_ptr<trie_t> trie2 = trie_t::create_new(tmngr2);
 
-    typedef Trie<TransactedSegmentManager, size_t> trie_t;
+    tresult.info()<<"create trie #3...\n";
     std::shared_ptr<trie_t> trie3 = trie_t::create_new(tmngr3);
 
     typedef std::pair<atom_string_t, size_t> p_t;
@@ -1852,6 +1853,7 @@ void test_JoinRangeOverride(TestResult& tresult)
             trie3->insert(rnd_val, i);
         test_values.emplace(rnd_val, i);
     }
+    tresult.info()<<"Done populating #1, #2, #3 \n Compare with test-values...";
     compare_containers(tresult, *trie1, test_values);
 
     //thin-out map for later compare
@@ -1869,25 +1871,27 @@ void test_JoinRangeOverride(TestResult& tresult)
     result1.reserve(100 + trie_limit / 3);
     result2.reserve(100 + trie_limit / 3);
 
+    tresult.info()<<"Create filtered sub-range-1 for trie #1\n";
     auto t1r1 = trie1->range()->filter([&](const auto& i) {
         return ((int)i.key()[0]) % 2 == 0;
         });
+    tresult.info()<<"Create filtered sub-range-2 for trie #1\n";
     auto t1r2 = trie1->range()->filter([&](const auto& i) {
         return ((int)i.key()[0]) % 3 == 0;
         });
     // filtered range uses default impl of join
-    tresult.debug() << "Join processed:" << applyJoinRest(
+    tresult.info() << "Join processed:" << applyJoinRest(
         t1r1,
         t1r2,
         result1) << "[ms]\n";
     compare_containers(tresult, *t1r1->join(t1r2), test_values);
-    tresult.debug() << "Splitted-default join processed:" << applyJoinRest(
+    tresult.info() << "Splitted-default join processed:" << applyJoinRest(
         trie2->range()->filter([](const auto&){return true;}),
         trie3->range()->filter([](const auto&) {return true;}),
         result2) << "[ms]\n";
     result2.clear();
     // trie-range uses overriding impl of join
-    tresult.debug() << "Non-default join processed:" << applyJoinRest(
+    tresult.info() << "Non-default join processed:" << applyJoinRest(
         trie2->range(),
         trie3->range(),
         result2) << "[ms]\n";
