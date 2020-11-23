@@ -428,7 +428,8 @@ void test_PrefixedFind(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
     tresult.assert_that<equals>(*lw_ch1, 1.9, "value mismatch");
     tresult.assert_that<equals>(trie->lower_bound(i_root, std::string(".xyz")), trie->end(), "iterator must be end");
-    tresult.assert_that<equals>(trie->lower_bound(trie->end(), std::string(".123")), i_root, "iterator must point to 'abc'");
+    auto i_end = trie->end();
+    tresult.assert_that<equals>(trie->lower_bound(i_end, std::string(".123")), i_root, "iterator must point to 'abc'");
     lw_ch1 = trie->lower_bound(i_root, std::string(".1"));
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.1", "key mismatch");
     tresult.assert_that<equals>(*lw_ch1, 1., "value mismatch");
