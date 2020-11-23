@@ -342,7 +342,8 @@ void test_TrieLowerBound(OP::utest::TestResult& tresult)
     const atom_t* np = nullptr;
     tresult.assert_true(trie->end() == trie->lower_bound(np, np));
     const atom_t az[] = "az";  auto b1 = std::begin(az);
-    tresult.assert_true(tools::container_equals(test_seq[1], trie->lower_bound(b1, std::end(az)).key(), tools::sign_tolerant_cmp));
+    tresult.assert_true(tools::container_equals(test_seq[1], trie->lower_bound(b1, std::end(az)).key(), 
+        tools::sign_tolerant_cmp<typename std::string::value_type, typename atom_string_t::value_type>));
 
     const atom_t unexisting1[] = "zzz";
     np = std::begin(unexisting1);
