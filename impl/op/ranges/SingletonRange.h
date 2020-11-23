@@ -32,30 +32,30 @@ namespace OP
 
             iterator begin() const override
             {
-                return iterator(shared_from_this(), std::make_unique<payload_t>(&_kv));
+                return iterator(this->shared_from_this(), std::make_unique<payload_t>(&_kv));
             }
 
             bool in_range(const iterator& check) const override
             {
                 if (!check)
                     return false;
-                return check.impl<payload_t>()._data_ptr != nullptr;
+                return check.OP_TEMPL_METH(impl)<payload_t>()._data_ptr != nullptr;
             }
 
             void next(iterator& pos) const override
             {
                 if (!pos)
                     return;
-                pos = end();
+                pos = this->end();
             }
 
             iterator lower_bound(const typename base_t::key_t& key) const override
             {
-                int cmp = key_comp()(_kv.first, key);
+                int cmp = this->key_comp()(_kv.first, key);
                 return cmp < 0
-                    ? end()
+                    ? this->end()
                     : iterator(
-                        shared_from_this(), std::make_unique<payload_t>(&_kv));
+                        this->shared_from_this(), std::make_unique<payload_t>(&_kv));
             }
 
         private:
@@ -103,7 +103,7 @@ namespace OP
 
             iterator begin() const override
             {
-                return end();
+                return this->end();
             }
 
             bool in_range(const iterator& check) const override
@@ -118,7 +118,7 @@ namespace OP
 
             iterator lower_bound(const typename base_t::key_t& key) const override
             {
-                return end();
+                return this->end();
             }
 
         };

@@ -60,7 +60,7 @@ namespace OP
         {
             static_assert(SourceRange::is_ordered_c, "Source range must support ordering");
             using this_t = TrieSectionAdapter<SourceRange>;
-            using string_map_fnc_t = string_map_fnc_t<typename SourceRange::iterator>;
+            using iterator_map_fnc_t = string_map_fnc_t<typename SourceRange::iterator>;
 
             using filter_base_t = FunctionalRange<
                 SourceRange,
@@ -81,6 +81,7 @@ namespace OP
             using atom_string_t = typename traits_t::atom_string_t;
             
             using iterator = typename base_t::iterator;
+            using iterator_impl_t = typename base_t::iterator_impl_t;
             using key_t = typename base_t::key_t;
             using value_t = typename base_t::value_t;
 
@@ -92,8 +93,8 @@ namespace OP
                 : filter_base_t (
                     std::move(source_range), 
                     trunc_fnc 
-                        ? string_map_fnc_t([this](const source_iterator_t& i) {return trunc_transform(i);})
-                        : string_map_fnc_t([this](const source_iterator_t& i) {return simple_transform(i);}),
+                        ? iterator_map_fnc_t([this](const source_iterator_t& i) {return trunc_transform(i);})
+                        : iterator_map_fnc_t([this](const source_iterator_t& i) {return simple_transform(i);}),
                     &this_t::key_compare
                 )
                 , _prefix(std::move(prefix))
@@ -106,9 +107,9 @@ namespace OP
                 auto res = filter_base_t::begin();
                 if(!res)
                     return res;
-                auto &functional_iter = res.impl<iterator_impl>();
+                auto &functional_iter = res.OP_TEMPL_METH(impl)<iterator_impl_t>();
                 if( skip_first_if_empty(functional_iter.source())
-                    && source_range()->in_range(functional_iter.source()) )
+                    && this->source_range()->in_range(functional_iter.source()) )
                 { //notify cache about changes
                     functional_iter.key_eval_policy().on_after_change(functional_iter.source());
                 }    
@@ -116,18 +117,18 @@ namespace OP
             }
             iterator lower_bound(const typename iterator::key_t& key) const override
             {
-                auto res = source_range()->lower_bound(_prefix + key);
+                auto res = this->source_range()->lower_bound(_prefix + key);
                 skip_first_if_empty(res);
-                if (source_range()->in_range(res))
+                if (this->source_range()->in_range(res))
                 {
-                    auto policy_copy = key_eval_policy(); //clone
+                    auto policy_copy = this->key_eval_policy(); //clone
                     policy_copy.on_after_change(res); //notify local policy copy that key was changed
                     return iterator(
-                        std::const_pointer_cast<range_t const>(shared_from_this()),
-                        std::unique_ptr<iterator::RangeIteratorImpl>(
-                            new iterator_impl(std::move(res), std::move(policy_copy))));
+                        std::const_pointer_cast<typename base_t::range_t const>(this->shared_from_this()),
+                        std::unique_ptr<iterator_impl_t>(
+                           new iterator_impl_t(std::move(res), std::move(policy_copy))));
                 }
-                return end();
+                return this->end();
             }
         private:
             static int key_compare(const atom_string_t& left, const atom_string_t& right)
@@ -152,11 +153,11 @@ namespace OP
             */
             bool skip_first_if_empty(source_iterator_t& from) const
             {
-                if (source_range()->in_range(from) )
+                if (this->source_range()->in_range(from) )
                 {
                     if (from.key().length() == _prefix.length())
                     {
-                        source_range()->next(from);
+                        this->source_range()->next(from);
                         return true;
                     }
                 }

@@ -2,6 +2,8 @@
 #include <op/vtm/SegmentManager.h>
 #include <assert.h>
 #include <random>
+#include <map>
+
 using namespace OP;
 using namespace OP::trie;
 void test_RangeContainer()

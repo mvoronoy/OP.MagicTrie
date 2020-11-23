@@ -132,16 +132,17 @@ namespace OP
             using this_t = FunctionalRange<SourceRange, Rk, KeyEvalPolicy, Base >;
             using base_t = Base;
             using iterator = typename base_t::iterator;
+            using range_t = typename base_t::range_t;
             using applicator_t = typename KeyEvalPolicy::applicator_t;
 
-            using iterator_impl = FunctionalRangeIterator<
+            using iterator_impl_t = FunctionalRangeIterator<
                 typename SourceRange::iterator,
                 this_t,
                 KeyEvalPolicy
             >;
 
             using key_eval_policy_t = KeyEvalPolicy;
-            using key_t = typename Rk;
+            using key_t = Rk;
 
             template <typename... Ts>
             FunctionalRange(std::shared_ptr<const SourceRange> source, applicator_t transform, Ts&& ...other) noexcept
@@ -154,30 +155,30 @@ namespace OP
             iterator begin() const override
             {
                 if(!_source_range)
-                    return end();
+                    return this->end();
                 auto res = _source_range->begin();
                 if (_source_range->in_range(res))
                 {
                     auto policy_copy = _key_eval_policy; //clone
                     policy_copy.on_after_change(res); //notify local policy copy that key was changed
                     return iterator(
-                        std::const_pointer_cast<range_t const>(shared_from_this()),
-                        std::unique_ptr<iterator::RangeIteratorImpl>(
-                            new iterator_impl(std::move(res), std::move(policy_copy))));
+                        std::const_pointer_cast<range_t const>(this->shared_from_this()),
+                        std::unique_ptr<typename iterator::impl_t>(
+                            new iterator_impl_t(std::move(res), std::move(policy_copy))));
                 }
-                return end();
+                return this->end();
             }
             bool in_range(const iterator& check) const override
             {
                 if( !check || !_source_range )
                     return false;
-                return _source_range->in_range(check.impl<iterator_impl>().source());
+                return _source_range->in_range(check.OP_TEMPL_METH(impl)<iterator_impl_t>().source());
             }
             void next(iterator& pos) const override
             {
                 if(!pos)
                     return;
-                auto& impl = pos.impl<iterator_impl>();
+                auto& impl = pos.OP_TEMPL_METH(impl)<iterator_impl_t>();
                 _source_range->next(impl.source());
 
                 if (_source_range->in_range(impl.source()))

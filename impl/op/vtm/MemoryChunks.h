@@ -22,7 +22,7 @@ namespace OP
         struct MemoryChunkBase /*: public OP::Range<std::uint8_t *, segment_pos_t>*/
         {
             //typedef OP::Range<std::uint8_t *> base_t;
-            MemoryChunkBase() {}
+            MemoryChunkBase() = default;
             MemoryChunkBase(
 				far_pos_t pos_offset,
 				const std::shared_ptr<std::uint8_t>& pos, 
@@ -192,7 +192,7 @@ namespace OP
             template <class T>
             inline OP_CONSTEXPR(const) typename std::enable_if< !std::is_scalar<T>::value, segment_pos_t >::type array_view_size_helper() OP_NOEXCEPT
             {
-                return memory_requirement<T>::requirement;
+                return OP::utils::memory_requirement<T>::requirement;
             }
             template <class T>
             inline OP_CONSTEXPR(const) typename std::enable_if< std::is_scalar<T>::value, segment_pos_t >::type array_view_size_helper() OP_NOEXCEPT
@@ -308,7 +308,7 @@ namespace OP
         WritableAccess<T> accessor(SMProvider& segment_manager_provider, FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
         {
             return WritableAccess<T>(std::move(resolve_segment_manager(segment_manager_provider).
-                writable_block(pos, memory_requirement<T>::requirement, hint)));
+                writable_block(pos, OP::utils::memory_requirement<T>::requirement, hint)));
         }
         
         /**
@@ -423,7 +423,7 @@ namespace OP
         ReadonlyAccess<T> view(SMProvider& segment_manager_provider, FarAddress pos, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
         {
             return ReadonlyAccess<T>(std::move(resolve_segment_manager(segment_manager_provider).
-                readonly_block(pos, memory_requirement<T>::requirement, hint)));
+                readonly_block(pos, OP::utils::memory_requirement<T>::requirement, hint)));
         }
         
         /**

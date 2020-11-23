@@ -2,6 +2,7 @@
 #define _OP_TRIE_MEMORYMANAGER__H_
 
 #include <unordered_map>
+#include <vector>
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryBlock.h>
@@ -188,7 +189,9 @@ namespace OP
                 auto mem_block = this->_segment_manager->writable_block(result, 
                     mem_req, WritableBlockHint::new_c);
                 //use placement constructor for each item
-                for (auto p = mem_block.at<memory_requirement<T>::type>(0); items_count; --items_count, ++p)
+                for (auto p = mem_block.OP_TEMPL_METH(at)<typename memory_requirement<T>::type>(0); 
+                    items_count; 
+                    --items_count, ++p)
                     new (p) T(std::forward<Types>(args)...);
                 g.commit();
                 return result;
@@ -411,13 +414,7 @@ namespace OP
                     return;
                 _opened_segments.resize(segment + 1);
             }
-            /**Merge together 2 adjacent memory blocks
-            * @param merge_with_right block that may have 
-            */
-            FreeMemoryBlock* merge_free_blocks(far_pos_t merge_with_right)
-            {
-                
-            }
+            
             void do_deallocate(MemoryChunk& header_block)
             {
                 //Mark segment and memory for FreeMemoryBlock as available for write

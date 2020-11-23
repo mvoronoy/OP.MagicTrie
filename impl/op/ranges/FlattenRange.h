@@ -57,6 +57,10 @@ namespace OP
             template <class Range, class KeyComparator>
             struct PriorityQueueSetStorage : public StoragePolicy<Range>
             {
+                using base_t = StoragePolicy<Range>;
+                using flat_item_ptr = typename base_t::flat_item_ptr;
+                using iterartor_impl_t = typename Range::iterator::RangeIteratorImpl;
+
                 PriorityQueueSetStorage(const KeyComparator& comparator) noexcept
                     : _item_set(flat_less(comparator))
                 {}
@@ -81,9 +85,9 @@ namespace OP
                 {
                     return _item_set.empty();
                 }
-                std::unique_ptr<typename Range::iterator::RangeIteratorImpl> clone() const override
+                std::unique_ptr<iterartor_impl_t > clone() const override
                 {
-                    return std::unique_ptr<RangeIteratorImpl>(new PriorityQueueSetStorage(*this));
+                    return std::unique_ptr<iterartor_impl_t >(new PriorityQueueSetStorage(*this));
                 }
             private:
                 struct flat_less
@@ -157,7 +161,8 @@ namespace OP
             OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename SourceRange::iterator>, typename SourceRange::value_t >
         {
             using this_t = FlattenRange<SourceRange, DeflateFunction>;
-            using base_t = OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename SourceRange::iterator>, typename SourceRange::value_t >;
+            using ordered_range_t = OrderedRange< flatten_details::DeflateResultType<DeflateFunction, typename SourceRange::iterator>, typename SourceRange::value_t >;
+            using base_t = ordered_range_t ;
             using traits_t = details::FlattenTraits<SourceRange, DeflateFunction>;
 
             using applicator_result_t = typename traits_t::applicator_result_t;
@@ -184,26 +189,26 @@ namespace OP
 
             iterator begin() const override
             {
-                auto store = std::make_unique< store_t >(key_comp());
+                auto store = std::make_unique< store_t >(this->key_comp());
                 _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
                     if( !range ) return; //don't need add empty range
                     auto range_beg = range->begin();
-                    if (!range->in_range(range_beg)) //don't need add empty range
-                    {
+                    if (!range->in_range(range_beg)) 
+                    {//don't need add empty range
                         return;
                     }
-                    auto new_itm = std::make_shared<store_t::flat_item_t> (
+                    auto new_itm = std::make_shared<typename store_t::flat_item_t> (
                         std::move(range), std::move(range_beg)
                     );
                     store->push(new_itm);
                 });
-                return iterator(shared_from_this(), std::move(store));
+                return iterator(this->shared_from_this(), std::move(store));
             }
             
             iterator lower_bound(const typename traits_t::key_type& key) const override
             {
-                auto store = std::make_unique< store_t >(key_comp());
+                auto store = std::make_unique< store_t >(this->key_comp());
                 _source_range->for_each([&](const auto& i) {
                     auto range = _deflate(i);
                     if( !range ) return; //don't need add empty range
@@ -212,25 +217,25 @@ namespace OP
                     {
                         return;
                     }
-                    auto new_itm = std::make_shared<store_t::flat_item_t> (
+                    auto new_itm = std::make_shared<typename store_t::flat_item_t> (
                         std::move(range), std::move(range_beg)
                     );
                     store->push(new_itm);
                 });
-                return iterator(shared_from_this(), std::move(store));
+                return iterator(this->shared_from_this(), std::move(store));
             }
 
             bool in_range(const iterator& check) const override
             {
                 if(!check)
                     return false;
-                return !check.impl< store_t>().is_empty();
+                return !check.OP_TEMPL_METH(impl)< store_t>().is_empty();
             }
             void next(iterator& pos) const override
             {
                 if(!pos)
                     return;
-                auto &impl = pos.impl< store_t>();
+                auto &impl = pos.OP_TEMPL_METH(impl)< store_t>();
                 auto const dupli_key = impl.key();
                 do{ //skip key dupplicates
                     auto smallest = impl.pop();
@@ -239,7 +244,7 @@ namespace OP
                     { //if iter is not exhausted put it back
                         impl.push(smallest);
                     }
-                }while(!impl.is_empty() && 0 == key_comp()(dupli_key, impl.key()));
+                }while(!impl.is_empty() && 0 == this->key_comp()(dupli_key, impl.key()));
             }
 
         private:

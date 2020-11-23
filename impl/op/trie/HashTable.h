@@ -149,7 +149,7 @@ namespace OP
                 {
                     assert((dim_t)capacity < 256);
 
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     
                     auto byte_size = memory_requirement<HashTableData>::requirement +
                         memory_requirement<HashTableData::content_t>::requirement * (dim_t)capacity;
@@ -168,7 +168,7 @@ namespace OP
                 }
                 void destroy(const trie::PersistedReference<HashTableData>& htbl)
                 {
-                    auto& memmngr = _topology.slot<HeapManagerSlot>();
+                    auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     memmngr.deallocate(htbl.address);
                 }
                 /**
@@ -189,8 +189,8 @@ namespace OP
                 * @tparam OnMoveCallback - functor that is called if internal space of hash-table is optimized (shrinked). Argumnets (from, to)
                 * @return position where data has been erased (or not found if no such key)
                 */
-                template <class OnMoveCallback>
-                unsigned erase(const trie::PersistedReference<HashTableData>& ref_data, atom_t key, OnMoveCallback& on_move_callback)
+                template <class FOnMoveCallback>
+                unsigned erase(const trie::PersistedReference<HashTableData>& ref_data, atom_t key, FOnMoveCallback on_move_callback)
                 {
                     auto table_head = accessor<HashTableData>(_topology, ref_data.address);
                     unsigned hash = static_cast<unsigned>(key) & (table_head->capacity - 1); //assuming that capacity is ^ 2
@@ -214,16 +214,6 @@ namespace OP
                         ++hash %= table_head->capacity; //keep in boundary
                     }
                     return hash;
-                }
-                void clear(const trie::PersistedReference<HashTableData>& ref_data) const
-                {
-                    auto table_head = accessor<HashTableData>(_topology, ref_data.address);
-                    auto hash_data = array_accessor<HashTableData::content_t>(_topology,
-                        content_item_address(ref_data.address, 0),
-                        table_head->capacity);
-                    std::for_each(&hash_data[0], hash_data[table_head->capacity], 
-                        [](HashTableData::content_t& c) { c = 0; });
-                    _count = 0;
                 }
 
                 ReadonlyAccess<HashTableData> table_head(const trie::PersistedReference<HashTableData>& ref_data) const

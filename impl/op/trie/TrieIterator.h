@@ -1,8 +1,10 @@
 #ifndef _OP_TRIE_TRIEITERATOR__H_
 #define _OP_TRIE_TRIEITERATOR__H_
+
 #include <op/trie/TrieNode.h>
 #include <op/common/typedefs.h>
 #include <op/trie/ValueArray.h>
+#include <op/trie/TriePosition.h>
 
 #include <string>
 #include <vector>
@@ -11,72 +13,6 @@ namespace OP
 {
     namespace trie
     {
-        typedef std::basic_string<atom_t> atom_string_t;
-        
-        struct TriePosition
-        {
-            
-            TriePosition(FarAddress node_addr, NodeUid uid, dim_t key, dim_t deep, node_version_t version, Terminality term = term_no) noexcept
-                : _node_addr(node_addr)
-                , _uid(uid)
-                , _key(key)
-                , _deep(deep)
-                , _terminality(term)
-                , _version(version)
-            {}
-            TriePosition() noexcept
-                : _node_addr{}
-                , _uid{}
-                , _key(dim_nil_c)
-                , _terminality(term_no)
-                , _deep{0}
-            {
-            }
-            inline bool operator == (const TriePosition& other) const
-            {
-                return _node_addr == other._node_addr //first compare node address as simplest comparison
-                    && _key == other._key //check in-node position then
-                    && _deep == other._deep
-                    && _uid == other._uid //and only when all other checks succeeded make long check of uid
-                    ;
-            }
-            node_version_t version() const
-            {
-                return _version;
-            }
-            /**Offset inside node. May be nil_c - if this position points to `end` */
-            dim_t key() const
-            {
-                return _key;
-            }
-            FarAddress address() const
-            {
-                return _node_addr;
-            }
-            dim_t deep() const
-            {
-                return _deep;
-            }
-            /**
-            * return combination of flag presence at current point
-            * @see Terminality enum
-            */
-            Terminality terminality() const
-            {
-                return _terminality;
-            }
-            FarAddress _node_addr;
-            /**Unique signature of node*/
-            NodeUid _uid;
-            /**horizontal position in node*/
-            dim_t _key;
-            /**Vertical position in node, for nodes without stem it is 0, for nodes with stem it is 
-            a stem's position + 1*/
-            dim_t _deep;
-            /**Relates to ValueArrayData::has_XXX flags - codes what this iterator points to*/
-            Terminality _terminality;
-            node_version_t _version;
-        };
 
         template <class Container>
         class TrieIterator 
@@ -91,7 +27,7 @@ namespace OP
             typedef TrieIterator<Container> this_t;
 
         private:
-            friend typename Container;
+            friend Container;
             friend typename Container::node_t;
 
             typedef std::vector<TriePosition> node_stack_t;
@@ -129,12 +65,12 @@ namespace OP
             }
             inline this_t& operator -- ()
             {
-                static_assert(false, "Not implemented yet");
+                assert(false);//, "Not implemented yet");
                 return *this;
             }
             inline this_t operator -- (int)
             {
-                static_assert(false, "Not implemented yet");
+                assert(false);//, "Not implemented yet");
                 this_t result(*this);
                 return result;
             }
@@ -183,7 +119,7 @@ namespace OP
         protected:
             /**Add position to iterator*/
             template <class Iterator>
-            void emplace(TriePosition&& position, Iterator begin, Iterator end)
+            void _emplace(TriePosition&& position, Iterator begin, Iterator end)
             {
                 if (position.key() > std::numeric_limits<atom_t>::max())
                     throw std::out_of_range("Range must be in [0..255]");
@@ -195,7 +131,7 @@ namespace OP
             }
             void emplace(TriePosition&& position, const atom_t* begin, const atom_t* end)
             {
-                emplace<decltype(begin)>(std::move(position), begin, end);
+                _emplace<decltype(begin)>(std::move(position), begin, end);
             }
             /**Update last entry in this iterator, then add rest tail to iterator*/
             void update_back(const TriePosition& position, const atom_t* begin, const atom_t* end)

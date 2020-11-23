@@ -13,12 +13,15 @@ find_package(Boost REQUIRED)
 set(Boost_DEBUG 1)
 
 IF (Boost_FOUND)
-    INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
+    INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
     ADD_DEFINITIONS( "-DHAS_BOOST" )
 ENDIF()
 
 message("~*~*~*~*~*~*~*~*~*~*~*")
 message("boost inc:${Boost_INCLUDE_DIRS}")
+
+find_package(Threads REQUIRED)
+
 
 enable_testing()
 
@@ -32,8 +35,6 @@ add_executable (trie_test
     "RangeTest.cpp"
     "SegmentManagerTest.cpp"
     "SegmentToplogyTest.cpp"
-    "skplst.cpp" 
-    "StemContainer.cpp"
     "testMixedAdapter.cpp"
     "tr.cpp"
     "Transacted.cpp"
@@ -47,6 +48,9 @@ target_include_directories(trie_test
     PUBLIC
         ${TR_HOME}
     )
+
+target_link_libraries(${PROJECT_NAME} Threads::Threads)
+
 
 # Unit tests
 add_test(NAME "OP/all" COMMAND trie_test -r ".+/.+")

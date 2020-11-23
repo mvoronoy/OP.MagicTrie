@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <atomic>
 #include <future>
+#include <mutex> 
+#include <shared_mutex>
 #include <op/common/Utils.h>
 #include <op/common/FetchTicket.h>
 
@@ -31,7 +33,7 @@ namespace OP{
             {
                 auto rk = std::make_unique<ReferenceKey>(k);
                 guard_t l(_map_lock);
-                map_t::iterator found = _map.find(rk);
+                typename map_t::iterator found = _map.find(rk);
                 if (found != _map.end())
                 {
                     found->first->float_up(_root.get());
@@ -46,7 +48,7 @@ namespace OP{
                 auto rk = std::make_unique<ReferenceKey>(k);
                 guard_t l(_map_lock);
 
-                map_t::iterator found = _map.find(rk);
+                typename map_t::iterator found = _map.find(rk);
                 if (found == _map.end())
                 {
                     //cycling list have biggest 'prev' root
@@ -65,7 +67,7 @@ namespace OP{
             {
                 auto rk = std::make_unique<ReferenceKey>(k);
                 guard_t l(_map_lock);
-                map_t::iterator found = _map.find(rk);
+                typename map_t::iterator found = _map.find(rk);
                 if (found == _map.end())
                 {
                     auto inserted = this->_map.insert(
@@ -139,7 +141,7 @@ namespace OP{
             bool _erase(const Key& k)
             {
                 auto rk = std::make_unique<ReferenceKey>(k);
-                map_t::iterator found = _map.find(rk);
+                typename map_t::iterator found = _map.find(rk);
                 if (found == _map.end())
                     return false;
                 on_before_erase(found->first->key, found->second);
@@ -319,97 +321,75 @@ namespace OP{
             background_task_producer_t _background_producer;
         };
 
-        /**Organize storage of elements indexed in range [0...).*/
+        /**Simple thread-safe read-optimized storage of elements indexed in range [0...).*/
         template <class T, class K = size_t>
         struct SparseCache
         {
             typedef std::shared_ptr<T> ptr_t;
             typedef K index_t;
-            SparseCache(index_t capacity):
-                _data(capacity)
-            {}
-            void put(index_t pos, ptr_t& v)
+            SparseCache(index_t capacity)
+                : _capacity(capacity)
+                , _data(new ptr_t[capacity])
             {
-                _data.put(pos, v);
+                assert(_capacity > 0);
             }
-            ptr_t get(index_t pos)
+            void put(index_t pos, ptr_t&& value)
             {
-                return _data.get(pos);
+                std::unique_lock guard(_lock);
+                ensure(pos);
+                _data[pos] = std::move(value);
+            }
+            ptr_t get(index_t pos) const
+            {
+                std::shared_lock guard(_lock);
+                if (pos >= _capacity)
+                    throw std::out_of_range("no such key");
+                return _data[pos];
             }
             template <class Factory>
-            ptr_t get(index_t pos, Factory& factory)
+            ptr_t get(index_t pos, Factory factory)
             {
-                return _data.get(pos, factory);
+                do{ //control block to demarcate scope of guard
+                    std::shared_lock guard(_lock);
+                    if (pos < _capacity)
+                    {
+                        auto r = _data[pos];
+                        if(r.get())
+                            return r;
+                    }
+                } while(false);
+                //need doublecheck presence
+                std::unique_lock guard(_lock);
+                ensure(pos);
+                auto r = _data[pos];
+                if (!r)
+                    _data[pos] = r = factory(pos);
+                return r;
             }
         private:
-            struct Dealloc
+            
+            using container_t = std::unique_ptr<ptr_t[]>;
+
+            const static index_t capacity_step_c = 16;
+
+            index_t _capacity;
+            container_t _data;
+            mutable std::shared_mutex _lock;
+
+            void ensure(index_t pos)
             {
-                void operator()(ptr_t* arr) const
+                if(pos < _capacity)
+                    return;
+                //ceil for nearest bigger of 'pos'
+                auto new_capacity = (1+(pos - 1 ) / capacity_step_c)*capacity_step_c;
+                container_t new_data = container_t(new ptr_t[new_capacity]);
+                for (size_t i = 0; i < _capacity; ++i)
                 {
-                    delete[]arr;
+                    new_data[i] = std::move(_data[i]);
                 }
-            };
-            struct Array : public OP::utils::FetchTicket<size_t>
-            {
-                Array(index_t capacity)
-                    :_capacity(capacity)
-                    ,_data(new ptr_t[capacity], Dealloc())
-                    //,_lock(*this)
-                {
-
-                }
-                /*typedef FetchTicket<size_t> lock_t;
-                typedef operation_guard_t<lock_t, &lock_t::lock, &lock_t::unlock> guard_t;
-                */
-                typedef std::mutex lock_t;
-                typedef std::unique_lock<lock_t> guard_t;
-
-                typedef std::shared_ptr<ptr_t> container_t;
-
-                container_t _data;
-                index_t _capacity;
-                void put(index_t pos, ptr_t& value)
-                {
-                    guard_t guard(_lock);
-                    ensure(pos + 1);
-                    _data.get()[pos] = value;
-                }
-                ptr_t get(index_t pos)
-                {
-                    guard_t guard(_lock);
-                    if (pos >= _capacity)
-                        throw std::out_of_range("no such key");
-                    return _data.get()[pos];
-                }
-                template <class F>
-                ptr_t get(index_t pos, F& factory)
-                {
-                    guard_t guard(_lock);
-                    ensure(pos + 1);
-                    auto &r = _data.get()[pos];
-                    if (!r)
-                        r = factory(pos);
-                    return r;
-                }
-            private:
-                //lock_t& _lock;
-                lock_t _lock;
-                void ensure(index_t new_capacity)
-                {
-                    if (_capacity < new_capacity)
-                    {
-                        container_t p = container_t(new ptr_t[new_capacity], Dealloc());
-                        for (size_t i = 0; i < _capacity; ++i)
-                        {
-                            p.get()[i] = _data.get()[i];
-                        }
-                        _capacity = new_capacity;
-                        _data = std::move(p);
-                    }
-                }
-
-            };
-            Array _data;
+                _capacity = new_capacity;
+                _data = std::move(new_data);
+            }
         };
     } //endof namespace trie
 }//endof namespace OP

@@ -1,5 +1,6 @@
-#ifndef _UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
-#define _UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
+#pragma once
+#ifndef _OP_UNIT_TEST__H_
+#define _OP_UNIT_TEST__H_
 
 #include <vector>
 #include <deque>
@@ -21,7 +22,12 @@
 #include <signal.h> 
 #include <op/utest/unit_test_is.h>
 
-/** Allows place usefull information to detail output.
+
+/**Render inline information like __FILE__, __LINE__ in lazy way (rendered only on demand) */
+#define _OP_LAZY_INLINE_INFO(...) ([&]()->OP::utest::Details&& { OP::utest::Details res;\
+        res << "{File:" << __FILE__ << " at:" << __LINE__  << "}" __VA_ARGS__ ; return std::move(res);\
+    })
+/** Allows place usefull information to details output.
 * Usage:
 * \code
 * ...
@@ -29,7 +35,8 @@
 
 * \endcode
 */
-#define OP_CODE_DETAILS(...) OP::utest::detail() << "{File:" << __FILE__ << " at:" << __LINE__  << "}\n" ## __VA_ARGS__ 
+#define OP_CODE_DETAILS(...)  _OP_LAZY_INLINE_INFO(__VA_ARGS__)()
+
 #define OP_TEST_STRINGIFY(a) #a
 
 /** Exposes assert functionality if for some reason function have no access to TestResult instance.
@@ -38,9 +45,13 @@
 * ...
 *   OP_UTEST_ASSERT(1==0, << "Logic is a power! Following number:" << 57);
 */
-#define OP_UTEST_ASSERT(condition, ...) (void)((!!(condition)) || OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
+#define OP_UTEST_ASSERT(condition, ...) ([&](bool test)->void{ \
+        if(!test){ auto msg ( std::move(OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - "  __VA_ARGS__ )));\
+            OP::utest::_inner::_uncondition_exception_raise( msg.result() ); } \
+    }(condition))
+
 /**The same as OP_UTEST_ASSERT but unconditionally failed*/
-#define OP_UTEST_FAIL(...) (void)(OP::utest::_inner::_uncondition_exception_raise( (OP_CODE_DETAILS( << OP_TEST_STRINGIFY(condition) << " - " ## __VA_ARGS__ )).result() ) )
+#define OP_UTEST_FAIL(...) OP_UTEST_ASSERT(false,  __VA_ARGS__ )
 namespace OP
 {
     namespace utest
@@ -67,16 +78,7 @@ namespace OP
             {
                 throw OP::utest::TestFail(std::forward<X>(x));
             }
-            template <class F, class ... Args >
-            inline std::function< F(Args...) > make_function(F&& f)
-            {
-                return std::forward<F>(f);
-            }
 
-            inline std::function< void() > make_function(void f())
-            {
-                return std::function< void() >(f);
-            }
             /**
             *
             *   @copyright teebuf and teestream
@@ -87,9 +89,9 @@ namespace OP
             {
             public:
 
-                multiplex_buf()
-                {
-                }
+                multiplex_buf() = default;
+                multiplex_buf(multiplex_buf&& ) = default;
+                multiplex_buf(const multiplex_buf& ) = delete;
 
                 /**
                 * Bind some stream-buffer to multiplexor
@@ -153,36 +155,19 @@ namespace OP
             public:
                 // Construct an ostream which tees output to the supplied
                 // ostreams.
-                template <class ... Tx>
-                explicit multiplex_stream(Tx && ... os)
+                multiplex_stream()
                     : std::ostream(&_tbuf)
                 {
-                    bind(std::forward<Tx>(os)...);
                 }
-                template <class ... Tx>
-                void bind(Tx &&... tx)
+                void bind(std::ostream*os)
                 {
-                    this->do_bind(std::forward<Tx>(tx)...);
+                    _tbuf.bind(os->rdbuf());
                 }
                 void unbind(std::ostream*os)
                 {
                     _tbuf.unbind(os->rdbuf());
                 }
             private:
-                template <class Os>
-                void do_bind(Os && os)
-                {
-                    _tbuf.bind(os->rdbuf());
-                }
-                template <class Os, class ... Tx>
-                void do_bind(Os && os, Tx &&... tx)
-                {
-                    _tbuf.bind(os->rdbuf());
-                    this->do_bind(std::forward<Tx>(tx)...);
-                }
-                void do_bind()
-                {
-                }
                 multiplex_buf _tbuf;
             };
 
@@ -207,19 +192,29 @@ namespace OP
         private:
             id_t _id;
         };
-
-        struct detail
+        /**ostream-like class that allows:
+        
+        -# memory effective inline construction. For example:
+            OP::utils::Details() << 123 << "abc";
+        -# switching between inner buffer and other std::ostream. For example:
+            details.as_stream().bind(&std::cout);
+            ...
+            //to switch back
+            details.as_stream().unbind(&std::cout);
+        
+        */
+        struct Details
         {
-            detail()
+            Details()
             {
                 _result_multiplex.bind(&_result);
             }
-            detail(detail&& other):
-                _result(std::move(other._result))
+            Details(Details&& ) = default;
+            Details(const Details& other)
+                : Details()
             {
+                operator<<(as_stream(), other);
             }
-            detail(const detail&) = delete;
-            //detail& operator = (detail&&) = default;
 
             std::string result() const
             {
@@ -236,28 +231,30 @@ namespace OP
                 return _result_multiplex;
             }
             template <class T>
-            detail& operator << (T && t)
+            friend inline Details& operator << (Details&d, T && t)
             {
-                as_stream() << std::forward<T>(t);
-                return *this;
+                d.as_stream() << std::forward<T>(t);
+                return d;
             }
+            template <class T>
+            friend inline Details operator << (Details&& d, T && t)
+            {
+                Details inl(std::move(d));
+                inl.as_stream() << std::forward<T>(t);
+                return std::move(inl);
+            }
+            template <class Os>
+            friend inline std::ostream& operator <<(Os& os, const Details& d)
+            {
+                os << d._result.str();
+                return os;
+            }
+
         private:
-            std::ostringstream _result;
+            std::stringstream _result;
             _inner::multiplex_stream _result_multiplex;
         };
         
-        inline detail& operator << (detail& det, int t)
-        {
-            det.as_stream() << (t);
-            return det;
-        }
-
-        inline std::ostream& operator << (std::ostream& os, const detail& det)
-        {
-            os << det.result().c_str();
-            return os;
-        }
-
         /**Specialization of exception to distinguish fail from aborted state*/
         struct TestFail : std::logic_error
         {
@@ -345,7 +342,7 @@ namespace OP
                 return _log_level >  ResultLevel::info ? info() : _null_stream;
             }
 
-            detail& status_details()
+            Details& status_details()
             {
                 return _status_details;
             }
@@ -437,7 +434,7 @@ namespace OP
                 _status_details << std::forward<T>(t);
                 do_log(std::forward<Tx>(tx)...);
             }
-            detail _status_details;
+            Details _status_details;
             Status _status;
             unsigned _run_number;
             time_point_t _start_time, _end_time;
@@ -556,57 +553,32 @@ namespace OP
             }
 
 
-            TestSuite* declare(std::function<void(TestResult&)> f, std::string n = std::string())
+            inline TestSuite* declare(std::function<void(TestResult&)> f, std::string n = std::string())
             {
                 std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
                 return this->declare_case(
-                    std::make_shared<FunctionalTestCase<decltype(f)> >(
+                    std::make_shared<FunctionalTestCase>(
                     std::move(name),
                     std::move(f)
                     )
                     );
             }
-            TestSuite* declare(std::function<void(void)> f, std::string n = std::string())
+            inline TestSuite* declare(std::function<void(void)> f, std::string nm = std::string())
             {
-                std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
-                std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(f)>(
-                    std::move(name),
-                    std::move(f)
-                    ));
-                return this->declare_case(pt);
-            }
-            TestSuite* declare(void (f)(), std::string n = std::string())
-            {
-                auto fwrap = std::function< void() >(f);
-                std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
-                std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(fwrap)>(
-                    std::move(name),
-                    std::move(fwrap)
-                    ));
-                return this->declare_case(pt);
-
-            }
-            TestSuite* declare(void (f)(TestResult&), std::string n = std::string())
-            {
-                auto fwrap = std::function< void(TestResult&) >(f);
-                std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
-                std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(fwrap)>(
-                    std::move(name),
-                    std::move(fwrap)
-                    ));
-                return this->declare_case(pt);
+                std::function<void(TestResult&)> functor = [f](TestResult&){f();};
+                return this->declare(std::move(functor), std::move(nm));
             }
             
-            TestSuite* declare_disabled(std::function<void(TestResult&)> f, std::string n = std::string())
+            inline TestSuite* declare_disabled(std::function<void(TestResult&)> f, std::string n = std::string())
             {
                 return this;
             }
 
-            TestSuite* declare_exceptional(void (f)(TestResult&), std::string n = std::string())
+            inline TestSuite* declare_exceptional(void (f)(TestResult&), std::string n = std::string())
             {
                 auto fwrap = std::function< void(TestResult&) >(f);
                 std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
-                std::shared_ptr<TestCase> pt(new AnyExceptionTestCase<decltype(fwrap)>(
+                std::shared_ptr<TestCase> pt(new AnyExceptionTestCase(
                     std::move(name),
                     std::move(fwrap)
                     ));
@@ -647,9 +619,10 @@ namespace OP
             std::ostream& _info_stream;
             std::ostream& _error_stream;
 
-            template <class F>
+            
             struct FunctionalTestCase : public TestCase
             {
+                template <class F>
                 FunctionalTestCase(std::string && name, F&& f) :
                     TestCase(std::move(name)),
                     _function(std::forward<F>(f))
@@ -661,14 +634,14 @@ namespace OP
                     _function(retval);
                 }
             private:
-                F _function;
+                std::function<void(TestResult&)> _function;
             };
             /**Handle test case that raises an exception*/
-            template <class F>
-            struct AnyExceptionTestCase : public FunctionalTestCase<F>
+            struct AnyExceptionTestCase : public FunctionalTestCase
             {
+                template <class F>
                 AnyExceptionTestCase(std::string && name, F&& f) :
-                    FunctionalTestCase<F>(std::move(name), std::forward<F>(f))
+                    FunctionalTestCase(std::move(name), std::forward<F>(f))
                 {
                 }
             protected:
@@ -676,7 +649,7 @@ namespace OP
                 {
                     try
                     {
-                        FunctionalTestCase<F>::run(retval);
+                        FunctionalTestCase::run(retval);
                         throw TestFail("exception was expected");
                     }
                     catch (...) {
@@ -688,10 +661,6 @@ namespace OP
 
         };
 
-        struct TestReport
-        {
-
-        };
         struct TestRunOptions
         {
             TestRunOptions()
@@ -963,17 +932,7 @@ namespace OP
                 return (unsigned char)left == right;
             }
         }
-        //
-        //  Later inline impl
-        //
-        /** Specialization for functions without arguments, it can use OP_UTEST_ASSERT
-        * instead of access to TestResult methods
-        */
-        template <>
-        void TestSuite::FunctionalTestCase< std::function<void()> >::run(TestResult& retval)
-        {
-            _function();
-        }
+        
         inline std::ostream& TestResult::info() const
         {
             return _log_level >= ResultLevel::info ? _suite->info() : _null_stream;
@@ -989,4 +948,4 @@ namespace OP
 
     } //utest
 }//OP
-#endif //_UNIT_TEST__H_78eda8e4_a367_427c_bc4a_0048a7a3dfd1
+#endif //_OP_UNIT_TEST__H_

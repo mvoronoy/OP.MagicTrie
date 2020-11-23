@@ -107,22 +107,11 @@ namespace OP
         Range(pos_t pos, Distance count) :
             _pos(pos), _count(count){}
         
-        Range(this_t && other) OP_NOEXCEPT :
-            _pos(other._pos),
-            _count(other._count)
-        {
-        }
-        Range(const this_t & other) OP_NOEXCEPT :
-            _pos(other._pos),
-            _count(other._count)
-        {
-        }
-        this_t& operator = (this_t&& right) OP_NOEXCEPT
-        {
-            _pos = right._pos;
-            _count = right._count;
-            return *this;
-        }
+        Range(this_t && other) OP_NOEXCEPT  = default;
+
+        Range(const this_t & other) OP_NOEXCEPT = default;
+
+        this_t& operator = (this_t&& right) OP_NOEXCEPT = default;
 
         ~Range() = default;
 
@@ -187,7 +176,7 @@ namespace OP
     {
         auto leftmost = std::min(range_op::pos(lar), range_op::pos(rar));
         return TRange(leftmost, 
-			static_cast<TRange::distance_t>( 
+			static_cast<typename TRange::distance_t>( 
 				std::max(range_op::right(lar), range_op::right(rar)) - leftmost));
     }
     template <class TRange>
@@ -198,7 +187,7 @@ namespace OP
         auto rightmost_left = std::max(
 			range_op::pos(lar), range_op::pos(rar));
         return rightmost_left < leftmost_right 
-            ? TRange(rightmost_left, static_cast<TRange::distance_t>(leftmost_right - rightmost_left))
+            ? TRange(rightmost_left, static_cast<typename TRange::distance_t>(leftmost_right - rightmost_left))
             : TRange(rightmost_left, 0);
     }
 
@@ -226,11 +215,11 @@ namespace OP
         {
             Range<T> search(index, 1);
             auto result_pair = _free_ranges.insert(search);
-            range_set_t::iterator right = result_pair.first;
+            auto right = result_pair.first;
             ++right;
             if (right == _free_ranges.end())
                 right = result_pair.first;
-            range_set_t::iterator begin = result_pair.first;
+            auto begin = result_pair.first;
             if (begin != _free_ranges.begin()) //make step left
                 --begin;
             optimize_left(begin, right);

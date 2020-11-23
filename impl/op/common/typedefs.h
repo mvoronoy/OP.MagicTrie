@@ -5,6 +5,7 @@
 #include <limits>
 #include <cstddef>
 #include <string>
+#include <iomanip>
 
 #if defined( _MSC_VER ) && defined(max)
 #undef max
@@ -24,6 +25,7 @@
 #define OP_NOEXCEPT noexcept 
 #endif //
 
+#define OP_TEMPL_METH(method) template method
 
 namespace OP
 {

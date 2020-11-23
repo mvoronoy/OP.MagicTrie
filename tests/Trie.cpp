@@ -238,7 +238,8 @@ void test_TrieUpdate(OP::utest::TestResult& tresult)
     typedef Trie<TransactedSegmentManager, double> trie_t;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
-    tresult.assert_that<equals>(0, trie->update(trie->end(), 0.0), "update of end is not allowed");
+    auto tmp_end = trie->end();
+    tresult.assert_that<equals>(0, trie->update(tmp_end, 0.0), "update of end is not allowed");
 
     typedef std::pair<atom_string_t, double> p_t;
 
@@ -341,7 +342,8 @@ void test_TrieLowerBound(OP::utest::TestResult& tresult)
     const atom_t* np = nullptr;
     tresult.assert_true(trie->end() == trie->lower_bound(np, np));
     const atom_t az[] = "az";  auto b1 = std::begin(az);
-    tresult.assert_true(tools::container_equals(test_seq[1], trie->lower_bound(b1, std::end(az)).key(), tools::sign_tolerant_cmp));
+    tresult.assert_true(tools::container_equals(test_seq[1], trie->lower_bound(b1, std::end(az)).key(), 
+        tools::sign_tolerant_cmp<typename std::string::value_type, typename atom_string_t::value_type>));
 
     const atom_t unexisting1[] = "zzz";
     np = std::begin(unexisting1);
@@ -354,19 +356,21 @@ void test_TrieLowerBound(OP::utest::TestResult& tresult)
     for (auto i = 0; i < std::extent<decltype(test_seq)>::value - 1; ++i, x += 1.0)
     {
         const std::string& test = test_seq[i];
-        auto lbit = trie->lower_bound(std::begin(test), std::end(test));
+        auto lbeg = std::begin(test);
+        auto lbit = trie->lower_bound(lbeg, std::end(test));
 
         tresult.assert_true(tools::container_equals(lbit.key(), test, &tools::sign_tolerant_cmp<atom_t>));
         tresult.assert_that<equals>(x, *lbit, "value mismatch");
 
         auto query = test_seq[i] + "a";
-        auto lbit2 = trie->lower_bound(std::begin(query), std::end(query));
+        auto lbit2 = trie->lower_bound(query);
 
         //print_hex(std::cout << "1)", test_seq[i + 1]);
         //print_hex(std::cout << "2)", lbit2.key());
         tresult.assert_true(tools::container_equals(lbit2.key(), test_seq[i + 1], &tools::sign_tolerant_cmp<atom_t>));
 
-        auto lbit3 = trie->lower_bound(std::begin(test), std::end(test) - 1);//take shorter key
+        lbeg = std::begin(test);
+        auto lbit3 = trie->lower_bound(lbeg, std::end(test) - 1);//take shorter key
         tresult.assert_true(tools::container_equals(lbit3.key(), test, &tools::sign_tolerant_cmp<atom_t>));
         tresult.assert_true(x == *lbit);
     }
@@ -424,7 +428,8 @@ void test_PrefixedFind(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
     tresult.assert_that<equals>(*lw_ch1, 1.9, "value mismatch");
     tresult.assert_that<equals>(trie->lower_bound(i_root, std::string(".xyz")), trie->end(), "iterator must be end");
-    tresult.assert_that<equals>(trie->lower_bound(trie->end(), std::string(".123")), i_root, "iterator must point to 'abc'");
+    auto i_end = trie->end();
+    tresult.assert_that<equals>(trie->lower_bound(i_end, std::string(".123")), i_root, "iterator must point to 'abc'");
     lw_ch1 = trie->lower_bound(i_root, std::string(".1"));
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.1", "key mismatch");
     tresult.assert_that<equals>(*lw_ch1, 1., "value mismatch");
@@ -1450,7 +1455,8 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(1, trie->prefixed_key_erase_all(s0), OP_CODE_DETAILS());
     tresult.assert_that<equals>(trie->begin(), trie->end(), OP_CODE_DETAILS());
 
-    tresult.assert_that<equals>(0, trie->prefixed_erase_all(trie->end()), OP_CODE_DETAILS());
+    auto erase_from = trie->end();
+    tresult.assert_that<equals>(0, trie->prefixed_erase_all(erase_from), OP_CODE_DETAILS());
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
 
     test_values.erase(s0);
@@ -1788,7 +1794,7 @@ void test_NextLowerBound(TestResult& tresult)
 }   
 
 template <class Range1, class Range2, class Vector>
-std::int64_t applyJoinRest(Range1& range1, Range2& range2, Vector &result)
+std::int64_t applyJoinRest(Range1 range1, Range2 range2, Vector &result)
 {
     auto join_result = range1->join(range2);
     
@@ -2255,181 +2261,7 @@ void test_ISSUE_0001(OP::utest::TestResult& tresult) {
 
 
 
-#include "Playbook.h"
-void test_Playb(OP::utest::TestResult& tresult) {
 
-    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
-        OP::trie::SegmentOptions()
-        .segment_size(0x110000));
-    typedef Trie<TransactedSegmentManager, double> trie_t;
-    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
-
-    typedef std::pair<atom_string_t, double> p_t;
-    using testmap_t = std::map<atom_string_t, double, lexicographic_less<atom_string_t> >;
-    testmap_t test_values;
-
-    const p_t ini_data[] = {
-        p_t((atom_t*)"a", 0.),
-        p_t((atom_t*)"a1", 1.),
-        p_t((atom_t*)"a1a", 1.1),
-        p_t((atom_t*)"a1ax", 1.11),//need this
-        p_t((atom_t*)"a1b", 1.2),
-        p_t((atom_t*)"a1bx", 1.21),
-        p_t((atom_t*)"a2", 2.),
-        p_t((atom_t*)"a2a", 2.1),
-        p_t((atom_t*)"a2ax", 2.11),//need this
-        p_t((atom_t*)"a2ay", 2.12),//need this
-        p_t((atom_t*)"a3", 3.),
-    };
-    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
-        trie->insert(s.first, s.second);
-        test_values.emplace(s.first, s.second);
-        });
-
-    atom_string_t result_prefix = "a"_astr;
-    auto range_default = OP::trie::make_mixed_range(std::const_pointer_cast<const trie_t>(trie),
-        OP::trie::Ingredient<trie_t>::ChildOfKeyBegin(result_prefix),
-        OP::trie::Ingredient<trie_t>::SiblingNext(),
-        OP::trie::Ingredient<trie_t>::ChildInRange(
-            OP::trie::StartWithPredicate(result_prefix))
-        );
-
-    range_default->for_each([&](const auto&i){
-        tresult.debug() << "{" << (const char*)i.key().c_str() << " = " << i.value() << "}\n";
-        });
-
-    test_values = testmap_t{{"a1"_astr, 1.}, {"a2"_astr, 2.}, {"a3"_astr, 3.}};
-
-    compare_containers(tresult, *range_default, test_values);
-
-    auto range_in_deep = OP::trie::make_mixed_range(std::const_pointer_cast<const trie_t>(trie),
-        OP::trie::Ingredient<trie_t>::ChildOfKeyBegin(result_prefix),
-        OP::trie::Ingredient<trie_t>::ChildInRange(
-            OP::trie::StartWithPredicate(result_prefix))
-    );
-    tresult.debug() << "~~In deep:~~\n";
-    range_in_deep->for_each([&](const auto& i) {
-        tresult.debug() << "{" << (const char*)i.key().c_str() << " = " << i.value() << "}\n";
-        });
-    using subjoin_t = OP::ranges::JoinRange< 
-        typename decltype(range_in_deep)::element_type, typename decltype(range_default)::element_type
-        >;
-
-    using wrap_deep_t = typename decltype(range_in_deep)::element_type;
-    auto result = range_default->flatten([&](const auto& i){
-        auto sub_prefix = i.key() + "a"_astr;
-        return OP::trie::make_mixed_range(std::const_pointer_cast<const trie_t>(trie),
-            OP::trie::Ingredient<trie_t>::PrefixedBegin(sub_prefix),
-            OP::trie::Ingredient<trie_t>::ChildInRange(
-                OP::trie::StartWithPredicate(sub_prefix))
-        );    
-        });
-
-    tresult.debug() << "~~Result:~~\n";
-    result->for_each([&](const auto& i) {
-        tresult.debug() << "{" << (const char*)i.key().c_str() << " = " << i.value() << "}\n";
-        });
-    // do the same but for big load
-    test_values.clear();
-    const auto big_pref = "k"_astr;
-    auto root_pos = trie->insert(big_pref, 57);
-    for (unsigned omega = 0; omega < 40; ++omega)
-    {
-        std::ostringstream fmt1;
-        fmt1 << std::setw(4) << std::setfill('0') << std::hex << omega;
-        auto omega_pos = trie->prefixed_insert(root_pos.first, fmt1.str(), 57. + omega/100.);
-        //create random noise
-        trie->prefixed_insert(omega_pos.first, "z"_astr, -1.);
-        trie->prefixed_insert(omega_pos.first, "za"_astr, -1.1);
-        auto omega_pad = trie->prefixed_insert(omega_pos.first, big_pref, 57. + omega / 100.);
-        for (unsigned meta = 0; (omega &1) && meta < 40; ++meta)
-        {
-            std::ostringstream fmt2;
-            fmt2 << std::setw(4)<<std::setfill('0') << std::hex << meta;
-            auto ins_res = trie->prefixed_insert(omega_pad.first, fmt2.str(), 57. + omega / 100. + meta / 1000.);
-            tresult.assert_true(ins_res.second, OP_CODE_DETAILS() << "Not unique");
-            test_values.emplace(ins_res.first.key(), 57. + omega / 100. + meta / 1000.);
-        }
-    }
-    // 
-
-
-
-
-    tresult.debug() << "@@@(@@(@(@****.****@)@)@@)@@@\n";
-    auto range_tst = std::make_shared<RegTrieAdapter<trie_t>>(std::const_pointer_cast<const trie_t>(trie));
-    compare_containers(tresult, *range_tst, test_values);
-    // DO the same with `flatten` and at last compare performance
-    auto super_k = trie->find("k"_astr);
-    ;
-    auto mixed_range = make_mixed_range(std::const_pointer_cast<const trie_t>(trie), 
-        Ingredient<trie_t>::ChildBegin(super_k),
-        Ingredient<trie_t>::SiblingNext{}
-    );
-    using o_t = OrderedRange<typename trie_t::key_t, typename trie_t::value_t>;
-
-    auto of_flatten = mixed_range->flatten([&](const auto& i)->std::shared_ptr<const o_t>{
-        auto out = trie->find(i.key()+ "k"_astr);
-        if (!trie->in_range(out))
-        {                          
-            return std::shared_ptr<o_t>{nullptr};
-        }
-        
-        return trie->children_range(out);
-    });
-    compare_containers(tresult, *of_flatten, test_values);
-    std::chrono::steady_clock::time_point start_tm, end_tm;
-
-    start_tm = std::chrono::steady_clock::now();
-    for (int i = 0; i < 10; ++i)
-    {
-        compare_containers(tresult, *range_tst, test_values);
-    }
-    end_tm = std::chrono::steady_clock::now();
-    tresult.info() << "Reg-range * 10 took:"
-        << std::chrono::duration_cast<std::chrono::milliseconds> (end_tm - start_tm).count() << "(ms)\n";
-    //------------------------------------------------
-    start_tm = std::chrono::steady_clock::now();
-    for (int i = 0; i < 10; ++i)
-    {
-        compare_containers(tresult, *of_flatten, test_values);
-    }
-    end_tm = std::chrono::steady_clock::now();
-    tresult.info() << "Flatten * 10 took:"
-        << std::chrono::duration_cast<std::chrono::milliseconds>(end_tm - start_tm).count() << "(ms)\n";
-    
-    auto root_mixed_range = make_mixed_range(std::const_pointer_cast<const trie_t>(trie),
-        Ingredient<trie_t>::ChildBegin(super_k),
-        Ingredient<trie_t>::PrefixedInRange(Ingredient<trie_t>::start_with_predicate_t("k"_astr))
-    );
-    auto filtered_mixed_range = root_mixed_range->filter([](const auto& i)->bool{
-        const auto& key = i.key();
-        if( key.size() != 10 )
-            return false;
-        for (size_t i = 1; i < 5; ++i)
-        {
-            if(!std::isxdigit((unsigned)key[i]))
-                return false;
-        }
-        if(key[5] != (atom_t)'k')
-            return false;
-        for (size_t i = 6; i < 10; ++i)
-        {
-            if (!std::isxdigit((unsigned)key[i]))
-                return false;
-        }
-        return true;
-        });
-
-    start_tm = std::chrono::steady_clock::now();
-    for (int i = 0; i < 10; ++i)
-    {
-        compare_containers(tresult, *filtered_mixed_range, test_values);
-    }
-    end_tm = std::chrono::steady_clock::now();
-    tresult.info() << "Filtered range * 10 took:"
-        << std::chrono::duration_cast<std::chrono::milliseconds>(end_tm - start_tm).count() << "(ms)\n";
-}
 static auto module_suite = OP::utest::default_test_suite("Trie")
 ->declare(test_TrieCreation, "creation")
 ->declare(test_TrieInsert, "insertion")
@@ -2459,6 +2291,5 @@ static auto module_suite = OP::utest::default_test_suite("Trie")
 ->declare(test_JoinRangeOverride, "override_join_range")
 ->declare(test_AllPrefixesRange, "all_prefixes_range")
 ->declare(test_ISSUE_0001, "ISSUE_0001")
-->declare(test_Playb, "playb")
 
 ;

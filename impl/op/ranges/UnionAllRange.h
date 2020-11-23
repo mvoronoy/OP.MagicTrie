@@ -93,7 +93,7 @@ namespace OP
                             new payload_t(std::move(actual_ranges), std::move(beg)));
                 };
                 iterator result(
-                    std::const_pointer_cast<range_t const>(shared_from_this()), 
+                    std::const_pointer_cast<base_t const>(this->shared_from_this()), 
                     std::move(payload));
                 return result;
             }
@@ -101,14 +101,14 @@ namespace OP
             {
                 if(!check)
                     return false;
-                const auto& pload = check.impl<payload_t>();
+                const auto& pload = check.OP_TEMPL_METH(impl)<payload_t>();
                 return !pload._ranges.empty();
             }
             void next(iterator& pos) const override
             {
                 if(!pos)
                     return;
-                auto& pload = pos.impl<payload_t>();
+                auto& pload = pos.OP_TEMPL_METH(impl)<payload_t>();
                 pload.seek_next();
             }
         private:

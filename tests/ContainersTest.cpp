@@ -34,7 +34,6 @@ std::set<T> _randomize(Tbl& tbl, F f = OP::utest::tools::randomize<T> )
 template <class Key, class T>
 void _random_test(T &tbl)
 {
-    
     std::cout << "\nRandom erase with page=[" << tbl.capacity() << "]\n";
     const unsigned limit = 2u << 16;
     for (unsigned i = 0; i < limit; ++i)

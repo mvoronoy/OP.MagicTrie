@@ -148,22 +148,22 @@ namespace OP
             
             PersistedArray<vad_t> create(dim_t capacity, payload_t && payload = payload_t())
             {
-                auto& memmngr = _topology.slot<HeapManagerSlot>();
+                auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                 //OP::vtm::TransactionGuard g(_topology.segment_manager().begin_transaction());
-                auto result = memmngr.make_array<vad_t>(capacity, std::forward<payload_t>(payload));
+                auto result = memmngr.OP_TEMPL_METH(make_array)<vad_t>(capacity, std::forward<payload_t>(payload));
                 //g.commit();
                 return PersistedArray<vad_t>(result);
             }
             /**Destroy previously allocated by #create() */
             void destroy(const PersistedArray<vad_t>& array_ref)
             {
-                auto& memmngr = _topology.slot<HeapManagerSlot>();
+                auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                 memmngr.deallocate(array_ref.address);
             }
 
             struct MoveProcessor
             {
-                friend struct this_t;
+                friend this_t;
                 
                 void move(dim_t from, dim_t to)
                 {

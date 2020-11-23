@@ -32,6 +32,7 @@ namespace OP
             using base_t = OrderedRange< typename SourceRange1::key_t, typename SourceRange1::value_t >;
             using key_comparator_t = typename base_t::key_comparator_t;
             using iterator = typename base_t::iterator;
+            using iterator_impl_t = typename iterator::impl_t;
             using key_t = typename base_t::key_t;
             using value_t = typename base_t::value_t;
             using optimized_order_t = OrderedRangeOptimizedJoin<key_t, value_t>;
@@ -89,13 +90,13 @@ namespace OP
                     std::move(right_i)
                 );
                 seek(*result);
-                return iterator(shared_from_this(), std::move(result));
+                return iterator(this->shared_from_this(), std::move(result));
             }
             bool in_range(const iterator& check) const override
             {
                 if(!check)
                     return false;
-                const auto& pload = check.impl<IteratorPayload>();
+                const auto& pload = check.OP_TEMPL_METH(impl)<IteratorPayload>();
 
                 return _left->in_range(pload._left) && _right->in_range(pload._right);
             }
@@ -103,7 +104,7 @@ namespace OP
             {
                 if(!pos)
                     return;
-                auto& pload = pos.impl<IteratorPayload>();
+                auto& pload = pos.OP_TEMPL_METH(impl)<IteratorPayload>();
                 _left->next(pload._left);
                 if (pload._optimize_right_forward)
                 {
@@ -120,7 +121,7 @@ namespace OP
                     std::move(right_i)
                 );
                 seek(*result);
-                return iterator(shared_from_this(), std::move(result));
+                return iterator(this->shared_from_this(), std::move(result));
             }
 
         private:
@@ -141,9 +142,9 @@ namespace OP
                 {
                     return _left.value();
                 }
-                std::unique_ptr<typename iterator::impl_t> clone() const override
+                std::unique_ptr<iterator_impl_t> clone() const override
                 {
-                    return std::unique_ptr<RangeIteratorImpl>{ new IteratorPayload(*this) };
+                    return std::unique_ptr<iterator_impl_t>{ new IteratorPayload(*this) };
                 }
 
                 left_iterator _left;

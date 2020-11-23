@@ -60,6 +60,7 @@ namespace OP
             SegmentOptions& memory_alignment(segment_pos_t memory_alignment)
             {
                 _memory_alignment = memory_alignment;
+                return *this;
             }
             /**
             * Segment is a big chunk of virtual memory where the all other memory blocks are allocated.
@@ -126,7 +127,7 @@ namespace OP
             inline size_t of_array(const SegmentOptions& previous)
             {
                 return
-                    align_on(sizeof(T)*n, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
+                    OP::utils::align_on(sizeof(T)*n, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
             }
             template <class T>
             struct of_array_dyn
@@ -139,7 +140,7 @@ namespace OP
                 size_t operator ()(const SegmentOptions& previous) const
                 {
                     return
-                        align_on(sizeof(T)*_count, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
+                        OP::utils::align_on(sizeof(T)*_count, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
                 }
             private:
                 size_t _count;
@@ -153,7 +154,7 @@ namespace OP
             template <class T, size_t n = 1>
             inline size_t of_assorted(const SegmentOptions& previous)
             {
-                return n*(aligned_sizeof<T>(previous.memory_alignment()) + previous.memory_alignment());
+                return n*(OP::utils::aligned_sizeof<T>(previous.memory_alignment()) + previous.memory_alignment());
             }
             /**Increase total amount of already reserved bytes by some percentage value. Used with SegmentOptions::heuristic_size. For example:
             *\code
@@ -273,13 +274,13 @@ namespace OP
                 return MemoryChunk(ro.count(), std::move(addr), std::move(ro.segment()));
             }
             /** Shorthand for \code
-                readonly_block(pos, sizeof(T)).at<T>(0)
+                writable_block(pos, sizeof(T)).at<T>(0)
             \endcode
             */
             template <class T>
             T* wr_at(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
-                return this->writable_block(pos, memory_requirement<T>::requirement, hint).at<T>(0);
+                return this->writable_block(pos, OP::utils::memory_requirement<T>::requirement, hint).template at<T>(0);
             }
             /**
             *  By the given memory pointer tries to restore origin far-pos.
@@ -303,7 +304,7 @@ namespace OP
             * @tparam F functor that accept 2 arguments of type ( segment_idx_t index_of segement, SegmentManager& segment_manager )
             */
             template <class F>
-            void foreach_segment(F& f)
+            void foreach_segment(F f)
             {
                 _fbuf.seekp(0, std::ios_base::end);
                 auto end = (size_t)_fbuf.tellp();
@@ -325,8 +326,10 @@ namespace OP
                 _listener(nullptr)
             {
                 //file is opened always in RW mode
-                std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary
-                    | (create_new ? std::ios_base::trunc : 0);
+                std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary;
+                if(create_new)
+                    mode |=  std::ios_base::trunc;
+
                 _fbuf.open(file_name, mode);
                 if (_fbuf.bad())
                     throw trie::Exception(trie::er_file_open, file_name);
@@ -396,16 +399,16 @@ namespace OP
                 details::segment_helper_p region = _cached_segments.get(
                     index,
                     [&](segment_idx_t key)
-                {
-                    render_new = true;
-                    auto offset = key * this->_segment_size;
-                    auto result = std::make_shared<details::SegmentHelper>(
-                        this->_mapping,
-                        offset,
-                        this->_segment_size);
+                    {
+                        render_new = true;
+                        auto offset = key * this->_segment_size;
+                        auto result = std::make_shared<details::SegmentHelper>(
+                            this->_mapping,
+                            offset,
+                            this->_segment_size);
                     
-                    return result;
-                }
+                        return result;
+                    }
                 );
                 if (render_new)
                 {
@@ -545,7 +548,7 @@ namespace OP
             template <class T>
             T& slot()
             {
-                return dynamic_cast<T&>(*_slots[get_type_index<T, TSlot...>::value]);
+                return dynamic_cast<T&>(*_slots[OP::utils::get_type_index<T, TSlot...>::value]);
             }
             void _check_integrity()
             {
@@ -579,7 +582,7 @@ namespace OP
                 //start write toplogy right after header
                 TopologyHeader* header = manager
                     .writable_block(FarAddress(new_segment, current_offset), addres_table_size_c)
-                    .at<TopologyHeader>(0);
+                    .template at<TopologyHeader>(0);
                 current_offset += addres_table_size_c;
                 header->_slots_count = 0;
 
