@@ -232,7 +232,7 @@ namespace OP
                 *   @tparam callback - functor with signature `callback(const atom_t* begin, const atom_t* end, const StemData& stem_header)`
                 */
                 template <class FBack>
-                void stem(const ref_stems_t& st_address, atom_t key, FBack& callback) const
+                void stem(const ref_stems_t& st_address, atom_t key, FBack callback) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     auto data_header = view<StemData>(_topology, st_address.address);
@@ -247,7 +247,7 @@ namespace OP
                 }
                 /** access stem for writing. Regardless of write operation callback accept const-string */
                 template <class FBack>
-                void stemw(const ref_stems_t& st_address, atom_t key, FBack& callback) const
+                void stemw(const ref_stems_t& st_address, atom_t key, FBack callback) const
                 {
                     //OP::vtm::TransactionGuard g(_toplogy.segment_manager().begin_transaction());
                     auto data_header = accessor<StemData>(_topology, st_address.address);
