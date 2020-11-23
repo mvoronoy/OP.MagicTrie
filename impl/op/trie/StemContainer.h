@@ -213,8 +213,8 @@ namespace OP
                     auto raw_buffer = array_accessor<atom_t>(_topology,
                         st_address.address + static_cast<segment_pos_t>(memory_requirement<StemData>::requirement),
                             data_header->height * data_header->width);
-                    segment_pos_t to_offset{ sizeof(atom_t)*data_header->height * to };
-                    segment_pos_t from_offset {sizeof(atom_t)*data_header->height * from };
+                    segment_pos_t to_offset{ static_cast<segment_pos_t>(sizeof(atom_t))*data_header->height * to };
+                    segment_pos_t from_offset { static_cast<segment_pos_t>(sizeof(atom_t))*data_header->height * from };
 
                     auto to_data = raw_buffer.subset(to_offset);
                     auto from_data = &raw_buffer[from_offset];

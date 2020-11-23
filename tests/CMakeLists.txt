@@ -20,6 +20,9 @@ ENDIF()
 message("~*~*~*~*~*~*~*~*~*~*~*")
 message("boost inc:${Boost_INCLUDE_DIRS}")
 
+find_package(Threads REQUIRED)
+
+
 enable_testing()
 
 # Add source to this project's executable.
@@ -45,6 +48,9 @@ target_include_directories(trie_test
     PUBLIC
         ${TR_HOME}
     )
+
+target_link_libraries(${PROJECT_NAME} Threads::Threads)
+
 
 # Unit tests
 add_test(NAME "OP/all" COMMAND trie_test -r ".+/.+")
