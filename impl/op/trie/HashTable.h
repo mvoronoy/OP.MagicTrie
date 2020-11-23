@@ -189,8 +189,8 @@ namespace OP
                 * @tparam OnMoveCallback - functor that is called if internal space of hash-table is optimized (shrinked). Argumnets (from, to)
                 * @return position where data has been erased (or not found if no such key)
                 */
-                template <class OnMoveCallback>
-                unsigned erase(const trie::PersistedReference<HashTableData>& ref_data, atom_t key, OnMoveCallback& on_move_callback)
+                template <class FOnMoveCallback>
+                unsigned erase(const trie::PersistedReference<HashTableData>& ref_data, atom_t key, FOnMoveCallback on_move_callback)
                 {
                     auto table_head = accessor<HashTableData>(_topology, ref_data.address);
                     unsigned hash = static_cast<unsigned>(key) & (table_head->capacity - 1); //assuming that capacity is ^ 2

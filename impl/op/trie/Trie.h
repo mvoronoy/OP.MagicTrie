@@ -647,7 +647,8 @@ namespace OP
             template <class AtomIterator>
             std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, Payload && value)
             {
-                return prefixed_upsert(end(), begin, aend, std::move(value));
+                auto temp_end = end();
+                return prefixed_upsert(temp_end, begin, aend, std::move(value));
             }
             /**Update or insert value specified by key. In other words
             *   place a string bellow pointer specified by iterator.
