@@ -741,7 +741,12 @@ namespace OP
                 if (count) { *count = 1; }
                 return result;
             }
-            
+            /**Simplfied form of erase(iterator&, size_t*)*/
+            iterator erase(iterator && pos)
+            {
+                iterator snapshot = std::move(pos);
+                return erase(snapshot, nullptr);
+            }
             /**Erase every entries that begins with prfix specified by iterator. If trie contains entry excatly matched to 
             * prefix then it is erased as well
             * @param prefx{in,out} - iterator to erase, at exit contains synced iterator (the same version as entire Trie)
