@@ -246,7 +246,7 @@ namespace OP
             template <class Os>
             friend inline std::ostream& operator <<(Os& os, const Details& d)
             {
-                os << d._result.rdbuf();
+                os << d._result.str();
                 return os;
             }
 
