@@ -79,17 +79,6 @@ namespace OP
                 throw OP::utest::TestFail(std::forward<X>(x));
             }
 
-            /*
-            template <class F, class ... Args >
-            inline std::function< F(Args...) > make_function(F&& f)
-            {
-                return std::forward<F>(f);
-            }
-
-            inline std::function< void() > make_function(void f())
-            {
-                return std::function< void() >(f);
-            } */
             /**
             *
             *   @copyright teebuf and teestream
@@ -568,20 +557,16 @@ namespace OP
             {
                 std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
                 return this->declare_case(
-                    std::make_shared<FunctionalTestCase<decltype(f)> >(
+                    std::make_shared<FunctionalTestCase>(
                     std::move(name),
                     std::move(f)
                     )
                     );
             }
-            inline TestSuite* declare(std::function<void(void)> f, std::string n = std::string())
+            inline TestSuite* declare(std::function<void(void)> f, std::string nm = std::string())
             {
-                std::string name = (n.empty()) ? typeid(f).name() : std::string(std::move(n));
-                std::shared_ptr<TestCase> pt(new FunctionalTestCase<decltype(f)>(
-                    std::move(name),
-                    std::move(f)
-                    ));
-                return this->declare_case(pt);
+                std::function<void(TestResult&)> functor = [f](TestResult&){f();};
+                return this->declare(std::move(functor), std::move(nm));
             }
             
             inline TestSuite* declare_disabled(std::function<void(TestResult&)> f, std::string n = std::string())
@@ -593,7 +578,7 @@ namespace OP
             {
                 auto fwrap = std::function< void(TestResult&) >(f);
                 std::string name = (n.empty()) ? typeid(n).name() : std::string(std::move(n));
-                std::shared_ptr<TestCase> pt(new AnyExceptionTestCase<decltype(fwrap)>(
+                std::shared_ptr<TestCase> pt(new AnyExceptionTestCase(
                     std::move(name),
                     std::move(fwrap)
                     ));
@@ -634,9 +619,10 @@ namespace OP
             std::ostream& _info_stream;
             std::ostream& _error_stream;
 
-            template <class F>
+            
             struct FunctionalTestCase : public TestCase
             {
+                template <class F>
                 FunctionalTestCase(std::string && name, F&& f) :
                     TestCase(std::move(name)),
                     _function(std::forward<F>(f))
@@ -648,14 +634,14 @@ namespace OP
                     _function(retval);
                 }
             private:
-                F _function;
+                std::function<void(TestResult&)> _function;
             };
             /**Handle test case that raises an exception*/
-            template <class F>
-            struct AnyExceptionTestCase : public FunctionalTestCase<F>
+            struct AnyExceptionTestCase : public FunctionalTestCase
             {
+                template <class F>
                 AnyExceptionTestCase(std::string && name, F&& f) :
-                    FunctionalTestCase<F>(std::move(name), std::forward<F>(f))
+                    FunctionalTestCase(std::move(name), std::forward<F>(f))
                 {
                 }
             protected:
@@ -663,7 +649,7 @@ namespace OP
                 {
                     try
                     {
-                        FunctionalTestCase<F>::run(retval);
+                        FunctionalTestCase::run(retval);
                         throw TestFail("exception was expected");
                     }
                     catch (...) {
@@ -675,10 +661,6 @@ namespace OP
 
         };
 
-        struct TestReport
-        {
-
-        };
         struct TestRunOptions
         {
             TestRunOptions()
@@ -950,17 +932,7 @@ namespace OP
                 return (unsigned char)left == right;
             }
         }
-        //
-        //  Later inline impl
-        //
-        /** Specialization for functions without arguments, it can use OP_UTEST_ASSERT
-        * instead of access to TestResult methods
-        */
-        template <>
-        void TestSuite::FunctionalTestCase< std::function<void()> >::run(TestResult& retval)
-        {
-            _function();
-        }
+        
         inline std::ostream& TestResult::info() const
         {
             return _log_level >= ResultLevel::info ? _suite->info() : _null_stream;
