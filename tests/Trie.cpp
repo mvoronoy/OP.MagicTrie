@@ -356,19 +356,21 @@ void test_TrieLowerBound(OP::utest::TestResult& tresult)
     for (auto i = 0; i < std::extent<decltype(test_seq)>::value - 1; ++i, x += 1.0)
     {
         const std::string& test = test_seq[i];
-        auto lbit = trie->lower_bound(std::begin(test), std::end(test));
+        auto lbeg = std::begin(test);
+        auto lbit = trie->lower_bound(lbeg, std::end(test));
 
         tresult.assert_true(tools::container_equals(lbit.key(), test, &tools::sign_tolerant_cmp<atom_t>));
         tresult.assert_that<equals>(x, *lbit, "value mismatch");
 
         auto query = test_seq[i] + "a";
-        auto lbit2 = trie->lower_bound(std::begin(query), std::end(query));
+        auto lbit2 = trie->lower_bound(query);
 
         //print_hex(std::cout << "1)", test_seq[i + 1]);
         //print_hex(std::cout << "2)", lbit2.key());
         tresult.assert_true(tools::container_equals(lbit2.key(), test_seq[i + 1], &tools::sign_tolerant_cmp<atom_t>));
 
-        auto lbit3 = trie->lower_bound(std::begin(test), std::end(test) - 1);//take shorter key
+        lbeg = std::begin(test);
+        auto lbit3 = trie->lower_bound(lbeg, std::end(test) - 1);//take shorter key
         tresult.assert_true(tools::container_equals(lbit3.key(), test, &tools::sign_tolerant_cmp<atom_t>));
         tresult.assert_true(x == *lbit);
     }
@@ -1452,7 +1454,8 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(1, trie->prefixed_key_erase_all(s0), OP_CODE_DETAILS());
     tresult.assert_that<equals>(trie->begin(), trie->end(), OP_CODE_DETAILS());
 
-    tresult.assert_that<equals>(0, trie->prefixed_erase_all(trie->end()), OP_CODE_DETAILS());
+    auto erase_from = trie->end();
+    tresult.assert_that<equals>(0, trie->prefixed_erase_all(erase_from), OP_CODE_DETAILS());
     tresult.assert_that<equals>(1, trie->nodes_count(), OP_CODE_DETAILS());
 
     test_values.erase(s0);
@@ -1790,7 +1793,7 @@ void test_NextLowerBound(TestResult& tresult)
 }   
 
 template <class Range1, class Range2, class Vector>
-std::int64_t applyJoinRest(Range1& range1, Range2& range2, Vector &result)
+std::int64_t applyJoinRest(Range1 range1, Range2 range2, Vector &result)
 {
     auto join_result = range1->join(range2);
     
