@@ -304,7 +304,8 @@ namespace OP
             template <class Atom>
             iterator lower_bound(Atom& begin, Atom aend) const
             {
-                return lower_bound(end(), begin, aend);
+                auto tmp_end = end();
+                return lower_bound(tmp_end, begin, aend);
             }
             /**
             *   Just shorthand notation for:
