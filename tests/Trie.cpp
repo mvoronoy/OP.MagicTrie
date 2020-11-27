@@ -1850,6 +1850,7 @@ void test_JoinRangeOverride(TestResult& tresult)
                 return rand_str_base[OP::utest::tools::wrap_rnd() % rand_str_base.length()];
             });
         trie1->insert(rnd_val, i);
+        tresult.info()<<":";
         if(((int)rnd_val[0]) % 2 == 0 )
             trie2->insert(rnd_val, i);
         if( ((int)rnd_val[0]) % 3 == 0)

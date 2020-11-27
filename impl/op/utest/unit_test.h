@@ -426,8 +426,8 @@ namespace OP
                 {
                     retval._end_time = std::chrono::steady_clock::now();
                     retval._status = TestResult::exception;
-                    render_exception_status(retval, e);
-                }
+                    retval.info() <<"What:"<< e.what()<<"\n";
+\                }
                 catch (...)
                 { //hide any other exception
                     retval._end_time = std::chrono::steady_clock::now();
