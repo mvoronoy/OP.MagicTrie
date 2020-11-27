@@ -1837,15 +1837,17 @@ void test_JoinRangeOverride(TestResult& tresult)
     constexpr size_t trie_limit = 5000;
     atom_string_t rnd_val;
     rnd_val.reserve(avg_str_len);
+    static const atom_string_t rand_str_base = "0123456789"\
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"\
+                    "abcdefghijklmnopqrstuvwxyz"_astr;
     for (size_t i = 0; i < trie_limit; ++i)
     {
         tresult.info()<<".";
-        OP::utest::tools::randomize_str(rnd_val, avg_str_len, avg_str_len, [](){
-                static const char res[] = 
-                    "0123456789"\
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"\
-                    "abcdefghijklmnopqrstuvwxyz";
-                return ((const std::uint8_t*)res)[OP::utest::tools::wrap_rnd() % (sizeof(res)/sizeof(res[0]) - 1)];
+        if((i % 32) == 0 )
+            tresult.info()<<i<<"\n";
+        OP::utest::tools::randomize_str(rnd_val, avg_str_len, avg_str_len, [&](){
+                
+                return rand_str_base[OP::utest::tools::wrap_rnd() % rand_str_base.length()];
             });
         trie1->insert(rnd_val, i);
         if(((int)rnd_val[0]) % 2 == 0 )

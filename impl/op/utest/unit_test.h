@@ -20,6 +20,7 @@
 #include <mutex>
 #include <cstdint>
 #include <signal.h> 
+#include <random>
 #include <op/utest/unit_test_is.h>
 
 
@@ -711,9 +712,10 @@ namespace OP
         }
         namespace tools
         {
-            inline int wrap_rnd()
+            inline size_t wrap_rnd()
             {
-                return std::rand();
+                static std::mt19937 gen;
+                return gen();
             }
 
             template <class V, class F >
@@ -724,10 +726,9 @@ namespace OP
                     return target;
                 auto l = (min_size == max_size) ? min_size : (
                     (wrap_rnd() % (max_size - min_size)) + min_size);
-                target.reserve(l);
-                using insert_it_t = typename std::insert_iterator<V>;
-                for (insert_it_t a(target, std::begin(target)); l--; ++a)
-                    *a = value_factory();
+                target.reserve(max_size);
+                std::generate_n(std::back_insert_iterator<V>(target), l, value_factory);
+
                 return target;
             }
 
@@ -735,22 +736,24 @@ namespace OP
             template <class T>
             inline T randomize();
 
-
             inline std::string& randomize(std::string& target, size_t max_size, size_t min_size = 0) 
             {
-                return randomize_str(target, max_size, min_size, []()->char {return (static_cast<char>(std::rand() % ('_' - '0')) + '0'); });
+                return randomize_str(target, max_size, min_size, 
+                    []()->std::string::value_type {
+                    return static_cast<std::string::value_type>((wrap_rnd() % std::abs('_' - '0')) + '0'); 
+                });
             }
 
             template <>
             inline std::string randomize<std::string>()
             {
                 std::string target;
-                return randomize_str( target, 12, 12,  []()->char {return (static_cast<char>(std::rand() % ('_' - '0')) + '0'); } );
+                return randomize( target, 12, 12 );
             }
 
             inline int random_value()
             {
-                return wrap_rnd();
+                return static_cast<int>(wrap_rnd() % std::numeric_limits<int>::max()) ;
             }
             
             template <>
