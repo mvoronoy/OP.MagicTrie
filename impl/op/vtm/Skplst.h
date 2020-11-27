@@ -72,21 +72,23 @@ namespace OP
                     FarAddress prev_pos = entry_offset_by_idx(index);
                     auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));
 
-                    const ForwardListBase* prev_ent = prev_block.at<ForwardListBase>(0);
+                    const ForwardListBase* prev_ent = prev_block.OP_TEMPL_METH(at)<ForwardListBase>(0);
                     for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos); )
                     {
                         //make 2 reads to avoid overlapped-block exception
                         auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
-                        const MemoryBlockHeader * mem_header = mem_header_block.at<MemoryBlockHeader>(0);
+                        const MemoryBlockHeader * mem_header = mem_header_block
+                            .OP_TEMPL_METH(at)<MemoryBlockHeader>(0);
                         auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(ForwardListBase));
-                        const ForwardListBase* curr = curr_block.at<ForwardListBase>(0);
+                        const ForwardListBase* curr = curr_block
+                            .OP_TEMPL_METH(at)<ForwardListBase>(0);
 
                         if (!traits.less(mem_header->size(), key))
                         {
                             try
                             {
                                 auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
-                                auto ent = wr_prev_block.at< ForwardListBase >(0);
+                                auto ent = wr_prev_block.OP_TEMPL_METH(at)< ForwardListBase >(0);
                                 ent->next = curr->next;
                                 return pos;
                             }
@@ -135,20 +137,20 @@ namespace OP
                 
                 FarAddress prev_pos = entry_offset_by_idx(index);
                 auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));
-                const ForwardListBase* prev_ent = prev_block.at<ForwardListBase>(0);
+                const ForwardListBase* prev_ent = prev_block.OP_TEMPL_METH(at)<ForwardListBase>(0);
                 auto list_insert = [&](){
                         auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
-                        auto wr_prev_ent = wr_prev_block.at< ForwardListBase >(0);
+                        auto wr_prev_ent = wr_prev_block.OP_TEMPL_METH(at)< ForwardListBase >(0);
                         ref->next = wr_prev_ent->next;
                         wr_prev_ent->next = t;
                 };
                 for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos);)
                 {
                     auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
-                    const MemoryBlockHeader * mem_header = mem_header_block.at<MemoryBlockHeader>(0);
+                    const MemoryBlockHeader * mem_header = mem_header_block.OP_TEMPL_METH(at)<MemoryBlockHeader>(0);
 
                     auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(typename traits_t::target_t));
-                    typename traits_t::const_ptr_t curr = curr_block.at<typename traits_t::target_t>(0);
+                    typename traits_t::const_ptr_t curr = curr_block.OP_TEMPL_METH(at)<typename traits_t::target_t>(0);
 
                     if (!traits.less(mem_header->size(), key))
                     {

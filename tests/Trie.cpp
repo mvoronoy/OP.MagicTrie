@@ -317,15 +317,15 @@ void test_TrieLowerBound(OP::utest::TestResult& tresult)
     typedef Trie<TransactedSegmentManager, double> trie_t;
 
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
-    std::map<std::string, double> test_values;
+    std::map<atom_string_t, double> test_values;
     // Populate trie with unique strings in range from [0..255]
     // this must cause grow of root node
-    const std::string test_seq[] = { "abc", "bcd", "def", "fgh", "ijk", "lmn" };
+    const atom_string_t test_seq[] = { "abc"_astr, "bcd"_astr, "def"_astr, "fgh"_astr, "ijk"_astr, "lmn"_astr };
 
     double x = 0.0;
     for (auto i : test_seq)
     {
-        const std::string& test = i;
+        const auto& test = i;
         auto ins_res = trie->insert(std::begin(test), std::end(test), x);
         tresult.assert_true(ins_res.second);
         tresult.assert_true(tools::container_equals(ins_res.first.key(), test, &tools::sign_tolerant_cmp<atom_t>));
@@ -355,14 +355,14 @@ void test_TrieLowerBound(OP::utest::TestResult& tresult)
 
     for (auto i = 0; i < std::extent<decltype(test_seq)>::value - 1; ++i, x += 1.0)
     {
-        const std::string& test = test_seq[i];
+        const auto& test = test_seq[i];
         auto lbeg = std::begin(test);
         auto lbit = trie->lower_bound(lbeg, std::end(test));
 
         tresult.assert_true(tools::container_equals(lbit.key(), test, &tools::sign_tolerant_cmp<atom_t>));
         tresult.assert_that<equals>(x, *lbit, "value mismatch");
 
-        auto query = test_seq[i] + "a";
+        auto query = test_seq[i] + "a"_astr;
         auto lbit2 = trie->lower_bound(query);
 
         //print_hex(std::cout << "1)", test_seq[i + 1]);
@@ -375,18 +375,18 @@ void test_TrieLowerBound(OP::utest::TestResult& tresult)
         tresult.assert_true(x == *lbit);
     }
     //handle case of stem_end
-    std::string test_long(258, 'k');
+    atom_string_t test_long(258, 'k'_atom);
     auto long_ins_res = trie->insert(test_long, 7.5);
-    test_long += "aa";
+    test_long += "aa"_astr;
     auto lbegin = std::begin(test_long);
     auto llong_res = trie->lower_bound(lbegin, std::end(test_long));
     tresult.assert_true(tools::container_equals(llong_res.key(), test_seq[5], &tools::sign_tolerant_cmp<atom_t>));
     //handle case of no_entry
     for (auto fl : test_seq)
     {
-        auto fl_div = fl + "0";
+        auto fl_div = fl + "0"_astr;
         tresult.assert_true(trie->insert(fl_div, 75.).second, "Item must not exists");
-        fl += "xxx";
+        fl += "xxx"_astr;
         auto fl_res = trie->lower_bound(fl);
         tresult.assert_that<equals>(fl_res, trie->end(), "Item must not exists");
         fl_res = trie->lower_bound(fl_div);

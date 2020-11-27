@@ -501,21 +501,23 @@ namespace OP
                 ));
             }
 
-            using sibling_range_t = SiblingRangeAdapter<this_t>;
-
             /**Return range that allows iterate all immediate childrens of specified prefix*/
             ordered_range_ptr sibling_range(const atom_string_t& key) const
             {
-                return ordered_range_ptr(new sibling_range_t(this->shared_from_this(), key));
+                return ordered_range_ptr( make_mixed_range(
+                    this->shared_from_this(), 
+                    typename Ingredient<this_t>::Find(key), 
+                    typename Ingredient<this_t>::SiblingNext{}) ) ;
+                
             }
             /**Return range that allows iterate all immediate childrens of specified prefix*/
-            ordered_range_ptr sibling_range(iterator pos) const
+           /* ordered_range_ptr sibling_range(iterator pos) const
             {
                 auto zhis = this->shared_from_this();
                 return ordered_range_ptr( 
                     new sibling_range_t(zhis, [pos{std::move(pos)}]() { return pos; })
                 );
-            }
+            }*/
             
             /** utilize feature of Trie where all entries below the single prefix are lexicographicaly ordered.
             * This range provide access to ordered sequence of suffixes. In simplified view you can think 
@@ -1216,6 +1218,9 @@ namespace OP
                     }
                     return false;//not an exact match
                 }
+                case stem::StemCompareResult::stem_end:
+                    break; //just follow
+                
                 }
                 //when: stem::StemCompareResult::stem_end || stem::StemCompareResult::string_end ||
                 //   ( stem::StemCompareResult::unequals && !iter.is_end())

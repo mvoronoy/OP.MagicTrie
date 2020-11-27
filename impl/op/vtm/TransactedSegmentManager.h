@@ -249,10 +249,9 @@ namespace OP
                 
                 BlockUse(flag_t capture_kind, Transaction::transaction_id_t id) OP_NOEXCEPT
                     : _transaction_flag(capture_kind)
-                    , _transactions{ {id} }
                     , _shadow_buffer{ nullptr, BlockUse::dummy_deleter }
                 {
-                    
+                    _transactions.emplace(id);
                 }
                 BlockUse(const BlockUse&) = delete;
                 BlockUse& operator = (const BlockUse&other) = delete;
@@ -457,7 +456,7 @@ namespace OP
                     _save_points.emplace_back(new SavePoint(this));
                     return _save_points.back();
                 }
-                virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler)
+                virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
                 {
                     _end_listener.emplace_back(std::move(handler));
                 }

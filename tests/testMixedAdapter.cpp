@@ -35,9 +35,8 @@ void testDefault(OP::utest::TestResult& tresult)
     using mix_ns = Ingredient<trie_t>;
 
 
-    mix_ns mix0{};
     using my_range0 = OP::trie::MixAlgorithmRangeAdapter < trie_t >;
-    auto test_range0 = std::make_shared< my_range0 >( trie, mix0 );
+    auto test_range0 = std::make_shared< my_range0 >(std::piecewise_construct, trie);
     tresult.assert_false(test_range0->in_range(test_range0->begin()), "Wrong empty case");
 
     std::map<atom_string_t, double> test_values;
@@ -93,10 +92,12 @@ void testChildConfig(OP::utest::TestResult& tresult)
     
     atom_string_t common_prefix = "abc"_astr;
     
-    using my_range = OP::trie::MixAlgorithmRangeAdapter< trie_t, mix_ns::ChildBegin, mix_ns::SiblingNext, mix_ns::ChildInRange>;
 
-    auto test_range = std::make_shared< my_range>(
-        trie, common_prefix, trie->find(common_prefix), StartWithPredicate(common_prefix) );
+    auto test_range = OP::trie::make_mixed_range(  
+        trie, 
+        typename mix_ns::ChildBegin(trie->find(common_prefix)), 
+        typename mix_ns::SiblingNext{}, 
+        typename mix_ns::ChildInRange(StartWithPredicate(common_prefix)) );
     auto first_ch1 = test_range->begin();//of 'abc'
 
     tresult.assert_that<equals>(first_ch1.key(), "abc.1"_atom, "key mismatch");
@@ -111,9 +112,7 @@ void testChildConfig(OP::utest::TestResult& tresult)
     };
     compare_containers(tresult, *test_range, test_values);
 
-    using my_range2 = OP::trie::MixAlgorithmRangeAdapter< trie_t, mix_ns::ChildBegin>;
-
-    auto test_range2 = std::make_shared< my_range2>( trie, trie->find(common_prefix) );
+    auto test_range2 = OP::trie::make_mixed_range( trie, mix_ns::ChildBegin(trie->find(common_prefix)) );
     test_values.clear();
     test_values = {
     p_t("abc.1"_astr, 1.),
@@ -164,11 +163,9 @@ void test_ISSUE_0002(OP::utest::TestResult& tresult)
     atom_string_t result_prefix = "\0x80AAAAAg\0x81"_astr;
     auto range_of_trie = trie->range();
     using range_trie_t = typename decltype(range_of_trie)::element_type;
-    auto source_range = OP::trie::make_mixed_range(
-        std::const_pointer_cast<trie_t const>( trie ),
-        OP::trie::Ingredient<trie_t>::ChildOfKeyBegin(
-            result_prefix),
-        OP::trie::Ingredient<trie_t>::SiblingNext());
+    auto source_range = OP::trie::make_mixed_range( trie,
+        typename Ingredient<trie_t>::ChildOfKeyBegin(result_prefix),
+        typename Ingredient<trie_t>::SiblingNext{});
 
     std::map<atom_string_t, double> test_values = {
             p_t("\0x80AAAAAg\0x81AAAAAgAAAAIAAAAC"_astr, 0.),

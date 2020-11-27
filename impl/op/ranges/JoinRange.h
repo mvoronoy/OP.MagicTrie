@@ -75,7 +75,7 @@ namespace OP
             JoinRange(
                 std::shared_ptr<SourceRange1 const> r1, 
                 std::shared_ptr<SourceRange2 const> r2) noexcept
-                : this_t(std::move(r1), std::move(r2), r1->key_comp())
+                : this_t(r1/*don't move since r1->key_comp()*/, std::move(r2), r1->key_comp())
             {
             }
 

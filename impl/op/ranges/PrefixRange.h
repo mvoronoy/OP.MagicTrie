@@ -10,6 +10,10 @@
 
 #ifdef _MSC_VER
 #pragma warning(disable : 4503)
+#elif defined(__clang__)
+#pragma clang diagnostic push
+// override for several methods in this file ommited intentionally
+#pragma clang diagnostic ignored "-Winconsistent-missing-override"
 #endif
 
 namespace OP
@@ -686,5 +690,10 @@ namespace OP {
         }
     }//ns:ranges
 }//ns:OP
+
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #endif //_OP_RANGES_PREFIX_RANGE__H_

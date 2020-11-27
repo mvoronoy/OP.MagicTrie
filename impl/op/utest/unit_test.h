@@ -24,8 +24,8 @@
 
 
 /**Render inline information like __FILE__, __LINE__ in lazy way (rendered only on demand) */
-#define _OP_LAZY_INLINE_INFO(...) ([&]()->OP::utest::Details&& { OP::utest::Details res;\
-        res << "{File:" << __FILE__ << " at:" << __LINE__  << "}" __VA_ARGS__ ; return std::move(res);\
+#define _OP_LAZY_INLINE_INFO(...) ([&]()->OP::utest::Details { OP::utest::Details res;\
+        res << "{File:" << __FILE__ << " at:" << __LINE__  << "}" __VA_ARGS__ ; return res;\
     })
 /** Allows place usefull information to details output.
 * Usage:
@@ -73,76 +73,8 @@ namespace OP
 
         namespace _inner {
 
-            template <class X>
-            inline bool _uncondition_exception_raise(X&&x)
-            {
-                throw OP::utest::TestFail(std::forward<X>(x));
-            }
+            inline bool _uncondition_exception_raise(std::string x);
 
-            /**
-            *
-            *   @copyright teebuf and teestream
-            *       idea and implementation copied from article http://wordaligned.org/articles/cpp-streambufs where sources are distributed
-            *       over public domain
-            */
-            class multiplex_buf : public std::streambuf
-            {
-            public:
-
-                multiplex_buf() = default;
-                multiplex_buf(multiplex_buf&& ) = default;
-                multiplex_buf(const multiplex_buf& ) = delete;
-
-                /**
-                * Bind some stream-buffer to multiplexor
-                */
-                void bind(std::streambuf * sb)
-                {
-                    _buffers.emplace_back(sb);
-                }
-                /**
-                *   Remove previously #bind stream-buf from this multiplexor
-                */
-                void unbind(std::streambuf * sb)
-                {
-                    auto pos = std::find(_buffers.begin(), _buffers.end(), sb);
-                    if (pos != _buffers.end())
-                        _buffers.erase(pos);
-                }
-            private:
-                // This tee buffer has no buffer. So every character "overflows"
-                // and can be put directly into the teed buffers.
-                virtual int overflow(int c)
-                {
-                    if (c == EOF)
-                    {
-                        return !EOF;
-                    }
-                    else
-                    {
-                        bool is_eof = false;
-                        for (auto sb : _buffers)
-                        {
-                            is_eof = is_eof || EOF == sb->sputc(c);
-                        }
-                        return is_eof ? EOF : c;
-                    }
-                }
-
-                // Sync both teed buffers.
-                virtual int sync()
-                {
-                    int sync_stat = 0;
-                    for (auto sb : _buffers)
-                    {
-                        sync_stat = sb->pubsync() == 0 && sync_stat == 0 ? 0 : -1;
-                    }
-                    return sync_stat;
-                }
-            private:
-                typedef std::vector<std::streambuf *> multiplex_t;
-                multiplex_t _buffers;
-            };
             /** Do nothing buffer */
             class null_buffer : public std::streambuf
             {
@@ -150,26 +82,6 @@ namespace OP
               int overflow(int c) { return c; }
             };
 
-            class multiplex_stream : public std::ostream
-            {
-            public:
-                // Construct an ostream which tees output to the supplied
-                // ostreams.
-                multiplex_stream()
-                    : std::ostream(&_tbuf)
-                {
-                }
-                void bind(std::ostream*os)
-                {
-                    _tbuf.bind(os->rdbuf());
-                }
-                void unbind(std::ostream*os)
-                {
-                    _tbuf.unbind(os->rdbuf());
-                }
-            private:
-                multiplex_buf _tbuf;
-            };
 
         } //inner namespace
         struct Identifiable
@@ -196,20 +108,16 @@ namespace OP
         
         -# memory effective inline construction. For example:
             OP::utils::Details() << 123 << "abc";
-        -# switching between inner buffer and other std::ostream. For example:
-            details.as_stream().bind(&std::cout);
-            ...
-            //to switch back
-            details.as_stream().unbind(&std::cout);
-        
         */
         struct Details
         {
             Details()
             {
-                _result_multiplex.bind(&_result);
             }
-            Details(Details&& ) = default;
+            Details(Details&& other)
+                : _result(std::move(other._result))
+            {
+            }
             Details(const Details& other)
                 : Details()
             {
@@ -226,9 +134,9 @@ namespace OP
                 auto offset = _result.tellp();
                 return offset == (std::streamoff)0;
             }
-            _inner::multiplex_stream& as_stream()
+            std::ostream& as_stream()
             {
-                return _result_multiplex;
+                return _result;
             }
             template <class T>
             friend inline Details& operator << (Details&d, T && t)
@@ -252,7 +160,6 @@ namespace OP
 
         private:
             std::stringstream _result;
-            _inner::multiplex_stream _result_multiplex;
         };
         
         /**Specialization of exception to distinguish fail from aborted state*/
@@ -412,17 +319,6 @@ namespace OP
                 guard_t g(*_access_result);
                 do_log(std::forward<Xetails>(details)...);
                 throw TestFail();
-            }
-        protected:
-            void join_stream(std::ostream& os)
-            {
-                guard_t g(*_access_result);
-                _status_details.as_stream().bind(&os);
-            }
-            void leave_stream(std::ostream& os)
-            {
-                guard_t g(*_access_result);
-                _status_details.as_stream().unbind(&os);
             }
         private:
             void do_log()
@@ -789,7 +685,6 @@ namespace OP
                         std::shared_ptr<TestResult> result{ std::make_shared<TestResult>(suite.shared_from_this()) };
                         result->log_level(_options.log_level()); 
                         //allow output error right after appear
-                        result->join_stream(suite.error());
                         suite.info() <<"\t["<<test.id()<<"]...\n";
                         test.execute(*result);
 
@@ -797,7 +692,6 @@ namespace OP
                             <<"\t["<<test.id()<< "] done with status:"
                             << "-=["<<result->status_to_str() << "]=-" 
                             << " in:"<<std::fixed<< result->ms_duration()<< "ms\n";
-                        result->leave_stream(suite.error());
                         f(std::move(result));
                     }
                     return true;//always continue
@@ -808,6 +702,13 @@ namespace OP
             suites_t _suites;
             TestRunOptions _options;
         };
+        namespace _inner {
+
+            inline bool _uncondition_exception_raise(std::string x)
+            {
+                throw OP::utest::TestFail(std::move(x));
+            }
+        }
         namespace tools
         {
             inline int wrap_rnd()

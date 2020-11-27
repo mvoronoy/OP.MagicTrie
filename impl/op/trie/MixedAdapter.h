@@ -1,7 +1,7 @@
 #pragma once
 #include <op/ranges/PrefixRange.h>
 #include <op/ranges/OrderedRange.h>
-//#include <op/common/NamedArgs.h>
+
 #include <memory>
 #include <functional>
 #include  <type_traits>
@@ -25,12 +25,8 @@ namespace OP
         /**Implement functor for subrange method to implement predicate that detects end of range iteration*/
         struct StartWithPredicate
         {
-            StartWithPredicate(atom_string_t && prefix)
+            StartWithPredicate(atom_string_t prefix)
                 : _prefix(std::move(prefix))
-            {
-            }
-            explicit StartWithPredicate(const atom_string_t& prefix)
-                : _prefix(prefix)
             {
             }
 
@@ -43,7 +39,7 @@ namespace OP
                 return std::equal(_prefix.begin(), _prefix.end(), str.begin());
             }
         private:
-            atom_string_t _prefix;
+            const atom_string_t _prefix;
         };
 
         namespace details
@@ -73,13 +69,6 @@ namespace OP
             /** Ingredient for MixAlgorithmRangeAdapter - allows range use `first_child` method instead of `begin` */
             struct ChildBegin
             {
-                /** Construct by finding `first_child` from interator. For details see Trie::first_child */ 
-                template <class SharedArguments>
-                ChildBegin(const SharedArguments& args)
-                    : _iterator(std::get<typename Trie::iterator>(args))
-                {
-                }
-
                 ChildBegin(typename Trie::iterator iter)
                     : _iterator(std::move(iter))
                 {
@@ -96,14 +85,9 @@ namespace OP
             /** Ingredient for MixAlgorithmRangeAdapter - allows range use `find(key | `first_child` method instead of `begin` */
             struct ChildOfKeyBegin
             {
-                /** Construct by finding `first_child` from interator. For details see Trie::first_child */ 
-                template <class SharedArguments>
-                ChildOfKeyBegin(const SharedArguments& args)
-                    : _key(std::get<atom_string_t>(args))
-                {
-                }
-                ChildOfKeyBegin(const atom_string_t& key)
-                    : _key(key)
+                
+                ChildOfKeyBegin(atom_string_t key)
+                    : _key(std::move(key))
                 {
                 }
 
@@ -188,12 +172,6 @@ namespace OP
             * range iterates over items with specific prefix */
             struct PrefixedInRange
             {
-                /**Construct with shared tuple, expects that `start_with_predicate_t ` exists*/
-                template <class SharedArguments>
-                PrefixedInRange(const SharedArguments& args)
-                    : _prefix_check(std::get<start_with_predicate_t>(args))
-                    {}
-
                 PrefixedInRange(start_with_predicate_t pred)
                     : _prefix_check(std::move(pred))
                     {}
@@ -236,9 +214,8 @@ namespace OP
             /** Ingredient for MixAlgorithmRangeAdapter - implments `find` to play role of begin */
             struct Find
             {
-                template <class SharedArguments>
-                Find(const SharedArguments& args)
-                    : _key(std::get<atom_string_t>(args))
+                Find(atom_string_t key)
+                    : _key(std::move(key))
                 {}
 
                 typename Trie::iterator _begin(const Trie& trie) const
@@ -252,22 +229,41 @@ namespace OP
 
         };
 
+        /**
+        Motivation: Trie and PrefixedRanges contains lot of algorithms to do conceptually similar actions in different way. 
+            For example you can initialize iteration over begin, find, lower_bound... . But range-based c++ for loop allows 
+            leverage only begin/end pair. 
+            (Of course c++20 ranges library gives a way to overcome this but using runtime capabilities only).
+        Rationale: range-base for loop expects from container 2 simple idioms "give me begin of range and end of range". 
+            Programmers have several ways to implement such idioma:
+                \li create proxy to feed begin/end in expected way (actually c++20 ranges do it) ;
+                \li overrides some method by inheritance;
+                \li provide lambda/callback to invoke correct functionality.
+        Mixer gives another alternative by combining small implmentations at compile time.
+        \code
+            Mixer<Trie, Ingedient::PrefixedBegin, Ingedient::SiblingNext>
+        \endcode
+        Allows specify that instead of `begin` used prefixed-begin and instead of `next` used sibling-next to create result 
+        range
+                    
+        */
         template <class Trie, class ... Mx>
         struct Mixer;
 
-
+        /** Specialization of Mixer that provide default implmentation */
         template <class Trie>
         struct Mixer<Trie> 
         {
             explicit Mixer() = default;
             template<class SharedArguments>
             explicit Mixer(const SharedArguments& arguments) noexcept{}
-            //default impl that invoke Trie::
+            //default impl that invoke Trie::begin
             typename Trie::iterator _begin(const Trie& trie) const
             {
                 return trie.begin();
             }
             
+            //default impl that invoke Trie::next
             void _next(const Trie& trie, typename Trie::iterator& i) const
             {
                 trie.next(i);
@@ -294,29 +290,11 @@ namespace OP
             }
 
         };
-        /** class aggregates together all algorithms */
+        /** Specialization of Mixer that mixes multiple ingredients by apply move constructor */
         template <class Trie, class M, class ... Mx>
         struct Mixer<Trie, M, Mx...> : public M, public Mixer<Trie, Mx ... >
         {
             using base_t = Mixer<Trie, Mx ... >;
-            using this_t = Mixer<Trie, M >;
-
-            /** Constructor suppose Ingredient::???? accept tuple parameter*/
-            template < typename ...  Args,
-                    typename = std::enable_if_t< !std::is_default_constructible<M>::value >
-            >
-            explicit Mixer(const std::tuple<Args ...>& arguments) noexcept
-                : M(arguments)
-                , base_t(arguments)
-            {
-            }
-
-            template <typename ...  Args,
-                typename = std::enable_if_t< std::is_default_constructible<M>::value >
-            >
-            explicit Mixer(const std::tuple<Args ...>& arguments, ...) noexcept
-                : base_t(arguments)
-            {}
 
             explicit Mixer(M && m, Mx&& ... mx) noexcept
                 : M (std::forward<M>(m))
@@ -370,13 +348,7 @@ namespace OP
             {
             }
 
-            template <typename ...  Args>
-            MixAlgorithmRangeAdapter(std::shared_ptr<const trie_t> parent, Args&& ... args) noexcept
-                : base_t( [](const key_t& left, const key_t& right) -> int{ return left.compare(right);})
-                , _parent(std::move(parent))
-                , _mixer(std::make_tuple(std::forward<Args>(args)...))
-            {
-            }
+            
 
             MixAlgorithmRangeAdapter(std::piecewise_construct_t _, std::shared_ptr<const trie_t> parent, Mx&& ... args) noexcept
                 : base_t( [](const key_t& left, const key_t& right) -> int{ return left.compare(right);})
@@ -446,7 +418,7 @@ namespace OP
                 mutable typename trie_t::value_t _ref_value_pack;
             };
             /** Method compiled only when class Trie supported next_lower_bound_of */
-            template <class Str, class U = std::enable_if_t<OP_CHECK_CLASS_HAS_MEMBER(TTrie, next_lower_bound_of)> >
+            template <class Str/*, class U = std::enable_if_t<OP_CHECK_CLASS_HAS_MEMBER(TTrie, next_lower_bound_of)>*/ >
             void _next_lower_bound_of(typename TTrie::iterator& i, const Str& key) const
             {
                 _parent->next_lower_bound_of(i, key);
@@ -465,6 +437,12 @@ namespace OP
         {
             using mixed_t = MixAlgorithmRangeAdapter<TTrie, Mx...>;
             return std::make_shared<mixed_t>(std::piecewise_construct, std::move(trie), std::forward<Mx>(args)...);
+        }
+        template <class TTrie, class ... Mx>
+        std::shared_ptr< MixAlgorithmRangeAdapter<TTrie, Mx...> const>
+        make_mixed_range(std::shared_ptr<TTrie> trie, Mx&& ...args)
+        {
+            return make_mixed_range(std::const_pointer_cast<TTrie const>(trie), std::forward<Mx>(args)...);
         }
 
 

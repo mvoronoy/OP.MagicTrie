@@ -76,13 +76,14 @@ namespace OP
                 header->_adjacent_count = 1;
                 op_g.commit();
             }
-            void _check_integrity(FarAddress segment_addr, SegmentManager& manager)
+            void _check_integrity(FarAddress segment_addr, SegmentManager& manager) override
             {
                 if (segment_addr.segment != 0)
                     return;
                 //check from _zero_header_address
                 auto header = 
-                    manager.readonly_block(_zero_header_address, sizeof(ZeroHeader)).at<ZeroHeader>(0);
+                    manager.readonly_block(_zero_header_address, sizeof(ZeroHeader))
+                        .OP_TEMPL_METH(at)<ZeroHeader>(0);
                 size_t n_free_blocks = 0;
                 //count all free blocks
                 while( header->_next != SegmentDef::far_null_c )

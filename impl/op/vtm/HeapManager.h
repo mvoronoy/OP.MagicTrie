@@ -196,7 +196,7 @@ namespace OP
                 g.commit();
                 return result;
             }
-            void _check_integrity(FarAddress segment_addr, SegmentManager& manager)
+            void _check_integrity(FarAddress segment_addr, SegmentManager& manager) override
             {
                 FarAddress first_block_pos = segment_addr;
                 if (segment_addr.segment == 0)
