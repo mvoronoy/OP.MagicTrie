@@ -6,6 +6,7 @@
 #include <atomic>
 #include <op/common/typedefs.h>
 
+
 namespace OP
 {
     namespace utils
@@ -138,53 +139,30 @@ namespace OP
         *      memory_requirement< A > :: requirement //byte-size of struct A
         * \endcode
         */
-        template <class ... Tail>
-        struct memory_requirement: memory_requirement<std::tuple<Tail...> >
+        template <class T, size_t N = 1>
+        struct memory_requirement
         {
-            typedef typename memory_requirement<std::tuple<Tail...> >::type type;
-            enum
+            using type = typename std::aligned_storage<sizeof(T)*N, alignof(T)>::type;
+
+            static constexpr std::uint32_t requirement = static_cast<std::uint32_t>(sizeof(type));
+
+            template <typename Int>
+            static constexpr Int array_size(Int n)
             {
-                head_size = memory_requirement<std::tuple<Tail...> >::head_size,
-                requirement = memory_requirement<std::tuple<Tail...> >::requirement
-            };
-        };
-        
-        template <class Head, class ...Tail>
-        struct memory_requirement<std::tuple<Head, Tail...> > : memory_requirement<std::tuple<Tail...>>
-        {
-            typedef typename std::aligned_storage<sizeof(Head)>::type type;
-            enum
-            {
-                head_size = sizeof(type),
-                requirement = memory_requirement<std::tuple<Tail...>>::requirement + head_size
-            };
-        };
-        template <class Head>
-        struct memory_requirement<std::tuple<Head> > 
-        {
-            typedef typename std::aligned_storage<sizeof(Head)>::type type;
-            enum
-            {
-                head_size = sizeof(type),
-                requirement = head_size
-            };
+                return static_cast<Int>(sizeof(type))* n;
+            }
         };
 
         template <class T, class Y>
         OP_CONSTEXPR(OP_EMPTY_ARG) inline T align_on(T address, Y base)
         {
-            return (address % base) ? (address + (base - (address % base))) : address;
+            return ((address + base - 1) / base)*base;//(address % base) ? (address + (base - (address % base))) : address;
         }
-        /**Rounds align down (compare with #align_on that rounds up)*/
-        template <class T, class Y>
-        OP_CONSTEXPR(OP_EMPTY_ARG) inline T ceil_align_on(T address, Y base)
-        {
-            return (address / base)*base;
-        }
+        
         template <class T, class Y>
         OP_CONSTEXPR(OP_EMPTY_ARG) inline std::uint32_t aligned_sizeof(Y base)
         {
-            return align_on(static_cast<std::uint32_t>(sizeof(T)), base);
+            return align_on(static_cast<std::uint32_t>(memory_requirement<T>::requirement), base);
         }
         template <class T, class Y>
         inline bool is_aligned(T address, Y base)
@@ -298,6 +276,6 @@ namespace OP
         template <typename T>
         using return_type_t = typename return_type<T>::type;
 
-    } //utils
+   } //utils
 } //OP
 #endif //_OP_TRIE_UTILS__H_

@@ -48,7 +48,7 @@ namespace OP
         struct SegmentOptions
         {
             SegmentOptions() :
-                _memory_alignment(16)
+                _memory_alignment(SegmentHeader::align_c)
             {
                 segment_size(1);
 
@@ -56,11 +56,6 @@ namespace OP
             segment_pos_t memory_alignment() const
             {
                 return _memory_alignment;
-            }
-            SegmentOptions& memory_alignment(segment_pos_t memory_alignment)
-            {
-                _memory_alignment = memory_alignment;
-                return *this;
             }
             /**
             * Segment is a big chunk of virtual memory where the all other memory blocks are allocated.
@@ -127,7 +122,7 @@ namespace OP
             inline size_t of_array(const SegmentOptions& previous)
             {
                 return
-                    OP::utils::align_on(sizeof(T)*n, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
+                    OP::utils::align_on(memory_requirement<T, n>::requirement, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
             }
             template <class T>
             struct of_array_dyn
@@ -140,7 +135,7 @@ namespace OP
                 size_t operator ()(const SegmentOptions& previous) const
                 {
                     return
-                        OP::utils::align_on(sizeof(T)*_count, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
+                        OP::utils::align_on(memory_requirement<T>::array_size(_count), previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
                 }
             private:
                 size_t _count;
@@ -186,7 +181,7 @@ namespace OP
             friend struct SegmentOptions;
             typedef OP::vtm::transaction_ptr_t transaction_ptr_t;
 
-            template <class Manager = SegmentManager>
+            template <class Manager>
             static std::shared_ptr<Manager> create_new(const char * file_name,
                 const SegmentOptions& options = SegmentOptions())
             {
@@ -195,7 +190,7 @@ namespace OP
                 result->_segment_size = options.segment_size();
                 return result;
             }
-            template <class Manager = SegmentManager>
+            template <class Manager>
             static std::shared_ptr<Manager> open(const char * file_name)
             {
                 auto result = std::shared_ptr<Manager>(
@@ -250,7 +245,7 @@ namespace OP
             *   @param hint - default behaviour is to release lock after ReadonlyMemoryChunk destroyed.
             * @throws ConcurentLockException if block is already locked for write
             */
-            virtual ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c) 
+            virtual ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) 
             {
                 assert((pos.offset + size) <= this->segment_size());
                 return ReadonlyMemoryChunk(size, std::move(pos), std::move(this->get_segment(pos.segment)));
@@ -354,7 +349,7 @@ namespace OP
 			template <class T>
             inline SegmentManager& do_write(const T* t, size_t n)
             {
-                const auto to_write = sizeof(T)*n;
+                const auto to_write = OP::utils::memory_requirement<T>::array_size(n);
                 _fbuf.write(reinterpret_cast<const MyFileBuf::char_type*>(t), to_write);
                 if (_fbuf.bad())
                 {
@@ -369,7 +364,7 @@ namespace OP
             template <class T>
             inline SegmentManager& do_read(T* t, size_t n)
             {
-                const auto to_read = sizeof(T)*n;
+                const auto to_read = memory_requirement<T>::array_size(n);
                 _fbuf.read(reinterpret_cast<MyFileBuf::char_type*>(t), to_read);
                 if (_fbuf.bad())
                 {
@@ -531,7 +526,7 @@ namespace OP
             enum
             {
                 slots_count_c = (sizeof...(TSlot)),
-                addres_table_size_c = sizeof(TopologyHeader) + (slots_count_c-1) * sizeof(segment_pos_t)
+                addres_table_size_c = memory_requirement<TopologyHeader>::requirement + memory_requirement<segment_pos_t>::array_size(slots_count_c-1) 
             };
             template <class Sm>
             SegmentTopology(Sm& segments) :

@@ -152,7 +152,7 @@ namespace OP
                     auto& memmngr = _topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                     
                     auto byte_size = memory_requirement<HashTableData>::requirement +
-                        memory_requirement<HashTableData::content_t>::requirement * (dim_t)capacity;
+                        memory_requirement<HashTableData::content_t>::array_size ((dim_t)capacity);
 
                     auto result = memmngr.allocate(byte_size);
                     auto table_block = _topology.segment_manager().writable_block(result, byte_size);
@@ -326,8 +326,8 @@ namespace OP
                 static FarAddress content_item_address(FarAddress base, dim_t idx = 0)
                 {
                     return base + (memory_requirement<HashTableData>::requirement +
-                        idx * memory_requirement<HashTableData::content_t>::requirement
-                        );
+                        memory_requirement<HashTableData::content_t>::array_size(idx)
+                    );
                 }
             private:
                 

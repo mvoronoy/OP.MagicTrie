@@ -208,7 +208,7 @@ bool _filter_sylable(const typename Container::iterator& it)
 }
 void test_FilterRange(OP::utest::TestResult& tresult)
 {
-    tresult.status_details().as_stream() << "test empty set\n";
+    tresult.info() << "test empty set\n";
     test_container_t src0;
 
     auto r_src0 = OP::ranges::make_range_of_map(src0);
@@ -219,7 +219,7 @@ void test_FilterRange(OP::utest::TestResult& tresult)
     src0_1.emplace("u", 2.0);
     tresult.assert_true(OP::ranges::utils::range_map_equals(*r_src0->filter(_filter_sylable<decltype(r_src0)::element_type>), src0));
 
-    tresult.status_details().as_stream() << "test basic filtering\n";
+    tresult.info() << "test basic filtering\n";
 
     test_container_t src1;
     src1.emplace("a", 1.0);
@@ -249,7 +249,7 @@ void test_FilterRange(OP::utest::TestResult& tresult)
 
 void test_UnionAllRange(OP::utest::TestResult& tresult)
 {
-    tresult.status_details().as_stream() << "test empty set\n";
+    tresult.info() << "test empty set\n";
     test_container_t src_empty;
 
     auto r_src0 = OP::ranges::make_range_of_map(src_empty),
@@ -307,7 +307,7 @@ void test_UnionAllRange(OP::utest::TestResult& tresult)
 
 void test_FirstThat(OP::utest::TestResult& tresult)
 {
-    tresult.status_details().as_stream() << "test empty set\n";
+    tresult.info() << "test empty set\n";
     test_container_t src_empty;
 
     auto r_src0 = OP::ranges::make_range_of_map(src_empty);

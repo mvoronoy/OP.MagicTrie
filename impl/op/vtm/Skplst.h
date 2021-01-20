@@ -31,7 +31,7 @@ namespace OP
             OP_CONSTEXPR(OP_EMPTY_ARG) static segment_pos_t byte_size()
             {
                 return OP::utils::align_on(
-                    static_cast<segment_pos_t>(sizeof(ForwardListBase) * bitmask_size_c),
+                    memory_requirement<ForwardListBase>::array_size( static_cast<segment_pos_t>(bitmask_size_c)),
                     SegmentHeader::align_c);
             }
             /**Format memory starting from param `start` for skip-list header
@@ -70,7 +70,7 @@ namespace OP
                 static OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
                 auto pull_op = [this, &traits, key](size_t index){
                     FarAddress prev_pos = entry_offset_by_idx(index);
-                    auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));
+                    auto prev_block = _segment_manager.readonly_block(prev_pos, memory_requirement<ForwardListBase>::requirement);
 
                     const ForwardListBase* prev_ent = prev_block.OP_TEMPL_METH(at)<ForwardListBase>(0);
                     for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos); )
@@ -79,7 +79,7 @@ namespace OP
                         auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
                         const MemoryBlockHeader * mem_header = mem_header_block
                             .OP_TEMPL_METH(at)<MemoryBlockHeader>(0);
-                        auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(ForwardListBase));
+                        auto curr_block = _segment_manager.readonly_block(FarAddress(pos), memory_requirement<ForwardListBase>::requirement);
                         const ForwardListBase* curr = curr_block
                             .OP_TEMPL_METH(at)<ForwardListBase>(0);
 
@@ -136,7 +136,7 @@ namespace OP
                 auto index = traits.entry_index(key);
                 
                 FarAddress prev_pos = entry_offset_by_idx(index);
-                auto prev_block = _segment_manager.readonly_block(prev_pos, sizeof(ForwardListBase));
+                auto prev_block = _segment_manager.readonly_block(prev_pos, memory_requirement<ForwardListBase>::requirement);
                 const ForwardListBase* prev_ent = prev_block.OP_TEMPL_METH(at)<ForwardListBase>(0);
                 auto list_insert = [&](){
                         auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
@@ -149,7 +149,9 @@ namespace OP
                     auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
                     const MemoryBlockHeader * mem_header = mem_header_block.OP_TEMPL_METH(at)<MemoryBlockHeader>(0);
 
-                    auto curr_block = _segment_manager.readonly_block(FarAddress(pos), sizeof(typename traits_t::target_t));
+                    auto curr_block = _segment_manager.readonly_block(
+                        FarAddress(pos), 
+                        memory_requirement<typename traits_t::target_t>::requirement );
                     typename traits_t::const_ptr_t curr = curr_block.OP_TEMPL_METH(at)<typename traits_t::target_t>(0);
 
                     if (!traits.less(mem_header->size(), key))
@@ -172,7 +174,7 @@ namespace OP
             FarAddress entry_offset_by_idx(size_t index) const
             {
                 FarAddress r(_list_pos);
-                return r+=static_cast<segment_pos_t>(index * sizeof(ForwardListBase));
+                return r += memory_requirement<ForwardListBase>::array_size(static_cast<segment_pos_t>(index));
             }
         };
     }//trie

@@ -16,58 +16,58 @@ namespace OP
             virtual ~BlockDisposer() OP_NOEXCEPT = default;
             virtual void on_leave_scope(MemoryChunkBase& closing) OP_NOEXCEPT = 0;
         };
-		namespace details {
-			inline void dummy_deleter(std::uint8_t *) {/*do nothing*/}
-		}
+        namespace details {
+            inline void dummy_deleter(std::uint8_t *) {/*do nothing*/}
+        }
         struct MemoryChunkBase /*: public OP::Range<std::uint8_t *, segment_pos_t>*/
         {
             //typedef OP::Range<std::uint8_t *> base_t;
             MemoryChunkBase() = default;
             MemoryChunkBase(
-				far_pos_t pos_offset,
-				const std::shared_ptr<std::uint8_t>& pos, 
-				segment_pos_t count, 
-				FarAddress && address, 
-				details::segment_helper_p && segment) OP_NOEXCEPT
+                far_pos_t pos_offset,
+                std::shared_ptr<std::uint8_t> pos, 
+                segment_pos_t count, 
+                FarAddress && address, 
+                details::segment_helper_p && segment) OP_NOEXCEPT
                 : _pos_offset(pos_offset)
-				, _pos(pos) 
-				, _count(count)
+                , _pos(std::move(pos))
+                , _count(count)
                 , _address(std::move(address))
                 , _segment(std::move(segment))
             {
             }
             MemoryChunkBase(
-				segment_pos_t count, 
-				FarAddress && address, 
-				details::segment_helper_p && segment) OP_NOEXCEPT
+                segment_pos_t count, 
+                FarAddress && address, 
+                details::segment_helper_p && segment) OP_NOEXCEPT
                 : _pos(std::shared_ptr<std::uint8_t> (
-					segment->at<std::uint8_t>(address.offset), 
-					/*dummy deleter since memory address from segment is not allocated in a heap*/
-					details::dummy_deleter))
-				, _count(count)
+                    segment->at<std::uint8_t>(address.offset), 
+                    /*dummy deleter since memory address from segment is not allocated in a heap*/
+                    details::dummy_deleter))
+                , _count(count)
                 ,_address(std::move(address))
                 ,_segment(std::move(segment))
             {
             }
             MemoryChunkBase(MemoryChunkBase&& right) OP_NOEXCEPT
-				: _pos_offset(right._pos_offset)
-				, _pos(std::move(right._pos))
-				, _count(right._count)
+                : _pos_offset(right._pos_offset)
+                , _pos(std::move(right._pos))
+                , _count(right._count)
                 , _address(std::move(right._address))
                 , _segment(std::move(right._segment))
                 , _disposer(std::move(right._disposer))
             {
-				right._count = 0;
-				right._pos_offset = 0;
+                right._count = 0;
+                right._pos_offset = 0;
             }
             MemoryChunkBase& operator = (MemoryChunkBase&& right) OP_NOEXCEPT
             {
-				_pos_offset = std::move(right._pos_offset);
-				right._pos_offset = 0;
-				_pos = std::move(right._pos);
-				_count = std::move(right._count);
-				right._count = 0;
-				_address = std::move(right._address);
+                _pos_offset = std::move(right._pos_offset);
+                right._pos_offset = 0;
+                _pos = std::move(right._pos);
+                _count = std::move(right._count);
+                right._count = 0;
+                _address = std::move(right._address);
                 _segment = std::move(right._segment);
                 _disposer = std::move(right._disposer);
                 return *this;
@@ -96,29 +96,29 @@ namespace OP
             {
                 _disposer = std::move(d);
             }
-			std::uint8_t* pos() const
-			{
-				return _pos.get() + _pos_offset;
-			}
-			segment_pos_t count() const
-			{
-				return _count;
-			}
-			far_pos_t pos_offset() const
-			{
-				return _pos_offset;
-			}
-		protected:
-			const std::shared_ptr<std::uint8_t>& memory() const
-			{
-				return _pos;
-			}
-			
-		private:
-			std::shared_ptr<std::uint8_t> _pos;
-			segment_pos_t _count;
-			far_pos_t _pos_offset = 0;
-			disposable_ptr_t _disposer;
+            std::uint8_t* pos() const
+            {
+                return _pos.get() + _pos_offset;
+            }
+            segment_pos_t count() const
+            {
+                return _count;
+            }
+            far_pos_t pos_offset() const
+            {
+                return _pos_offset;
+            }
+        protected:
+            const std::shared_ptr<std::uint8_t>& memory() const
+            {
+                return _pos;
+            }
+            
+        private:
+            std::shared_ptr<std::uint8_t> _pos;
+            segment_pos_t _count;
+            far_pos_t _pos_offset = 0;
+            disposable_ptr_t _disposer;
             FarAddress _address;
             details::segment_helper_p _segment;
         };
@@ -130,16 +130,16 @@ namespace OP
             MemoryChunk(segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
                 MemoryChunkBase(count, std::move(address), std::move(segment)) {}
 
-            MemoryChunk(const std::shared_ptr<std::uint8_t>& pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
-                MemoryChunkBase(0, pos, count, std::move(address), std::move(segment))
+            MemoryChunk(std::shared_ptr<std::uint8_t> pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
+                MemoryChunkBase(0, std::move(pos), count, std::move(address), std::move(segment))
             {
             }
 
-			MemoryChunk(far_pos_t pos_offset, const std::shared_ptr<std::uint8_t>& pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
-				MemoryChunkBase(pos_offset, pos, count, std::move(address), std::move(segment))
-			{
-			}
-			MemoryChunk(MemoryChunk&& right) OP_NOEXCEPT
+            MemoryChunk(far_pos_t pos_offset, std::shared_ptr<std::uint8_t> pos, segment_pos_t count, FarAddress && address, details::segment_helper_p && segment) :
+                MemoryChunkBase(pos_offset, std::move(pos), count, std::move(address), std::move(segment))
+            {
+            }
+            MemoryChunk(MemoryChunk&& right) OP_NOEXCEPT
                 :MemoryChunkBase(std::move(right))
             {
             }
@@ -181,26 +181,13 @@ namespace OP
             segment_pos_t byte_copy(const void * source, segment_pos_t source_size, segment_pos_t dest_offset = 0)
             {
                 if((this->count() - dest_offset) < source_size)
-                    throw std::out_of_range("source size too big");
+                    throw std::out_of_range("source size is too big");
                 memcpy(pos() + dest_offset, source, source_size);
                 return source_size;
             }
             
         };
-        namespace details
-        {
-            template <class T>
-            inline OP_CONSTEXPR(const) typename std::enable_if< !std::is_scalar<T>::value, segment_pos_t >::type array_view_size_helper() OP_NOEXCEPT
-            {
-                return OP::utils::memory_requirement<T>::requirement;
-            }
-            template <class T>
-            inline OP_CONSTEXPR(const) typename std::enable_if< std::is_scalar<T>::value, segment_pos_t >::type array_view_size_helper() OP_NOEXCEPT
-            {
-                return sizeof(T);
-            }
 
-        } //ns:details               
 
         /**Helper that provides writable access to virtual memory occupied by single instance or array of 
         * alligned instances of `T`
@@ -240,14 +227,14 @@ namespace OP
             */
             T& operator[](segment_pos_t index)
             {
-                auto byte_offset = details::array_view_size_helper<T>() * index;
+                auto byte_offset = OP::utils::memory_requirement<T>::array_size(index);
                 if (byte_offset >= this->count())
                     throw std::out_of_range("index is out of range");
                 return *MemoryChunk::at<T>(byte_offset);
             }
             const T& operator[](segment_pos_t index) const
             {
-                auto byte_offset = details::array_view_size_helper<T>() * index;
+                auto byte_offset = OP::utils::memory_requirement<T>::array_size(index);
                 if (byte_offset >= this->count())
                     throw std::out_of_range("index is out of range");
                 return *MemoryChunk::at<T>(byte_offset);
@@ -255,14 +242,15 @@ namespace OP
             template <class ... Ts>
             void make_new(Ts&&... args)
             {
-                if ( this->count() < details::array_view_size_helper<T>() )
+                if ( this->count() < OP::utils::memory_requirement<T>::requirement )
                     throw std::out_of_range("too small block to allocate T");
                 new (pos()) T(std::forward<Ts>(args)...);
             }
             void make_array(segment_pos_t array_size)
             {
                 //items have to be alligned
-                OP_CONSTEXPR(static const) auto inc = details::array_view_size_helper<T>();
+                OP_CONSTEXPR(static const) auto inc = 
+                    OP::utils::memory_requirement<T>::requirement;
                 if (this->count() < (inc*array_size) )
                     throw std::out_of_range("too small block to allocate T[N]");
                 for (auto p = pos(); array_size; p += inc, --array_size)
@@ -280,21 +268,21 @@ namespace OP
             block_for_write_c = 0x2,
             force_optimistic_write_c = 0x4,
             allow_block_realloc = 0x8,
-            /**Block contains some information and will be used for r/w operations*/
+            /**Block already contains some information and will be used for r/w operations*/
             update_c = block_for_read_c | block_for_write_c,
 
             /**Block is used only for write purpose and doesn't contain usefull information yet*/
             new_c = block_for_write_c
         };
-        inline WritableBlockHint operator & (WritableBlockHint left, WritableBlockHint right)
+        constexpr inline WritableBlockHint operator & (WritableBlockHint left, WritableBlockHint right)
         {
             return static_cast<WritableBlockHint>(static_cast<std::uint8_t>(left) & static_cast<std::uint8_t>(right));
         }
-        inline WritableBlockHint operator | (WritableBlockHint left, WritableBlockHint right)
+        constexpr inline WritableBlockHint operator | (WritableBlockHint left, WritableBlockHint right)
         {
             return static_cast<WritableBlockHint>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
         }
-        inline WritableBlockHint operator ~ (WritableBlockHint hint)
+        constexpr inline WritableBlockHint operator ~ (WritableBlockHint hint)
         {
             return static_cast<WritableBlockHint>( ~static_cast<std::uint8_t>(hint) );
         }
@@ -324,20 +312,30 @@ namespace OP
             WritableBlockHint hint = WritableBlockHint::update_c)
         {
             using A = WritableAccess<T>;
-            auto size = details::array_view_size_helper<T>() * number_elements;
+            
+            auto size = OP::utils::memory_requirement<T>::array_size( number_elements );
             return A(std::move(resolve_segment_manager(segment_manager_provider).
-                writable_block(pos, details::array_view_size_helper<T>() * number_elements, hint)));
+                writable_block(pos, OP::utils::memory_requirement<T>::array_size(number_elements), hint)));
         }
         /**Hint allows specify how readonly blocks will be used*/
-        struct ReadonlyBlockHint
+        enum class ReadonlyBlockHint : std::uint8_t
         {
-            enum type : std::uint8_t
-            {
-                ro_no_hint_c = 0,
-                /**Forces keep lock even after ReadonlyMemoryChunk is released. While the default behaviour releases lock */
-                ro_keep_lock = 0x1
-            };
+            ro_no_hint_c = 0,
+            /**Forces keep lock even after ReadonlyMemoryChunk is released. While the default behaviour releases lock */
+            ro_keep_lock = 0x1
         };
+        constexpr inline ReadonlyBlockHint operator & (ReadonlyBlockHint left, ReadonlyBlockHint right)
+        {
+            return static_cast<ReadonlyBlockHint>(static_cast<std::uint8_t>(left) & static_cast<std::uint8_t>(right));
+        }
+        constexpr inline ReadonlyBlockHint operator | (ReadonlyBlockHint left, ReadonlyBlockHint right)
+        {
+            return static_cast<ReadonlyBlockHint>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
+        }
+        constexpr inline ReadonlyBlockHint operator ~ (ReadonlyBlockHint hint)
+        {
+            return static_cast<ReadonlyBlockHint>( ~static_cast<std::uint8_t>(hint) );
+        }
         
         /**
         *   Specify read-only block in memory. Instances of this type are not copyable, only moveable.
@@ -407,7 +405,7 @@ namespace OP
             */
             const T& operator[](segment_pos_t index) const
             {
-                auto byte_offset = details::array_view_size_helper<T>() * index;
+                auto byte_offset = OP::utils::memory_requirement<T>::array_size( index );
                 if (byte_offset >= this->count())
                     throw std::out_of_range("index is out of range");
                 return *ReadonlyMemoryChunk::at<T>(byte_offset);
@@ -420,7 +418,7 @@ namespace OP
         * \return accessor that provide readonly (const) access to instance of `T`
         */
         template <class T, class SMProvider>
-        ReadonlyAccess<T> view(SMProvider& segment_manager_provider, FarAddress pos, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
+        ReadonlyAccess<T> view(SMProvider& segment_manager_provider, FarAddress pos, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c)
         {
             return ReadonlyAccess<T>(std::move(resolve_segment_manager(segment_manager_provider).
                 readonly_block(pos, OP::utils::memory_requirement<T>::requirement, hint)));
@@ -436,11 +434,11 @@ namespace OP
         template <class T, class SMProvider>
         ReadonlyAccess<T> array_view(SMProvider& segment_manager_provider, FarAddress pos,
             segment_pos_t number_elements,
-            ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c)
+            ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c)
         {
             using A = ReadonlyAccess<T>;
             return A(std::move(resolve_segment_manager(segment_manager_provider).
-                readonly_block(pos, details::array_view_size_helper<T>() * number_elements, hint)));
+                readonly_block(pos, OP::utils::memory_requirement<T>::array_size( number_elements ), hint)));
         }
         
         

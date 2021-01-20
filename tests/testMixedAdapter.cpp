@@ -10,7 +10,7 @@
 #include <op/ranges/RangeUtils.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
-#include <op/vtm/TransactedSegmentManager.h>
+#include <op/vtm/EventSourcingSegmentManager.h>
 
 #include <op/trie/MixedAdapter.h>
 #include <op/common/NamedArgs.h>
@@ -26,11 +26,11 @@ static const char* test_file_name = "trie.test";
 
 void testDefault(OP::utest::TestResult& tresult)
 {
-    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+    auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<TransactedSegmentManager, double> trie_t;
+    typedef Trie<EventSourcingSegmentManager, double> trie_t;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     using mix_ns = Ingredient<trie_t>;
 
@@ -64,11 +64,11 @@ void testDefault(OP::utest::TestResult& tresult)
 }
 void testChildConfig(OP::utest::TestResult& tresult)
 {
-    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+    auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<TransactedSegmentManager, double> trie_t;
+    typedef Trie<EventSourcingSegmentManager, double> trie_t;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     using mix_ns = Ingredient<trie_t>;
 
@@ -127,11 +127,11 @@ void testChildConfig(OP::utest::TestResult& tresult)
 /**Issue with MixedRange when not all next_sibling returned*/
 void test_ISSUE_0002(OP::utest::TestResult& tresult)
 {
-    auto tmngr = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(test_file_name,
+    auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<TransactedSegmentManager, double> trie_t;
+    typedef Trie<EventSourcingSegmentManager, double> trie_t;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     using mix_ns = Ingredient<trie_t>;
 

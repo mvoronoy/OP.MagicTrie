@@ -87,11 +87,11 @@ namespace OP
                 segment_pos_t offset;
                 segment_idx_t segment;
             };
-            FarAddress():
+            FarAddress() noexcept:
                 offset(SegmentDef::eos_c), segment(SegmentDef::eos_c){}
-            explicit FarAddress(far_pos_t a_address) :
+            explicit FarAddress(far_pos_t a_address) noexcept:
                 address(a_address){}
-            FarAddress(segment_idx_t a_segment, segment_pos_t a_offset) :
+            FarAddress(segment_idx_t a_segment, segment_pos_t a_offset) noexcept:
                 segment(a_segment),
                 offset(a_offset){}
             operator far_pos_t() const
@@ -100,7 +100,7 @@ namespace OP
             }
             FarAddress operator + (segment_pos_t pos) const
             {
-                assert(offset <= (~0u - pos)); //test overflow
+                assert(offset <= (~segment_pos_t(0) - pos)); //test overflow
                 return FarAddress(segment, offset + pos);
             }
             /**Signed operation*/

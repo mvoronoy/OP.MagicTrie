@@ -2,7 +2,7 @@
 //
 
 #include <op/trie/Trie.h>
-#include <op/vtm/TransactedSegmentManager.h>
+#include <op/vtm/EventSourcingSegmentManager.h>
 //#include <boost/endian/conversion.hpp>
 //n = boost::endian::native_to_big(n);
 using namespace OP::trie;
@@ -55,7 +55,7 @@ template <class SegmentManager, class Number = float>
 class MatrixManager
 {
 public:
-    typedef Trie<TransactedSegmentManager, Number> trie_t;
+    typedef Trie<EventSourcingSegmentManager, Number> trie_t;
     typedef Matrix<typename trie_t, Number> matrix_t;
     MatrixManager(std::shared_ptr<SegmentManager> segment_manager, atom_string_t prefix = {})
         : _prefix(prefix)
@@ -74,7 +74,7 @@ private:
 
 int main()
 {
-    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>("matrix.test",
+    auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>("matrix.test",
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
     return 0;

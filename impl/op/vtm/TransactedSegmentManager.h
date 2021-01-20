@@ -61,7 +61,7 @@ namespace OP
                 return insres.first->second->recursive();
             }
             
-            ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint::type hint = ReadonlyBlockHint::ro_no_hint_c) override
+            ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
             {
                 transaction_impl_ptr_t current_transaction;
                 captured_blocks_t::iterator found_res;
@@ -69,7 +69,7 @@ namespace OP
                 if (!current_transaction) //no current transaction, just return
                     return result;
 
-                if ((hint & ReadonlyBlockHint::ro_keep_lock) == 0 //no keep-lock requirements
+                if ((hint & ReadonlyBlockHint::ro_keep_lock) != ReadonlyBlockHint::ro_keep_lock //no keep-lock requirements
                    // && !found_res->second.is_exclusive_access(current_transaction->transaction_id())   //is not exclusive mode
                     )
                 { //add disposer that releases lock at MemoryChunk destroy
@@ -131,7 +131,7 @@ namespace OP
                 auto found_res = _captured_blocks.lower_bound(search_range);
                 if (found_res != _captured_blocks.end())
                 { //some block geater-or-equal has been found
-                    if (range_op::is_overlapping(found_res->first, search_range) &&
+                    if (zones::is_overlapping(found_res->first, search_range) &&
                         !found_res->second.is_exclusive_access(current->transaction_id()))
                     { //other transaction retains overlapped block
                         throw OP::vtm::ConcurentLockException();
@@ -146,7 +146,7 @@ namespace OP
                         if(WritableBlockHint::allow_block_realloc != (hint & WritableBlockHint::allow_block_realloc))
                             throw Exception(er_overlapping_block);
                         hint = hint & ~WritableBlockHint::allow_block_realloc; //clear flag to avoid confuse on transaction release
-                        search_range = unite_range(search_range, found_res->first);
+                        search_range = OP::zones::unite_zones(search_range, found_res->first);
                         super_res = std::move(SegmentManager::writable_block(search_range.pos(), search_range.count(), hint));
                         // extend existing if allowed
                         extend_memory_block(found_res, search_range, super_res, current);
@@ -591,7 +591,7 @@ namespace OP
                     auto before = to_extend;
                     --before;
                     //check result range has no commons with previous block
-                    if (range_op::is_overlapping(before->first, new_range))
+                    if (zones::is_overlapping(before->first, new_range))
                     {
                         throw Exception(er_overlapping_block);
                     }
@@ -599,7 +599,7 @@ namespace OP
                 auto after = to_extend;
                 ++after;
                 if(after != _captured_blocks.end() //not the last item
-                    && range_op::is_overlapping(after->first, new_range) //check result range has no commons with next block
+                    && zones::is_overlapping(after->first, new_range) //check result range has no commons with next block
                     )
                 {
                     throw Exception(er_overlapping_block);
@@ -623,7 +623,7 @@ namespace OP
             * @param new_range [in/out] on [in] indicates queried block, on [out] the result range that covers all affected blocks
             */
             template <class Iterator>
-            void extend_ro_memory_block(Iterator& to_extend, RWR &new_range, ReadonlyBlockHint::type hint, transaction_impl_ptr_t& current_tran)
+            void extend_ro_memory_block(Iterator& to_extend, RWR &new_range, ReadonlyBlockHint hint, transaction_impl_ptr_t& current_tran)
             {
                 /* don't need check "before" overlapping since `to_extend` obtained from map::lower_bound that means first element that is not-less
                 if (to_extend != _captured_blocks.begin()) //not the first item
@@ -631,7 +631,7 @@ namespace OP
                 auto before = to_extend;
                 --before;
                 //check result range has no commons with previous block
-                if (range_op::is_overlapping(before->first, new_range))
+                if (zones::is_overlapping(before->first, new_range))
                 {
                 throw Exception(er_overlapping_block);
                 }
@@ -640,10 +640,10 @@ namespace OP
                 bool optimistic_write = false;
                 auto after = to_extend;
                 for(;after != _captured_blocks.end() //not the last item
-                    && range_op::is_overlapping(after->first, new_range) //check result range has no commons with next block
+                    && zones::is_overlapping(after->first, new_range) //check result range has no commons with next block
                     ; ++after)
                 {
-                    new_range = unite_range(new_range, after->first);
+                    new_range = OP::zones::unite_zones(new_range, after->first);
                     //aware of write-blocks that may belong to other transactions
                     if ((after->second.transaction_flag() & wr_c) 
                         && !after->second.is_exclusive_access(current_tran->transaction_id()))
@@ -713,7 +713,7 @@ namespace OP
             * @param found_res - output paramter, iterator to map of captures
             */
             ReadonlyMemoryChunk do_readonly_block (
-                FarAddress pos, segment_pos_t size, ReadonlyBlockHint::type hint, 
+                FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint, 
                 transaction_impl_ptr_t& current_transaction,
                 captured_blocks_t::iterator& found_res) 
             {
@@ -770,7 +770,7 @@ namespace OP
                 {//result found but not exact matching
                     if (!found_res->first.is_included(search_range))// check if overlapped memory blocks are allowed
                     {
-                        //@@[x] search_range = unite_range(search_range, found_res->first);
+                        //@@[x] search_range = unite_zones(search_range, found_res->first);
                         //@@[x] auto super_res = std::move(SegmentManager::readonly_block(search_range.pos(), search_range.count(), hint));
                         // extend existing if allowed
                         extend_ro_memory_block(found_res, search_range, hint, current_transaction);

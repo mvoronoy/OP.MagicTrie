@@ -157,9 +157,8 @@ namespace OP
 
         struct ForwardListBase
         {
-            typedef far_pos_t entry_pos_t;
             ForwardListBase() :next(SegmentDef::far_null_c){}
-            entry_pos_t next;
+            far_pos_t next;
         };
 
         /**
@@ -173,12 +172,7 @@ namespace OP
             FreeMemoryBlock(emplaced_t)
             {
             }
-            /*const MemoryBlockHeader* get_header() const
-            {
-                return reinterpret_cast<const MemoryBlockHeader*>(
-                    reinterpret_cast<const std::uint8_t*>(this) - aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c)
-                    );
-            }*/
+            
             /**
             *   Taking this far address convert it to far address of associated MemoryBlockHeader
             */

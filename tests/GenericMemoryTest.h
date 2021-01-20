@@ -59,14 +59,14 @@ struct GenericMemoryTest{
             OP::trie::far_pos_t table_pos;
         };
         typedef NodeHashTable<EmptyPayload, 8> htbl64_t;
-        typedef NodeSortedArray<EmptyPayload, 32> sarr32_t;
-    
+
+        
         FarAddress one_byte_pos;
         if (1 == 1)
         {       
             result.info() << "Test create new...\n";
             auto options = OP::trie::SegmentOptions().segment_size(0x110000);
-            auto mngr1 = Sm::create_new(seg_file_name, options);
+            auto mngr1 = Sm::create_new<Sm>(seg_file_name, options);
             tst_size = mngr1->segment_size();
             SegmentTopology<HeapManagerSlot> mngrTopology (mngr1);
             one_byte_pos = mngrTopology.slot<HeapManagerSlot>().allocate(1);
@@ -75,7 +75,7 @@ struct GenericMemoryTest{
             mngr1->_check_integrity();
         }
         result.info() << "Test reopen existing...\n";
-        auto segmentMngr2 = Sm::open(seg_file_name);
+        auto segmentMngr2 = Sm::open<Sm>(seg_file_name);
         result.assert_true(tst_size == segmentMngr2->segment_size(), OP_CODE_DETAILS());
         SegmentTopology<HeapManagerSlot>& mngr2 = *new SegmentTopology<HeapManagerSlot>(segmentMngr2);
 
@@ -131,8 +131,11 @@ struct GenericMemoryTest{
         for (size_t i = 0; i < 7; ++i)
         {
             auto b_pos = mngr2.slot<HeapManagerSlot>().allocate(sizeof(TestSeq));
+
+            OP::vtm::TransactionGuard g(segmentMngr2->begin_transaction());
             auto b = segmentMngr2->writable_block(b_pos, sizeof(TestSeq)).OP_TEMPL_METH(at)<std::uint8_t>(0);
             memcpy(b, TestSeq, sizeof(TestSeq));
+            g.commit();
             stripes[i] = b_pos;
         }
         mngr2._check_integrity();
@@ -140,7 +143,7 @@ struct GenericMemoryTest{
         delete&mngr2;//mngr2.reset();//causes delete
         segmentMngr2.reset();
 
-        auto segmentMngr3 = Sm::open(seg_file_name);
+        auto segmentMngr3 = Sm::open<Sm>(seg_file_name);
         SegmentTopology<HeapManagerSlot>* mngr3 = new SegmentTopology<HeapManagerSlot>(segmentMngr3);
         auto& mm = mngr3->slot<HeapManagerSlot>();
         /**Flag must be set if memory management allows merging of free adjacent blocks*/
@@ -215,39 +218,6 @@ struct GenericMemoryTest{
         delete mngr3;
         segmentMngr3.reset();
     
-        //do more real example with NodeHead + conatiner
-        /*far_pos_t heads_off = mm.make_array<TestHead>(0, 2, NodeType::hash_c);
-        TestHead *heads = mngr3->from_far<TestHead>(heads_off);
-        const std::string named_object = "heads";
-        mngr3->put_named_object(0, named_object, heads_off);
-        mngr3->_check_integrity();
-
-        far_pos_t htbl_addr_off = mngr3->make_new<htbl64_t>(0);
-        htbl64_t* htbl_addr = mngr3->from_far<htbl64_t>(htbl_addr_off);
-
-        heads[0].table_pos = htbl_addr_off;
-        std::set<std::uint8_t> htbl_sample = _randomize(*htbl_addr);
-        mngr3->_check_integrity();
-
-        far_pos_t sarr_addr_off = mngr3->make_new<sarr32_t>(0);
-        sarr32_t* sarr_addr = mngr3->from_far<sarr32_t>(sarr_addr_off);
-        mngr3->_check_integrity();
-
-        heads[1].table_pos = sarr_addr_off;
-        std::set<std::string> sarr_sample = _randomize_array(*sarr_addr, [&](){mngr3->_check_integrity(); });
-        mngr3->_check_integrity();
-        mngr3.reset();//causes delete
-    
-        auto mngr4 = Sm::open(seg_file_name);
-        const TestHead* heads_of4 = mngr4->get_named_object<TestHead>(named_object);
-    
-        htbl64_t* htbl_addr_of4 = mngr4->from_far<htbl64_t>(heads_of4[0].table_pos);
-        result.assert_true(_compare(htbl_sample, *htbl_addr_of4));
-
-        sarr32_t* sarr_addr_of4 = mngr4->from_far<sarr32_t>(heads_of4[1].table_pos);
-        result.assert_true(_compare(sarr_sample, *sarr_addr_of4));
-        */
-
     }
 }; //struct
 #endif //_GENERICMEMORYTEST__H_

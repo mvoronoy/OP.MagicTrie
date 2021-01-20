@@ -29,7 +29,7 @@ void test_SegmentTopology(OP::utest::TestResult& result)
         size_heuristic::of_assorted<assorted_t, 3>,
         size_heuristic::add_percentage(5)/*+5% of total size*/
         );
-    auto mngr1 = OP::trie::SegmentManager::create_new(seg_file_name, options);
+    auto mngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(seg_file_name, options);
     auto tst_size = mngr1->segment_size();
     OP_CONSTEXPR(const) size_t control_size = ((align_on(sizeof(TestMemAlloc1) * 100, SegmentDef::align_c)
         + align_on(sizeof(TestMemAlloc1) * 900, SegmentDef::align_c)

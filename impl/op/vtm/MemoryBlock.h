@@ -29,7 +29,7 @@ namespace OP
                 _high(segment_manager->segment_size())
             {
             }
-            static inline const pos_t eos()
+            static inline constexpr pos_t eos()
             {
                 return SegmentDef::far_null_c;
             }
@@ -43,7 +43,7 @@ namespace OP
                 return left < right;
             }
             
-            size_t entry_index(key_t key) const
+            constexpr size_t entry_index(key_t key) const
             {
                 size_t base = 0;
                 const size_t low_strat = 256;
@@ -61,10 +61,6 @@ namespace OP
                     return slots_c - 1;
                 return result;
             }
-            /*key_t key(const_reference_t fb) const
-            {
-                return fb.get_header()->nav._size;
-            }  */
     
             static const pos_t& next(const_reference_t ref)
             {

@@ -146,19 +146,16 @@ void test_CacheManager()
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     cache._check_integrity();
 }
-extern void test_RangeContainer();
-extern void test_Range();
-void test_Abortion(OP::utest::TestResult &result)
+static void test_Abort(OP::utest::TestResult &result)
 {
     assert(false);
     result.fail("Exception must be raised");
 }
+
 static auto module_suite = OP::utest::default_test_suite("Arbitrary")
 ->declare(test_align, "align")
-->declare(test_RangeContainer, "rangeConatiner")
-->declare(test_Range, "range")
 ->declare(test_CacheManager, "cacheManager")
-->declare_disabled/*declare_exceptional*/(test_Abortion, "testAbort")
+->declare_disabled/*declare_exceptional*/(test_Abort, "testAbort")
 ;
 
 int main(int argc, char* argv[])

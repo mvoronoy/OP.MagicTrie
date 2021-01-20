@@ -27,19 +27,24 @@ enable_testing()
 
 # Add source to this project's executable.
 add_executable (trie_test 
+    
     "BgWorkerTest.cpp"
     "BitsetTest.cpp"
+    "common/UtilsTest.cpp"
+    "common/ZoneTest.cpp"
     "ContainersTest.cpp"
     "FixedSizeMemoryManagerTest.cpp"
     "ranges/CommonRangesOpTest.cpp"
-    "RangeTest.cpp"
     "SegmentManagerTest.cpp"
     "SegmentToplogyTest.cpp"
     "testMixedAdapter.cpp"
     "tr.cpp"
     "Transacted.cpp"
+    "EventSourcedSegmentManagerTest.cpp"
     "Trie.cpp"
-    )
+      "SpanContainerTest.cpp"
+)
+
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 set(TR_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../impl )
@@ -53,4 +58,5 @@ target_link_libraries(${PROJECT_NAME} Threads::Threads)
 
 
 # Unit tests
+add_test(NAME "Trie/override_join_range" COMMAND trie_test -r "Trie/override_join_range")
 add_test(NAME "OP/all" COMMAND trie_test -r ".+/.+")

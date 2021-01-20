@@ -25,7 +25,7 @@ namespace OP
     template <class T>
     struct RangeContainer;
 
-	namespace range_op
+	namespace zones
 	{
 		template <class R>
 		inline auto pos(const R& r) -> decltype(r.pos())
@@ -93,6 +93,31 @@ namespace OP
 		{
 			return (pos(a) == pos(b)) && (count(a) == count(b));
 		}
+        template <class TZone>
+        TZone unite_zones(const TZone& lar, const TZone& rar)
+        {
+            if(!lar.count())
+                return rar;
+            if(!rar.count())
+                return lar;
+            auto leftmost = std::min(zones::pos(lar), zones::pos(rar));
+            return TZone(leftmost, 
+			    static_cast<typename TZone::distance_t>( 
+				    std::max(zones::right(lar), zones::right(rar)) - leftmost));
+        }
+        template <class TZone>
+        TZone join_zones(const TZone& lar, const TZone& rar)
+        {
+            auto leftmost_right = std::min(
+			    zones::right(lar), zones::right(rar));
+            auto rightmost_left = std::max(
+			    zones::pos(lar), zones::pos(rar));
+            return rightmost_left < leftmost_right 
+                ? TZone(rightmost_left, static_cast<typename TZone::distance_t>(leftmost_right - rightmost_left))
+                : TZone(rightmost_left, 0);
+        }
+
+
 	};
     template <class T, class Distance = unsigned int>
     struct Range 
@@ -117,45 +142,52 @@ namespace OP
 
         bool is_overlapped(const Range& other) const
         {
-            return range_op::is_overlapping(*this, other);
+            return zones::is_overlapping(*this, other);
         }
         
         bool in(pos_t check) const
         {
-            return range_op::in(_pos, check);
+            return zones::in(_pos, check);
         }
         bool empty() const
         {
-            return range_op::empty(*this);
+            return zones::empty(*this);
         }
         /**Check if 'other' fully inside this*/
         bool is_included(const Range& other) const
         {
-            return range_op::is_included(*this, other);
+            return zones::is_included(*this, other);
         }
         bool is_adjacent(const Range& other) const
         {
-            return range_op::is_adjacent(*this, other);
+            return zones::is_adjacent(*this, other);
         }
         bool is_left_adjacent(const Range& other) const
         {
-            return range_op::is_left_adjacent(*this, other);
+            return zones::is_left_adjacent(*this, other);
         }
         bool is_right_adjacent(const Range& other) const
         {
-            return range_op::is_right_adjacent(*this, other);
+            return zones::is_right_adjacent(*this, other);
         }
         T right() const
         {
-            return range_op::right(*this);
+            return zones::right(*this);
         }
-        bool operator <(const Range<T>& right) const
+        template <class R>
+        bool operator <(const R& right) const
         {
-            return range_op::less(*this, right);
+            return zones::less(*this, right);
         }
-        bool operator == (const Range<T>& right) const
+        template <class R>
+        bool operator == (const R& right) const
         {
-            return range_op::equal(*this, right);
+            return zones::equal(*this, right);
+        }
+        template <class R>
+        bool operator != (const R& right) const
+        {
+            return !zones::equal(*this, right);
         }
         T pos() const
         {
@@ -170,26 +202,6 @@ namespace OP
         pos_t _pos;
         mutable Distance _count;
     };
-
-    template <class TRange>
-    TRange unite_range(const TRange& lar, const TRange& rar)
-    {
-        auto leftmost = std::min(range_op::pos(lar), range_op::pos(rar));
-        return TRange(leftmost, 
-			static_cast<typename TRange::distance_t>( 
-				std::max(range_op::right(lar), range_op::right(rar)) - leftmost));
-    }
-    template <class TRange>
-    TRange join_range(const TRange& lar, const TRange& rar)
-    {
-        auto leftmost_right = std::min(
-			range_op::right(lar), range_op::right(rar));
-        auto rightmost_left = std::max(
-			range_op::pos(lar), range_op::pos(rar));
-        return rightmost_left < leftmost_right 
-            ? TRange(rightmost_left, static_cast<typename TRange::distance_t>(leftmost_right - rightmost_left))
-            : TRange(rightmost_left, 0);
-    }
 
     template <class T>
     struct RangeContainer

@@ -1,3 +1,4 @@
+#include <op/utest/unit_test.h>
 #include <op/common/Range.h>
 #include <op/vtm/SegmentManager.h>
 #include <assert.h>
@@ -6,7 +7,7 @@
 
 using namespace OP;
 using namespace OP::trie;
-void test_RangeContainer()
+void test_ZoneContainer()
 {
     typedef RangeContainer<FarAddress> ranges_t;
     ranges_t r;
@@ -34,7 +35,7 @@ void test_RangeContainer()
         r.add_range(n);
     assert(r.size() == 1);
 }
-void test_Range()
+void test_Zones()
 {
     typedef Range<size_t> range_t;
     typedef std::map<range_t, int> ranges_t;
@@ -87,3 +88,8 @@ void test_Range()
     assert(!r1.is_included(nr5) && !nr5.is_included(r1));
 
 }
+
+static auto module_suite = OP::utest::default_test_suite("Zones")
+->declare(test_ZoneContainer, "zoneConatiner")
+->declare(test_Zones, "zone")
+;

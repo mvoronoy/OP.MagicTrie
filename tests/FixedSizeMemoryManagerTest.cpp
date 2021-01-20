@@ -3,7 +3,7 @@
 #include <op/trie/Trie.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
-#include <op/vtm/TransactedSegmentManager.h>
+#include <op/vtm/EventSourcingSegmentManager.h>
 #include <set>
 #include <cassert>
 #include <iterator>
@@ -21,7 +21,7 @@ void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
     tresult.assert_true(topology.segment_manager().available_segments() == 1);
     topology._check_integrity();
     std::vector<FarAddress> allocated_addrs(test_nodes_count_c);
-    //exhaust all nodes in sinle segment and check new segment allocation
+    //exhaust all nodes in single segment and check new segment allocation
     for (auto i = 0; i < test_nodes_count_c; ++i)
     {
         OP::vtm::TransactionGuard op_g(topology.segment_manager().begin_transaction());
@@ -62,7 +62,7 @@ void test_NodeManager(OP::utest::TestResult &tresult)
     };
     typedef FixedSizeMemoryManager<TestPayload, test_nodes_count_c> test_node_manager_t;
 
-    auto tmngr1 = OP::trie::SegmentManager::OP_TEMPL_METH(create_new)<TransactedSegmentManager>(node_file_name, 
+    auto tmngr1 = OP::trie::SegmentManager::OP_TEMPL_METH(create_new)<EventSourcingSegmentManager>(node_file_name, 
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
@@ -73,7 +73,7 @@ void test_NodeManager(OP::utest::TestResult &tresult)
 void test_NodeManagerSmallPayload(OP::utest::TestResult &tresult)
 {
     struct TestPayloadSmall
-    {/*The size of Payload selected to be bigger than FixedSizeMemoryManager::ZeroHeader */
+    {/*The size of Payload selected to be smaller than FixedSizeMemoryManager::ZeroHeader */
         TestPayloadSmall()
         {
             inc = 57;
@@ -83,7 +83,7 @@ void test_NodeManagerSmallPayload(OP::utest::TestResult &tresult)
     //The size of payload smaller than FixedSizeMemoryManager::ZeroHeader
     typedef FixedSizeMemoryManager<TestPayloadSmall, test_nodes_count_c> test_node_manager_t;
 
-    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(node_file_name, 
+    auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(node_file_name, 
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
@@ -93,5 +93,5 @@ void test_NodeManagerSmallPayload(OP::utest::TestResult &tresult)
 
 static auto module_suite = OP::utest::default_test_suite("FixedSizeMemoryManager")
 ->declare(test_NodeManager, "general")
-->declare(test_NodeManagerSmallPayload, "general-small-payload")
+->declare(test_NodeManagerSmallPayload, "small-payload")
 ;

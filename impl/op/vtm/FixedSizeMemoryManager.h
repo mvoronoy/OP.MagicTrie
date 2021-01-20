@@ -42,12 +42,14 @@ namespace OP
                     auto avail_segments = _segment_manager->available_segments();
                     _segment_manager->ensure_segment(avail_segments);
                 }
+                //just to ensure last version of block. No locks required - since previous WR already captured
+                header = _segment_manager->wr_at<ZeroHeader>(_zero_header_address); 
                 FarAddress result;
                 if (header->_adjacent_count > 1) 
-                {//there are adjacent blocks more then one, so don't care about following list of other
+                {//there are adjacent blocks more than one, so don't care about following list of other
                     --header->_adjacent_count;
                     //return last available entry 
-                    result.address = header->_next + memory_requirement<Payload>::requirement * header->_adjacent_count;
+                    result.address = header->_next + entry_size_c * header->_adjacent_count;
                 }
                 else
                 {//only one entry left, so need rebuild further list
@@ -55,7 +57,7 @@ namespace OP
                     auto res_block = _segment_manager->readonly_block(result, memory_requirement<ZeroHeader>::requirement);
                     *header = *res_block.OP_TEMPL_METH(at)<ZeroHeader>(0);
                 }
-                *_segment_manager->wr_at<payload_t>(result) = std::move(payload_t(std::forward<Args>(args)...));
+                new(_segment_manager->wr_at<payload_t>(result)) payload_t(std::forward<Args>(args)...);
                 op_g.commit();
                 return result;
             }
@@ -82,7 +84,7 @@ namespace OP
                     return;
                 //check from _zero_header_address
                 auto header = 
-                    manager.readonly_block(_zero_header_address, sizeof(ZeroHeader))
+                    manager.readonly_block(_zero_header_address, memory_requirement<ZeroHeader>::requirement)
                         .OP_TEMPL_METH(at)<ZeroHeader>(0);
                 size_t n_free_blocks = 0;
                 //count all free blocks
@@ -91,7 +93,8 @@ namespace OP
                     assert(header->_adjacent_count > 0);
                     n_free_blocks += header->_adjacent_count;
                     header = manager.readonly_block(
-                        FarAddress(header->_next), sizeof(ZeroHeader)).at<ZeroHeader>(0);
+                        FarAddress(header->_next), memory_requirement<ZeroHeader>::requirement)
+                        .at<ZeroHeader>(0);
                 }
                 assert(manager.available_segments() * Capacity >= n_free_blocks);
             }
@@ -136,9 +139,9 @@ namespace OP
                 { //create special entry for ZeroHeader
                     blocks_begin += memory_requirement<ZeroHeader>::requirement;
                     _zero_header_address = start_address;
-                    //no problem with following capturing zero-block again
-                    *_segment_manager->wr_at<ZeroHeader>(_zero_header_address, WritableBlockHint::new_c) 
-                    = { SegmentDef::far_null_c, 0 };
+                    //capturing zero-block again
+                    new(_segment_manager->wr_at<ZeroHeader>(_zero_header_address, WritableBlockHint::new_c) )
+                        ZeroHeader{ SegmentDef::far_null_c, 0 };
                 }
                 //New segment allocation is a big challenge for entire system, that is why 
                 //count of reties to capture ZeroHeader so big

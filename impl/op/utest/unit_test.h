@@ -205,7 +205,7 @@ namespace OP
             {
                 _first_ = 0,
                 not_started = _first_,
-                /**some test condition was not met, see #status_details for details*/
+                /**some test condition was not met*/
                 failed,
                 /**test raised unhandled exception*/
                 exception,
@@ -243,17 +243,14 @@ namespace OP
                 };
                 return values[(_status - _first_) % (_last_ - _first_)];
             }
-            
+            inline std::ostream& error() const;            
             inline std::ostream& info() const;
+
             inline std::ostream& debug() const
             {
                 return _log_level >  ResultLevel::info ? info() : _null_stream;
             }
 
-            Details& status_details()
-            {
-                return _status_details;
-            }
             unsigned run_number() const
             {
                 return _run_number;
@@ -314,24 +311,19 @@ namespace OP
                 }
             }
             /**Unconditional fail*/
-            template<typename ...Xetails>
-            void fail(Xetails&& ...details)
+            template<typename XDet, typename ...Xetails>
+            void fail(XDet&& det, Xetails&& ...details)
             {
                 guard_t g(*_access_result);
-                do_log(std::forward<Xetails>(details)...);
+                error() << std::forward<XDet>(det);
+                fail(std::forward<Xetails>(details)...);
+            }
+            void fail()
+            {
                 throw TestFail();
             }
         private:
-            void do_log()
-            {
-            }
-            template <class T, class ... Tx>
-            void do_log(T && t, Tx && ... tx)
-            {
-                _status_details << std::forward<T>(t);
-                do_log(std::forward<Tx>(tx)...);
-            }
-            Details _status_details;
+
             Status _status;
             unsigned _run_number;
             time_point_t _start_time, _end_time;
@@ -397,11 +389,8 @@ namespace OP
             {
                 if (e.what() && *e.what())
                 {
-                    if (!retval._status_details.is_empty())
-                        retval._status_details << "\n";
-                    retval._status_details << e.what();
+                    retval.error() << e.what();
                 }
-
             }
             void do_run(TestResult& retval)
             {
@@ -427,7 +416,7 @@ namespace OP
                     retval._end_time = std::chrono::steady_clock::now();
                     retval._status = TestResult::exception;
 
-                    retval.info() << "Exception-What:" << e.what() << "\n";
+                    retval.error() << "----[exception-what]:" << e.what() << "\n";
                 }
                 catch (...)
                 { //hide any other exception
@@ -467,7 +456,8 @@ namespace OP
                 return this->declare(std::move(functor), std::move(nm));
             }
             
-            inline TestSuite* declare_disabled(std::function<void(TestResult&)> f, std::string n = std::string())
+            template <class F>
+            inline TestSuite* declare_disabled(F f, std::string n = std::string())
             {
                 return this;
             }
@@ -558,6 +548,16 @@ namespace OP
             };
 
         };
+
+        inline std::ostream& TestResult::error() const
+        {
+            return _suite->error();
+        }
+            
+        inline std::ostream& TestResult::info() const
+        {
+            return _log_level >= ResultLevel::info ? _suite->info() : _null_stream;
+        }
 
         struct TestRunOptions
         {
@@ -838,10 +838,6 @@ namespace OP
             }
         }
         
-        inline std::ostream& TestResult::info() const
-        {
-            return _log_level >= ResultLevel::info ? _suite->info() : _null_stream;
-        }
         
         template <class Name>
         inline std::shared_ptr<TestSuite> default_test_suite(Name && name)

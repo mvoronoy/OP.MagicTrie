@@ -571,7 +571,7 @@ namespace OP
             *       just inserted item, otherwise it points to already existing key
             */
             template <class AtomIterator>
-            std::pair<iterator, bool> insert(AtomIterator begin, AtomIterator aend, Payload value)
+            std::pair<iterator, bool> insert(AtomIterator& begin, AtomIterator aend, Payload value)
             {
                 if (begin == aend)
                     return std::make_pair(iterator(this), false); //empty string cannot be inserted
