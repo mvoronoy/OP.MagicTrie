@@ -66,7 +66,7 @@ struct GenericMemoryTest{
         {       
             result.info() << "Test create new...\n";
             auto options = OP::trie::SegmentOptions().segment_size(0x110000);
-            auto mngr1 = Sm::create_new<Sm>(seg_file_name, options);
+            auto mngr1 = Sm::OP_TEMPL_METH(create_new)<Sm>(seg_file_name, options);
             tst_size = mngr1->segment_size();
             SegmentTopology<HeapManagerSlot> mngrTopology (mngr1);
             one_byte_pos = mngrTopology.slot<HeapManagerSlot>().allocate(1);
