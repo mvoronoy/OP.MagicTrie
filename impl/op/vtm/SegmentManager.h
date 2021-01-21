@@ -122,7 +122,9 @@ namespace OP
             inline size_t of_array(const SegmentOptions& previous)
             {
                 return
-                    OP::utils::align_on(memory_requirement<T, n>::requirement, previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
+                    OP::utils::align_on(
+                        OP::utils::memory_requirement<T, n>::requirement, previous.memory_alignment()
+                    ) + previous.memory_alignment()/*for memory-control-structure*/;
             }
             template <class T>
             struct of_array_dyn
@@ -135,7 +137,9 @@ namespace OP
                 size_t operator ()(const SegmentOptions& previous) const
                 {
                     return
-                        OP::utils::align_on(memory_requirement<T>::array_size(_count), previous.memory_alignment()) + previous.memory_alignment()/*for memory-control-structure*/;
+                        OP::utils::align_on(
+                            OP::utils::memory_requirement<T>::array_size(_count), previous.memory_alignment()) 
+                        + previous.memory_alignment()/*for memory-control-structure*/;
                 }
             private:
                 size_t _count;
@@ -364,7 +368,7 @@ namespace OP
             template <class T>
             inline SegmentManager& do_read(T* t, size_t n)
             {
-                const auto to_read = memory_requirement<T>::array_size(n);
+                const auto to_read = OP::utils::memory_requirement<T>::array_size(n);
                 _fbuf.read(reinterpret_cast<MyFileBuf::char_type*>(t), to_read);
                 if (_fbuf.bad())
                 {
@@ -526,7 +530,8 @@ namespace OP
             enum
             {
                 slots_count_c = (sizeof...(TSlot)),
-                addres_table_size_c = memory_requirement<TopologyHeader>::requirement + memory_requirement<segment_pos_t>::array_size(slots_count_c-1) 
+                addres_table_size_c = OP::utils::memory_requirement<TopologyHeader>::requirement + 
+                    OP::utils::memory_requirement<segment_pos_t>::array_size(slots_count_c-1)
             };
             template <class Sm>
             SegmentTopology(Sm& segments) :

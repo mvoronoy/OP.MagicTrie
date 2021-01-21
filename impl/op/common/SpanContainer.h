@@ -41,7 +41,6 @@ namespace OP
                 next_f _next;
 
             public:
-                using storage_iter_t = storage_iter_t;
                 Nav() = default;
                 template <class F>
                 Nav(storage_iter_t data_pos, F do_next)
