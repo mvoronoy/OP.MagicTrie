@@ -193,7 +193,7 @@ namespace OP
                 };
 
                 IntersectionTracker(IntersectionTracker&& ) noexcept = default;
-                IntersectionTracker(const IntersectionTracker& other) noexcept = default;
+                IntersectionTracker(const IntersectionTracker& other) = default;
 
                 ~IntersectionTracker()
                 {

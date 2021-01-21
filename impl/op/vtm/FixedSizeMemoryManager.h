@@ -94,7 +94,7 @@ namespace OP
                     n_free_blocks += header->_adjacent_count;
                     header = manager.readonly_block(
                         FarAddress(header->_next), memory_requirement<ZeroHeader>::requirement)
-                        .OP_TEMPL_METH(at)(0);
+                        .OP_TEMPL_METH(at) < ZeroHeader > (0);
                 }
                 assert(manager.available_segments() * Capacity >= n_free_blocks);
             }
