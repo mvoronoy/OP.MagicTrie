@@ -143,7 +143,7 @@ struct GenericMemoryTest{
         delete&mngr2;//mngr2.reset();//causes delete
         segmentMngr2.reset();
 
-        auto segmentMngr3 = Sm::open<Sm>(seg_file_name);
+        auto segmentMngr3 = Sm::OP_TEMPL_METH(open)<Sm>(seg_file_name);
         SegmentTopology<HeapManagerSlot>* mngr3 = new SegmentTopology<HeapManagerSlot>(segmentMngr3);
         auto& mm = mngr3->slot<HeapManagerSlot>();
         /**Flag must be set if memory management allows merging of free adjacent blocks*/
