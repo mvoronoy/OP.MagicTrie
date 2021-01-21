@@ -451,7 +451,7 @@ namespace OP
                 //now need to re-calculate bounds for the rest of parents
                 for(auto* current = &breadcrumbs.top(); ; ) 
                 {
-                    current->first->_span = traits_t::key_t{};
+                    current->first->_span = typename traits_t::key_t{};
                     for(auto& uptr: current->first->_interrior)
                     {
                         if(!uptr)
