@@ -39,7 +39,7 @@ namespace OP
         {
             return (atom_t)c;
         }
-        inline constexpr const atom_t* operator "" _atom(const char* str, size_t n)
+        inline const atom_t* operator "" _atom(const char* str, size_t n)
         {
             return (const atom_t*)(str);
         }
