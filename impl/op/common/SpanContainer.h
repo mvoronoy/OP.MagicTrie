@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <memory>
 #include <array>
+#include <op/common/Range.h>
 
 namespace OP
 {
