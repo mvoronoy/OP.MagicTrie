@@ -75,7 +75,7 @@ struct GenericMemoryTest{
             mngr1->_check_integrity();
         }
         result.info() << "Test reopen existing...\n";
-        auto segmentMngr2 = Sm::open<Sm>(seg_file_name);
+        auto segmentMngr2 = Sm::OP_TEMPL_METH(open)<Sm>(seg_file_name);
         result.assert_true(tst_size == segmentMngr2->segment_size(), OP_CODE_DETAILS());
         SegmentTopology<HeapManagerSlot>& mngr2 = *new SegmentTopology<HeapManagerSlot>(segmentMngr2);
 
