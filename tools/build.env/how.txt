@@ -1,0 +1,7 @@
+1) Build docker image of centos + clang:
+docker build -t fedora_clang ./clang
+2) Build dev env + boost by:
+docker build -t devenv ./boost
+3) Optionally create debug env:
+docker build -t utest ./utest
+
