@@ -1,11 +1,10 @@
-FROM devenv
+FROM op_devenv
 
 
 LABEL description="Container to cross-compile for Linux"
 
 EXPOSE 22
 
-#RUN dnf install -y openssh-server
 
 RUN ssh-keygen -N '' -t rsa -f /etc/ssh/ssh_host_rsa_key
 RUN ssh-keygen -N '' -t dsa -f /etc/ssh/ssh_host_ecdsa_key

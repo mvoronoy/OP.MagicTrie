@@ -6,6 +6,7 @@
 #include <op/vtm/Transactional.h>
 #include <op/common/Exceptions.h>
 #include <op/common/SpanContainer.h>
+#include <op/common/Unsigned.h>
 #include <thread>
 
 namespace OP

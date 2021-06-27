@@ -1,0 +1,19 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "default",
+      "project": "CMakeLists.txt",
+      "projectTarget": "trie_test.exe",
+      "name": "trie_test.exe",
+      "args": [
+        "-r",
+        "flur.mt.+",
+        "-d",
+        " 3"
+      ]
+
+    }
+  ]
+}

@@ -1,4 +1,6 @@
-FROM fedora_clang
+FROM op_clang
+
+LABEL description="Container to compile and install boost library"
 
 # Following is commented since set-up obsolete Boost, but still can be useful for a dev-CentOS purpose 
 # RUN dnf -y install groupinstall 'Development Tools'

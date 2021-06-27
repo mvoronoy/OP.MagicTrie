@@ -183,16 +183,55 @@ namespace OP
             {
             }
         };
+        
 
         struct TestCase;
         struct TestSuite;
         struct TestRun;
+
         /** Result of test execution */
         struct TestResult
         {
             friend struct TestCase;
             friend struct TestRun;
             typedef std::chrono::steady_clock::time_point time_point_t;
+            
+            /** Helper class to organize chain of additional checks after assert_exception */
+            template <class Exception>
+            struct AssertExceptionWrapper
+            {
+                using this_t = AssertExceptionWrapper<Exception>;
+                AssertExceptionWrapper(TestResult& owner, Exception ex)
+                    : _owner(owner)
+                    , _ex(std::move(ex))
+                    {}
+
+                using assert_predicate_t = bool(const Exception&);
+                /** 
+                    Apply additional check 'f' to exception ex 
+                    \param f predicate bool(const Exception& ) for additional exception check. Just return false to raise assert
+                */
+                template <typename ...Xetails>
+                this_t& then(assert_predicate_t f, Xetails&& ...details)
+                {
+                    _owner.assert_that([&](){ return f(_ex); }, std::forward<Xetails>(details) ...);
+                    return *this;
+                }
+                /**
+                    Apply additional check 'f' to exception ex by invoking regular test methods from TestResult
+                */
+               
+                using assert_handler_t = void(TestResult& tresult, const Exception&);
+                this_t& then(assert_handler_t f)
+                {
+                    f(_owner, _ex);
+                    return *this;
+                }
+            private:
+                TestResult& _owner;
+                Exception _ex;
+            };
+
             explicit TestResult(std::shared_ptr<TestSuite> suite) :
                 _suite(std::move(suite)),
                 _status(not_started),
@@ -286,12 +325,12 @@ namespace OP
             {
                 assert_true(!condition, std::forward<Xetails>(details));
             }
-            template<class Comparator, class Xetails>
-            void assert_that(Comparator cmp, Xetails details)
+            template<class Comparator, class ... Xetails>
+            void assert_that(Comparator cmp, Xetails& ... details)
             {
                 if (!cmp())
                 {
-                    fail(std::forward<Xetails>(details));
+                    fail(std::forward<Xetails>(details) ...);
                 }                                                                        
             }
             template<class Marker, class Left, class Right, class Xetails>
@@ -310,13 +349,34 @@ namespace OP
                     fail(std::forward<Xetails>(details));
                 }
             }
+            /**
+            *   Assert that functor `f` raises exception of expected type `Exception`
+            */
+            template <class Exception, class F, typename ...Xetails>
+            AssertExceptionWrapper<Exception> assert_exception(F f, Xetails&& ...details)
+            {
+                try
+                {
+                    f();
+                }
+                catch (const Exception&ex)
+                {
+                    debug() << "Exception " << typeid(Exception).name();
+                    if constexpr (std::is_base_of_v<std::exception, Exception>)
+                        debug() << ex.what();
+                    debug() << ". Successfully catched as expected\n";
+                    return AssertExceptionWrapper<Exception>(*this, ex);
+                }
+                fail(std::forward<Xetails>(details)...);
+                throw 1; //fake line to avoid warning about return value. `fail` will unconditionally raise the exception
+            }
             /**Unconditional fail*/
-            template<typename XDet, typename ...Xetails>
-            void fail(XDet&& det, Xetails&& ...details)
+            template<typename ...Xetails>
+            void fail( Xetails&& ...details)
             {
                 guard_t g(*_access_result);
-                error() << std::forward<XDet>(det);
-                fail(std::forward<Xetails>(details)...);
+                ((error() << std::forward<Xetails>(details)), ...);
+                fail();
             }
             void fail()
             {

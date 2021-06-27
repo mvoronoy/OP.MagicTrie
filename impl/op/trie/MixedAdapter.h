@@ -4,19 +4,9 @@
 
 #include <memory>
 #include <functional>
-#include  <type_traits>
-#define OP_DECLARE_CLASS_HAS_MEMBER(Member)  template <typename A>\
-    class has_##Member \
-    { \
-        typedef char YesType[1]; \
-        typedef char NoType[2]; \
-        template <typename C> static YesType& test( decltype(&C::Member) ) ; \
-        template <typename C> static NoType& test(...); \
-    public: \
-        enum { value = sizeof(test<A>(nullptr)) == sizeof(YesType) }; \
-    };
-/** Complimentar to OP_DECLARE_CLASS_HAS_MEMBER - generate compile time const that indicate if class `A` has member `Member`*/
-#define OP_CHECK_CLASS_HAS_MEMBER(Class, Member) (details::has_##Member<Class>::value)
+#include <type_traits>
+#include <op/common/has_member_def.h>
+
 
 namespace OP
 {

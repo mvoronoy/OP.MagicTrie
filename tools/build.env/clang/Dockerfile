@@ -9,8 +9,7 @@ RUN dnf -y update && dnf -y upgrade &&\
     dnf -y install scl-utils openssh-server &&\
     dnf -y install which java python3.8 net-tools tcpdump zlib bzip2 cmake3 git wget &&\
     dnf -y install clang llvm llvm-devel clang-devel gdb &&\
-    dnf -y  install ninja-build &&\
-    mkdir -p /ior-volume 
+    dnf -y  install ninja-build
 
 #--enablerepo=PowerTools
 
