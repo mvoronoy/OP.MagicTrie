@@ -41,8 +41,15 @@ add_executable (trie_test
     "Transacted.cpp"
     "EventSourcedSegmentManagerTest.cpp"
     "Trie.cpp"
-      "SpanContainerTest.cpp"
- "flur/StlContainers.cpp" "flur/ThenDefault.cpp" "flur/Mt.cpp" "flur/Cartesian.cpp")
+    "SpanContainerTest.cpp"
+
+    "flur/StlContainers.cpp" 
+    "flur/ThenDefault.cpp" 
+    "flur/Mt.cpp" 
+    "flur/Cartesian.cpp"
+    "flur/Generator.cpp"
+ 
+  "flur/Minibatch.cpp")
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)

@@ -12,12 +12,15 @@
 #include <op/flur/OfOptional.h>
 #include <op/flur/OfValue.h>
 #include <op/flur/OfIota.h>
+#include <op/flur/OfGenerator.h>
 
 #include <op/flur/Cartesian.h>
 #include <op/flur/Filter.h>
 #include <op/flur/FlatMapping.h>
 #include <op/flur/Mapping.h>
 #include <op/flur/OrDefault.h>
+#include <op/flur/Repeater.h>
+#include <op/flur/Minibatch.h>
 
 namespace OP
 {
@@ -73,7 +76,13 @@ namespace flur
             return make_lazy_range( SimpleFactory<std::pair<V, V>, OfIota<V>>(std::move(begin), std::move(end)) );
         }
 
-    
+        template <class F>
+        constexpr auto generator(F&& f) noexcept
+        {
+            return make_lazy_range( GeneratorFactory<F, false>(std::move(f)) );
+        }
+
+
     } //ns:src
     /** namespace for functions that creates elements of pipeline following after elements from `srs` namespace */
     namespace then
@@ -128,6 +137,18 @@ namespace flur
             //const second_src_t<Alien>&
             //auto cros = std::function<R(const Src&, const R&)>(fnc);
             return CartesianFactory<Alien, F>(std::move(alien), std::move(f));
+        }
+
+        /** Produce repeater (for details see OP::flur::Repeater */
+        constexpr auto repeater() noexcept
+        {
+            return RepeaterFactory();
+        }
+
+        template <size_t N>
+        constexpr auto minibatch() noexcept
+        {
+            return MinibatchFactory<N>{};
         }
 
     } //ns:then

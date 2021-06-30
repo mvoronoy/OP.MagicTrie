@@ -1,0 +1,210 @@
+#pragma once
+#ifndef _OP_FLUR_MINIBATCH__H_
+#define _OP_FLUR_MINIBATCH__H_
+
+#include <functional>
+#include <memory>
+#include <optional>
+#include <future>
+
+#include <op/flur/typedefs.h>
+#include <op/flur/Sequence.h>
+#include <op/flur/SimpleFactory.h>
+
+namespace OP
+{
+/** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
+namespace flur
+{
+    namespace details 
+    {
+        template <class T, size_t N>
+        struct CyclicBuffer
+        {
+            using this_t = CyclicBuffer<T, N>;
+
+            std::array<T, N> _buffer;
+            std::atomic_size_t _r_current, _w_current;
+            
+            constexpr CyclicBuffer() noexcept
+                : _r_current(0)
+                , _w_current(0)
+            {
+            }
+            
+            CyclicBuffer(this_t&& other) noexcept
+                : this_t()
+            {
+                while ( other._r_current < other._w_current)
+                    _buffer[_w_current++] = std::move(other._buffer[other._r_current++ % N]);
+            }
+            bool has_elements() const
+            {
+                return _r_current < _w_current;
+            }
+            void emplace(T&& t)
+            {
+                if ((_w_current - _r_current) < N) //prevent outrun by 1 cycle
+                {
+                    _buffer[_w_current++ % N] = std::move(t);
+                    return;
+                }
+                throw std::out_of_range("CyclicBuffer::emplace");
+            }
+            const T& peek() const
+            {
+                if(_r_current < _w_current)
+                    return _buffer[_r_current % N];
+                throw std::out_of_range("CyclicBuffer::peek");
+            }
+            void next()
+            {
+                if (_r_current < _w_current)
+                {
+                    ++_r_current;
+                    return;
+                }
+                throw std::out_of_range("CyclicBuffer::next");
+            }
+        };
+
+
+    }//ns:details
+
+    /**
+    *   Minibatch async intermediate part that can be used to smooth delay between 
+    *   slow producer and fast consumer.
+    *   Minibatch introduce internal buffer of elements that are populated on 
+    *   background with std::async jobs. From design perspective this class introduce 
+    *   minimal synchronization footprint by avoiding locks.
+    */
+    template <class Base, class Src, size_t N>
+    class Minibatch : public Base
+    {
+        static_assert(N >= 2, "to small N for drain buffer");
+    public:
+        using this_t = Minibatch<Base, Src, N>;
+
+        using base_t = Base;
+        using src_element_t = typename Src::element_t;
+        using element_t = typename base_t::element_t;
+    private:
+        
+        Src _src;
+
+        details::CyclicBuffer< src_element_t, N> _batch;
+
+        using background_t = std::future<void>;
+
+        background_t _work;
+
+        /**Apply move operator to source, but wait until all background work done*/
+        Src&& safe_take()
+        {
+            if (_work.valid())
+                _work.get();
+            return std::move(_src);
+        }
+    public:
+        constexpr Minibatch(Src&& src) noexcept
+            :_src(std::move(src))
+        {
+        }
+
+        Minibatch(const this_t& src) noexcept = delete;
+
+        constexpr Minibatch(this_t&& src) noexcept
+            : _src(src.safe_take())
+            , _batch(std::move(src._batch))
+        {
+        }
+
+        ~Minibatch()
+        {
+        }
+        virtual void start()
+        {
+            _src.start();
+            if (_src.in_range())
+            {
+                _batch.emplace( std::move(_src.current()) );
+                async_drain(N - 1);
+            }
+        }
+        /** Check if Sequence is in valid position and may call `next` safely */
+        virtual bool in_range() const
+        {
+            if (_batch.has_elements() || _src.in_range())
+                return true;
+            //cover potential issue: t0{r == w}, t1{drain, now r < w}, t1{src_in_range = false, but r < w}
+            if (_work.valid())
+                const_cast<background_t&>(_work).get();
+            return _batch.has_elements(); 
+        }
+        /** Return current item */
+        virtual const element_t& current() const
+        {
+            return _batch.peek();
+        }
+        /** Position iterable to the next step */
+        virtual void next()
+        {
+            if (in_range())
+            {
+                _batch.next();
+                async_drain(1);
+            }
+            else
+            {
+                throw std::out_of_range("fail on next");
+            }
+        }
+    private:
+        void drain(size_t lim)
+        {
+            for (; lim && _src.in_range(); _src.next(), --lim)
+            {
+                _batch.emplace(std::move(_src.current()));
+            }
+        }
+        void async_drain(size_t lim)
+        {
+            if (_work.valid())
+                _work = std::move(
+                    std::async(std::launch::async, [this](size_t lim2, background_t b) {
+                        b.get();
+                        drain(lim2);
+                    }, lim, std::move(_work)));
+            else
+                _work = std::move(
+                    std::async(std::launch::async, [this](size_t lim2) {
+                        drain(lim2);
+                        }, lim)
+                );
+        }
+    };
+
+    /**
+    * Factory for Minibatch template
+    * 
+    * \tparam N - number of items in intermedia buffer. 
+    */
+    template <size_t N>
+    struct MinibatchFactory : FactoryBase
+    {
+        template <class Src>
+        constexpr auto compound(Src&& src) const noexcept
+        {
+            using base_minibatch_t = std::conditional_t< Src::ordered_c,
+                OrderedSequence< const typename Src::element_t& >,
+                Sequence< const typename Src::element_t& > >;
+
+            return Minibatch<base_minibatch_t, Src, N>(std::move(src));
+        }
+    };
+
+
+} //ns:flur
+} //ns:OP
+
+#endif //_OP_FLUR_MINIBATCH__H_

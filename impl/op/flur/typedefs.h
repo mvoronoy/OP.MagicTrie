@@ -76,7 +76,7 @@ namespace flur
             if constexpr (std::is_base_of_v<FactoryBase, SomeContainer>)
                 return unpack(std::move(co.compound()));
             else
-                return (const SomeContainer&)co;
+                return co;//return (const SomeContainer&)co;
         }
         template <class SomeContainer>
         using unpack_t = decltype(unpack(std::declval< SomeContainer>()));
