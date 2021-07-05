@@ -35,7 +35,7 @@ namespace flur
         * \endcode
         */
         template <class T>
-        constexpr auto sum(T ini, T next) noexcept
+        constexpr auto sum(T ini, T next) noexcept -> decltype(ini + next) 
         {
             return ini + std::move(next);
         }

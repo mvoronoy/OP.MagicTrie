@@ -165,20 +165,20 @@ void test_Mt(OP::utest::TestResult& tresult)
     
     constexpr int i_start = 20, i_end = 114;
     auto teepipeline = src::of_iota(i_start, i_end)
-        >> then::mapping([](auto i) {
-        return std::async(std::launch::async, [=]() {
+        >> then::mapping([](auto i) ->std::future<int> {
+        return std::async(std::launch::async, [=]() -> int {
             std::this_thread::sleep_for(200ms);
             return i;
             });
             })
         >> then::cartesian(
             make_lazy_range(beam::transient(std::ref(tee))) >> then::repeater(),
-            [](auto outer, auto inner)
+            [](std::future<int> outer, int inner) 
             {
-                return std::async(std::launch::async, [](auto& a, int b) {
+                return std::async(std::launch::async, [](std::future<int>&& a, int b) -> std::tuple<int, int, int> {
                     auto v = a.get();
                     return std::make_tuple(v, b, gcd(v, b));
-                    }, std::move(outer), std::move(inner));
+                    }, std::move(outer), inner);
             })
         >> then::minibatch<16>()
         >> then::mapping([](const auto& future)

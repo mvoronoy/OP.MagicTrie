@@ -15,11 +15,11 @@ namespace flur
     /** Abstraction that encapsulate iteration capability without specification of source container.
      \tparam T type of element resolved during iteration
      */
-    template <class T, bool ordered = false>
+    template <class T>
     struct Sequence
     {
         /** Compile time constant indicates Sequence over sorted sequence */
-        static constexpr bool ordered_c = ordered;
+        static constexpr bool ordered_c = false;
 
         using this_t = Sequence<T>;
 
@@ -39,8 +39,10 @@ namespace flur
 
     /** Provide definition for ordered iteable sequence */
     template <class T>
-    struct OrderedSequence : Sequence<T, true>
+    struct OrderedSequence : Sequence<T>
     {
+        /** Compile time constant indicates Sequence over sorted sequence */
+        static constexpr bool ordered_c = true;
         using base_t = Sequence<T>;
         using this_t = OrderedSequence<T>;
         using element_t = typename base_t::element_t;

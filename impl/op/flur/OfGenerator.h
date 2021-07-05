@@ -66,30 +66,33 @@ namespace OP
                 _index = 0;
                 if constexpr (ftraits_t::arity_c == 1)
                 {
-                    if constexpr (std::is_same_v<bool, ftraits_t::arg_i<0>>)
-                        _current = std::move(_generator(true));
-                    else
-                        static_assert(false, "Unsupported generator signature neither: f() nor f(bool)");
+                    constexpr bool is_arg_bool_c = std::is_same_v<bool, typename ftraits_t::arg_i <0>>;
+                    static_assert(is_arg_bool_c/*clang compatibility*/, "Unsupported generator signature neither: f() nor f(bool)");
+                    _current = std::move(_generator(true));
+                        
                 }
-                else if constexpr (ftraits_t::arity_c == 0)
-                    _current = std::move(_generator());
                 else
-                    static_assert(false, "Unsupported generator signature neither: f() nor f(bool)");
+                {
+                    constexpr bool is_zero_arity_c = ftraits_t::arity_c == 0;
+                    static_assert(is_zero_arity_c, "Unsupported generator signature neither: f() nor f(bool)");
+                    _current = std::move(_generator());
+                }
             }
             void adaptive_next()
             {
                 ++_index;
                 if constexpr (ftraits_t::arity_c == 1)
                 {
-                    if constexpr (std::is_same_v<bool, ftraits_t::arg_i<0>>)
-                        _current = std::move(_generator(false));
-                    else
-                        static_assert(false, "Unsupported generator signature neither: f() nor f(bool)");
+                    static_assert(std::is_same_v<bool, typename ftraits_t::arg_i<0>>, 
+                        "Unsupported generator signature neither: f() nor f(bool)");
+                    _current = std::move(_generator(false));
                 }
-                else if constexpr (ftraits_t::arity_c == 0)
-                    _current = std::move(_generator());
                 else
-                    static_assert(false, "Unsupported generator signature neither: f() nor f(bool)");
+                {
+                    static_assert((ftraits_t::arity_c == 0), "Unsupported generator signature neither: f() nor f(bool)");
+                    _current = std::move(_generator());
+                }
+                    
             }
         };
         /**

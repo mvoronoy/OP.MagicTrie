@@ -4,7 +4,9 @@
 
 #include <functional>
 #include <memory>
+
 #include <op/common/Utils.h>
+#include <op/flur/Sequence.h>
 
 namespace OP
 {

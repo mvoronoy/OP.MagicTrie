@@ -49,19 +49,19 @@ void test_ThenCartesian(OP::utest::TestResult& tresult)
     tresult.assert_true(r3.empty(), "wrong result number");
 
 
+    std::function<int(int, int)> cart_f =
+        [&](int x, int y) ->int {
+        tresult.assert_that<negate<less>>(x, 0, OP_CODE_DETAILS("pair must produce positive-negative pair"));
+        tresult.assert_that<less>(y, 0, OP_CODE_DETAILS("pair must produce positive-negative pair"));
+        return x * y;
+    };
     auto r4 = src::of_iota(0, 10)
         >> then::cartesian(
             src::of_iota(-2, 0)
-            , [&](auto x, auto y) { 
-                tresult.assert_that<negate<less>>(x, 0, OP_CODE_DETAILS("pair must produce positive-negative pair"));
-                tresult.assert_that<less>(y, 0, OP_CODE_DETAILS("pair must produce positive-negative pair"));
-                return x * y;
-            }
+            , cart_f
         )
         ;
-    tresult.assert_that<equals>(-135, r4.reduce<int>(OP::flur::reducer::sum<int>), "wrong result number");
-
-
+    tresult.assert_that<equals>(-135, r4.OP_TEMPL_METH(reduce)<int>(reducer::sum<int>), "wrong result number");
 }
 
 static auto module_suite = OP::utest::default_test_suite("flur.then")

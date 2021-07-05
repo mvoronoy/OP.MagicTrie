@@ -72,12 +72,15 @@ void test_Iota(OP::utest::TestResult& tresult)
 void test_Map(OP::utest::TestResult& tresult)
 {
     using tst_map_t = std::map<char, float>;
+    using element_t = typename tst_map_t::value_type;
     tst_map_t source1{ {'a', 1.f}, {'b', 1.2f} };
     auto r = src::of_container(std::cref(source1));
     tresult.assert_true(r.compound().ordered_c, "Map must produce ordered sequence");
-
+    std::function<float(float, float)> freduce = reducer::sum<float>;
     tresult.assert_that<equals>(2.2f, 
-        (r >> then::mapping([](const auto& i) {return i.second; })).reduce<float>(reducer::sum<float>),
+        (
+            r >> then::mapping([](const element_t& i) -> float {return i.second; })
+        ).OP_TEMPL_METH(reduce)<float>(freduce),
         "Wrong sum");
 }
 void test_Set(OP::utest::TestResult& tresult)

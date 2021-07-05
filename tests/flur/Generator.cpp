@@ -50,7 +50,7 @@ void test_boolarg_gen(OP::utest::TestResult& tresult)
             "bool parameter wrong semantic");
         ++invocked;
         return std::optional<int>{};
-        })).for_each([&](const auto& r) {
+        })).for_each([&](int r) -> void {
             tresult.fail("Empty generator must not produce any element");
             });
     tresult.assert_that<equals>(1, invocked, "wrong invocation number");

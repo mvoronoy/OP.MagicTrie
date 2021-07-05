@@ -53,10 +53,12 @@ namespace flur
         {
             return _use_alt ? _alt.in_range() : _src.in_range();
         }
+
         virtual element_t current() const
         {
             return _use_alt ? _alt.current() : _src.current();
         }
+
         virtual void next()
         {
             _use_alt ? _alt.next() : _src.next();
@@ -83,7 +85,7 @@ namespace flur
         {
             using src_container_t = details::unpack_t<Src>;
             
-            if constexpr (OP::utils::is_generic<Alt, Sequence>::value)
+            if constexpr (OP::utils::is_generic<Alt, OP::flur::Sequence>::value)
             { // value is some container
                 using base_t = std::conditional_t< (src_container_t::ordered_c && alt_holder_t::ordered_c),
                     OrderedSequence<typename src_container_t::element_t>,
