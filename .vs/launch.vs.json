@@ -9,7 +9,7 @@
       "name": "trie_test.exe",
       "args": [
         "-r",
-        "flur.mt.+",
+        "flur.minibatch.+",
         "-d",
         " 3"
       ]

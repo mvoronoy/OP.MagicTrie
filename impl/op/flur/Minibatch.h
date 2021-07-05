@@ -119,27 +119,27 @@ namespace flur
         {
         }
 
-        ~Minibatch()
-        {
-        }
         virtual void start()
         {
             _src.start();
+            drain(1);
             if (_src.in_range())
             {
-                _batch.emplace( std::move(_src.current()) );
                 async_drain(N - 1);
             }
         }
         /** Check if Sequence is in valid position and may call `next` safely */
         virtual bool in_range() const
         {
-            if (_batch.has_elements() || _src.in_range())
+            if (_batch.has_elements())
                 return true;
             //cover potential issue: t0{r == w}, t1{drain, now r < w}, t1{src_in_range = false, but r < w}
             if (_work.valid())
+            {
                 const_cast<background_t&>(_work).get();
-            return _batch.has_elements(); 
+                return _batch.has_elements();
+            }
+            return false;
         }
         /** Return current item */
         virtual const element_t& current() const
@@ -149,13 +149,19 @@ namespace flur
         /** Position iterable to the next step */
         virtual void next()
         {
-            if (in_range())
+            if (_batch.has_elements())
             {
                 _batch.next();
                 async_drain(1);
             }
             else
             {
+                if (_work.valid())
+                {
+                    _work.get();
+                    if (_batch.has_elements())
+                        return;
+                }
                 throw std::out_of_range("fail on next");
             }
         }

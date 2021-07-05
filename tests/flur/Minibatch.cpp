@@ -33,7 +33,9 @@ namespace {
         (src::of_iota(10, 20)
             >> then::minibatch<N>()
             ).for_each([&](const auto& r) {
-                tresult.assert_that<equals>(r, order_check++, "sequence violation");
+                tresult.assert_that<equals>(r, order_check, OP_CODE_DETAILS("sequence violation (1), expected:" 
+                    << order_check << ", while:" << r << "\n"));
+                ++order_check;
             });
         tresult.assert_that<equals>(order_check, 20, "wrong count of items in sequence");
     }

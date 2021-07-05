@@ -39,6 +39,20 @@
 *.vsp*
 *.ipch
 *.tlog
+.idea/
 
 # Test result
 *.test
+
+# CMake
+CMakeCache.txt
+/.ninja_deps
+/.ninja_log
+/CMakeFiles/
+*.cmake
+build.ninja
+
+#VS - exclude .vs folder but not task-configuring
+/.vs
+!/.vs/launch.vs.json
+!/.vs/tasks.vs.json
