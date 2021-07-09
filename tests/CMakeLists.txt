@@ -29,8 +29,11 @@ add_executable (trie_test
     
     "BgWorkerTest.cpp"
     "BitsetTest.cpp"
+
     "common/UtilsTest.cpp"
     "common/ZoneTest.cpp"
+    "common/ThreadPool.cpp"
+
     "ContainersTest.cpp"
     "FixedSizeMemoryManagerTest.cpp"
     "ranges/CommonRangesOpTest.cpp"

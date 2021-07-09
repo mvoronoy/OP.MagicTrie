@@ -56,7 +56,9 @@ namespace flur
 
         virtual element_t current() const
         {
-            return _use_alt ? _alt.current() : _src.current();
+            if (_use_alt)
+                return _alt.current();
+            return _src.current();
         }
 
         virtual void next()
@@ -84,7 +86,8 @@ namespace flur
         constexpr auto compound(Src&& src) const noexcept
         {
             using src_container_t = details::unpack_t<Src>;
-            
+            using element_t = std::decay_t< typename src_container_t::element_t >;
+
             if constexpr (OP::utils::is_generic<Alt, OP::flur::Sequence>::value)
             { // value is some container
                 using base_t = std::conditional_t< (src_container_t::ordered_c && alt_holder_t::ordered_c),
@@ -98,9 +101,9 @@ namespace flur
             }
             else if constexpr (std::is_base_of_v < FactoryBase, Alt> )
             { // provided parameter is some factory
-                using base_t = std::conditional_t< (src_container_t::ordered_c&& alt_holder_t::ordered_c),
-                    OrderedSequence<typename src_container_t::element_t>,
-                    Sequence<typename src_container_t::element_t>
+                using base_t = std::conditional_t< (src_container_t::ordered_c && alt_holder_t::ordered_c),
+                    OrderedSequence<element_t>,
+                    Sequence<element_t>
                 >;
                 return
                     OrDefault<base_t, src_container_t, alt_holder_t>(
@@ -111,8 +114,8 @@ namespace flur
             {
                 //1 value is already ordered
                 using base_t = std::conditional_t< src_container_t::ordered_c,
-                    OrderedSequence<typename src_container_t::element_t>,
-                    Sequence<typename src_container_t::element_t>
+                    OrderedSequence<element_t>,
+                    Sequence<element_t>
                 >;
                 // just a value, treate this as plain value
                 return OrDefault<base_t, src_container_t, OfValue< Alt >>(
