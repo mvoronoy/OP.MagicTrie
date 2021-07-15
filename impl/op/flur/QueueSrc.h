@@ -49,8 +49,10 @@ namespace flur
     template <class T>
     struct QueueSrc : OP::flur::Sequence<T>
     {
-        std::deque<int> _queue;
+        using base_t = OP::flur::Sequence<T>;
+        using element_t = typename base_t::element_t;
 
+        std::deque<T> _queue;
         mutable std::mutex _m;
         using guard_t = std::unique_lock<std::mutex>;
         mutable std::condition_variable _access_condition;
