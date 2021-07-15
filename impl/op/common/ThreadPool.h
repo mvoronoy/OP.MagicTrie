@@ -103,6 +103,10 @@ public:
     {
         allocate_thread(initial);
     }
+    ThreadPool()
+        : ThreadPool(std::thread::hardware_concurrency(), 0)
+        {}
+
     /** not copiable */
     ThreadPool(const ThreadPool&) = delete;
 

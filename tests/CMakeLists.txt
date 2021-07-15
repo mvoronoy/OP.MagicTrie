@@ -51,8 +51,9 @@ add_executable (trie_test
     "flur/Mt.cpp" 
     "flur/Cartesian.cpp"
     "flur/Generator.cpp"
- 
-  "flur/Minibatch.cpp")
+    "flur/ThenFlatMap.cpp"
+    "flur/Minibatch.cpp"
+)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)

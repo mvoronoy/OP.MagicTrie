@@ -14,6 +14,7 @@
 #include <op/flur/OfGenerator.h>
 #include <op/flur/flur.h>
 #include <op/flur/Reducer.h>
+#include <op/flur/QueueSrc.h>
 
 using namespace OP::utest;
 using namespace OP::flur;
@@ -67,74 +68,6 @@ namespace beam
 
 
 
-struct QueueSrc : OP::flur::Sequence<int>
-{
-    std::deque<int> _queue;
-
-    mutable std::mutex _m;
-    using guard_t = std::unique_lock<std::mutex>;
-    mutable std::condition_variable _access_condition;
-    std::atomic_bool _stop = false;
-
-    QueueSrc()
-    {
-    }
-    void push(int v)
-    {
-        if (_stop)
-            throw std::logic_error("push data after 'stop' has been invoked");
-
-        guard_t g(_m);
-        _queue.push_back(v);
-        g.unlock();
-        _access_condition.notify_one();
-    }
-    void stop()
-    {
-        _stop.store(true);
-        _access_condition.notify_one();
-    }
-    /** Start iteration from the beginning. If iteration was already in progress it resets.  */
-    virtual void start()
-    {
-    }
-    /** Check if Sequence is in valid position and may call `next` safely */
-    virtual bool in_range() const
-    {
-        guard_t g(_m);
-        if (_queue.empty())
-        {
-            _access_condition.wait(g, [this] {return _stop || !_queue.empty(); });
-            return !_queue.empty();
-        }
-        else
-            return true;
-    }
-    /** Return current item */
-    virtual element_t current() const
-    {
-        guard_t g(_m);
-        if (_queue.empty())
-        {
-            _access_condition.wait(g, [this] {return _stop || !_queue.empty(); });
-            return _queue.front();
-        }
-        else
-            return _queue.front();
-    }
-    /** Position iterable to the next step */
-    virtual void next()
-    {
-        guard_t g(_m);
-        if (_queue.empty())
-        {
-            _access_condition.wait(g, [this] {return _stop || !_queue.empty(); });
-            _queue.pop_front();
-        }
-        else
-            _queue.pop_front();
-    }
-};
 
 /** Find "Greatest Common Divisor" by Euclidian algorithm as very slow algorithm */
 int gcd(int a, int b)
@@ -161,7 +94,7 @@ void test_Mt(OP::utest::TestResult& tresult)
     //    })).for_each([](auto& i) {
     //        std::cout << "inp>" << i.get() << "\n";
     //        });
-    QueueSrc tee;
+    QueueSrc<int> tee;
     
     constexpr int i_start = 20, i_end = 114;
     auto teepipeline = src::of_iota(i_start, i_end)
@@ -172,7 +105,7 @@ void test_Mt(OP::utest::TestResult& tresult)
             });
             })
         >> then::cartesian(
-            make_lazy_range(beam::transient(std::ref(tee))) >> then::repeater(),
+            make_lazy_range(src::outer(std::ref(tee))) >> then::repeater(),
             [](std::future<int> outer, int inner) 
             {
                 return std::async(std::launch::async, [](std::future<int>&& a, int b) -> std::tuple<int, int, int> {

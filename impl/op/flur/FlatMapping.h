@@ -80,7 +80,7 @@ namespace flur
             using src_container_t = details::unpack_t<Src>;
             using function_res_t = decltype(_applicator(std::declval<src_container_t>().current()));
             using target_set_t = details::unpack_t<function_res_t>;
-            using element_t = typename target_set_t::element_t;
+            
             //need to distinguish cases when applicator produces factory or ready to use container
             if constexpr (std::is_base_of_v<FactoryBase, function_res_t>)
             {
