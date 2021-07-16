@@ -45,7 +45,7 @@ void test_Vector(OP::utest::TestResult& tresult)
     auto r = src::of_container(sens_vectror_t(3));
     tresult.info() << "Test no redundant copies\n";
     r.for_each([&](auto const& i) {
-        tresult.assert_that<equals>(i._tracks[ConstructorType::copy], 2, "You don't control how many times value has been copied");
+        tresult.assert_that<equals>(i._tracks[ConstructorType::copy], 1, "You don't control how many times value has been copied");
         });
 
     tresult.info() << "Test processing by refernce std::cref\n";
