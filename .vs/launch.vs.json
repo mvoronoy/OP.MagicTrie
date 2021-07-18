@@ -9,7 +9,7 @@
       "name": "trie_test.exe",
       "args": [
         "-r",
-        "flur.+flatmap",
+        "flur.mt.*",
         "-d",
         " 3"
       ]

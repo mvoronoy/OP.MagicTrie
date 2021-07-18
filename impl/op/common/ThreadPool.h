@@ -138,7 +138,7 @@ public:
         ensure_workers();
         using result_t = function_res_t<F, Args...> ;
         using task_impl_t = Functor<F, Args ...>;
-        std::unique_ptr<task_impl_t> impl (new task_impl_t(std::move(f), std::forward<Args>(args)...));
+        std::unique_ptr<task_impl_t> impl (new task_impl_t(std::forward<F>(f), std::forward<Args>(args)...));
 
         std::future<result_t> result = impl->get_future();
         put_task( std::move(impl) );

@@ -10,6 +10,7 @@
 #include <op/utest/unit_test.h>
 
 #include <op/common/ftraits.h>
+#include <op/common/ThreadPool.h>
 
 #include <op/flur/OfGenerator.h>
 #include <op/flur/flur.h>
@@ -94,21 +95,23 @@ void test_Mt(OP::utest::TestResult& tresult)
     //    })).for_each([](auto& i) {
     //        std::cout << "inp>" << i.get() << "\n";
     //        });
+    OP::utils::ThreadPool tp;
+
     QueueSrc<int> tee;
     
     constexpr int i_start = 20, i_end = 114;
     auto teepipeline = src::of_iota(i_start, i_end)
-        >> then::mapping([](auto i) ->std::future<int> {
-        return std::async(std::launch::async, [=]() -> int {
+        >> then::mapping([&tp](auto i) ->std::future<int> {
+        return tp.async([&tp, i]() -> int {
             std::this_thread::sleep_for(200ms);
             return i;
             });
             })
         >> then::cartesian(
-            make_lazy_range(src::outer(std::ref(tee))) >> then::repeater(),
-            [](std::future<int> outer, int inner) 
+            src::outer(std::ref(tee)) >> then::repeater(),
+            [&tp](std::future<int> outer, int inner) 
             {
-                return std::async(std::launch::async, [](std::future<int>&& a, int b) -> std::tuple<int, int, int> {
+                return tp.async([](std::future<int> a, int b) -> std::tuple<int, int, int> {
                     auto v = a.get();
                     return std::make_tuple(v, b, gcd(v, b));
                     }, std::move(outer), inner);
