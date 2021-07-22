@@ -76,6 +76,58 @@ class ThreadPool
             _pack();
         }
     };
+    
+    template< class F, class... Args>
+    struct F2 : Task
+    {
+        using result_t = function_res_t<F, Args...>;
+        std::promise<result_t> _promise;
+        F _f;
+        std::tuple<Args ...> _args;
+        F2(F&& f, Args&&... args)
+            : _f(std::move(f)),
+            _args(std::forward<Args>(args)...)
+        {}
+        F2(const F2&) = delete;
+
+        std::future<result_t> get_future()
+        {
+            return _promise.get_future();
+        }
+        void run() override
+        {
+            try
+            {
+                if constexpr (std::is_void_v< result_t >)
+                {
+                    std::apply([this](Args &... tupleArgs) {
+                        _f(std::forward<Args>(tupleArgs) ...);
+                        _promise.set_value();
+
+                        }, _args
+                    );
+                }
+                else
+                {
+                    std::apply([this](Args &... tupleArgs) {
+                        _promise.set_value(std::move(
+                            _f(std::forward<Args>(tupleArgs) ...)));
+
+                        }, _args
+                    );
+                }
+            }
+            catch (...)
+            {
+                try {
+                    // store anything thrown in the promise
+                    _promise.set_exception(std::current_exception());
+                }
+                catch (...) {} // set_exception() may throw too
+            }
+        }
+    };
+
     template <class F>
     struct Action : Task
     {
@@ -137,7 +189,8 @@ public:
     {
         ensure_workers();
         using result_t = function_res_t<F, Args...> ;
-        using task_impl_t = Functor<F, Args ...>;
+        //using task_impl_t = Functor<F, Args ...>;
+        using task_impl_t = F2<F, Args ...>;
         std::unique_ptr<task_impl_t> impl (new task_impl_t(std::forward<F>(f), std::forward<Args>(args)...));
 
         std::future<result_t> result = impl->get_future();

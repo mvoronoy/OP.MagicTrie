@@ -19,10 +19,10 @@ void test_Integration(OP::utest::TestResult& tresult)
     ThreadPool tp(1, 1);
     auto start = std::chrono::steady_clock::now();
         
-    auto f1 = tp.async([&](int arg){ 
-        tresult.debug() <<  "Called from async<int>(" << arg << ")\n"; 
+    auto f1 = tp.async([&](int arg, int c )->int{ 
+        tresult.debug() <<  "Called from async<int>(" << arg << ',' << c << ")\n";
         std::this_thread::sleep_for(3000ms);
-        return 75; }, 57);
+        return 75; }, 57, 75);
     auto f2 = tp.async([&](){ 
         tresult.debug() << "Called from void async<void>\n"; 
         std::this_thread::sleep_for(1000ms);

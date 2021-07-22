@@ -98,11 +98,11 @@ void test_Mt(OP::utest::TestResult& tresult)
     OP::utils::ThreadPool tp;
 
     QueueSrc<int> tee;
-    
+
     constexpr int i_start = 20, i_end = 114;
     auto teepipeline = src::of_iota(i_start, i_end)
         >> then::mapping([&tp](auto i) ->std::future<int> {
-        return tp.async([&tp, i]() -> int {
+        return std::async(std::launch::async, [&tp, i]() -> int {
             std::this_thread::sleep_for(200ms);
             return i;
             });
@@ -111,9 +111,11 @@ void test_Mt(OP::utest::TestResult& tresult)
             src::outer(std::ref(tee)) >> then::repeater(),
             [&tp](std::future<int> outer, int inner) 
             {
-                return tp.async([](std::future<int> a, int b) -> std::tuple<int, int, int> {
-                    auto v = a.get();
-                    return std::make_tuple(v, b, gcd(v, b));
+                auto targ = std::make_tuple(std::move(outer), inner);
+                return tp.async(
+                    [](std::future<int> a, int b) -> std::tuple<int, int, int> {
+                        auto v = a.get();
+                        return std::make_tuple(v, b, gcd(v, b));
                     }, std::move(outer), inner);
             })
         >> then::minibatch<16>()
@@ -124,9 +126,6 @@ void test_Mt(OP::utest::TestResult& tresult)
             })
         ;
 
-        /*auto dt = make_lazy_range(beam::transient(std::ref(tee))) >> beam::repeater();
-        auto future1 = std::async(std::launch::async, [&]() {dt.for_each([](const auto& i1) { std::cout << "i1:" << i1 << "\n"; });
-        dt.for_each([](const auto& i2) { std::cout << "i2:" << i2 << "\n"; }); });*/
 
         auto back_work = std::async(std::launch::async, [&]() {
             teepipeline.for_each([](const auto& gcd_args) {
@@ -142,6 +141,7 @@ void test_Mt(OP::utest::TestResult& tresult)
         tee.stop();
         back_work.wait();
         //future1.wait();
+
 }
 
 
