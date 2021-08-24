@@ -325,30 +325,25 @@ namespace OP
             {
                 assert_true(!condition, std::forward<Xetails>(details));
             }
-            template<class Comparator, class ... Xetails>
-            void assert_that(Comparator cmp, Xetails& ... details)
+            
+
+            template<class Marker, class ...Args>
+            void assert_that(Args&& ...args)
             {
-                if (!cmp())
+                Marker m;
+                //consiously don't use make_tuple to have reference to argument
+                auto pack_arg = std::tuple<Args...>(std::forward<Args>(args)...);
+                if (!details::apply_prefix(m, pack_arg, std::make_index_sequence<Marker::args_c>()))
                 {
-                    fail(std::forward<Xetails>(details) ...);
-                }                                                                        
-            }
-            template<class Marker, class Left, class Right, class Xetails>
-            void assert_that(Left&& left, Right&& right, Xetails &&details)
-            {
-                if (!OP::utest::that<Marker>(std::forward<Left>(left), std::forward<Right>(right)))
-                {
-                    fail(std::forward<Xetails>(details));
+                    auto bind_fail = [this](auto&& ... t) {
+                        fail(std::forward<decltype(t)>(t)...);
+                    };
+                    //need pass argument to fail
+                    details::apply_rest< Marker::args_c>(bind_fail, pack_arg, 
+                        std::make_index_sequence<(sizeof ... (Args)) - Marker::args_c>());
                 }
             }
-            template<class Left, class Right, class Cmp, class Xetails>
-            void assert_thax(Left&& left, Right&& right, Cmp cmp, Xetails &&details)
-            {
-                if (!cmp(std::forward<Left>(left), std::forward<Right>(right)))
-                {
-                    fail(std::forward<Xetails>(details));
-                }
-            }
+            
             /**
             *   Assert that functor `f` raises exception of expected type `Exception`
             */

@@ -25,8 +25,8 @@ namespace flur
     * \tparam Src - source sequnce to store and then repeat
     * \tparam Container - storage for elements std::vector by default
     */
-    template <class Base, class Src, class Container = std::vector<typename Base::element_t>>
-    class Repeater : Base
+    template <class Base, class Src, class Container = std::deque<std::decay_t<typename Base::element_t> >>
+    class Repeater : public Base
     {
         using base_t = Base;
         using element_t = typename base_t::element_t;
@@ -89,9 +89,11 @@ namespace flur
         {
             using target_container_t = std::decay_t<decltype(OP::flur::details::get_reference(src))>;
             using src_container_t = OP::flur::details::unpack_t<Src>;
+            using element_t = target_container_t::element_t;
+            using element_ref = const element_t&;
             using base_t = std::conditional_t< (target_container_t::ordered_c),
-                OrderedSequence<typename target_container_t::element_t>,
-                Sequence<typename target_container_t::element_t>
+                OrderedSequence<element_ref>,
+                Sequence<element_ref>
             >;
             return Repeater<base_t, Src>(std::move(src));
         }

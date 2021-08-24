@@ -31,19 +31,19 @@ namespace flur
         }
         virtual void start()
         {
-            _src.start();
+            details::get_reference(_src).start();
         }
         virtual bool in_range() const
         {
-            return _src.in_range();
+            return details::get_reference(_src).in_range();
         }
         virtual element_t current() const
         {
-            return _applicator(_src.current());
+            return _applicator(details::get_reference(_src).current());
         }
         virtual void next()
         {
-            _src.next();
+            details::get_reference(_src).next();
         }
 
         Src _src;
@@ -67,15 +67,16 @@ namespace flur
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
-            using src_container_t = std::decay_t<details::unpack_t<Src>>;
-            using result_t = decltype( _applicator(std::declval< std::decay_t <src_container_t> >().current()) );
+            using input_t = std::decay_t<details::unpack_t<Src>>;
+            using src_container_t = std::decay_t < decltype(details::get_reference(std::declval< input_t >()))>;
+            using result_t = decltype( _applicator(std::declval< src_container_t >().current()) );
 
             using target_sequence_base_t = std::conditional_t<keep_order && src_container_t::ordered_c,
                 Sequence<result_t>,
                 OrderedSequence<result_t>
             >;
 
-            return Mapping<target_sequence_base_t, src_container_t, F>(
+            return Mapping<target_sequence_base_t, input_t, F>(
                 std::move(details::unpack(std::move(src))), 
                 _applicator);
         }

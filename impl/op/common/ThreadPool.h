@@ -9,6 +9,7 @@
 #include <thread>
 #include <functional>
 #include <future>
+#include <op/common/SysLog.h>
 
 namespace OP{
 namespace utils{
@@ -54,41 +55,17 @@ class ThreadPool
     using function_res_t = std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
     
     template< class F, class... Args>
-    struct Functor : Task
-    {
-        using result_t = function_res_t<F, Args...> ;
-        std::packaged_task<result_t()> _pack;
-        Functor( F&& f, Args&&... args )
-            : _pack(std::bind(std::forward<F>(f), std::forward<Args>(args)...))
-            {}
-        Functor(const Functor&) = delete;
-        Functor(Functor&&other) noexcept 
-            : _pack( std::move( other._pack ))
-            {}
-                
-        
-        std::future<result_t> get_future()
-        {
-            return _pack.get_future();
-        }
-        void run() override
-        {
-            _pack();
-        }
-    };
-    
-    template< class F, class... Args>
-    struct F2 : Task
+    struct Functor : public Task
     {
         using result_t = function_res_t<F, Args...>;
-        std::promise<result_t> _promise;
-        F _f;
-        std::tuple<Args ...> _args;
-        F2(F&& f, Args&&... args)
+        using this_t = Functor<F, Args ...>;
+        using arguments_t = std::tuple<std::decay_t<Args> ...>;
+
+        Functor(F&& f, Args&&... args)
             : _f(std::move(f)),
             _args(std::forward<Args>(args)...)
         {}
-        F2(const F2&) = delete;
+        Functor(const Functor&) = delete;
 
         std::future<result_t> get_future()
         {
@@ -98,32 +75,39 @@ class ThreadPool
         {
             try
             {
-                if constexpr (std::is_void_v< result_t >)
-                {
-                    std::apply([this](Args &... tupleArgs) {
-                        _f(std::forward<Args>(tupleArgs) ...);
-                        _promise.set_value();
-
-                        }, _args
-                    );
-                }
-                else
-                {
-                    std::apply([this](Args &... tupleArgs) {
-                        _promise.set_value(std::move(
-                            _f(std::forward<Args>(tupleArgs) ...)));
-
-                        }, _args
-                    );
-                }
+                apply_impl(std::make_index_sequence< sizeof...(Args)>{});
             }
             catch (...)
             {
-                try {
+                try 
+                {
                     // store anything thrown in the promise
                     _promise.set_exception(std::current_exception());
                 }
-                catch (...) {} // set_exception() may throw too
+                catch (...) 
+                { // set_exception() may throw too
+                    OP::utils::SysLog log;
+                    log.print("Unhandled thread exception hide it"s);
+                } 
+            }
+        }
+    private:
+        std::promise<result_t> _promise;
+        F _f;
+        arguments_t _args;
+
+        template <std::size_t... I>
+        void apply_impl(std::index_sequence<I...>)
+        {
+            if constexpr (std::is_void_v< result_t >)
+            {
+                std::invoke(_f, std::forward<Args>(std::get<I>(_args))...);
+                _promise.set_value();
+            }
+            else // result is non-void
+            {
+                auto dest = std::move(std::invoke(_f, std::forward<Args>(std::get<I>(_args))...));
+                _promise.set_value(std::move(dest));
             }
         }
     };
@@ -189,13 +173,12 @@ public:
     {
         ensure_workers();
         using result_t = function_res_t<F, Args...> ;
-        //using task_impl_t = Functor<F, Args ...>;
-        using task_impl_t = F2<F, Args ...>;
+        using task_impl_t = Functor<F, Args ...>;
         std::unique_ptr<task_impl_t> impl (new task_impl_t(std::forward<F>(f), std::forward<Args>(args)...));
 
         std::future<result_t> result = impl->get_future();
         put_task( std::move(impl) );
-        return result; 
+        return result;
     }
     /** Join all allocated threads. If some tasks has been queued before then they are not completed */
     void join()
@@ -238,7 +221,10 @@ private:
                 task->run();
             } catch(...)
             {
+                using namespace std::string_literals;
                 //hard intercept all errors
+                OP::utils::SysLog log;
+                log.print("Unhandled thread exception hide it"s);
             }
             --owner->_busy;
         }

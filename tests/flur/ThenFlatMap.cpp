@@ -19,12 +19,13 @@ void test_FlatMapFromPipeline(OP::utest::TestResult& tresult)
     constexpr int N = 4;
     constexpr auto fm_lazy = src::of_iota(1, N+1)
         >> then::flat_mapping([](auto i) {
-        return src::generator([step = 0, i]() mutable->std::optional<decltype(i)> {
-            decltype(i) v = 1;
-            for (auto x = 0; x < step; ++x)
-                v *= i;
-            return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
-        });
+            return src::generator([step = 0, i]() mutable->std::optional<decltype(i)> {
+                decltype(i) v = 1;
+                for (auto x = 0; x < step; ++x)
+                    v *= i;
+                return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
+            }
+        );
             
         })
         ;
@@ -32,7 +33,7 @@ void test_FlatMapFromPipeline(OP::utest::TestResult& tresult)
     constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
     size_t cnt = 0;
     fm_lazy.for_each([&](auto i) {
-        std::cout << i << "\n";
+        tresult.debug() << i << "\n";
         ++cnt;
         });
     tresult.assert_that<equals>(cnt, 12, "Wrong times");
@@ -57,7 +58,7 @@ struct ExploreVector
     {
         ++g_copied;
     }
-    ExploreVector(ExploreVector<T>&& other)
+    ExploreVector(ExploreVector<T>&& other) noexcept
         : _store(std::move(other._store))
     {
         ++g_moved;

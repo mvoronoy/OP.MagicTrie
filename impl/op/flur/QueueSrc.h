@@ -47,10 +47,10 @@ namespace flur
 
     */
     template <class T>
-    struct QueueSrc : OP::flur::Sequence<T>
+    struct QueueSrc : OP::flur::Sequence<const T&>
     {
         using base_t = OP::flur::Sequence<T>;
-        using element_t = typename base_t::element_t;
+        using element_t = T;
 
         std::deque<T> _queue;
         mutable std::mutex _m;
@@ -98,7 +98,7 @@ namespace flur
                 return true;
         }
         /** Return current item */
-        virtual element_t current() const
+        virtual const element_t& current() const
         {
             guard_t g(_m);
             if (_queue.empty())

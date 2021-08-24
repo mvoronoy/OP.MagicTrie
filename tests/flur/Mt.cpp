@@ -101,20 +101,27 @@ void test_Mt(OP::utest::TestResult& tresult)
 
     constexpr int i_start = 20, i_end = 114;
     auto teepipeline = src::of_iota(i_start, i_end)
-        >> then::mapping([&tp](auto i) ->std::future<int> {
-        return std::async(std::launch::async, [&tp, i]() -> int {
+        >> then::mapping([&tp](auto i) ->std::shared_future<int> {
+        return tp.async( [i]() -> int {
             std::this_thread::sleep_for(200ms);
             return i;
-            });
+            }).share();
             })
         >> then::cartesian(
-            src::outer(std::ref(tee)) >> then::repeater(),
-            [&tp](std::future<int> outer, int inner) 
+            src::outer(std::ref(tee))  
+            >> then::mapping([](auto i) {
+                
+                std::ios_base::fmtflags out_flag(std::cout.flags());
+                std::cout << "\t>inner:(" << i <<")"<< std::hex << i << "\n";
+                std::cout.flags(out_flag);
+                return i;
+            })
+            >> then::repeater()
+            , [&tp](std::shared_future<int> outer, int inner)
             {
-                auto targ = std::make_tuple(std::move(outer), inner);
                 return tp.async(
-                    [](std::future<int> a, int b) -> std::tuple<int, int, int> {
-                        auto v = a.get();
+                    [](std::shared_future<int> a, int b) -> std::tuple<int, int, int> {
+                        int v = a.get();
                         return std::make_tuple(v, b, gcd(v, b));
                     }, std::move(outer), inner);
             })
@@ -125,25 +132,28 @@ void test_Mt(OP::utest::TestResult& tresult)
                 return const_cast<t_t &>( future ).get();
             })
         ;
-
-
-        auto back_work = std::async(std::launch::async, [&]() {
-            teepipeline.for_each([](const auto& gcd_args) {
-                std::cout << std::get<0>(gcd_args) << ", " << std::get<1>(gcd_args) << " = " << std::get<2>(gcd_args) << "\n";
+        //following array contains big ints that on 0xFFF00 bitmask provides 0
+        const int big_int_mask_c = 0xFFF00;
+        constexpr std::array<int, 5> big_int_basis{ 
+            1+(2 << 23), 11+ (2 << 24), 13 + (2 << 25), 17 + (2 << 26), 19 + (2 << 27) };
+        size_t count_out = 0;
+        auto back_work = tp.async([&]() {
+            teepipeline.for_each([&](const auto& gcd_args) {
+                count_out++;
+                tresult.assert_false(big_int_mask_c & std::get<1>(gcd_args), "Wrong bigint collected");
+                std::ios_base::fmtflags out_flag(std::cout.flags());
+                tresult.debug() << std::hex << std::get<0>(gcd_args) << ", " << std::get<1>(gcd_args) << " = " << std::get<2>(gcd_args) << "\n";
+                std::cout.flags(out_flag);
                 });
             });
 
-        tee.push(1 + (2 << 23));
-        tee.push(11 + (2 << 24));
-        tee.push(13 + (2 << 25));
-        tee.push(17 + (2 << 26));
-        tee.push(19 + (2 << 27));
+        for(auto i : big_int_basis)
+            tee.push(i);
         tee.stop();
         back_work.wait();
         //future1.wait();
-
+        tresult.assert_that<equals>(count_out, (i_end - i_start) * big_int_basis.size(), "Wrong num of rows produced");
 }
-
 
 static auto module_suite = OP::utest::default_test_suite("flur.mt")
 ->declare(test_Mt, "mt")

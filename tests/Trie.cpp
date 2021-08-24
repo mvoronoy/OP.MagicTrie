@@ -910,7 +910,7 @@ void test_TrieSectionRange(OP::utest::TestResult& tresult)
         auto found = strain4.find(key);
         tresult.assert_that<logical_not<equals>>(strain4.end(), found, OP_CODE_DETAILS(<< "Key not found:" << (const char*)key.c_str()));
         auto& value_set = found->second;
-        tresult.assert_that<string_equals>(key, found->first, OP_CODE_DETAILS(<< "Key compare failed:" << (const char*)key.c_str()));
+        tresult.assert_that<equals>(key, found->first, OP_CODE_DETAILS(<< "Key compare failed:" << (const char*)key.c_str()));
         tresult.assert_that<logical_not<equals>>(value_set.end(), value_set.find(value),
             OP_CODE_DETAILS(<< "Value compare failed:" << value << " of key:" << (const char*)key.c_str()));
         ++n;
@@ -1336,7 +1336,7 @@ void test_TriePrefixedInsert(OP::utest::TestResult& tresult)
         auto key_str = s0 + s.first;
 
         tresult.assert_false(r.second, "Value already exists");
-        tresult.assert_that<string_equals>(key_str, r.first.key(), "Value already exists");
+        tresult.assert_that<equals>(key_str, r.first.key(), "Value already exists");
 
         });
 
@@ -1421,7 +1421,7 @@ void test_TriePrefixedUpsert(OP::utest::TestResult& tresult)
         auto key_str = s0 + s.first;
 
         tresult.assert_false(r.second, "Value already exists");
-        tresult.assert_that<string_equals>(key_str, r.first.key(), "Value already exists");
+        tresult.assert_that<equals>(key_str, r.first.key(), "Value already exists");
 
         test_values.find(key_str)->second = 3.0;
         });
@@ -1842,15 +1842,14 @@ void test_JoinRangeOverride(TestResult& tresult)
                     "abcdefghijklmnopqrstuvwxyz"_astr;
     for (size_t i = 0; i < trie_limit; ++i)
     {
-        tresult.info()<<".";
+        tresult.debug()<<".";
         if((i % 32) == 0 )
-            tresult.info()<<i<<"\n";
+            tresult.debug()<<i<<"\n";
         OP::utest::tools::randomize_str(rnd_val, avg_str_len, avg_str_len, [&](){
-                
                 return rand_str_base[OP::utest::tools::wrap_rnd() % rand_str_base.length()];
             });
         trie1->insert(rnd_val, i);
-        tresult.info()<<":";
+        tresult.debug()<<":";
         if(((int)rnd_val[0]) % 2 == 0 )
             trie2->insert(rnd_val, i);
         if( ((int)rnd_val[0]) % 3 == 0)
