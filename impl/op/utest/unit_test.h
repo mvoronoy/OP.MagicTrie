@@ -359,7 +359,7 @@ namespace OP
                     debug() << "Exception " << typeid(Exception).name();
                     if constexpr (std::is_base_of_v<std::exception, Exception>)
                         debug() << ex.what();
-                    debug() << ". Successfully catched as expected\n";
+                    debug() << "... Successfully catched as expected\n";
                     return AssertExceptionWrapper<Exception>(*this, ex);
                 }
                 fail(std::forward<Xetails>(details)...);

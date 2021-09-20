@@ -27,7 +27,6 @@ enable_testing()
 # Add source to this project's executable.
 add_executable (trie_test 
     
-    "BgWorkerTest.cpp"
     "BitsetTest.cpp"
 
     "common/UtilsTest.cpp"

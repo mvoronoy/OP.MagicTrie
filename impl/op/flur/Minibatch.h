@@ -78,23 +78,22 @@ namespace flur
     *   background with std::async jobs. From design perspective this class introduce 
     *   minimal synchronization footprint by avoiding locks.
     */
-    template <class Base, class Src, size_t N>
+    template <class TThreads, class Base, class Src, size_t N>
     class Minibatch : public Base
     {
         static_assert(N >= 2, "to small N for drain buffer");
     public:
-        using this_t = Minibatch<Base, Src, N>;
+        using this_t = Minibatch<TThreads, Base, Src, N>;
 
         using base_t = Base;
         using src_element_t = typename Src::element_t;
         using element_t = typename base_t::element_t;
     private:
-        
-        Src _src;
-
-        details::CyclicBuffer< src_element_t, N> _batch;
-
         using background_t = std::future<void>;
+
+        Src _src;
+        TThreads& _thread_pool;
+        details::CyclicBuffer< src_element_t, N> _batch;
 
         background_t _work;
 
@@ -106,8 +105,9 @@ namespace flur
             return std::move(_src);
         }
     public:
-        constexpr Minibatch(Src&& src) noexcept
-            :_src(std::move(src))
+        constexpr Minibatch(Src&& src, TThreads& thread_pool) noexcept
+            : _src(std::move(src))
+            , _thread_pool(thread_pool)
         {
         }
 
@@ -116,6 +116,7 @@ namespace flur
         constexpr Minibatch(this_t&& src) noexcept
             : _src(src.safe_take())
             , _batch(std::move(src._batch))
+            , _thread_pool(src._thread_pool)
         {
         }
 
@@ -177,13 +178,13 @@ namespace flur
         {
             if (_work.valid())
                 _work = std::move(
-                    std::async(std::launch::async, [this](size_t lim2, background_t b) {
+                    _thread_pool.async([this](size_t lim2, background_t b) {
                         b.get();
                         drain(lim2);
                     }, lim, std::move(_work)));
             else
                 _work = std::move(
-                    std::async(std::launch::async, [this](size_t lim2) {
+                    _thread_pool.async([this](size_t lim2) {
                         drain(lim2);
                         }, lim)
                 );
@@ -194,10 +195,18 @@ namespace flur
     * Factory for Minibatch template
     * 
     * \tparam N - number of items in intermedia buffer. 
+    * \tparam TThreads - type of thread-pool conception, this must support `async` method
+    *                   with signatire similar to std::async that returns std::future object.
+    *                   As a default implementation you can use OP::utils::ThreadPool
     */
-    template <size_t N>
+    template <size_t N, class TThreads>
     struct MinibatchFactory : FactoryBase
     {
+        
+        MinibatchFactory(TThreads& thread_pool)
+            :_thread_pool(thread_pool)
+        {}
+
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
@@ -205,8 +214,10 @@ namespace flur
                 OrderedSequence< const typename Src::element_t& >,
                 Sequence< const typename Src::element_t& > >;
 
-            return Minibatch<base_minibatch_t, Src, N>(std::move(src));
+            return Minibatch<TThreads, base_minibatch_t, Src, N>(std::move(src), _thread_pool);
         }
+    private:
+        TThreads& _thread_pool;
     };
 
 

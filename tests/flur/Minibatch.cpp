@@ -10,6 +10,7 @@
 #include <op/utest/unit_test.h>
 
 #include <op/common/ftraits.h>
+#include <op/common/ThreadPool.h>
 
 #include <op/flur/flur.h>
 #include <op/flur/Reducer.h>
@@ -23,15 +24,17 @@ namespace {
     template <size_t N>
     void apply_minitest(OP::utest::TestResult & tresult)
     {
+        OP::utils::ThreadPool tp(2);
+
         (src::of_iota(10, 10)
-            >> then::minibatch<N>()
+            >> then::minibatch<N>(tp)
             ).for_each([&](const auto& r) {
                 tresult.fail("no invocation allowed");
                 });
 
         size_t order_check = 10;
         (src::of_iota(10, 20)
-            >> then::minibatch<N>()
+            >> then::minibatch<N>(tp)
             ).for_each([&](const auto& r) {
                 tresult.assert_that<equals>(r, order_check, OP_CODE_DETAILS("sequence violation (1), expected:" 
                     << order_check << ", while:" << r << "\n"));

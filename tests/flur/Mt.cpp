@@ -101,11 +101,11 @@ void test_Mt(OP::utest::TestResult& tresult)
 
     constexpr int i_start = 20, i_end = 114;
     auto teepipeline = src::of_iota(i_start, i_end)
-        >> then::mapping([&tp](auto i) ->std::shared_future<int> {
+        >> then::mapping([&tp](auto i) ->std::future<int> {
         return tp.async( [i]() -> int {
             std::this_thread::sleep_for(200ms);
             return i;
-            }).share();
+            })/*.share()*/;
             })
         >> then::cartesian(
             src::outer(std::ref(tee))  
@@ -117,15 +117,15 @@ void test_Mt(OP::utest::TestResult& tresult)
                 return i;
             })
             >> then::repeater()
-            , [&tp](std::shared_future<int> outer, int inner)
+            , [&tp](std::future<int> outer, int inner)
             {
                 return tp.async(
-                    [](std::shared_future<int> a, int b) -> std::tuple<int, int, int> {
+                    [](std::future<int> a, int b) -> std::tuple<int, int, int> {
                         int v = a.get();
                         return std::make_tuple(v, b, gcd(v, b));
                     }, std::move(outer), inner);
             })
-        >> then::minibatch<16>()
+        >> then::minibatch<16>(tp)
         >> then::mapping([](const auto& future)
             {
                 using t_t = std::decay_t<decltype(future)>;
@@ -155,6 +155,77 @@ void test_Mt(OP::utest::TestResult& tresult)
         tresult.assert_that<equals>(count_out, (i_end - i_start) * big_int_basis.size(), "Wrong num of rows produced");
 }
 
-static auto module_suite = OP::utest::default_test_suite("flur.mt")
+void test_mt_exceptions(OP::utest::TestResult& tresult)
+{
+    tresult.info() << "Exception of async consumption...\n";
+    OP::utils::ThreadPool tp;
+    auto pipeline = src::of_iota(0, 10)
+        >> then::mapping([&tp](auto i) ->std::future<int> {
+        return tp.async([i]() -> int {
+            std::this_thread::sleep_for(200ms);
+            return (i & 1) ? throw std::runtime_error("-"):i;
+            })/*.share()*/;
+            })
+        >> then::mapping([](auto fi) {
+                return fi.get();
+            })
+        >> then::minibatch<16>(tp)
+        ;
+    tresult.assert_exception<std::runtime_error>([&](){
+        pipeline.for_each([&](auto i) {
+            tresult.assert_that<equals>(0, i);//only once
+            });
+        });
+    tresult.info() << "check exception during asyn queue consumption...\n";
+    QueueSrc<std::future<int>> queue_for_pipeline2;
+    auto pipeline2 = src::outer(std::ref(queue_for_pipeline2))
+        >> then::mapping([](const auto& fut) { 
+        return const_cast<std::future<int>&>(fut).get();
+            })
+        ;
+
+    queue_for_pipeline2.push(tp.async([&]() -> int {
+            return 0;
+        }));
+    queue_for_pipeline2.push(tp.async([&]() ->int {
+            throw std::runtime_error("instead of 1");
+        }));
+    queue_for_pipeline2.stop();
+    tresult.assert_exception<std::runtime_error>([&]() {
+        pipeline2.for_each([&](auto i) {
+            tresult.assert_that<equals>(0, i);//only once
+            });
+        });
+    tresult.info() << "check async exception during 'next'...\n";
+    std::atomic<int> i3{ 0 };
+    auto pipeline3 = src::generator([&]()  {
+        if (i3 > 0)
+        {
+            throw std::runtime_error("generation fail emulation");
+        }
+        //don't do optional of future in real code
+        return
+            (i3 > 3) ?
+                std::optional<std::future<int>>{} : std::make_optional (tp.async([&]() {
+            ++i3;
+            return i3.load();
+            }));
+        })
+        
+        >> then::mapping([](const auto& fi) {
+                return const_cast<std::decay_t<decltype(fi)>&>(fi).get();
+            })
+    ;
+    tresult.assert_exception<std::runtime_error>([&]() {
+        pipeline3.count();
+        /*
+        pipeline.for_each([&](auto i) {
+            tresult.assert_that<equals>(0, i);//only once
+            });
+            */
+        });
+}
+static auto module_suite = OP::utest::default_test_suite("flur.multithread")
 ->declare(test_Mt, "mt")
+->declare(test_mt_exceptions, "exceptions")
 ;

@@ -39,6 +39,11 @@ namespace flur
         {
             return make_lazy_range(OfContainerFactory<T>(std::forward<T>(t)));
         }
+        template <class T, std::enable_if_t<std::is_invocable<decltype(of_container<T>), T&&>::value, int> = 0>
+        constexpr auto of(T&& t)  noexcept
+        {
+            return of_container(std::move(t));
+        }
         /**
         * Create new LazyRange from std::optional. Result range is ordered and allows 0 to 1 iteration by 
         * the contained value
@@ -54,6 +59,11 @@ namespace flur
         {
             return make_lazy_range(
                 SimpleFactory<std::optional<V>, OfOptional<V>>(std::optional <V>(std::move(v))));
+        }
+        template <class T, std::enable_if_t<std::is_invocable<decltype(of_optional<T>), T>::value, int> = 0>
+        constexpr auto of(T t)  noexcept
+        {
+            return of_optional(std::move(t));
         }
 
         /**
@@ -145,10 +155,10 @@ namespace flur
             return RepeaterFactory();
         }
 
-        template <size_t N>
-        constexpr auto minibatch() noexcept
+        template <size_t N, class TThreads>
+        constexpr auto minibatch(TThreads& thread_pool) noexcept
         {
-            return MinibatchFactory<N>{};
+            return MinibatchFactory<N, TThreads>{thread_pool};
         }
 
     } //ns:then

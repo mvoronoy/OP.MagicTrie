@@ -94,7 +94,7 @@ namespace OP
         using less_or_equals = negate<greater>;
 
         /** Marker specifies strictly less operation between two arguments */
-        struct is_null : details::marker_arity<2>
+        struct is_null : details::marker_arity<1>
         {
             template <class Inst>
             constexpr bool operator()(Inst inst) const
@@ -103,7 +103,7 @@ namespace OP
             }
         };
         /** Alias for negate<is_null> */
-        using not_null = negate<is_null>;
+        using is_not_null = negate<is_null>;
 
         /**
         *  Marker allows intercept exception of specified type. Result assert_that will fail if 

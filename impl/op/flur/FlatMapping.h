@@ -18,7 +18,8 @@ namespace flur
     template <class Src, class Target>
     struct FlatMapping : public Sequence<typename Target::element_t>
     {
-        using result_t = typename Target::element_t;
+        using base_t = Sequence<typename Target::element_t>;
+        using element_t = typename base_t::element_t;
 
         template <class F>
         FlatMapping(Src&& src, F f)
@@ -29,32 +30,33 @@ namespace flur
 
         virtual void start()
         {
-            _src.start();
+            details::get_reference(_src).start();
             seek();
         }
         virtual bool in_range() const
         {
             return _defered && _defered->in_range();
         }
-        virtual result_t current() const
+        virtual element_t current() const
         {
             return _defered->current();
         }
         virtual void next()
         {
             _defered->next();
-            if (!_defered->in_range() && _src.in_range())
+            if (!_defered->in_range() && details::get_reference(_src).in_range())
             {
-                _src.next();
+                details::get_reference(_src).next();
                 seek();
             }
         }
     private:
         void seek()
         {
-            for (; _src.in_range(); _src.next())
+            auto& rrc = details::get_reference(_src);
+            for (; rrc.in_range(); rrc.next())
             {
-                _defered.emplace(details::unpack(_applicator(_src.current())));
+                _defered.emplace(details::unpack(_applicator(rrc.current())));
                 _defered->start();
                 if (_defered->in_range())
                     return;
@@ -64,7 +66,8 @@ namespace flur
         }
         std::optional< Target > _defered;
         Src _src;
-        std::function<Target(const typename Src::element_t&)> _applicator;
+        using src_element_t = typename std::decay_t<decltype(details::get_reference(_src))>::element_t;
+        std::function<Target(const src_element_t&)> _applicator;
     };
 
     template < class F >
@@ -78,7 +81,8 @@ namespace flur
         constexpr auto compound(Src&& src) const noexcept
         {
             using src_container_t = details::unpack_t<Src>;
-            using function_res_t = decltype(_applicator(std::declval<src_container_t>().current()));
+            //using function_res_t = decltype(_applicator(std::declval<src_container_t>().current()));
+            using function_res_t = decltype(_applicator(details::get_reference(std::declval<src_container_t&>()).current()));
             using target_set_t = details::unpack_t<function_res_t>;
             
             //need to distinguish cases when applicator produces factory or ready to use container

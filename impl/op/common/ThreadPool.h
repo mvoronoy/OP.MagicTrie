@@ -77,21 +77,31 @@ class ThreadPool
             {
                 apply_impl(std::make_index_sequence< sizeof...(Args)>{});
             }
+            catch (const std::exception& ex)
+            {
+                pack_exception();
+                OP::utils::SysLog log;
+                log.print("Unhandled thread exception hide that:"s + ex.what());
+            }
             catch (...)
             {
-                try 
-                {
-                    // store anything thrown in the promise
-                    _promise.set_exception(std::current_exception());
-                }
-                catch (...) 
-                { // set_exception() may throw too
-                    OP::utils::SysLog log;
-                    log.print("Unhandled thread exception hide it"s);
-                } 
+                pack_exception();
             }
         }
     private:
+        void pack_exception()
+        {
+            try
+            {
+                // store anything thrown in the promise
+                _promise.set_exception(std::current_exception());
+            }
+            catch (...)
+            { // set_exception() may throw too
+                OP::utils::SysLog log;
+                log.print("Unhandled thread exception hide it"s);
+            }
+        }
         std::promise<result_t> _promise;
         F _f;
         arguments_t _args;

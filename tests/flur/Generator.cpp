@@ -13,7 +13,7 @@
 
 #include <op/flur/flur.h>
 #include <op/flur/Reducer.h>
-
+namespace {
 using namespace OP::utest;
 using namespace OP::flur;
 using namespace std::string_literals;
@@ -70,7 +70,28 @@ void test_boolarg_gen(OP::utest::TestResult& tresult)
      });
     tresult.assert_that<equals>(10, invocked, "wrong invocation number");
 }
+void test_exception(OP::utest::TestResult& tresult)
+{
+    tresult.info() << "check exception during 'next'...\n";
+    int i3 = 0;
+    auto pipeline3 = src::generator([&]() {
+        if (i3 > 0)
+        {
+            throw std::runtime_error("generation fail emulation");
+        }
+        //don't do optional of future in real code
+        return (i3 > 3) 
+            ? std::optional<int>{}
+        : std::make_optional(++i3);
+        });
+
+    tresult.assert_exception<std::runtime_error>([&]() {
+        pipeline3.count();
+        });
+}
+
 static auto module_suite = OP::utest::default_test_suite("flur.generator")
 ->declare(test_noarg_gen, "noarg")
 ->declare(test_boolarg_gen, "bool-arg")
-;
+->declare(test_exception, "exceptions");
+} //ns:<anonymous>

@@ -6,6 +6,7 @@
 #include <memory>
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
+#include <op/flur/LazyRangeIter.h>
 #include <tuple>
 
 namespace OP
@@ -67,6 +68,14 @@ namespace flur
             using arg_t = LazyRange<Ux ...>;
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
         }
+        auto begin() const
+        {
+            return LazyRangeIterator< this_t >(*this);
+        }
+        auto end() const
+        {
+            return LazyRangeIterator< this_t >();
+        }
 
         /** Apply functor Fnc to all items in this iterable starting from beginning */
         template <class Fnc>
@@ -95,7 +104,8 @@ namespace flur
         {
             size_t c = 0;
             auto pipeline = compound();
-            for ( pipeline.start(); pipeline.in_range(); pipeline.next())
+            auto& ref_pipeline = details::get_reference(pipeline);
+            for (ref_pipeline.start(); ref_pipeline.in_range(); ref_pipeline.next())
             {
                 ++c;
             }
@@ -107,13 +117,6 @@ namespace flur
             pipeline.start();
             return !pipeline.in_range();
         }
-        /** Apply functor Fnc to all items from the current position  */
-        //template <class Fnc>
-        //void for_rest(Fnc f)
-        //{
-        //    for (; in_range(); next())
-        //        f(current());
-        //}
 
     };
     /** Simplifies creation of LazyRange */
@@ -124,5 +127,4 @@ namespace flur
     }
 } //ns:flur
 } //ns:OP
-
 #endif //_OP_FLUR_LAZYRANGE__H_

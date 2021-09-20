@@ -76,6 +76,9 @@ void test_Map(OP::utest::TestResult& tresult)
     tst_map_t source1{ {'a', 1.f}, {'b', 1.2f} };
     auto r = src::of_container(std::cref(source1));
     tresult.assert_true(r.compound().ordered_c, "Map must produce ordered sequence");
+    //just check generic form works
+    tresult.assert_true(src::of(std::cref(source1)).compound().ordered_c, "Set must support simple construction");
+
     std::function<float(float, float)> freduce = reducer::sum<float>;
     tresult.assert_that<equals>(2.2f, 
         (
@@ -88,6 +91,8 @@ void test_Set(OP::utest::TestResult& tresult)
     using tst_set_t = std::set<std::string>;
     auto r = src::of_container(tst_set_t{ "a"s, "ab"s, ""s });
     tresult.assert_true(r.compound().ordered_c, "Set must produce ordered sequence");
+    //just check generic form works
+    tresult.assert_true(src::of(tst_set_t{ ""s}).compound().ordered_c, "Set must support simple construction");
     //count summary str length
     tresult.assert_that<equals>(3,
         r.reduce<size_t>([](size_t ini, const auto& i) { return ini + i.size();  }),
@@ -128,6 +133,19 @@ void test_Value(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(42, src::of_value(42).reduce<int>(OP::flur::reducer::sum<int>),
         "Wrong count of single value");
 }
+void test_Iterate(OP::utest::TestResult& tresult)
+{
+    using tst_map_t = std::map<char, float>;
+    using element_t = typename tst_map_t::value_type;
+    tst_map_t source1{ {'a', 1.f}, {'b', 1.2f} };
+    auto r = src::of(std::cref(source1));
+    float sum = 0.f;
+    for (const auto& pair : r)
+    {
+        sum += pair.second;
+    }
+    tresult.assert_that<equals>(2.2f, sum, "Wrong sum");
+}
 
 static auto module_suite = OP::utest::default_test_suite("flur.stl")
 ->declare(test_Vector, "vector")
@@ -136,4 +154,5 @@ static auto module_suite = OP::utest::default_test_suite("flur.stl")
 ->declare(test_Optional, "optional")
 ->declare(test_Value, "value")
 ->declare(test_Iota, "iota")
+->declare(test_Iterate, "iterate")
 ;
