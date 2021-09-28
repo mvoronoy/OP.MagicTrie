@@ -10,7 +10,6 @@
 
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
-#include <op/flur/SimpleFactory.h>
 
 namespace OP
 {

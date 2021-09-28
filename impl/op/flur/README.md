@@ -16,8 +16,9 @@ declaration.
 Flur provides some useful implementations for 
 - Source
 - Processing
-- Consumption
+- Consumption.
+
 And of course, developer can provide own implementation.
 
-### Getting started
+## Getting started
 Let's start from simple 

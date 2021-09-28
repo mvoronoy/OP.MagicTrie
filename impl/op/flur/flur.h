@@ -13,12 +13,14 @@
 #include <op/flur/OfValue.h>
 #include <op/flur/OfIota.h>
 #include <op/flur/OfGenerator.h>
+#include <op/flur/SimpleFactory.h>
 
 #include <op/flur/Cartesian.h>
 #include <op/flur/Filter.h>
 #include <op/flur/FlatMapping.h>
 #include <op/flur/Mapping.h>
 #include <op/flur/OrDefault.h>
+#include <op/flur/OnException.h>
 #include <op/flur/Repeater.h>
 #include <op/flur/Minibatch.h>
 
@@ -107,6 +109,17 @@ namespace flur
         constexpr auto or_default(T t) noexcept
         {
             return OrDefaultFactory<T>(std::move(t));
+        }
+
+        /**
+        *   Add handle of exception to previous definition of pipeline. For more details and examples see OnException.
+        * \tparam Ex - type of exception to intercept
+        * \tparam Alt - factory that produces alternatice source in case of exception. 
+        */
+        template <class Ex, class Alt>
+        constexpr auto on_exception(Alt t) noexcept
+        {
+            return OnExceptionFactory<Alt, Ex>(std::move(t));
         }
 
         /** Produce new source that is result of applying function to each element of origin source */
