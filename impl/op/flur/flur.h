@@ -77,6 +77,17 @@ namespace flur
             return make_lazy_range( SimpleFactory<V, OfValue<V>>(std::move(v)) );
         }
         /**
+        *   Create LazyRange from single value that evaluated each time when start/next loop starts. 
+        *   Result is ordered range iterable over exact one value
+        *   \tparam F - functor without arguments to return value
+        */
+        template <class F>
+        constexpr auto of_lazy_value(F f) noexcept
+        {
+            using r_t = decltype(f());
+            return make_lazy_range( SimpleFactory<F, OfLazyValue<r_t, F>>(std::move(f)) );
+        }
+        /**
         * Create LazyRange in a way similar to std::iota - specify range of values that support ++ operator.
         * For example:\code
         * 

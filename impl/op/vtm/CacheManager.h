@@ -7,7 +7,6 @@
 #include <mutex> 
 #include <shared_mutex>
 #include <op/common/Utils.h>
-#include <op/common/FetchTicket.h>
 
 namespace OP{
     namespace trie{

@@ -50,6 +50,43 @@ namespace flur
         bool _retrieved;
         T _src;
     };
+    /**
+    *   Create conatiner of strictly 1 item that evaluates each time when iteration starts.
+    * Container is ordred.
+    */
+    template <class T, class F>
+    struct OfLazyValue : public OrderedSequence<T>
+    {
+        using gen_t = F;
+        constexpr OfLazyValue(gen_t gen) noexcept
+            : _gen(std::move(gen))
+            , _retrieved(false)
+        {
+        }
+
+        virtual void start()
+        {
+            _retrieved = false;
+        }
+
+        virtual bool in_range() const
+        {
+            return !_retrieved;
+        }
+
+        virtual T current() const
+        {
+            return _gen();
+        }
+
+        virtual void next()
+        {
+            _retrieved = true;
+        }
+    private:
+        bool _retrieved;
+        T _gen;
+    };
 
 } //ns:flur
 } //ns:OP

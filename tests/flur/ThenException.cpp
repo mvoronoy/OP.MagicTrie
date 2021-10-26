@@ -114,7 +114,7 @@ namespace {
         auto pipeline = mk_generator<std::logic_error>(0, 1)
             >> then::on_exception<std::logic_error>(src::of_value(42)) //intercept only std::logic_error, but not std::runtime_error
             >> then::mapping([](auto n) ->int {throw std::runtime_error("re-raise error"); })
-            >> then::on_exception<std::runtime_error>(src::of_value(73));
+            >> then::on_exception<std::runtime_error>(src::of_value(73))
             ;
         size_t n = 0;
         for (auto i : pipeline)
