@@ -21,7 +21,7 @@ using namespace OP::utest;
 using namespace OP::flur;
 using namespace std::string_literals;
 using namespace std::chrono_literals;
-
+// this is emulation of slow consumer
 struct SlowSrc : OP::flur::Sequence<int>
 {
     int _current;
@@ -157,6 +157,11 @@ void test_Mt(OP::utest::TestResult& tresult)
 
 void test_mt_exceptions(OP::utest::TestResult& tresult)
 {
+    auto f = std::async(std::launch::async, [] { return 0; });
+    auto x1 = src::of_lazy_value([&]() {return std::move(f); });
+    for (auto x0 = x1.compound(); false; x0.next())
+    {
+    }
     tresult.info() << "Exception of async consumption...\n";
     OP::utils::ThreadPool tp;
     auto pipeline = src::of_iota(0, 10)
@@ -211,7 +216,8 @@ void test_mt_exceptions(OP::utest::TestResult& tresult)
             return i3.load();
             }));
         })
-        
+        //>> then::minibatch<4>(tpool)
+
         >> then::mapping([](const auto& fi) {
                 return const_cast<std::decay_t<decltype(fi)>&>(fi).get();
             })
