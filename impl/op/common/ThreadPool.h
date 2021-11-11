@@ -194,9 +194,11 @@ public:
     void join()
     {
        _end = true;
-       _cv_task.notify_all(); 
+       _cv_task.notify_all();
+       guard_t g(_acc_thread_depo);
        for(auto& t : _thread_depo)
            t.join();
+       _thread_depo.clear();
     }
 private: 
     template <class TaskPtr>

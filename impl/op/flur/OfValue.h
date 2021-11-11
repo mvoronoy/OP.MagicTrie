@@ -85,7 +85,7 @@ namespace flur
         }
     private:
         bool _retrieved;
-        T _gen;
+        gen_t _gen;
     };
 
 } //ns:flur

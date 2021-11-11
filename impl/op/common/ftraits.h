@@ -52,6 +52,10 @@ namespace utils{
             : function_traits_defs<ReturnType, Args...> {};
 
         template <typename ClassType, typename ReturnType, typename... Args>
+        struct function_traits_impl<ReturnType(ClassType::* const)(Args...) const>
+            : function_traits_defs<ReturnType, Args...> {};
+
+        template <typename ClassType, typename ReturnType, typename... Args>
         struct function_traits_impl<ReturnType(ClassType::*)(Args...) const&>
             : function_traits_defs<ReturnType, Args...> {};
 

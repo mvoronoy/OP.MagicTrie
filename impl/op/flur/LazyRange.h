@@ -70,11 +70,13 @@ namespace flur
         }
         auto begin() const
         {
-            return LazyRangeIterator< this_t >(*this);
+            using t_t = decltype(compound());
+            return LazyRangeIterator< t_t >(std::move(compound()));
         }
         auto end() const
         {
-            return LazyRangeIterator< this_t >();
+            using t_t = decltype(compound());
+            return LazyRangeIterator< t_t >();
         }
 
         /** Apply functor Fnc to all items in this iterable starting from beginning */

@@ -3,6 +3,7 @@
 #define _OP_FLUR_SEQUENCE__H_
 
 #include <functional>
+#include <op/flur/LazyRangeIter.h>
 
 namespace OP
 {
@@ -35,6 +36,16 @@ namespace flur
         /** Position iterable to the next step */
         virtual void next() = 0;
 
+        auto begin()
+        {
+            using t_t = std::reference_wrapper<this_t> ;
+            return LazyRangeIterator<t_t>(std::ref(*this));
+        }
+        auto end()
+        {
+            using t_t = std::reference_wrapper<this_t> ;
+            return LazyRangeIterator<t_t>();
+        }
     };
 
     /** Provide definition for ordered iteable sequence */

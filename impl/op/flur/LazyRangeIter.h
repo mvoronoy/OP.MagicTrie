@@ -10,24 +10,26 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
+    
     /** 
     *   Iterator emulator
     *  
     */
-    template <class R>
+    template <class T>
     struct LazyRangeIterator 
     {
-        using this_t = LazyRangeIterator<R>;
-        using range_t = std::decay_t<R>;
-        using target_t = decltype(std::declval<range_t&>().compound());
+        using this_t = LazyRangeIterator<T>;
+        using strip_generic_t = std::decay_t<T>;
+        //resolve target type of T
+        using target_t = strip_generic_t;
 
         using iterator_category = std::forward_iterator_tag;
-        using value_type        = decltype(std::declval< target_t>().current());
+        using value_type        = decltype(details::get_reference(std::declval< target_t>()).current());
 
-        LazyRangeIterator (const range_t& r) noexcept
-            : _target{ std::move(r.compound()) }
+        LazyRangeIterator (target_t r) noexcept
+            : _target{ std::move(r) }
         {
-            _target->start();
+            details::get_reference(*_target).start();
         }
         /** designated to construct std::end */
         constexpr LazyRangeIterator () noexcept
@@ -36,19 +38,19 @@ namespace flur
         }
         LazyRangeIterator& operator ++() 
         {
-            _target->next();
+            details::get_reference(*_target).next();
             return *this;
         }
         /** Note! not all targets supports copy operation so postfix ++ may fail at compile time*/
         LazyRangeIterator operator ++(int) 
         {
             LazyRangeIterator result(*this);
-            _target->next();
+            details::get_reference(*_target).next();
             return result;
         }
         auto operator *() const
         {
-            return _target->current();
+            return details::get_reference(*_target).current();
         }
         bool operator == (const this_t& right) const
         {
@@ -63,7 +65,7 @@ namespace flur
 
     private:
         bool out_of_range() const
-        {   return !_target || !_target->in_range(); }
+        {   return !_target || !details::get_reference(*_target).in_range(); }
         std::optional<target_t> _target;
     };
 

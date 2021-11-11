@@ -57,10 +57,7 @@ namespace flur
         using guard_t = std::unique_lock<std::mutex>;
         mutable std::condition_variable _access_condition;
         std::atomic_bool _stop = false;
-
-        QueueSrc()
-        {
-        }
+        
         /**
         *   Thread safe method to push element to queue from any thread
         * \param v value to add
@@ -132,7 +129,6 @@ namespace flur
         }
         
     }
-
 
 } //ns:flur
 } //ns:OP
