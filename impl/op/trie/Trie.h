@@ -432,11 +432,11 @@ namespace OP
                 }
                 return iter;
             }
-            template <class AtomString>
-            iterator find(const iterator& of_prefix, const AtomString& container) const
-            {
-                return find(of_prefix, std::begin(container), std::end(container));
-            }
+            //template <class AtomString>
+            //iterator find(const iterator& of_prefix, const AtomString& container) const
+            //{
+            //    return find(of_prefix, std::begin(container), std::end(container));
+            //}
             /**
             *   Quick check if some string exists in this trie.
             *   @param containser - string to check. Type must support `std::begin` / `std::end` functions
