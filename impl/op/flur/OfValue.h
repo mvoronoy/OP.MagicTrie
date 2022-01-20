@@ -21,12 +21,17 @@ namespace flur
     template <class T>
     struct OfValue : public OrderedSequence<T>
     {
-        constexpr OfValue(T src) noexcept
-            :_src(std::move(src))
+        constexpr OfValue(T&& src) noexcept
+            :_src(std::forward<T>(src))
             , _retrieved(false)
         {
         }
 
+        constexpr OfValue(const T& src) noexcept
+            :_src(src)
+            , _retrieved(false)
+        {
+        }
         virtual void start()
         {
             _retrieved = false;

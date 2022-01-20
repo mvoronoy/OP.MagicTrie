@@ -148,23 +148,24 @@ namespace flur
     template <class Alt, class Ex>
     struct OnExceptionFactory : FactoryBase
     {
+        using alt_container_t = details::sequence_type_t<Alt>;
+        using alt_element_t = typename alt_container_t::element_t;
 
         constexpr OnExceptionFactory(Alt&& alt) noexcept
-            : _alt_factory(std::move(alt))
+            : _alt_factory(std::forward<Alt>(alt))
         {
         }
+
         template <class Src>
-        constexpr auto compound(Src&& src) const noexcept
+        struct sequence_traists_t
         {
-            using src_conatiner_t = details::unpack_t<Src>;
+            using src_conatiner_t = details::dereference_t<Src>;
             using src_element_t = typename src_conatiner_t::element_t;
-            using alt_container = details::unpack_t<Alt>;
-            using alt_element_t = typename alt_container::element_t;
             static_assert(
-                std::is_convertible_v<typename alt_container::element_t, typename src_conatiner_t::element_t>,
+                std::is_convertible_v<typename alt_container_t::element_t, typename src_conatiner_t::element_t>,
                 "Alt must be compatible with Src by producing type"
-            );
-            constexpr bool need_correction_c =
+                );
+            constexpr static bool need_correction_c =
                 (std::is_lvalue_reference_v<src_element_t> && !std::is_lvalue_reference_v<alt_element_t>)
                 || (!std::is_lvalue_reference_v<src_element_t> && std::is_lvalue_reference_v<alt_element_t>)
                 ;
@@ -172,15 +173,48 @@ namespace flur
             using element_t = std::conditional_t< need_correction_c, std::decay_t<src_element_t>, src_element_t>;
 
             using base_t = std::conditional_t<
-                (src_conatiner_t::ordered_c&& alt_container::ordered_c),
+                (src_conatiner_t::ordered_c&& alt_container_t::ordered_c),
                 OrderedSequence<element_t >,
                 Sequence<element_t>
             >;
+        };
+        template <class Src>
+        constexpr auto compound(Src&& src) const& noexcept
+        {
+            using base_t = typename sequence_traists_t<Src>::base_t;
+            using src_conatiner_t = typename sequence_traists_t<Src>::src_conatiner_t;
 
-            return OnException<base_t, src_conatiner_t, alt_container, Ex>(
-                    details::unpack(std::move(src)), details::unpack(_alt_factory)
+            if constexpr (std::is_base_of_v<FactoryBase, details::dereference_t<Alt>>)
+            {
+                return OnException<base_t, src_conatiner_t, alt_container_t, Ex>(
+                    std::move(src), std::move(details::get_reference(_alt_factory).compound())
                     );
+            }
+            else  //not a factory just plain Sequence
+            {
+                return OnException<base_t, src_conatiner_t, alt_container_t, Ex>(
+                    std::move(src), _alt_factory);
+            }
         }
+        template <class Src>
+        constexpr auto compound(Src&& src) && noexcept
+        {
+            using base_t = typename sequence_traists_t<Src>::base_t;
+            using src_conatiner_t = typename sequence_traists_t<Src>::src_conatiner_t;
+
+            if constexpr (std::is_base_of_v<FactoryBase, details::dereference_t<Alt>>)
+            {
+                return OnException<base_t, src_conatiner_t, alt_container_t, Ex>(
+                    std::move(src), std::move(details::get_reference(_alt_factory).compound())
+                    );
+            }
+            else  //not a factory just plain Sequence
+            {
+                return OnException<base_t, src_conatiner_t, alt_container_t, Ex>(
+                    std::move(src), std::move(_alt_factory));
+            }
+        }
+
         Alt _alt_factory;
     };
 

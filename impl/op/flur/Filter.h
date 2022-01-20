@@ -18,11 +18,12 @@ namespace flur
     template <class Fnc, class Src, class Base>
     struct Filter : public Base
     {
+        using base_t = Base;
         using src_container_t = details::unpack_t<Src>;
-        using element_t = typename src_container_t::element_t;
+        using element_t = typename base_t::element_t;
 
         template <class F>
-        constexpr Filter(Src&& src, F&& f) noexcept
+        constexpr Filter(Src&& src, F f) noexcept
             :_src(std::move(src))
             , _predicate(std::move(f))
             , _end (true)
@@ -31,11 +32,10 @@ namespace flur
         }
         virtual void start()
         {
-            for (_src.start(); !(_end = !_src.in_range()); _src.next())
-            {
-                if (_predicate(_src.current()))
-                    return;
-            }
+            auto& source = details::get_reference(_src);
+            source.start();
+            _end = !source.in_range();
+            seek();
         }
         virtual bool in_range() const
         {
@@ -43,17 +43,23 @@ namespace flur
         }
         virtual element_t current() const
         {
-            return _src.current();
+            return details::get_reference(_src).current();
         }
         virtual void next()
         {
-            for (_src.next(); !_end && !(_end = !_src.in_range()); _src.next())
+            details::get_reference(_src).next();
+            seek();
+        }
+    private:
+        void seek()
+        {
+            auto& source = details::get_reference(_src);
+            for (; !_end && !(_end = !source.in_range()); source.next())
             {
-                if (_predicate(_src.current()))
+                if (_predicate(source.current()))
                     return;
             }
-        }
-
+         }
         bool _end;
         Src _src;
         Fnc _predicate;
@@ -73,17 +79,13 @@ namespace flur
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
-            using src_conatiner_t = details::unpack_t<Src>;
-            if constexpr (src_conatiner_t::ordered_c)
-            {
-                using filter_base_t = OrderedSequence<typename src_conatiner_t::element_t>;
-                return Filter<Fnc, src_conatiner_t, filter_base_t>(details::unpack(std::move(src)), _fnc);
-            }
-            else
-            {
-                using filter_base_t = Sequence<typename src_conatiner_t::element_t>;
-                return Filter<Fnc, src_conatiner_t, filter_base_t>(details::unpack(std::move(src)), _fnc);
-            }
+            using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
+            using filter_base_t = std::conditional_t<
+                src_conatiner_t::ordered_c,
+                OrderedSequence<typename src_conatiner_t::element_t>,
+                Sequence<typename src_conatiner_t::element_t>
+            >;
+            return Filter<Fnc, std::decay_t<Src>, filter_base_t>(std::move(src), _fnc);
         }
         Fnc _fnc;
     };

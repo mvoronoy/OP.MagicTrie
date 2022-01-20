@@ -14,7 +14,6 @@
 
 #include <op/flur/OfGenerator.h>
 #include <op/flur/flur.h>
-#include <op/flur/Reducer.h>
 #include <op/flur/QueueSrc.h>
 
 using namespace OP::utest;
@@ -138,14 +137,15 @@ void test_Mt(OP::utest::TestResult& tresult)
             1+(2 << 23), 11+ (2 << 24), 13 + (2 << 25), 17 + (2 << 26), 19 + (2 << 27) };
         size_t count_out = 0;
         auto back_work = tp.async([&]() {
-            teepipeline.for_each([&](const auto& gcd_args) {
+            for(const auto& gcd_args:teepipeline) 
+            {
                 count_out++;
                 tresult.assert_false(big_int_mask_c & std::get<1>(gcd_args), "Wrong bigint collected");
                 std::ios_base::fmtflags out_flag(std::cout.flags());
                 tresult.debug() << std::hex << std::get<0>(gcd_args) << ", " << std::get<1>(gcd_args) << " = " << std::get<2>(gcd_args) << "\n";
                 std::cout.flags(out_flag);
-                });
-            });
+            }
+        });
 
         for(auto i : big_int_basis)
             tee.push(i);
@@ -177,9 +177,10 @@ void test_mt_exceptions(OP::utest::TestResult& tresult)
         >> then::minibatch<16>(tp)
         ;
     tresult.assert_exception<std::runtime_error>([&](){
-        pipeline.for_each([&](auto i) {
+        for(auto i : pipeline)
+        {
             tresult.assert_that<equals>(0, i);//only once
-            });
+        }
         });
     tresult.info() << "check exception during asyn queue consumption...\n";
     QueueSrc<std::future<int>> queue_for_pipeline2;
@@ -197,9 +198,9 @@ void test_mt_exceptions(OP::utest::TestResult& tresult)
         }));
     queue_for_pipeline2.stop();
     tresult.assert_exception<std::runtime_error>([&]() {
-        pipeline2.for_each([&](auto i) {
+        for(auto i : pipeline2) {
             tresult.assert_that<equals>(0, i);//only once
-            });
+            };
         });
     tresult.info() << "check async exception during 'next'...\n";
     std::atomic<int> i3{ 0 };
@@ -223,7 +224,7 @@ void test_mt_exceptions(OP::utest::TestResult& tresult)
             })
     ;
     tresult.assert_exception<std::runtime_error>([&]() {
-        pipeline3.count();
+        for (auto _ : pipeline3) {}
         /*
         pipeline.for_each([&](auto i) {
             tresult.assert_that<equals>(0, i);//only once

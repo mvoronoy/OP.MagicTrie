@@ -72,12 +72,12 @@ namespace flur
             using result_t = decltype( _applicator(std::declval< src_container_t >().current()) );
 
             using target_sequence_base_t = std::conditional_t<keep_order && src_container_t::ordered_c,
-                Sequence<result_t>,
-                OrderedSequence<result_t>
+                OrderedSequence<result_t>,
+                Sequence<result_t>
             >;
 
             return Mapping<target_sequence_base_t, input_t, F>(
-                std::move(details::unpack(std::move(src))), 
+                std::move(src), 
                 _applicator);
         }
         F _applicator;

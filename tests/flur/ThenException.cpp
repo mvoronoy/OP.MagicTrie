@@ -6,7 +6,6 @@
 #include <numeric>
 #include <op/utest/unit_test.h>
 #include <op/flur/flur.h>
-#include <op/flur/Reducer.h>
 
 namespace {
     using namespace OP::utest;

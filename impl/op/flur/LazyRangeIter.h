@@ -25,14 +25,17 @@ namespace flur
 
         using iterator_category = std::forward_iterator_tag;
         using value_type        = decltype(details::get_reference(std::declval< target_t>()).current());
+        using difference_type   = std::ptrdiff_t;
+        using reference         = value_type&;
+        using pointer           = void;
 
-        LazyRangeIterator (target_t r) noexcept
+        LazyRangeIterator (target_t&& r) noexcept
             : _target{ std::move(r) }
         {
             details::get_reference(*_target).start();
         }
         /** designated to construct std::end */
-        constexpr LazyRangeIterator () noexcept
+        constexpr LazyRangeIterator (nullptr_t) noexcept
         {
             
         }
@@ -48,8 +51,8 @@ namespace flur
             details::get_reference(*_target).next();
             return result;
         }
-        auto operator *() const
-        {
+        value_type operator *() const
+        {         
             return details::get_reference(*_target).current();
         }
         bool operator == (const this_t& right) const

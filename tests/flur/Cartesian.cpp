@@ -5,7 +5,6 @@
 #include <numeric>
 #include <op/utest/unit_test.h>
 #include <op/flur/flur.h>
-#include <op/flur/Reducer.h>
 
 using namespace OP::utest;
 using namespace OP::flur;
@@ -28,7 +27,7 @@ void test_ThenCartesian(OP::utest::TestResult& tresult)
         ;
     //check or_default keeps order
     static_assert(!r_bool.compound().ordered_c, "bool x bool cartesian is not ordered sequence");
-    tresult.assert_true(r_bool.empty(), "wrong result number");
+    tresult.assert_true(std::empty(r_bool), "wrong result number");
     
     constexpr auto r2 = src::of_value(false)
         >> then::filter([](bool i) {return i; }) //always empty
@@ -37,7 +36,7 @@ void test_ThenCartesian(OP::utest::TestResult& tresult)
         )
         ;
     
-    tresult.assert_true(r2.empty(), "wrong result number");
+    tresult.assert_true(std::empty(r2), "wrong result number");
     std::vector<int> sample1{ 1, 3, 5, 7, 11 };
     auto r3 = src::of_container(sample1)
         >> then::cartesian(
@@ -46,7 +45,7 @@ void test_ThenCartesian(OP::utest::TestResult& tresult)
             , logic_or
         )
         ;
-    tresult.assert_true(r3.empty(), "wrong result number");
+    tresult.assert_true(std::empty(r3), "wrong result number");
 
 
     std::function<int(int, int)> cart_f =
@@ -61,7 +60,7 @@ void test_ThenCartesian(OP::utest::TestResult& tresult)
             , cart_f
         )
         ;
-    tresult.assert_that<equals>(-135, r4.OP_TEMPL_METH(reduce)<int>(reducer::sum<int>), "wrong result number");
+    tresult.assert_that<equals>(-135, OP::flur::reduce(r4, 0), "wrong result number");
 }
 
 static auto module_suite = OP::utest::default_test_suite("flur.then")

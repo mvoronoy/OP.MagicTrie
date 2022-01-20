@@ -25,7 +25,7 @@ namespace flur
             QueueSrc<int> queue;
 
             auto process = std::async([&]()
-                (src::outer(std::ref(queue))  //don't copy queue, use by ref
+                (src::outer(std::ref(queue))  //avoid copying the queue, use by ref
                 >> then::mapping([](int a){
                     return a * a + 1;
                 })

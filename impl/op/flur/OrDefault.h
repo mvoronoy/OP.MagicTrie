@@ -33,7 +33,7 @@ namespace flur
 
         constexpr OrDefault(Src&& src, Alt&& alt) noexcept
             : _src(std::move(src))
-            , _alt(std::move(alt))
+            , _alt(std::forward<Alt>(alt))
             , _use_alt(false)
         {
         }
@@ -41,29 +41,30 @@ namespace flur
         virtual void start()
         {
             _use_alt = false;
-            _src.start();
-            if (!_src.in_range())
+            auto& deref_src = details::get_reference(_src);
+            deref_src.start();
+            if (!deref_src.in_range())
             {
                 _use_alt = true;
-                _alt.start();
+                details::get_reference(_alt).start();
             }
         }
 
         virtual bool in_range() const
         {
-            return _use_alt ? _alt.in_range() : _src.in_range();
+            return _use_alt ? details::get_reference(_alt).in_range() : details::get_reference(_src).in_range();
         }
 
         virtual element_t current() const
         {
             if (_use_alt)
-                return _alt.current();
-            return _src.current();
+                return details::get_reference(_alt).current();
+            return details::get_reference(_src).current();
         }
 
         virtual void next()
         {
-            _use_alt ? _alt.next() : _src.next();
+            _use_alt ? details::get_reference(_alt).next() : details::get_reference(_src).next();
         }
 
         bool _use_alt;
@@ -75,28 +76,28 @@ namespace flur
     template <class Alt>
     struct OrDefaultFactory : FactoryBase
     {
-        using alt_holder_t = details::unpack_t<Alt>;
+        using alt_holder_t = details::sequence_type_t<Alt>;
 
-        constexpr OrDefaultFactory(Alt alt) noexcept
-            : _alt(std::move(alt))
+        constexpr OrDefaultFactory(Alt&& alt) noexcept
+            : _alt(std::forward<Alt>(alt))
         {
         }
 
         template <class Src>
-        constexpr auto compound(Src&& src) const noexcept
+        constexpr auto compound(Src&& src) const& noexcept
         {
-            using src_container_t = details::unpack_t<Src>;
+            using src_container_t = details::dereference_t<Src>;
             using element_t = std::decay_t< typename src_container_t::element_t >;
 
             if constexpr (OP::utils::is_generic<Alt, OP::flur::Sequence>::value)
             { // value is some container
                 using base_t = std::conditional_t< (src_container_t::ordered_c && alt_holder_t::ordered_c),
-                    OrderedSequence<typename src_container_t::element_t>,
-                    Sequence<typename src_container_t::element_t>
+                    OrderedSequence<element_t>,
+                    Sequence<element_t>
                 >;
                 return
                     OrDefault<base_t, src_container_t, alt_holder_t>(
-                        details::unpack(std::move(src)), 
+                        std::move(src), 
                         _alt);
             }
             else if constexpr (std::is_base_of_v < FactoryBase, Alt> )
@@ -107,8 +108,8 @@ namespace flur
                 >;
                 return
                     OrDefault<base_t, src_container_t, alt_holder_t>(
-                        details::unpack(std::move(src)),
-                        details::unpack(_alt));
+                        std::move(src),
+                        std::move(_alt.compound()));
             }
             else //specified parameter just a plain value
             {
@@ -117,13 +118,56 @@ namespace flur
                     OrderedSequence<element_t>,
                     Sequence<element_t>
                 >;
-                // just a value, treate this as plain value
+                // just a value, treate this as a plain value
                 return OrDefault<base_t, src_container_t, OfValue< Alt >>(
-                    std::move(details::unpack(std::move(src))), 
+                    std::move(src), 
                     OfValue< Alt >(_alt)
                     );
             }
         }
+        template <class Src>
+        constexpr auto compound(Src&& src) && noexcept
+        {
+            using src_container_t = details::dereference_t<Src>;
+            using element_t = std::decay_t< typename src_container_t::element_t >;
+
+            if constexpr (OP::utils::is_generic<Alt, OP::flur::Sequence>::value)
+            { // value is some container
+                using base_t = std::conditional_t< (src_container_t::ordered_c && alt_holder_t::ordered_c),
+                    OrderedSequence<element_t>,
+                    Sequence<element_t>
+                >;
+                return
+                    OrDefault<base_t, src_container_t, alt_holder_t>(
+                        std::move(src), 
+                        std::move(_alt));
+            }
+            else if constexpr (std::is_base_of_v < FactoryBase, Alt> )
+            { // provided parameter is some factory
+                using base_t = std::conditional_t< (src_container_t::ordered_c && alt_holder_t::ordered_c),
+                    OrderedSequence<element_t>,
+                    Sequence<element_t>
+                >;
+                return
+                    OrDefault<base_t, src_container_t, alt_holder_t>(
+                        std::move(src),
+                        std::move(_alt.compound()));
+            }
+            else //specified parameter just a plain value
+            {
+                //1 value is already ordered
+                using base_t = std::conditional_t< src_container_t::ordered_c,
+                    OrderedSequence<element_t>,
+                    Sequence<element_t>
+                >;
+                // just a value, treate this as a plain value
+                return OrDefault<base_t, src_container_t, OfValue< Alt >>(
+                    std::move(src), 
+                    OfValue< Alt >(std::move(_alt))
+                    );
+            }
+        }
+
     private:
         Alt _alt;
     };

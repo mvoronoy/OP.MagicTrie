@@ -19,11 +19,16 @@ namespace flur
     * Note container of 1 item is traeted as sorted
     */
     template <class T>
-    struct OfOptional : public OrderedSequence<T>
+    struct OfOptional : public OrderedSequence<const T&>
     {
         using container_t = std::optional<T>;
-        constexpr OfOptional(container_t src) noexcept
-            :_src(std::move(src))
+        constexpr OfOptional(container_t&& src) noexcept
+            :_src(std::forward<container_t>(src))
+            , _retrieved(false)
+        {
+        }
+        constexpr OfOptional(const container_t& src) noexcept
+            :_src(src)
             , _retrieved(false)
         {
         }
@@ -38,7 +43,7 @@ namespace flur
             return !_retrieved && _src.has_value();
         }
 
-        virtual T current() const
+        virtual const T& current() const
         {
             return *_src;
         }

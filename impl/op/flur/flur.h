@@ -12,6 +12,7 @@
 #include <op/flur/OfOptional.h>
 #include <op/flur/OfValue.h>
 #include <op/flur/OfIota.h>
+#include <op/flur/OfIterators.h>
 #include <op/flur/OfGenerator.h>
 #include <op/flur/SimpleFactory.h>
 
@@ -23,6 +24,7 @@
 #include <op/flur/OnException.h>
 #include <op/flur/Repeater.h>
 #include <op/flur/Minibatch.h>
+#include <op/flur/stl_adapters.h>
 
 namespace OP
 {
@@ -51,16 +53,22 @@ namespace flur
         * the contained value
         */
         template <class V>
-        constexpr auto of_optional(std::optional<V> v) noexcept
+        constexpr auto of_optional(std::optional<V>&& v) noexcept
         {
             return make_lazy_range(
-                SimpleFactory<std::optional<V>, OfOptional<V>>(std::move(v)) );
+                SimpleFactory<std::optional<V>, OfOptional<V>>(std::forward<std::optional<V>>(v)) );
         }
         template <class V>
         constexpr auto of_optional(V v) noexcept
         {
             return make_lazy_range(
                 SimpleFactory<std::optional<V>, OfOptional<V>>(std::optional <V>(std::move(v))));
+        }
+        template <class V>
+        constexpr auto of_optional() noexcept
+        {
+            return make_lazy_range(
+                SimpleFactory<std::optional<V>, OfOptional<V>>(std::optional <V>{}));
         }
         template <class T, std::enable_if_t<std::is_invocable<decltype(of_optional<T>), T>::value, int> = 0>
         constexpr auto of(T t)  noexcept
@@ -72,9 +80,9 @@ namespace flur
         * Create LazyRange from single value. Result is ordered range iterable over exact one value
         */
         template <class V>
-        constexpr auto of_value(V v) noexcept
+        constexpr auto of_value(V&& v) noexcept
         {
-            return make_lazy_range( SimpleFactory<V, OfValue<V>>(std::move(v)) );
+            return make_lazy_range( SimpleFactory<V, OfValue<V>>(std::forward<V>(v)) );
         }
         /**
         *   Create LazyRange from single value that evaluated each time when start/next loop starts. 
@@ -99,10 +107,25 @@ namespace flur
             return make_lazy_range( SimpleFactory<std::pair<V, V>, OfIota<V>>(std::move(begin), std::move(end)) );
         }
 
+        /**
+        * Create LazyRange in a way similar to std::iota - specify range of values that support ++ operator.
+        * For example:\code
+        * 
+        * \endcode
+        */
+        template <class It>
+        constexpr auto of_iterators(It begin, It end) noexcept
+        {
+            return make_lazy_range( SimpleFactory<std::pair<It, It>, OfIterators<It>>(std::move(begin), std::move(end)) );
+        }
+
+        /**
+        *  create LazyRange from function. For details see OP::flur::Generator
+        */
         template <class F>
         constexpr auto generator(F&& f) noexcept
         {
-            return make_lazy_range( GeneratorFactory<F, false>(std::move(f)) );
+            return make_lazy_range( GeneratorFactory<F, false>(std::forward<F>(f)) );
         }
 
 
@@ -112,8 +135,15 @@ namespace flur
     {
         /** Provides source or single value that can be consumed if origin is empty 
         * Usage \code
-        * src::of_value(std::vector<int>{}) // empty vector as a source
+        * src::of(std::vector<int>{}) // empty vector as a source
         *   >> then::or_default( 57 ) // single value used as alternative
+        * \endcode
+        *   Default can be composed with more complicated containers:
+        * \code
+        * src::of(std::vector<int>{}) // empty vector as a source
+        *   >> then::or_default( 
+        *       src::of_container({1, 2, 3)}) >> then::filter([](auto i){ return i % 2;})  // odd values container
+        * )
         * \endcode
         */
         template <class T>
@@ -128,9 +158,9 @@ namespace flur
         * \tparam Alt - factory that produces alternatice source in case of exception. 
         */
         template <class Ex, class Alt>
-        constexpr auto on_exception(Alt t) noexcept
+        constexpr auto on_exception(Alt&& t) noexcept
         {
-            return OnExceptionFactory<Alt, Ex>(std::move(t));
+            return OnExceptionFactory<Alt, Ex>(std::forward<Alt>(t));
         }
 
         /** Produce new source that is result of applying function to each element of origin source */
@@ -141,13 +171,13 @@ namespace flur
             return MappingFactory<f_t>(std::move(f));
         }
 
-        /** Same as mapping, but assume function F produces some set instead of single value */
+        /** Same as mapping, but assume function F produces some set instead of single value 
+        *
+        */
         template <class F>
-        constexpr auto flat_mapping(F f) noexcept
+        constexpr auto flat_mapping(F&& f) noexcept
         {
-            //const second_src_t<Alien>&
-            //auto cros = std::function<R(const Src&, const R&)>(fnc);
-            return FlatMappingFactory<F>(std::move(f));
+            return FlatMappingFactory<F>(std::forward<F>(f));
         }
 
         /** Convert source by filtering out some ellements according to predicate 

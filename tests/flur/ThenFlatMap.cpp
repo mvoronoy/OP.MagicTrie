@@ -8,16 +8,51 @@
 #include <string>
 #include <op/utest/unit_test.h>
 #include <op/flur/flur.h>
-#include <op/flur/Reducer.h>
 
 using namespace OP::utest;
 using namespace OP::flur;
 using namespace std::string_literals;
 
+namespace functional {
+    template <typename Function> struct function_traits;
+
+    template <typename ClassType, typename ReturnType, typename... Args>
+    struct function_traits<ReturnType(ClassType::*)(Args...) const> {
+        using function = const std::function<ReturnType(Args...)>;
+    };
+
+    // Non-const version, to be used for function objects with a non-const operator()
+    // a rare thing
+    template <typename ClassType, typename ReturnType, typename... Args>
+    struct function_traits<ReturnType(ClassType::*)(Args...)> {
+        using function = std::function<ReturnType(Args...)>;
+    };
+
+    template<typename T>
+    auto make_function(T const& f) ->
+        typename std::enable_if<std::is_function<T>::value && !std::is_bind_expression<T>::value, std::function<T>>::type
+    { return f; }
+
+    template<typename T>
+    auto make_function(T const& f) ->
+        typename std::enable_if<!std::is_function<T>::value && !std::is_bind_expression<T>::value, typename function_traits<decltype(&T::operator())>::function>::type
+    { return static_cast<typename function_traits<decltype(&T::operator())>::function>(f); }
+
+    // This overload is only used to display a clear error message in this case
+    // A bind expression supports overloads so its impossible to determine
+    // the corresponding std::function since several are viable
+    template<typename T>
+    auto make_function(T const& f) ->
+        typename std::enable_if<std::is_bind_expression<T>::value, void>::type
+    { static_assert(std::is_bind_expression<T>::value && false, "functional::make_function cannot be used with a bind expression."); }
+
+}  // namespace functional
+
 void test_FlatMapFromPipeline(OP::utest::TestResult& tresult)
 {
     constexpr int N = 4;
-    constexpr auto fm_lazy = src::of_iota(1, N+1)
+    
+    constexpr auto fm_lazy = src::of_iota(1, N + 1)
         >> then::flat_mapping([](auto i) {
             return src::generator([step = 0, i]() mutable->std::optional<decltype(i)> {
                 decltype(i) v = 1;
@@ -26,18 +61,18 @@ void test_FlatMapFromPipeline(OP::utest::TestResult& tresult)
                 return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
             }
         );
-            
         })
         ;
     
     constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
     size_t cnt = 0;
-    fm_lazy.for_each([&](auto i) {
+    for(auto i : fm_lazy)
+    {
         tresult.debug() << i << "\n";
         ++cnt;
-        });
+    }
     tresult.assert_that<equals>(cnt, 12, "Wrong times");
-    tresult.assert_that<equals>(expected_sum, fm_lazy.OP_TEMPL_METH(reduce)<int>(reducer::sum<int>), "invalid num");
+    tresult.assert_that<equals>(expected_sum, std::reduce(fm_lazy.begin(), fm_lazy.end(), 0), "invalid num");
 }
 
 size_t g_copied = 0, g_moved = 0;
@@ -91,14 +126,15 @@ void test_FlatMapFromContainer(OP::utest::TestResult& tresult)
 
     size_t cnt = 0;
     g_copied = 0, g_moved = 0;
-    fm_lazy.for_each([&](auto i) {
+    for(auto i : fm_lazy) 
+    {
         tresult.debug() << i << ", ";
         ++cnt;
-        });
+    }
     tresult.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
 
     tresult.assert_that<equals>(cnt, 12, "Wrong times");
-    tresult.assert_that<equals>(g_moved, 16, "Wrong times");
+    tresult.assert_that<equals>(g_moved, 12, "Wrong times");
     tresult.assert_that<equals>(g_copied, 0, "Wrong times");
 }
 
@@ -118,15 +154,16 @@ void test_FlatMapFromCref(OP::utest::TestResult& tresult)
     g_copied = 0;
     g_moved = 0;
     auto users = src::of_container(std::cref(usr_lst));
-    auto  fmap = users >> then::flat_mapping([](const auto& u) {
+    auto fmap = users >> then::flat_mapping([](const auto& u) {
         return cref_container(u.roles);
     });
 
     size_t cnt = 0;
-    fmap.for_each([&](const auto& i) {
+    for(const auto& i : fmap) 
+    {
         tresult.debug() << i << ", ";
         ++cnt;
-        });
+    }
     tresult.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
 
     tresult.assert_that<equals>(cnt, 6, "Wrong times");

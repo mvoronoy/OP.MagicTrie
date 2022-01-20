@@ -13,7 +13,6 @@
 #include <op/common/ThreadPool.h>
 
 #include <op/flur/flur.h>
-#include <op/flur/Reducer.h>
 
 using namespace OP::utest;
 using namespace OP::flur;
@@ -26,20 +25,22 @@ namespace {
     {
         OP::utils::ThreadPool tp(2);
 
-        (src::of_iota(10, 10)
+        for(const auto& r: (src::of_iota(10, 10)
             >> then::minibatch<N>(tp)
-            ).for_each([&](const auto& r) {
-                tresult.fail("no invocation allowed");
-                });
+            ))
+        {
+            tresult.fail("no invocation allowed");
+        }
 
         size_t order_check = 10;
-        (src::of_iota(10, 20)
+        for(const auto& r : src::of_iota(10, 20)
             >> then::minibatch<N>(tp)
-            ).for_each([&](const auto& r) {
-                tresult.assert_that<equals>(r, order_check, OP_CODE_DETAILS("sequence violation (1), expected:" 
-                    << order_check << ", while:" << r << "\n"));
-                ++order_check;
-            });
+            ) 
+        {
+            tresult.assert_that<equals>(r, order_check, OP_CODE_DETAILS("sequence violation (1), expected:" 
+                << order_check << ", while:" << r << "\n"));
+            ++order_check;
+        }
         tresult.assert_that<equals>(order_check, 20, "wrong count of items in sequence");
     }
     void test_minibatch(OP::utest::TestResult& tresult)

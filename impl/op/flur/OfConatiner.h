@@ -25,22 +25,24 @@ namespace flur
     template <class V, class Base>
     struct OfContainer : Base
     {
-        using container_t = details::container_type_t<V>;
+        using container_t = details::dereference_t<V>;
         using base_t = Base;
         using element_t = typename base_t::element_t;
-        using iterator = decltype(std::begin(std::declval<container_t>()));//typename container_t::const_iterator;
+        using iterator = decltype(std::declval<const container_t&>().begin());//typename container_t::const_iterator;
         constexpr OfContainer(V v) noexcept
             :_v(std::move(v))
-            , _i(std::end(details::get_reference(_v)))
-        {}
-        
+        {
+            _i = details::get_reference(_v).end();
+        }
+        constexpr OfContainer(OfContainer&&) noexcept = default;
+
         virtual void start()
         {
-            _i = std::begin(details::get_reference(_v));
+            _i = details::get_reference(_v).begin();
         }
         virtual bool in_range() const
         {
-            return _i != std::end(details::get_reference(_v));
+            return _i != details::get_reference(_v).end();
         }
         virtual element_t current() const
         {
@@ -54,7 +56,18 @@ namespace flur
         V _v;
         iterator _i;
     };
-
+    namespace details
+    {
+        /** Detects if container can support OrderedSequence or Sequence */
+        template <class Container >
+        using detect_sequence_base_t = 
+            std::conditional_t<
+                OP::utils::is_generic<Container, std::map>::value ||
+                OP::utils::is_generic<Container, std::set>::value
+                , OrderedSequence< decltype(*std::begin(std::declval<const Container&>())) >
+                , Sequence< decltype(*std::begin(std::declval<const Container&>())) >
+            >;
+    }
     /**
     * Adapter for STL containers or user defined that support std::begin<V> and std::end<V>
     * Also V may be wrapped with: std::ref / std::cref
@@ -63,23 +76,26 @@ namespace flur
     struct OfContainerFactory : FactoryBase
     {
         using holder_t = std::decay_t < V >;
-        using container_t = details::container_type_t<V>;
+        using container_t = details::dereference_t<V>;
 
         constexpr OfContainerFactory(holder_t v) noexcept
             :_v(std::move(v)) {}
 
-        constexpr auto compound() const noexcept
+        constexpr auto compound() const& noexcept
         {
-            using element_t = decltype(*std::begin(std::declval<const container_t&>()));
-            using base_t = std::conditional_t<
-                OP::utils::is_generic<container_t, std::map>::value ||
-                OP::utils::is_generic<container_t, std::set>::value
-                , OrderedSequence< element_t >
-                , Sequence< element_t >
-            >;
-                
+            using element_t = decltype(*std::declval<const container_t&>().begin());
+            using base_t = details::detect_sequence_base_t<container_t>;
             using result_t = OfContainer<holder_t, base_t>;
+
             return result_t(_v);
+        }
+        constexpr auto compound() && noexcept
+        {
+            using element_t = decltype(*std::declval<container_t&&>().begin());
+            using base_t = details::detect_sequence_base_t<container_t>;
+            using result_t = OfContainer<holder_t, base_t>;
+
+            return result_t(std::move(_v));
         }
         holder_t _v;
     };
@@ -100,9 +116,9 @@ namespace flur
     template <class V>
     auto rref_container(V &&v)
     {
-        using container_t = details::container_type_t<V>;
-        using element_t = decltype(*std::begin(std::declval<const container_t&>()));
-        using base_t = Sequence< element_t >;
+        using container_t = details::dereference_t<V>;
+        using base_t = 
+            details::detect_sequence_base_t<container_t>;
             
         using result_t = OfContainer<V, base_t>;
         return result_t(std::move(v));
@@ -111,9 +127,9 @@ namespace flur
     template <class V>
     auto cref_container(const V &v)
     {
-        using container_t = details::container_type_t<V>;
-        using element_t = decltype(*std::begin(std::declval<const container_t&>()));
-        using base_t = Sequence< element_t >;
+        using container_t = details::dereference_t<V>;
+        using base_t = 
+            details::detect_sequence_base_t<container_t>;
             
         using result_t = OfContainer<decltype(std::cref(v)), base_t>;
         return result_t(std::cref(v));

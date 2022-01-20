@@ -6,6 +6,7 @@
 #include <memory>
 
 #include <op/common/Utils.h>
+#include <op/common/ftraits.h>
 #include <op/flur/Sequence.h>
 
 namespace OP
@@ -32,24 +33,28 @@ namespace flur
         constexpr const U& get_reference(const U& u) noexcept {
             return u;
         }
+        template <typename U>
+        constexpr U&& get_reference(U&& u) noexcept{
+            return std::move(u);
+        }
 
         template <typename U, typename ... Ux>
-        auto get_reference(std::unique_ptr<U, Ux ...>& u) -> U& {
-            return *u.get();
+        U& get_reference(std::unique_ptr<U, Ux ...>& u) {
+            return *u;
         }
         template <typename U, typename ... Ux>
         const U& get_reference(const std::unique_ptr< U, Ux ...>& u) {
-            return *u.get();
+            return *u;
         }
 
         template <typename U>
-        auto get_reference(std::shared_ptr<U> u) -> U& {
+        U& get_reference(std::shared_ptr<U> u) {
             return *u;
         }
 
         template <class Value>
-        using container_type_t = std::decay_t <
-            decltype(details::get_reference(std::declval< Value >())) >;
+        using dereference_t = std::decay_t <
+            decltype(details::get_reference(std::declval< const Value& >())) >;
 
         /** Defines introspection type for all with less (<) operator defined */
         template < typename T, typename U >
@@ -65,20 +70,20 @@ namespace flur
         {};
         
         template <class SomeContainer>
-        constexpr auto unpack(SomeContainer&& co) noexcept
+        constexpr decltype(auto) unpack(SomeContainer&& co) noexcept
         {
-            if constexpr (std::is_base_of_v<FactoryBase, SomeContainer>)
-                return unpack(std::move(co.compound()));
+            if constexpr (std::is_base_of_v<FactoryBase, dereference_t<SomeContainer> >)
+                return std::move(get_reference(co).compound());
             else
                 return std::move(co);
         }
         template <class SomeContainer>
-        constexpr auto unpack(const SomeContainer& co) noexcept
+        constexpr decltype(auto) unpack(const SomeContainer& co) noexcept
         {
-            if constexpr (std::is_base_of_v<FactoryBase, SomeContainer>)
-                return unpack(std::move(co.compound()));
+            if constexpr (std::is_base_of_v<FactoryBase, dereference_t<SomeContainer> >)
+                return std::move(get_reference(co).compound());
             else
-                return co;//return (const SomeContainer&)co;
+                return co;
         }
         template <class SomeContainer>
         using unpack_t = decltype(unpack(std::declval< SomeContainer>()));
@@ -86,15 +91,53 @@ namespace flur
         
         //Compound togethere all factories to single construction
         template <class Tuple, std::size_t I = std::tuple_size<Tuple>::value >
-        constexpr decltype(auto) compound_impl(Tuple& t) noexcept
-        {
+        constexpr decltype(auto) compound_impl(const Tuple& t) noexcept
+        {   //scan tuple in reverse order
             if constexpr (I == 1)
-            {
-                return unpack(std::get<0>(t));
+            { //at zero level must reside no-arg `compound` implementation
+                return get_reference(std::get<0>(t)).compound();
             }
-            else
-                return unpack(std::move(std::get<I - 1>(t).compound(std::move(compound_impl<Tuple, I - 1>(t)))));
+            else // non-zero level invokes recursively `compound` with previous layer result
+            {
+                return 
+                    get_reference(std::get<I - 1>(t)).compound(
+                        std::move(compound_impl<Tuple, I - 1>(t)));
+            }
         }
+
+        template <class Tuple, std::size_t I = std::tuple_size<Tuple>::value >
+        constexpr auto compound_impl(Tuple&& t) noexcept
+        {   //scan tuple in reverse order
+            if constexpr (I == 1)
+            { //at zero level must reside no-arg `compound` implementation
+                return get_reference(std::move(std::get<0>(t))).compound();
+            }
+            else // non-zero level invokes recursively `compound` with previous layer result
+            {
+                return 
+                    get_reference(std::move(std::get<I - 1>(t))).compound( std::move(
+                        compound_impl<Tuple, I - 1>(std::move(t))) );
+            }
+        }
+        
+        template <class T>
+        class sequence_type
+        {
+            using _cleant_t = dereference_t< T >;
+            
+
+            template <typename C> 
+            static typename OP::utils::function_traits<decltype(&C::compound)>::result_t test( decltype(& C::compound) ) ;
+
+            template <typename C> 
+            static _cleant_t& test(...);
+        public:
+            //using type = std::decay_t< decltype( test<_cleant_t>(nullptr) )>;
+            using type = std::decay_t< unpack_t<T> >;
+        };
+
+        template <class Value>
+        using sequence_type_t = typename sequence_type<Value>::type;
 
 
     }//ns::details

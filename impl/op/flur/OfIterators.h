@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _OP_FLUR_OFIOTA__H_
-#define _OP_FLUR_OFIOTA__H_
+#ifndef _OP_FLUR_OFITERATORS__H_
+#define _OP_FLUR_OFITERATORS__H_
 
 #include <functional>
 #include <memory>
@@ -15,20 +15,21 @@ namespace OP
 namespace flur
 {
     /**
-    *   Create conatiner of sequentially increasing values [begin, end).
-    * Container is ordred.
+    *   Create conatiner by pair of iterators.
+    * Container is non-ordred.
     */
     template <class T>
-    struct OfIota : public OrderedSequence<T>
+    struct OfIterators : public Sequence<decltype(*std::declval<T>())>
     {
-        using this_t = OfIota<T>;
-        constexpr OfIota(T begin, T end) noexcept
+        using element_t = typename OfIterators<T>::element_t;
+
+        constexpr OfIterators(T begin, T end) noexcept
             : _begin(std::move(begin))
             , _end(std::move(end))
             , _current(_end)
         {
         }
-        constexpr OfIota(std::pair<T, T> pair) noexcept
+        constexpr OfIterators(std::pair<T, T> pair) noexcept
             : this_t(std::move(pair.first), std::move(pair.second))
         {}
 
@@ -42,7 +43,7 @@ namespace flur
             return _current != _end;
         }
 
-        virtual T current() const
+        virtual element_t current() const
         {
             return _current;
         }
@@ -58,4 +59,4 @@ namespace flur
 } //ns:flur
 } //ns:OP
 
-#endif //_OP_FLUR_OFIOTA__H_
+#endif //_OP_FLUR_OFITERATORS__H_

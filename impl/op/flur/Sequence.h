@@ -44,7 +44,7 @@ namespace flur
         auto end()
         {
             using t_t = std::reference_wrapper<this_t> ;
-            return LazyRangeIterator<t_t>();
+            return LazyRangeIterator<t_t>(nullptr);
         }
     };
 
@@ -58,6 +58,8 @@ namespace flur
         using this_t = OrderedSequence<T>;
         using element_t = typename base_t::element_t;
     };
+
+
 }//ns:flur
 }//ns:OP
 

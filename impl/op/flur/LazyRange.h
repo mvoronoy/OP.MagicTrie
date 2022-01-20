@@ -8,6 +8,7 @@
 #include <op/flur/Sequence.h>
 #include <op/flur/LazyRangeIter.h>
 #include <tuple>
+#include <op/flur/Polymorphs.h>
 
 namespace OP
 {
@@ -22,10 +23,10 @@ namespace flur
     struct LazyRange : FactoryBase
     {
         template <class A>
-        using trange_t = std::decay_t<decltype(details::get_reference(std::declval<A>()))>;
+        using target_range_t = std::decay_t<decltype(details::get_reference(std::declval<A>()))>;
 
         static_assert(
-            std::conjunction_v<std::is_base_of<FactoryBase, trange_t<Tx>>...>,
+            std::conjunction_v<std::is_base_of<FactoryBase, target_range_t<Tx>>...>,
             "LazyRange must be instantiated by classes inherited from FactoryBase"
             );
         using this_t = LazyRange<Tx...>;
@@ -33,6 +34,7 @@ namespace flur
         using factory_store_t = std::tuple<Tx...>;
         factory_store_t _storage;
 
+        //constexpr LazyRange(this_t&&) noexcept = default;
 
         constexpr LazyRange(std::tuple<Tx...>&& tup) noexcept
             : _storage{ std::move(tup) }
@@ -44,9 +46,13 @@ namespace flur
         {
         }
 
-        constexpr auto compound() const noexcept
+        constexpr auto compound() const& noexcept
         {
-            return details::unpack(std::move(details::compound_impl(_storage)));
+            return std::move(details::compound_impl(_storage));
+        }
+        constexpr auto compound() && noexcept
+        {
+            return std::move(details::compound_impl(std::move(_storage)));
         }
 
         template <class T>
@@ -71,62 +77,61 @@ namespace flur
         auto begin() const
         {
             using t_t = decltype(compound());
-            return LazyRangeIterator< t_t >(std::move(compound()));
+            auto seq_ptr = std::make_shared<t_t>(std::move(compound()));
+            return LazyRangeIterator< decltype(seq_ptr) >(std::move(seq_ptr));
         }
         auto end() const
         {
             using t_t = decltype(compound());
-            return LazyRangeIterator< t_t >();
-        }
-
-        /** Apply functor Fnc to all items in this iterable starting from beginning */
-        template <class Fnc>
-        void for_each(Fnc f) const 
-        {
-            auto pipeline = compound();
-            auto& r = details::get_reference(pipeline);
-            for (r.start(); r.in_range(); r.next())
-                f(r.current());
-        }
-        
-        /**
-        * \tparam Fnc - reducer callback must be of type T(T&& previous, pipeline_element_t)
-        */
-        template <class T, class Fnc>
-        T reduce(Fnc f, T init = T{}) const
-        {
-            auto pipeline = compound();
-            for (pipeline.start(); pipeline.in_range(); pipeline.next()) 
-            {
-                init = f(std::move(init), pipeline.current());
-            }
-            return init;
-        }
-        size_t count() const
-        {
-            size_t c = 0;
-            auto pipeline = compound();
-            auto& ref_pipeline = details::get_reference(pipeline);
-            for (ref_pipeline.start(); ref_pipeline.in_range(); ref_pipeline.next())
-            {
-                ++c;
-            }
-            return c;
-        }
-        bool empty() const
-        {
-            auto pipeline = compound();
-            pipeline.start();
-            return !pipeline.in_range();
+            return LazyRangeIterator< std::shared_ptr<t_t> >(nullptr);
         }
 
     };
     /** Simplifies creation of LazyRange */
     template <class ... Tx >
-    constexpr auto make_lazy_range(Tx && ... tx) noexcept ->LazyRange<Tx ...>
+    constexpr LazyRange<Tx ...> make_lazy_range(Tx && ... tx) noexcept 
     {
         return LazyRange<Tx ...>(std::forward<Tx>(tx) ...);
     }
+    
+    /** Create polymorph LazyRange (with type erasure). 
+    *   @return instance of AbstractPolymorphFactory as std::unique_ptr
+    */
+    template <class ... Tx >
+    constexpr auto make_unique(Tx && ... tx) 
+    {
+        using impl_t = PolymorphFactory<LazyRange<Tx ...>>;
+        using interface_t = typename impl_t::polymorph_base_t;
+
+        return std::unique_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
+    }
+    template <class ... Tx >
+    constexpr auto make_unique(LazyRange<Tx ...> && range) 
+    {
+        using lrange_t = LazyRange<Tx ...>;
+        using impl_t = PolymorphFactory<lrange_t>;
+        using interface_t = typename impl_t::polymorph_base_t;
+
+        return std::unique_ptr<interface_t>( new impl_t{ std::forward<lrange_t>(range) } );
+    }
+    template <class ... Tx >
+    constexpr auto make_shared(Tx &&... range) 
+    {
+        using impl_t = PolymorphFactory<LazyRange<Tx ...>>;
+        using interface_t = typename impl_t::polymorph_base_t;
+
+        return std::share_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
+    }
+    template <class ... Tx >
+    constexpr auto make_shared(LazyRange<Tx ...> && range) 
+    {
+        using lrange_t = LazyRange<Tx ...>;
+        using impl_t = PolymorphFactory<lrange_t>;
+        using interface_t = typename impl_t::polymorph_base_t;
+
+        return std::shared_ptr<interface_t>( new impl_t{ std::forward<lrange_t>(range) } );
+    }
+
 } //ns:flur
 } //ns:OP
 #endif //_OP_FLUR_LAZYRANGE__H_
