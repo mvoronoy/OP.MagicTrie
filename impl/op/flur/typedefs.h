@@ -106,7 +106,7 @@ namespace flur
         }
 
         template <class Tuple, std::size_t I = std::tuple_size<Tuple>::value >
-        constexpr auto compound_impl(Tuple&& t) noexcept
+        constexpr decltype(auto) compound_impl(Tuple&& t) noexcept
         {   //scan tuple in reverse order
             if constexpr (I == 1)
             { //at zero level must reside no-arg `compound` implementation

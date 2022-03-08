@@ -77,8 +77,8 @@ namespace flur
         constexpr auto compound(Src&& src) const noexcept
         {
             using result_t = decltype(
-                _applicator(src.current(), 
-                    std::declval<const alien_src_t&>().current())
+                _applicator(details::get_reference(src).current(), 
+                    details::get_reference(std::declval<const alien_src_t&>()).current())
                 );
             //using result_t = typename f_traits_t::result_t;
             return Cartesian<Src, alien_src_t, F, result_t>(

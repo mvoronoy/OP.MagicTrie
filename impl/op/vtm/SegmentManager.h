@@ -15,6 +15,7 @@
 #include <memory>
 
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <op/common/Exceptions.h>
 #include <op/common/Range.h>

@@ -18,7 +18,8 @@ namespace OP
         /** Sequence formed by generator functor
         *  \tparam Base - generator may support ordered or unordered sequence. Class doesn't provide 
         *       additional sorting instead it relies on generator function and developer responsibility
-         * \tparam F - generator functor. F must return some value that supports operator `!` (not) and 
+         * \tparam F - generator functor. F must return some value that supports contextually convertible 
+         *              to bool (. casoperator `bool` or (not)) and 
          *              dereferencing `*`. So generator class will work out of box for raw-pointers, 
          *              std::optional, std::unique_ptr, std::shared_ptr and so on. Note, according to
          *          this https://stackoverflow.com/a/26895581/149818 std::optional cannot own reference
@@ -103,6 +104,19 @@ namespace OP
             }
 
         };
+        namespace details
+        {
+        template <typename A>
+        class has_deref_operator
+        { 
+            typedef char YesType[1]; 
+            typedef char NoType[2]; 
+            template <typename C> static std::enable_if_t< !std::is_same_v<void, decltype(*std::declval<C>())>, YesType&> test( void* = nullptr ) ; 
+            template <typename C> static NoType& test(...); 
+        public: 
+            enum { value = sizeof(test<A>(nullptr)) == sizeof(YesType) }; 
+        };
+        }
         /**
         *
         * \tparam F - Functor that produces std::optional<?> or raw-pointer. For details see Generator comments on this parameter
@@ -116,10 +130,9 @@ namespace OP
             using ftraits_t = OP::utils::function_traits<F>;
             using result_t = typename ftraits_t::result_t; //decltype(decl_r(std::declval<F>()));
             static_assert(
-                std::disjunction_v<
-                    OP::utils::is_generic<result_t, std::optional>,
-                    std::is_pointer<result_t>>,
-                "Generator must produce std::optional<?> value or raw-pointer");
+                details::has_deref_operator<result_t>::value && 
+                    std::is_constructible_v<bool, result_t>,
+                "Generator must be contextually convertible to bool (like std::optional<?>, std::shared_ptr<?>, std::unique_ptr<?> or raw-pointer)");
 
             using element_t = std::decay_t<decltype(*std::declval<result_t>())>;
             using generator_base_t = std::conditional_t< ordered,

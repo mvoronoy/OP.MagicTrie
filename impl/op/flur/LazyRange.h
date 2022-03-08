@@ -115,12 +115,12 @@ namespace flur
         return std::unique_ptr<interface_t>( new impl_t{ std::forward<lrange_t>(range) } );
     }
     template <class ... Tx >
-    constexpr auto make_shared(Tx &&... range) 
+    constexpr auto make_shared(Tx &&... tx) 
     {
         using impl_t = PolymorphFactory<LazyRange<Tx ...>>;
         using interface_t = typename impl_t::polymorph_base_t;
 
-        return std::share_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
+        return std::shared_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
     }
     template <class ... Tx >
     constexpr auto make_shared(LazyRange<Tx ...> && range) 
@@ -130,6 +130,19 @@ namespace flur
         using interface_t = typename impl_t::polymorph_base_t;
 
         return std::shared_ptr<interface_t>( new impl_t{ std::forward<lrange_t>(range) } );
+    }
+
+    template <class ... Tx >
+    size_t consume_all(LazyRange<Tx ...>& range) 
+    {
+        size_t count = 0;
+        auto seq = range.compound();
+        for (seq.start(); seq.in_range(); seq.next())
+        {
+            static_cast<void>(seq.current()); //ignore return value
+            ++count;
+        }
+        return count;
     }
 
 } //ns:flur

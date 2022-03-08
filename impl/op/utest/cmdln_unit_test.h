@@ -206,6 +206,9 @@ namespace OP
                 return 1;
             }
             OP::utest::TestRun::default_instance().options() = opts;
+            // keep origin out formatting
+            std::ios_base::fmtflags cout_fmt_flags( std::cout.flags() );
+
             auto all_result = 
                 OP::utest::TestRun::default_instance().run_if(test_case_filter);
             std::map<std::string, size_t> summary_map;
@@ -217,6 +220,9 @@ namespace OP
                 auto agg = summary_map.emplace(result->status_to_str(), 0);
                 ++agg.first->second;
             }
+            //restore cout formatting
+            std::cout.flags(cout_fmt_flags);
+
             std::cout << "==--Total run results--==:\n";
             //dump summary
             for( auto agg : summary_map )

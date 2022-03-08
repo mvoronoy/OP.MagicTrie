@@ -68,7 +68,8 @@ namespace flur
         constexpr auto compound(Src&& src) const noexcept
         {
             using input_t = std::decay_t<details::unpack_t<Src>>;
-            using src_container_t = std::decay_t < decltype(details::get_reference(std::declval< input_t >()))>;
+            using src_container_t = std::decay_t < details::dereference_t<decltype(details::get_reference(std::declval< input_t >()))> >;
+
             using result_t = decltype( _applicator(std::declval< src_container_t >().current()) );
 
             using target_sequence_base_t = std::conditional_t<keep_order && src_container_t::ordered_c,

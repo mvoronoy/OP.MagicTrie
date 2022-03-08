@@ -13,6 +13,7 @@
 
 namespace OP{
 namespace utils{
+    using namespace std::string_literals;
 
 /** 
 * Implements thread pool with reusable thread.
@@ -79,6 +80,7 @@ class ThreadPool
             }
             catch (const std::exception& ex)
             {
+                using namespace std::string_literals;
                 pack_exception();
                 OP::utils::SysLog log;
                 log.print("Unhandled thread exception hide that:"s + ex.what());

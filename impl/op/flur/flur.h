@@ -24,6 +24,7 @@
 #include <op/flur/OnException.h>
 #include <op/flur/Repeater.h>
 #include <op/flur/Minibatch.h>
+#include <op/flur/StringInput.h>
 #include <op/flur/stl_adapters.h>
 
 namespace OP
@@ -43,6 +44,7 @@ namespace flur
         {
             return make_lazy_range(OfContainerFactory<T>(std::forward<T>(t)));
         }
+        
         template <class T, std::enable_if_t<std::is_invocable<decltype(of_container<T>), T&&>::value, int> = 0>
         constexpr auto of(T&& t)  noexcept
         {
@@ -71,7 +73,7 @@ namespace flur
                 SimpleFactory<std::optional<V>, OfOptional<V>>(std::optional <V>{}));
         }
         template <class T, std::enable_if_t<std::is_invocable<decltype(of_optional<T>), T>::value, int> = 0>
-        constexpr auto of(T t)  noexcept
+        constexpr auto of(T t) noexcept
         {
             return of_optional(std::move(t));
         }
@@ -102,9 +104,10 @@ namespace flur
         * \endcode
         */
         template <class V>
-        constexpr auto of_iota(V begin, V end) noexcept
+        constexpr auto of_iota(V&& begin, V&& end) noexcept
         {
-            return make_lazy_range( SimpleFactory<std::pair<V, V>, OfIota<V>>(std::move(begin), std::move(end)) );
+            using iota_value_t = std::decay_t<V>;
+            return make_lazy_range( SimpleFactory<std::pair<V, V>, OfIota<iota_value_t>>(std::move(begin), std::move(end)) );
         }
 
         /**
@@ -126,6 +129,45 @@ namespace flur
         constexpr auto generator(F&& f) noexcept
         {
             return make_lazy_range( GeneratorFactory<F, false>(std::forward<F>(f)) );
+        }
+
+        template <typename T, 
+            typename = std::enable_if_t<
+                OP::utils::is_generic<details::dereference_t<T>, std::basic_string>::value
+            ||  OP::utils::is_generic<details::dereference_t<T>, std::basic_string_view>::value> >
+        using String = T;
+        /**
+        * Create LazyRange to iterate over elements of string splitted by separator. Iteration 
+        * has minimal memory footprint since to access uses std::string_view
+        * For example:\code
+        * 
+        * \endcode
+        */
+        template <class Str1, class Str2>
+        constexpr auto of_string_split(String<Str1>&& str, String<Str2>&& separators) noexcept
+        {
+            using raw_t = std::decay_t<Str1>;
+            using str_t = details::dereference_t<raw_t>;
+            using str_view_t = std::basic_string_view< typename str_t::value_type >;
+
+            using splitter_t = StringSplit<raw_t, str_view_t>;
+            //Simple factory will use copy operation of the same instance
+            return make_lazy_range( 
+                SimpleFactory<splitter_t, splitter_t>(
+                    splitter_t(std::move(str), std::forward<String<Str2>>(separators))));
+        }
+        template <class Str>
+        constexpr auto of_string_split(String<Str>&& str) noexcept
+        {
+            using raw_t = std::decay_t<Str>;
+            using str_t = details::dereference_t<raw_t>;
+            const static std::basic_string< typename str_t::value_type > separators(" ");
+            using str_view_t = std::basic_string_view< typename str_t::value_type >;
+
+            using splitter_t = StringSplit<raw_t, str_view_t>;
+            //Simple factory will use copy operation of the same instance
+            return of_string_split(
+                    std::move(str), separators);
         }
 
 

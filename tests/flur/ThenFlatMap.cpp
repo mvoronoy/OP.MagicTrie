@@ -31,12 +31,16 @@ namespace functional {
     template<typename T>
     auto make_function(T const& f) ->
         typename std::enable_if<std::is_function<T>::value && !std::is_bind_expression<T>::value, std::function<T>>::type
-    { return f; }
+    {
+        return f;
+    }
 
     template<typename T>
     auto make_function(T const& f) ->
         typename std::enable_if<!std::is_function<T>::value && !std::is_bind_expression<T>::value, typename function_traits<decltype(&T::operator())>::function>::type
-    { return static_cast<typename function_traits<decltype(&T::operator())>::function>(f); }
+    {
+        return static_cast<typename function_traits<decltype(&T::operator())>::function>(f);
+    }
 
     // This overload is only used to display a clear error message in this case
     // A bind expression supports overloads so its impossible to determine
@@ -44,35 +48,37 @@ namespace functional {
     template<typename T>
     auto make_function(T const& f) ->
         typename std::enable_if<std::is_bind_expression<T>::value, void>::type
-    { static_assert(std::is_bind_expression<T>::value && false, "functional::make_function cannot be used with a bind expression."); }
+    {
+        static_assert(std::is_bind_expression<T>::value && false, "functional::make_function cannot be used with a bind expression.");
+    }
 
 }  // namespace functional
 
 void test_FlatMapFromPipeline(OP::utest::TestResult& tresult)
 {
     constexpr int N = 4;
-    
+
     constexpr auto fm_lazy = src::of_iota(1, N + 1)
         >> then::flat_mapping([](auto i) {
-            return src::generator([step = 0, i]() mutable->std::optional<decltype(i)> {
-                decltype(i) v = 1;
-                for (auto x = 0; x < step; ++x)
-                    v *= i;
-                return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
-            }
+        return src::generator([step = 0, i]() mutable->std::optional<decltype(i)> {
+            decltype(i) v = 1;
+            for (auto x = 0; x < step; ++x)
+                v *= i;
+            return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
+        }
         );
-        })
+            })
         ;
-    
-    constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
-    size_t cnt = 0;
-    for(auto i : fm_lazy)
-    {
-        tresult.debug() << i << "\n";
-        ++cnt;
-    }
-    tresult.assert_that<equals>(cnt, 12, "Wrong times");
-    tresult.assert_that<equals>(expected_sum, std::reduce(fm_lazy.begin(), fm_lazy.end(), 0), "invalid num");
+
+            constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
+            size_t cnt = 0;
+            for (auto i : fm_lazy)
+            {
+                tresult.debug() << i << "\n";
+                ++cnt;
+            }
+            tresult.assert_that<equals>(cnt, 12, "Wrong times");
+            tresult.assert_that<equals>(expected_sum, std::reduce(fm_lazy.begin(), fm_lazy.end(), 0), "invalid num");
 }
 
 size_t g_copied = 0, g_moved = 0;
@@ -89,7 +95,7 @@ struct ExploreVector
 
     }
     ExploreVector(const ExploreVector<T>& other)
-        :  _store(other._store)
+        : _store(other._store)
     {
         ++g_copied;
     }
@@ -98,7 +104,7 @@ struct ExploreVector
     {
         ++g_moved;
     }
-    
+
     auto begin() const
     {
         return _store.begin();
@@ -107,7 +113,7 @@ struct ExploreVector
     {
         return _store.end();
     }
-    
+
     std::vector<T> _store;
 };
 void test_FlatMapFromContainer(OP::utest::TestResult& tresult)
@@ -124,18 +130,18 @@ void test_FlatMapFromContainer(OP::utest::TestResult& tresult)
             })
         ;
 
-    size_t cnt = 0;
-    g_copied = 0, g_moved = 0;
-    for(auto i : fm_lazy) 
-    {
-        tresult.debug() << i << ", ";
-        ++cnt;
-    }
-    tresult.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
+            size_t cnt = 0;
+            g_copied = 0, g_moved = 0;
+            for (auto i : fm_lazy)
+            {
+                tresult.debug() << i << ", ";
+                ++cnt;
+            }
+            tresult.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
 
-    tresult.assert_that<equals>(cnt, 12, "Wrong times");
-    tresult.assert_that<equals>(g_moved, 12, "Wrong times");
-    tresult.assert_that<equals>(g_copied, 0, "Wrong times");
+            tresult.assert_that<equals>(cnt, 12, "Wrong times");
+            tresult.assert_that<equals>(g_moved, 12, "Wrong times");
+            tresult.assert_that<equals>(g_copied, 0, "Wrong times");
 }
 
 void test_FlatMapFromCref(OP::utest::TestResult& tresult)
@@ -156,10 +162,10 @@ void test_FlatMapFromCref(OP::utest::TestResult& tresult)
     auto users = src::of_container(std::cref(usr_lst));
     auto fmap = users >> then::flat_mapping([](const auto& u) {
         return cref_container(u.roles);
-    });
+        });
 
     size_t cnt = 0;
-    for(const auto& i : fmap) 
+    for (const auto& i : fmap)
     {
         tresult.debug() << i << ", ";
         ++cnt;
@@ -171,9 +177,58 @@ void test_FlatMapFromCref(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(g_moved, 0, "Wrong rref move times");
 }
 
+void test_FlatMapWithEmpty(OP::utest::TestResult& tresult)
+{
+    struct User
+    {
+        User(std::initializer_list<std::string> init)
+            : roles(std::move(init))
+        {}
+        ExploreVector<std::string> roles;
+    };
+    ;
+    ExploreVector<std::string> expected{ "a1"s, "a2"s, "a3"s, "b1"s, "b2"s, "b3"s };
+
+    auto lst1 =
+        src::of_container(std::vector<User>{
+            User{},
+            User{ "a1"s, "a2"s, "a3"s },
+            User{ "b1"s, "b2"s, "b3"s },
+        })
+        >> then::flat_mapping([](const auto& u) {
+            return cref_container(u.roles);
+            });
+
+    tresult.assert_that<eq_sets>(expected, lst1, "result sequene broken by empty-first");
+
+    auto lst2 =
+        src::of_container(std::vector<User>{
+            User{ "a1"s, "a2"s, "a3"s },
+            User{},
+            User{ "b1"s, "b2"s, "b3"s },
+        })
+        >> then::flat_mapping([](const auto& u) {
+            return cref_container(u.roles);
+        })
+    ;
+    tresult.assert_that<eq_sets>(expected, lst2, "result sequene broken by empty-moddle");
+
+    auto lst3 =
+        src::of_container(std::vector<User>{
+            User{ "a1"s, "a2"s, "a3"s },
+            User{ "b1"s, "b2"s, "b3"s },
+            User{},
+        })
+        >> then::flat_mapping([](const auto& u) {
+            return cref_container(u.roles);
+        })
+    ;
+    tresult.assert_that<eq_sets>(expected, lst3, "result sequene broken by empty-moddle");
+}
 
 static auto module_suite = OP::utest::default_test_suite("flur.then")
 ->declare(test_FlatMapFromPipeline, "flatmap")
 ->declare(test_FlatMapFromContainer, "rref-flatmap")
 ->declare(test_FlatMapFromCref, "cref-flatmap")
+->declare(test_FlatMapWithEmpty, "flatmap-with-empty")
 ;

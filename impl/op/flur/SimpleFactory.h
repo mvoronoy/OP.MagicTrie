@@ -33,11 +33,11 @@ namespace flur
             : _v(std::forward<V>(v))
         {
         }
-        constexpr auto compound() const& noexcept
+        constexpr decltype(auto) compound() const& noexcept
         {
             return SourceImpl(_v);
         }
-        constexpr auto compound() && noexcept
+        constexpr decltype(auto) compound() && noexcept
         {
             return SourceImpl(std::move(_v));
         }

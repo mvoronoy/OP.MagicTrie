@@ -2,12 +2,16 @@
 #ifndef _OP_COMMON_SYSLOG__H_
 #define _OP_COMMON_SYSLOG__H_
 
-#ifdef _WINDOWS
+#if defined (_WINDOWS) || defined(_WIN32) || defined(_WIN64)
+#define OP_COMMON_OS_WINDOWS
+#endif
+
+#ifdef OP_COMMON_OS_WINDOWS
     #include <Windows.h>
 #ifdef max
 #undef max
 #endif
-#else //asume LINUX platform
+#elif __linux__ //asume LINUX platform
     #include <syslog.h>
 #endif // _WINDOWS
 #include <string>
@@ -25,7 +29,7 @@ namespace OP
         {
             struct Transport
             {
-#ifdef _WINDOWS
+#if defined (OP_COMMON_OS_WINDOWS)
                 Transport()
                 {}
                 ~Transport()
@@ -34,7 +38,7 @@ namespace OP
                 {
                     OutputDebugStringA(s.c_str());
                 }
-#else //asume LINUX platform
+#elif defined(__linux__) //asume LINUX platform
                 Transport()
                 {
                     openlog("", LOG_PID | LOG_CONS | LOG_NDELAY,

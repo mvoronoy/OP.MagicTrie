@@ -22,24 +22,27 @@ namespace flur
     struct OfIota : public OrderedSequence<T>
     {
         using this_t = OfIota<T>;
-        constexpr OfIota(T begin, T end) noexcept
-            : _begin(std::move(begin))
-            , _end(std::move(end))
-            , _current(_end)
+        using range_t = std::pair<T, T>;
+        constexpr OfIota(T&& begin, T&& end) noexcept
+            : _range(std::forward<T>(begin), std::forward<T>(end))
+            , _current(_range.first)
         {
         }
-        constexpr OfIota(std::pair<T, T> pair) noexcept
-            : this_t(std::move(pair.first), std::move(pair.second))
+
+        template <class AltPair>
+        constexpr OfIota(AltPair&& pair) noexcept
+            : _range(std::forward<AltPair>(pair))
+            , _current(_range.first)
         {}
 
         virtual void start()
         {
-            _current = _begin;
+            _current = _range.first;
         }
 
         virtual bool in_range() const
         {
-            return _current != _end;
+            return _current != _range.second;
         }
 
         virtual T current() const
@@ -51,9 +54,10 @@ namespace flur
         {
             ++_current;
         }
-
-        T _begin, _end, _current;
+        range_t _range;
+        T _current;
     };
+
 
 } //ns:flur
 } //ns:OP

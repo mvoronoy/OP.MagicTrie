@@ -211,20 +211,19 @@ namespace OP
                     Apply additional check 'f' to exception ex 
                     \param f predicate bool(const Exception& ) for additional exception check. Just return false to raise assert
                 */
-                template <typename ...Xetails>
-                this_t& then(assert_predicate_t f, Xetails&& ...details)
+                template <class Predicate, typename ...Xetails>
+                this_t& then(Predicate f, Xetails&& ...details)
                 {
-                    _owner.assert_that([&](){ return f(_ex); }, std::forward<Xetails>(details) ...);
+                    _owner.assert_true(f(_ex), std::forward<Xetails>(details) ...);
                     return *this;
                 }
                 /**
                     Apply additional check 'f' to exception ex by invoking regular test methods from TestResult
                 */
-               
-                using assert_handler_t = void(TestResult& tresult, const Exception&);
+                using assert_handler_t = void(const Exception&);
                 this_t& then(assert_handler_t f)
                 {
-                    f(_owner, _ex);
+                    f(_ex);
                     return *this;
                 }
             private:
@@ -326,7 +325,18 @@ namespace OP
                 assert_true(!condition, std::forward<Xetails>(details));
             }
             
-
+            /**
+            *   Most generic way to check result and assert. Method takes template parameter Marker
+            *   then applied multiple Args to it. Marker can be one of standart existing in namespace OP::utest :
+            * \li equals - to assert equality of 2 comparable arguments (including STL containers);
+            * \li eq_sets - to assert equality of 2 incomparable containers but with items that can be 
+            *               automatically compared;
+            * \li less - to assert strict less between 2 args
+            * \li greater - to assert strict greater between 2 args
+            * \li negate or logical_not to invert other Markers. For example `assert_that< negate<less> >(3, 2)` - evaluates
+            *               `!(3 < 2)` that is effectively `3>=2`
+            * \li is_null - to assert arg is nullptr
+            */
             template<class Marker, class ...Args>
             void assert_that(Args&& ...args)
             {
@@ -356,10 +366,10 @@ namespace OP
                 }
                 catch (const Exception&ex)
                 {
-                    debug() << "Exception " << typeid(Exception).name();
+                    debug() << "intercepted exception: " << typeid(Exception).name();
                     if constexpr (std::is_base_of_v<std::exception, Exception>)
                         debug() << ex.what();
-                    debug() << "... Successfully catched as expected\n";
+                    debug() << "... catched as expected\n";
                     return AssertExceptionWrapper<Exception>(*this, ex);
                 }
                 fail(std::forward<Xetails>(details)...);

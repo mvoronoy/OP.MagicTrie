@@ -66,6 +66,21 @@ namespace OP
                 return left == right;
             }
         };
+
+        /** Marker to compare 2 heterogenous container with items supported operator `==` */
+        struct eq_sets
+        {
+            constexpr static size_t args_c = 2;
+            using is_transparent = int;
+
+            template <class Left, class Right>
+            constexpr bool operator()(const Left& left, const Right& right) const
+            {
+                auto pr = std::mismatch(left.begin(), left.end(), right.begin(), right.end());
+                return pr.first == left.end() && pr.second == right.end();
+            }
+        };
+
         /** alias for negate<equals> */
         using not_equals = negate<equals>;
 

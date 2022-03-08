@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <deque>
 
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
