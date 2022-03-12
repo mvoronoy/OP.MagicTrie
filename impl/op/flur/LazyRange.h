@@ -9,6 +9,7 @@
 #include <op/flur/LazyRangeIter.h>
 #include <tuple>
 #include <op/flur/Polymorphs.h>
+#include <op/flur/Join.h>
 
 namespace OP
 {
@@ -74,6 +75,25 @@ namespace flur
             using arg_t = LazyRange<Ux ...>;
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
         }
+
+        template <class ... Ux>
+        constexpr auto operator & (const LazyRange<Ux ...>& lr) const& noexcept
+        {
+            using arg_t = LazyRange<Ux ...>;
+            using join_factory_t = JoinFactory<this_t, arg_t>;
+
+            return LazyRange < join_factory_t >(
+                join_factory_t(*this, lr));
+        }
+        template <class ... Ux>
+        constexpr auto operator & (LazyRange<Ux ...>&& lr) && noexcept
+        {
+            using arg_t = LazyRange<Ux ...>;
+            using join_factory_t = JoinFactory<this_t, arg_t>;
+            return LazyRange < join_factory_t >(
+                join_factory_t(std::move(*this), std::move(lr)));
+        }
+
         auto begin() const
         {
             using t_t = decltype(compound());

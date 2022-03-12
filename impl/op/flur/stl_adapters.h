@@ -32,5 +32,14 @@ namespace std
         get_reference(seq).start();
         return !seq.in_range();
     }
+
+    template <class T, class UnaryFunction>
+    constexpr std::enable_if_t <std::is_base_of_v<OP::flur::FactoryBase, T>, void> for_each(const T& inst, UnaryFunction f) 
+    {
+        using namespace OP::flur::details;
+        auto seq = inst.compound();
+        for(get_reference(seq).start(); get_reference(seq).in_range(); get_reference(seq).next())
+            f(std::move(get_reference(seq).current()));
+    }
 } //ns:std
 #endif //_OP_FLUR_STL_ADAPTERS__H_

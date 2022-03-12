@@ -122,7 +122,7 @@ void test_FlatMapFromContainer(OP::utest::TestResult& tresult)
     constexpr auto fm_lazy = src::of_iota(1, N + 1)
         >> then::flat_mapping([](auto i) {
 
-        return rref_container(
+        return src::of(
             ExploreVector<std::string>{
             "a" + std::to_string(i),
                 "b" + std::to_string(i),
@@ -161,7 +161,7 @@ void test_FlatMapFromCref(OP::utest::TestResult& tresult)
     g_moved = 0;
     auto users = src::of_container(std::cref(usr_lst));
     auto fmap = users >> then::flat_mapping([](const auto& u) {
-        return cref_container(u.roles);
+        return src::of_container(std::cref(u.roles));
         });
 
     size_t cnt = 0;
@@ -196,7 +196,7 @@ void test_FlatMapWithEmpty(OP::utest::TestResult& tresult)
             User{ "b1"s, "b2"s, "b3"s },
         })
         >> then::flat_mapping([](const auto& u) {
-            return cref_container(u.roles);
+            return src::of_container(std::cref(u.roles));
             });
 
     tresult.assert_that<eq_sets>(expected, lst1, "result sequene broken by empty-first");
@@ -208,7 +208,7 @@ void test_FlatMapWithEmpty(OP::utest::TestResult& tresult)
             User{ "b1"s, "b2"s, "b3"s },
         })
         >> then::flat_mapping([](const auto& u) {
-            return cref_container(u.roles);
+            return src::of_container(std::cref(u.roles));
         })
     ;
     tresult.assert_that<eq_sets>(expected, lst2, "result sequene broken by empty-moddle");
@@ -220,7 +220,7 @@ void test_FlatMapWithEmpty(OP::utest::TestResult& tresult)
             User{},
         })
         >> then::flat_mapping([](const auto& u) {
-            return cref_container(u.roles);
+            return src::of_container(std::cref(u.roles));
         })
     ;
     tresult.assert_that<eq_sets>(expected, lst3, "result sequene broken by empty-moddle");

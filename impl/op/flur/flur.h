@@ -221,6 +221,23 @@ namespace flur
         {
             return FlatMappingFactory<F>(std::forward<F>(f));
         }
+        /** Same as '&' operator for LazyRange, but allows use `>>` operator 
+        *
+        */
+        template <class Right>
+        constexpr auto join(Right&& right) noexcept
+        {
+            return PartialJoinFactory<Right>(std::forward<Right>(right));
+        }
+        /** Same as '&' operator for LazyRange, but allows specify comparator of joining keys
+        *  \tparam Comp - functor that matches functor `signed f( const Right::element_t& , const Right::element_t)`
+        */
+        template <class Right, class Comp>
+        constexpr auto join(Right&& right, Comp&& comp) noexcept
+        {
+            return PartialJoinFactory<Right, Comp>(
+                std::forward<Right>(right), std::forward<Comp>(comp));
+        }
 
         /** Convert source by filtering out some ellements according to predicate 
         * If applied to ordered source then result is ordered as well
