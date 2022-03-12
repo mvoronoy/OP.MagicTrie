@@ -8,10 +8,9 @@
       "projectTarget": "trie_test.exe",
       "name": "trie_test.exe",
       "args": [
-        "-r",
-        "flur.mt.*",
+        "-r flur.then.+",
         "-d",
-        " 3"
+        "3"
       ]
 
     }

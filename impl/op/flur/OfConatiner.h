@@ -40,8 +40,13 @@ namespace flur
         using element_t = typename base_t::element_t;
         using iterator = decltype(std::declval<const container_t&>().begin());//typename container_t::const_iterator;
 
-        constexpr OfContainer(V v) noexcept
+        constexpr OfContainer(V&& v) noexcept
             :_v(std::move(v))
+        {
+            _i = details::get_reference(_v).end();
+        }
+        constexpr OfContainer(const V& v) noexcept
+            :_v(v)
         {
             _i = details::get_reference(_v).end();
         }
@@ -137,8 +142,10 @@ namespace flur
         /** Detects if container can support OrderedSequence or Sequence */
         using sequence_t = details::detect_sequence_t<holder_t>;
 
-        constexpr OfContainerFactory(holder_t v) noexcept
+        constexpr OfContainerFactory(holder_t&& v) noexcept
             :_v(std::move(v)) {}
+        constexpr OfContainerFactory(const holder_t& v) noexcept
+            :_v(v) {}
 
         constexpr auto compound() const& noexcept
         {

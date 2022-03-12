@@ -121,27 +121,26 @@ void test_FlatMapFromContainer(OP::utest::TestResult& tresult)
     constexpr int N = 4;
     constexpr auto fm_lazy = src::of_iota(1, N + 1)
         >> then::flat_mapping([](auto i) {
-
         return src::of(
             ExploreVector<std::string>{
             "a" + std::to_string(i),
                 "b" + std::to_string(i),
                 "c" + std::to_string(i)});
-            })
-        ;
-
-            size_t cnt = 0;
-            g_copied = 0, g_moved = 0;
-            for (auto i : fm_lazy)
-            {
-                tresult.debug() << i << ", ";
-                ++cnt;
             }
-            tresult.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
+        );
 
-            tresult.assert_that<equals>(cnt, 12, "Wrong times");
-            tresult.assert_that<equals>(g_moved, 12, "Wrong times");
-            tresult.assert_that<equals>(g_copied, 0, "Wrong times");
+    size_t cnt = 0;
+    g_copied = 0, g_moved = 0;
+    for (auto i : fm_lazy.compound())
+    {
+        tresult.debug() << i << ", ";
+        ++cnt;
+    }
+    tresult.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
+
+    tresult.assert_that<equals>(cnt, 12, "Wrong times");
+    tresult.assert_that<equals>(g_moved, 20, "Wrong times");
+    tresult.assert_that<equals>(g_copied, 0, "Wrong times");
 }
 
 void test_FlatMapFromCref(OP::utest::TestResult& tresult)
