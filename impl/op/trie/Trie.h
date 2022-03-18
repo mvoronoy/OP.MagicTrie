@@ -21,7 +21,7 @@
 #include <op/trie/TrieResidence.h>
 #include <op/trie/TrieRangeAdapter.h>
 #include <op/trie/SectionAdapter.h>
-#include <op/ranges/IteratorsRange.h>
+
 namespace OP
 {
     namespace trie
@@ -48,8 +48,7 @@ namespace OP
             using poistion_t = TriePosition ;
             using key_t = atom_string_t;
             using value_t = payload_t;
-            using ordered_range_t = OrderedRange<atom_string_t, value_t>;
-            using ordered_range_ptr = std::shared_ptr<ordered_range_t const>;
+
 
             virtual ~Trie()
             {
@@ -204,15 +203,6 @@ namespace OP
                 lower_bound_impl(kbeg, key.end(), i);
             }
 
-            using range_adapter_t = TrieRangeAdapter<this_t>;
-            /**
-            *   @return range that embrace all records by pair [ begin(), end() )
-            */
-            ordered_range_ptr range() const
-            {
-                return ordered_range_ptr(new range_adapter_t(this->shared_from_this()));
-            }
-
             /** return first entry that contains prefix specified by string [begin, aend) 
             *   @param begin - first symbol of string to lookup
             *   @param aend - end of string to lookup
@@ -245,55 +235,6 @@ namespace OP
                 //
                 return i_beg;
             }
-
-            using subrange_container_t = PrefixSubrangeAdapter<this_t>;
-            /**
-            *   Construct a range that address all string started from string specified by [begin, aend)
-            *   @param begin - first symbol of string to lookup
-            *   @param aend - end of string to lookup
-            *   \tparam IterateAtom iterator of string 
-            */
-            template <class IterateAtom>
-            ordered_range_ptr prefixed_range(IterateAtom begin, IterateAtom aend) const
-            {
-                atom_string_t prefix(begin, aend);
-
-                return std::static_pointer_cast<ordered_range_t const>(
-                    make_mixed_range(this->shared_from_this(),
-                    typename Ingredient<this_t>::PrefixedBegin( prefix ), 
-                    typename Ingredient<this_t>::PrefixedLowerBound(prefix),
-                    typename Ingredient<this_t>::PrefixedInRange (StartWithPredicate(prefix)) )
-                );
-            }
-            /**
-            *   Just shorthand notation for: 
-            *   \code
-            *   subrange(std::begin(container), std::end(container))
-            *   \endcode
-            * @param string any string of bytes that supports std::begin/ std::end functions
-            */
-            template <class AtomContainer>
-            ordered_range_ptr prefixed_range(const AtomContainer& prefix) const
-            {
-                return std::static_pointer_cast<ordered_range_t const>(
-                    make_mixed_range(this->shared_from_this(),
-                        typename Ingredient<this_t>::PrefixedBegin(prefix), 
-                        typename Ingredient<this_t>::PrefixedLowerBound(prefix),
-                        typename Ingredient<this_t>::PrefixedInRange(StartWithPredicate(prefix)) 
-                    )
-                );
-            }
-            /**
-            *   @return range that is flatten-range of all prefixes contained in param `container`.
-            */
-            template <class Range>
-            ordered_range_ptr flatten_subrange(std::shared_ptr<Range const>& container) const
-            {
-                return make_flatten_range(container, [this](const auto& i) {
-                    return prefixed_range(i.key());
-                });
-            }
-
 
             /**
             @return an iterator pointing to the first element that is not less than (i.e. greater or equal to) key 
@@ -488,56 +429,86 @@ namespace OP
                 return position_child(of_this,
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
             }
-            /**Return range that allows iterate all immediate childrens of specified prefix*/
-            ordered_range_ptr children_range(const iterator& of_this) const
+            /**
+            *   @return sequence-factory that embrace all records by pair [ begin(), end() )
+            */
+            auto range() const
             {
-                return std::static_pointer_cast<ordered_range_t const>(
-                    make_mixed_range(
-                    this->shared_from_this(), 
+                return OP::flur::make_lazy_range(
+                    TrieSequenceFactory<this_t>(this->shared_from_this()));
+            }
+
+            /**
+            *   Construct a range that address all string started from string specified by [begin, aend)
+            *   @param begin - first symbol of string to lookup
+            *   @param aend - end of string to lookup
+            *   \tparam IterateAtom iterator of string 
+            */
+            template <class IterateAtom>
+            auto prefixed_range(IterateAtom begin, IterateAtom aend) const
+            {
+                atom_string_t prefix(begin, aend);
+                return prefixed_range(prefix);
+            }
+            /**
+            *   Construct a range that address all string started with specified prefix
+            * @param prefix any string of bytes that supports std::begin / std::end iteration
+            */
+            template <class AtomContainer>
+            auto prefixed_range(const AtomContainer& prefix) const
+            {
+                return OP::flur::make_lazy_range(
+                    make_mixed_sequence_factory(
+                        std::const_pointer_cast<const this_t>(this->shared_from_this()),
+                        typename Ingredient<this_t>::PrefixedBegin(prefix), 
+                        typename Ingredient<this_t>::PrefixedLowerBound(prefix),
+                        typename Ingredient<this_t>::PrefixedInRange(StartWithPredicate(prefix)) 
+                    )
+                );
+            }
+
+            /**Return range that allows iterate all immediate childrens of specified prefix*/
+            auto children_range(const iterator& of_this) const
+            {
+                return OP::flur::make_lazy_range(make_mixed_sequence_factory(
+                    std::const_pointer_cast<const this_t>(this->shared_from_this()),
                     typename Ingredient<this_t>::ChildBegin{of_this}, 
                     typename Ingredient<this_t>::ChildInRange{StartWithPredicate(of_this.key())},
                     typename Ingredient<this_t>::SiblingNext{}
-
                 ));
             }
 
             /**Return range that allows iterate all immediate childrens of specified prefix*/
-            ordered_range_ptr sibling_range(const atom_string_t& key) const
+            auto sibling_range(const atom_string_t& key) const
             {
-                return ordered_range_ptr( make_mixed_range(
-                    this->shared_from_this(), 
+                return OP::flur::make_lazy_range(make_mixed_sequence_factory(
+                    std::const_pointer_cast<const this_t>(this->shared_from_this()),
                     typename Ingredient<this_t>::Find(key), 
-                    typename Ingredient<this_t>::SiblingNext{}) ) ;
+                    typename Ingredient<this_t>::SiblingNext{}
+                ));
                 
             }
-            /**Return range that allows iterate all immediate childrens of specified prefix*/
-           /* ordered_range_ptr sibling_range(iterator pos) const
-            {
-                auto zhis = this->shared_from_this();
-                return ordered_range_ptr( 
-                    new sibling_range_t(zhis, [pos{std::move(pos)}]() { return pos; })
-                );
-            }*/
             
-            /** utilize feature of Trie where all entries below the single prefix are lexicographicaly ordered.
+            /** Utilize feature of Trie where all entries below the single prefix are lexicographicaly ordered.
             * This range provide access to ordered sequence of suffixes. In simplified view you can think 
             * about it as a cutting right part of each string from trie
             * @param begin - specifies begin iterator of prefix that will be cut-off
             *  @param aend - specifies end iterator of prefix that will be cut-off
             */
-            template <class Atom>
-            ordered_range_ptr section_range(Atom begin, Atom aend) const
+            /*template <class Atom>
+            auto section_range(Atom begin, Atom aend) const
             {
                 atom_string_t prefix{ begin, aend };
                 return section_range(std::move(prefix));
             }            
             template <class AtomString>
-            ordered_range_ptr section_range(AtomString prefix) const
+            auto section_range(AtomString prefix) const
             {
-                auto source = prefixed_range(std::begin(prefix), std::end(prefix));
+                return prefixed_range(prefix) >> 
+                flur::MappingFactory<;
                 using result_t = TrieSectionAdapter<typename decltype(source)::element_type>;
                 return ordered_range_ptr( new result_t(source, std::move(prefix)) );
-            }
+            } */
 
             value_type value_of(poistion_t pos) const
             {

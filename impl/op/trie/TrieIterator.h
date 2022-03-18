@@ -19,6 +19,7 @@ namespace OP
         {
         public:
             using iterator_category = std::bidirectional_iterator_tag;
+            using difference_type   = std::ptrdiff_t;
 
             typedef OP::trie::atom_string_t prefix_string_t;
             typedef prefix_string_t key_type;
@@ -108,9 +109,13 @@ namespace OP
             {
                 return _position_stack.empty();
             }
-            const prefix_string_t& key() const  noexcept
+            const prefix_string_t& key() const& noexcept
             {
                 return _prefix;
+            }
+            prefix_string_t key() && noexcept
+            {
+                return std::move(_prefix);
             }
             value_type value () const
             {

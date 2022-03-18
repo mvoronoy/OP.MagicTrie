@@ -19,7 +19,7 @@ namespace OP::flur
     * by exposing method `next_lower_bound_of`
     */
     template <class T>
-    struct OrderedRangeOptimizedJoin : OrderedSequence <T>
+    struct OrderedSequenceOptimizedJoin : OrderedSequence <T>
     {
         using base_t = OrderedSequence <T>;
 
@@ -185,8 +185,14 @@ namespace OP::flur
     struct JoinFactory : FactoryBase
     {
         constexpr JoinFactory(Left&& left, Right&& right, Comp&& comp = Comp()) noexcept
-            : _left(std::forward<Left>(left))
-            , _right(std::forward<Right>(right))
+            : _left(std::move(left))
+            , _right(std::move(right))
+            , _comp(std::forward<Comp>(comp))
+        {
+        }
+        constexpr JoinFactory(const Left& left, const Right& right, Comp&& comp = Comp()) noexcept
+            : _left(left)
+            , _right(right)
             , _comp(std::forward<Comp>(comp))
         {
         }

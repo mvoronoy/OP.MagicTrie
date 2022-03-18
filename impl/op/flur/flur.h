@@ -18,6 +18,7 @@
 
 #include <op/flur/Cartesian.h>
 #include <op/flur/Filter.h>
+#include <op/flur/TakeAwhile.h>
 #include <op/flur/FlatMapping.h>
 #include <op/flur/Mapping.h>
 #include <op/flur/OrDefault.h>
@@ -138,7 +139,7 @@ namespace flur
         using String = T;
         /**
         * Create LazyRange to iterate over elements of string splitted by separator. Iteration 
-        * has minimal memory footprint since to access uses std::string_view
+        * has minimal memory ùìóêðóôâ since to access uses std::string_view
         * For example:\code
         * 
         * \endcode
@@ -247,6 +248,11 @@ namespace flur
         constexpr auto filter(Fnc f) noexcept
         {
             return FilterFactory<Fnc>(std::move(f));
+        }
+        template <class Fnc>
+        constexpr auto take_awhile(Fnc f) noexcept
+        {
+            return TakeAwhileFactory<Fnc>(std::move(f));
         }
         /**
         *  Produce cartesian multiplication of 2 sources. 

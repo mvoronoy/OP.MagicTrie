@@ -65,30 +65,52 @@ namespace flur
         Fnc _predicate;
     };
 
-
-    template <class Fnc>
-    struct FilterFactory : FactoryBase
+    template <class Fnc, template <typename...> class Impl>
+    struct FilterFactoryTrait
     {
-        using holder_t = std::function<Fnc>;
+        using functor_t = Fnc;
+
+        template <class Src>
+        using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
+
+        template <class Src>
+        using sequence_base_t = std::conditional_t<
+            src_conatiner_t<Src>::ordered_c,
+            OrderedSequence<typename src_conatiner_t<Src>::element_t>,
+            Sequence<typename src_conatiner_t<Src>::element_t>
+        >;
+
+        template <class Src>
+        using result_sequence_t = Impl<Fnc, Src, sequence_base_t<Src> >;
+    };
+
+
+    template <class FTrait>
+    struct FilterFactoryBase : FactoryBase
+    {
+        using holder_t = typename FTrait::functor_t;//std::function<Fnc>;
 
         template <class U>
-        constexpr FilterFactory(U f) noexcept
+        constexpr FilterFactoryBase(U f) noexcept
             : _fnc(std::move(f))
         {
         }
         template <class Src>
-        constexpr auto compound(Src&& src) const noexcept
+        constexpr auto compound(Src&& src) const& noexcept
         {
-            using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
-            using filter_base_t = std::conditional_t<
-                src_conatiner_t::ordered_c,
-                OrderedSequence<typename src_conatiner_t::element_t>,
-                Sequence<typename src_conatiner_t::element_t>
-            >;
-            return Filter<Fnc, std::decay_t<Src>, filter_base_t>(std::move(src), _fnc);
+            using result_t = typename FTrait::result_sequence_t<Src>;
+            return result_t(std::move(src), _fnc);
         }
-        Fnc _fnc;
+        template <class Src>
+        constexpr auto compound(Src&& src) && noexcept
+        {
+            using result_t = typename FTrait::result_sequence_t<Src>;
+            return result_t(std::move(src), std::move(_fnc));
+        }
+        holder_t _fnc;
     };
+    template <class Fnc>
+    using FilterFactory = FilterFactoryBase< FilterFactoryTrait<Fnc, Filter> >;
 
 } //ns:flur
 } //ns:OP

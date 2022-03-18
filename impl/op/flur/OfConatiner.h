@@ -92,10 +92,10 @@ namespace flur
     template <class Container>
     struct OfLowerBoundContainer : 
         OfContainer<Container, 
-            OrderedRangeOptimizedJoin< details::element_of_container_t<Container> > >
+            OrderedSequenceOptimizedJoin< details::element_of_container_t<Container> > >
     {
         using base_t = OfContainer<Container, 
-            OrderedRangeOptimizedJoin< details::element_of_container_t<Container> > >;
+            OrderedSequenceOptimizedJoin< details::element_of_container_t<Container> > >;
         using element_t = typename base_t::element_t;
         using base_t::base_t;
 

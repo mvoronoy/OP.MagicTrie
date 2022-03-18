@@ -43,7 +43,7 @@ namespace flur
         }
         auto begin() const
         {
-            using t_t = std::reference_wrapper<this_t> ;
+            using t_t = std::reference_wrapper<this_t const> ;
             return LazyRangeIterator<t_t>(std::cref(*this));
         }
         auto end() const

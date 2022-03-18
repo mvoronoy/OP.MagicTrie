@@ -18,6 +18,10 @@ namespace OP::flur
             OrderedSequence<element_t>, 
             Sequence<element_t>>;
 
+        AbstractPolymorphFactory() = default;
+        AbstractPolymorphFactory(const AbstractPolymorphFactory&) = delete;
+        AbstractPolymorphFactory& operator=(const AbstractPolymorphFactory&) = delete;
+
         virtual ~AbstractPolymorphFactory() = default;
         virtual std::unique_ptr<sequence_t> compound_unique() const = 0;
         virtual std::shared_ptr<sequence_t> compound_shared() const = 0;

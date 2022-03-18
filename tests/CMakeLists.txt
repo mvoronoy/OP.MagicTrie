@@ -38,12 +38,15 @@ add_executable (trie_test
     "ranges/CommonRangesOpTest.cpp"
     "SegmentManagerTest.cpp"
     "SegmentToplogyTest.cpp"
-    "testMixedAdapter.cpp"
+    "SpanContainerTest.cpp"
     "tr.cpp"
     "Transacted.cpp"
     "EventSourcedSegmentManagerTest.cpp"
-    "Trie.cpp"
-    "SpanContainerTest.cpp"
+    
+    "trie/Trie.cpp"
+    "trie/TrieRanges.cpp"
+    "trie/testMixedAdapter.cpp"
+    
 
     "flur/StlContainers.cpp" 
     "flur/ThenDefault.cpp" 
