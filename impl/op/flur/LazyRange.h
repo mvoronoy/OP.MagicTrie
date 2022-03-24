@@ -165,6 +165,47 @@ namespace flur
         return count;
     }
 
+    /*template <class T >
+    auto first( Sequence<T>& seq) 
+    {
+        seq.start(); 
+        if(!seq.in_range())
+        {
+            throw std::out_of_range("takin `first` of empty lazy range");
+        }
+        return seq.current();
+    }
+    template <class T >
+    auto first(std::unique_ptr< T > pseq)
+    {
+        return first(*pseq);
+    }
+    template <class T >
+    auto first(std::shared_ptr< T > pseq)
+    {
+        return first(details::get_reference(pseq));
+    }
+
+    template <class T, typename P = std::enable_if_t<std::is_base_of_v<FactoryBase,T>>>
+    auto first(T& range) 
+    {
+        return first( range.compound() );
+    }*/
+    template <class T >
+    auto first(T&& flur_obj)
+    {
+        auto seq = 
+            details::unpack(std::forward<T>(flur_obj));
+        auto& rseq = details::get_reference(seq);
+        rseq.start();
+        if (!rseq.in_range())
+        {
+            throw std::out_of_range("takin `first` of empty lazy range");
+        }
+        return rseq.current();
+
+    }
+
 } //ns:flur
 } //ns:OP
 #endif //_OP_FLUR_LAZYRANGE__H_

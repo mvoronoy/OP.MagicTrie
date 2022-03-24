@@ -49,7 +49,6 @@ namespace OP::trie
     template <class Trie>
     struct Ingredient
     {
-        using start_with_predicate_t = StartWithPredicate;
         using iterator = typename Trie::iterator;
         /** Ingredient for MixAlgorithmRangeAdapter - allows range use `first_child` method instead of `begin` */
         struct ChildBegin
@@ -161,7 +160,8 @@ namespace OP::trie
         * range iterates over items with specific prefix */
         struct PrefixedInRange
         {
-            PrefixedInRange(start_with_predicate_t pred)
+            template <class F>
+            PrefixedInRange(F pred)
                 : _prefix_check(std::move(pred))
                 {}
 
@@ -170,7 +170,7 @@ namespace OP::trie
                 return trie.in_range(i) && _prefix_check(i);
             }
         private:
-            const start_with_predicate_t _prefix_check;
+            const std::function<bool(const iterator&)> _prefix_check;
         };
 
         /** Ingredient for MixAlgorithmRangeAdapter - just alias for PrefixedInRange, but give more consistence when mixing iteration over

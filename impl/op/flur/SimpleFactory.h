@@ -29,10 +29,12 @@ namespace flur
         {
 
         }
+        template <class U = V>
         constexpr SimpleFactory(V&& v) noexcept
             : _v(std::forward<V>(v))
         {
         }
+
         constexpr decltype(auto) compound() const& noexcept
         {
             return SourceImpl(_v);

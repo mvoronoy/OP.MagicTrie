@@ -80,8 +80,14 @@ namespace {
         src2 = { {"0", 0}, {"1", 0.1}, {"ab", 0}, {"b", 0}, {"cd", 0}, {"cddddddddddddddddddddd", 0} };
         test_container_t jn_res{ {"ab",1.0}, {"b", 1.0}, {"cd", 1.0} };
         auto key_only_compare =
-            [](const auto& l, const auto& r) {return l.first.compare(r.first); };
+            [](const auto& l, const auto& r) {
+            return l.first.compare(r.first); 
+        };
 
+        auto join_res_factory = src::of_container(src1)
+            >> then::join(src::of_container(src2), key_only_compare);
+        for (const auto& x : join_res_factory.compound())
+            tresult.debug() << ">" << x.first << ", " << x.second << "\n";
         tresult.assert_that<eq_sets>(
             src::of_container(src1) 
                 >> then::join(src::of_container(src2), key_only_compare),
@@ -176,7 +182,36 @@ namespace {
         //    {"mmxxx",  1.1}}));
 
     }
+    void test_JoinSingle(TestResult& tresult)
+    {
+        using test_container_t = std::map<std::string, double>;
+        test_container_t src1{
+            {"a", 1.0},
+        {"ab", 1.0},
+        {"b", 1.0},
+        {"bc", 1.0},
+        {"c", 1.0},
+        {"cd", 1.0},
+        {"d", 1.0},
+        {"def", 1.0},
+        {"g", 1.0},
+        {"xyz", 1.0}
+        };
+
+        std::map<std::string, double> expected{ {"def", 1.0} };
+        tresult.assert_that<eq_sets>(
+            src::of_container(src1) 
+            >> then::join(src::of_value("def"s), 
+                [](const auto& l, const auto& r)->int {
+                    return l.first.compare(r);
+                }), 
+            expected,
+            "single-item"
+        );
+
+    }
     static auto module_suite = OP::utest::default_test_suite("flur.join")
         ->declare(test_Join, "filter")
+        ->declare(test_JoinSingle, "with-single")
         ;
 }//ns: empty

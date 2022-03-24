@@ -8,7 +8,7 @@
       "projectTarget": "trie_test.exe",
       "name": "trie_test.exe",
       "args": [
-        "-r", /Trie.+/,
+        //"-r flur.join.+",
         "-d",
         "3"
       ]

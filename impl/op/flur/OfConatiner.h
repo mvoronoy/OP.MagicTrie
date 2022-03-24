@@ -98,7 +98,7 @@ namespace flur
             OrderedSequenceOptimizedJoin< details::element_of_container_t<Container> > >;
         using element_t = typename base_t::element_t;
         using base_t::base_t;
-
+        
         template <class Item>
         const auto& extract_key(const Item& it)
         {
@@ -109,11 +109,16 @@ namespace flur
         {
             return it.first;
         }
+        //using key_t = declval(extract_key(std::declval<const element_t&>()));
         virtual void next_lower_bound_of(const element_t& other) override
         {
-            pos() = details::get_reference(container()).lower_bound( 
-                extract_key(other) );    
+            pos() = details::get_reference(container()).lower_bound( extract_key(other) );    
         }
+        //void next_lower_bound_of(const key_t& other)
+        //{
+        //    pos() = details::get_reference(container()).lower_bound( 
+        //        extract_key(other) );    
+        //}
 
     };
     namespace details

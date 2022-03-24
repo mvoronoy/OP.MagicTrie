@@ -87,6 +87,7 @@ namespace flur
         {
             return make_lazy_range( SimpleFactory<V, OfValue<V>>(std::forward<V>(v)) );
         }
+        
         /**
         *   Create LazyRange from single value that evaluated each time when start/next loop starts. 
         *   Result is ordered range iterable over exact one value
@@ -212,6 +213,12 @@ namespace flur
         {
             using f_t = std::decay_t<F>;
             return MappingFactory<f_t>(std::move(f));
+        }
+        template <class F>
+        constexpr auto force_order_mapping(F f) noexcept
+        {
+            using f_t = std::decay_t<F>;
+            return MappingFactory<f_t, true>(std::move(f));
         }
 
         /** Same as mapping, but assume function F produces some set instead of single value 

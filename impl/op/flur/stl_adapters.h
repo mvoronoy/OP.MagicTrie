@@ -23,14 +23,14 @@ namespace std
         using namespace OP::flur::details;
         auto seq = inst.compound();
         get_reference(seq).start();
-        return !seq.in_range();
+        return !get_reference(seq).in_range();
     }
 
     template <class T>
     constexpr bool empty(const OP::flur::Sequence<T>& seq) noexcept
     {
         get_reference(seq).start();
-        return !seq.in_range();
+        return !get_reference(seq).in_range();
     }
 
     template <class T, class UnaryFunction>

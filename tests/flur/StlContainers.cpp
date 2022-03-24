@@ -91,7 +91,7 @@ void test_Map(OP::utest::TestResult& tresult)
     auto r = src::of_container(std::cref(source1));
     tresult.assert_true(r.compound().ordered_c, "Map must produce ordered sequence");
     //just check generic form works
-    tresult.assert_true(src::of(std::cref(source1)).compound().ordered_c, "Set must support simple construction");
+    tresult.assert_true(src::of_container(std::cref(source1)).compound().ordered_c, "Set must support simple construction");
 
     tresult.assert_that<equals>(2.2f,
         OP::flur::reduce(r >> then::mapping([](const element_t& i) -> float {return i.second; }), 0.f),
@@ -162,6 +162,31 @@ void test_Iterate(OP::utest::TestResult& tresult)
         sum += pair.second;
     }
     tresult.assert_that<equals>(2.2f, sum, "Wrong sum");
+    std::vector<std::string> vec{"one", "two", "three"};
+    auto check_ref = src::of_container(std::cref(vec));
+    auto term = [&](const std::string& k)->bool
+    {
+        return  check_ref.end() != 
+            std::find_if(check_ref.begin(), check_ref.end(), 
+                [&](const auto& l) {
+            return &l == &k;
+            });
+    };
+    auto test_method = [&](Sequence<const std::string>& cont)
+    {
+        for (auto i : cont)
+            tresult.assert_true(term(i));
+    };
+    std::for_each(
+        check_ref >> then::mapping([&](const auto& i)->const std::string& {
+            std::cout << i << ", is same:" << term(i) << "\n";
+            return i; 
+            }),
+        [&](const auto& t)
+    {
+        std::cout<< "\t"  << t << ", is same:" << term(t) << "\n";
+    });
+    //test_method((check_ref ).compound());
 }
 
 static auto module_suite = OP::utest::default_test_suite("flur.stl")

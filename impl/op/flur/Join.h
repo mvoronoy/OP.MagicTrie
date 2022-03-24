@@ -34,6 +34,7 @@ namespace OP::flur
     template <class T, class Left, class Right, class Comp, bool implement_exists_c = false>
     struct Join : public OrderedSequence<T>
     {
+        static_assert(Left::ordered_c&& Right::ordered_c, "Join algorithm assumes ordering");
         using base_t = OrderedSequence<T>;
         using left_container_t = details::unpack_t<Left>;
         using right_container_t = details::unpack_t<Right>;
@@ -75,7 +76,8 @@ namespace OP::flur
             if (_optimize_right_forward && left.in_range())
             {
                 auto& right = details::get_reference(_right);
-                opt_next(right, left.current());
+                //opt_next<false>(right, left.current());
+                right.next();
             }
             seek();
         }
@@ -86,20 +88,27 @@ namespace OP::flur
         constexpr static bool is_join_optimized_c = 
             details::has_next_lower_bound_of<U>::value;
 
-        template <class U>
-        static void opt_next(U& src, const T& other_key)
+        template <bool direction_c, class U, class V>
+        void opt_next(U& src, const V& other_key) const
         {
-            if constexpr (is_join_optimized_c<U>)
-                src.next_lower_bound_of(other_key);
-            else
+            //if constexpr (is_join_optimized_c<U>)
+            //    src.next_lower_bound_of(other_key);
+            //else
             {   //emulate lover_bound by sequential iteration
                 do 
                 {
                     src.next();
-                } while (src.in_range() && _join_key_cmp(src.current(), other_key) < 0);
+                } while (src.in_range() && compare<direction_c>(src.current(), other_key) < 0);
             }
         }
-
+        template <bool direction_c, class U, class V>
+        int compare(const U& left, const V& right) const
+        {
+            if constexpr (direction_c)
+                return _join_key_cmp(left, right);
+            else
+                return -1* _join_key_cmp(right, left);
+        }
         void seek()
         {
             auto& left = details::get_reference(_left);
@@ -113,18 +122,20 @@ namespace OP::flur
                 auto diff = _join_key_cmp(left.current(), right.current());
                 if (diff < 0) 
                 {
-                    opt_next(left, right.current());
+                    //opt_next<true>(left, right.current());
+                    left.next();
                     left_succeed = left.in_range();
                 }
                 else 
                 {
                     if (diff == 0) //eq 
                     {
-                        if constexpr (!implement_exists_c) 
+                        if constexpr (implement_exists_c) 
                             _optimize_right_forward = true;
                         return;
                     }
-                    opt_next(right, left.current());
+                    //opt_next<false>(right, left.current());
+                    right.next();
                     right_succeed = right.in_range();
                 }
             }
@@ -166,7 +177,7 @@ namespace OP::flur
         }
 
         template <class Left >
-        auto compound(Left&& left)const& noexcept
+        auto compound(Left&& left) const& noexcept
         {
             return make_join(std::forward<Left>(left), 
                 _right.compound(), _comp);
