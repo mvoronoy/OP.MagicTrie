@@ -10,30 +10,44 @@
 namespace OP::flur
 {
     template <bool is_ordered, class Element>
-    struct AbstractPolymorphFactory : FactoryBase
+    struct AbstractPolymorphFactory;
+    
+    template <class Element>
+    struct AbstractPolymorphFactory<false, Element> : FactoryBase
     {
         using element_t = Element;
-        using sequence_t = std::conditional_t<
-            is_ordered, 
-            OrderedSequence<element_t>, 
-            Sequence<element_t>>;
+        using sequence_t = Sequence<element_t>;
+        using base_sequence_t = sequence_t;
+        constexpr static bool is_ordered_c = false;
 
         AbstractPolymorphFactory() = default;
         AbstractPolymorphFactory(const AbstractPolymorphFactory&) = delete;
         AbstractPolymorphFactory& operator=(const AbstractPolymorphFactory&) = delete;
 
         virtual ~AbstractPolymorphFactory() = default;
-        virtual std::unique_ptr<sequence_t> compound_unique() const = 0;
-        virtual std::shared_ptr<sequence_t> compound_shared() const = 0;
+        
+        std::unique_ptr<sequence_t> compound_unique() const 
+        {
+            std::unique_ptr<sequence_t> target;
+            compound(target);
+            return target;
+        }
+        std::shared_ptr<sequence_t> compound_shared() const 
+        {
+            std::unique_ptr<sequence_t> target;
+            compound(target);
+            return std::shared_ptr<sequence_t>(std::move(target));
+        }
 
         /** 
             As a FactoryBase this abstarction must support `compound()` so 
-            it is aliasing of `compound_unique()` 
+            it is aliasing of `compound_shared()` 
         */
-        virtual std::unique_ptr<sequence_t> compound() const
+        std::shared_ptr<sequence_t> compound() const 
         {
-            return compound_unique();
+            return compound_shared();
         }
+        virtual void compound(std::unique_ptr<base_sequence_t>& target) const = 0;
 
         auto begin() const
         {
@@ -43,9 +57,37 @@ namespace OP::flur
         {
             return LazyRangeIterator< std::shared_ptr<sequence_t> >(nullptr);
         }
-
-
+    
     };
+    
+    template <class Element>
+    struct AbstractPolymorphFactory<true, Element> : public AbstractPolymorphFactory<false, Element>
+    {
+        using unordered_base_t = AbstractPolymorphFactory<false, Element>;
+
+        using sequence_t = OrderedSequence<element_t>;
+        constexpr static bool is_ordered_c = false;
+
+        // Overload, not override
+        std::unique_ptr<sequence_t> compound_unique() const 
+        {
+            auto base_ptr = unordered_base_t::compound_unique();
+            return std::unique_ptr<sequence_t>(
+                static_cast<sequence_t*>(base_ptr.release()));
+        }
+        // Overload, not override
+        std::shared_ptr<sequence_t> compound_shared() const 
+        {
+            return std::static_pointer_cast<sequence_t>(
+                std::move(unordered_base_t::compound_shared()));
+        }
+        // Overload, not override
+        std::shared_ptr<sequence_t> compound() const 
+        {
+            return compound_shared();
+        }
+    };
+
     namespace details
     {
         template <class Factory>
@@ -80,18 +122,16 @@ namespace OP::flur
 
         virtual ~PolymorphFactory() = default;
 
-        std::unique_ptr<sequence_t> compound_unique() const override
+
+        void compound(std::unique_ptr<typename polymorph_base_t::base_sequence_t>& target) const override
         {
             auto result = base_t::compound();
             using t_t = std::decay_t<decltype(result)>;
-            return std::unique_ptr<sequence_t>(new t_t{std::move(result)});
+            target.reset(new t_t{std::move(result)});
         }
-        std::shared_ptr<sequence_t> compound_shared() const override
-        {
-            auto result = base_t::compound();
-            using t_t = std::decay_t<decltype(result)>;
-            return std::shared_ptr<sequence_t>(new t_t{std::move(result)});
-        }
+        //void compound(
+        //std::unique_ptr<OP::flur::Sequence<const std::basic_string<char,std::char_traits<char>,std::allocator<char>> &>,std::default_delete<OP::flur::Sequence<const std::basic_string<char,std::char_traits<char>,std::allocator<char>> &>>> &) const': is abstract
+        //  wit
     };
 
 } //ns: OP::flur

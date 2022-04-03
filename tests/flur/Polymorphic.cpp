@@ -40,7 +40,25 @@ namespace {
         );
 
     }
+    /** This test generally exists for compile-time only capability to cast 
+    *  from ordered to unordered set. At runtime it doesn't check any valuable features
+    */
+    void test_polymorph_cast(OP::utest::TestResult& tresult)
+    {
+        using sorted_seq_t = OP::flur::AbstractPolymorphFactory<true, std::string const&>;
+        using seq_t = OP::flur::AbstractPolymorphFactory<false, std::string const&>;
+
+        auto cast = [](std::shared_ptr<sorted_seq_t>& sq) -> std::shared_ptr<seq_t>
+        {
+            return std::static_pointer_cast<seq_t>(sq);
+        };
+        
+        auto res = cast(
+            make_shared(src::of_container(std::set<std::string>{})));
+        tresult.assert_true(std::empty(*res));
+    }
     static auto module_suite = OP::utest::default_test_suite("flur.polymorphic")
         ->declare(test_mk_polymorph, "basic")
+        ->declare(test_polymorph_cast, "cast")
         ;
 } //ns:<anonymous>

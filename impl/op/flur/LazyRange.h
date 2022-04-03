@@ -57,20 +57,25 @@ namespace flur
         }
 
         template <class T>
-        constexpr auto operator >> (T&& t) noexcept
+        constexpr auto operator >> (T&& t) const& noexcept
         {
             return LazyRange < Tx ..., T >(std::tuple_cat(_storage, std::make_tuple(std::forward<T>(t))));
         }
-
-        template <class ... Ux>
-        constexpr auto operator >> (LazyRange<Ux ...> && lr) noexcept
+        template <class T>
+        constexpr auto operator >> (T&& t) && noexcept
         {
-            using arg_t = LazyRange<Ux ...>;
-            return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
+            return LazyRange < Tx ..., T >(std::tuple_cat(std::move(_storage), std::make_tuple(std::forward<T>(t))));
         }
 
         template <class ... Ux>
-        constexpr auto operator >> (const LazyRange<Ux ...>& lr) noexcept
+        constexpr auto operator >> (LazyRange<Ux ...> && lr) && noexcept
+        {
+            using arg_t = LazyRange<Ux ...>;
+            return LazyRange < Tx ..., Ux ... >(std::tuple_cat(std::move(_storage), lr._storage));
+        }
+
+        template <class ... Ux>
+        constexpr auto operator >> (const LazyRange<Ux ...>& lr)const& noexcept
         {
             using arg_t = LazyRange<Ux ...>;
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
@@ -139,17 +144,17 @@ namespace flur
     {
         using impl_t = PolymorphFactory<LazyRange<Tx ...>>;
         using interface_t = typename impl_t::polymorph_base_t;
-
         return std::shared_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
     }
+
     template <class ... Tx >
-    constexpr auto make_shared(LazyRange<Tx ...> && range) 
+    constexpr auto make_shared(LazyRange<Tx ...> range) 
     {
         using lrange_t = LazyRange<Tx ...>;
         using impl_t = PolymorphFactory<lrange_t>;
         using interface_t = typename impl_t::polymorph_base_t;
 
-        return std::shared_ptr<interface_t>( new impl_t{ std::forward<lrange_t>(range) } );
+        return std::shared_ptr<interface_t>( new impl_t{ std::move(range) } );
     }
 
     template <class ... Tx >
@@ -192,10 +197,13 @@ namespace flur
         return first( range.compound() );
     }*/
     template <class T >
-    auto first(T&& flur_obj)
+    auto first(T flur_obj)
     {
-        auto seq = 
-            details::unpack(std::forward<T>(flur_obj));
+        //;
+        //auto seq = 
+        //    details::unpack(/*std::forward<T>*/(flur_obj));
+        //auto& rseq = details::get_reference(seq);
+        auto seq = details::get_reference(flur_obj).compound();
         auto& rseq = details::get_reference(seq);
         rseq.start();
         if (!rseq.in_range())
