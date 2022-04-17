@@ -142,7 +142,8 @@ namespace flur
     template <class ... Tx >
     constexpr auto make_shared(Tx &&... tx) 
     {
-        using impl_t = PolymorphFactory<LazyRange<Tx ...>>;
+        using lrange_t = LazyRange<Tx ...>;
+        using impl_t = PolymorphFactory<lrange_t>;
         using interface_t = typename impl_t::polymorph_base_t;
         return std::shared_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
     }

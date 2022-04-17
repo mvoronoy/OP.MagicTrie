@@ -27,6 +27,13 @@
 
 #define OP_TEMPL_METH(method) template method
 
+#if __cplusplus >= 202002L
+    #define OP_VIRTUAL_CONSTEXPR constexpr virtual
+#else
+    #define OP_VIRTUAL_CONSTEXPR virtual
+#endif //c++20
+
+
 namespace OP
 {
     namespace trie

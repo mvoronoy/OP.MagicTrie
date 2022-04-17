@@ -45,7 +45,7 @@ namespace flur
 
         virtual T current() const
         {
-            return details::get_reference(_src);
+            return /*details::get_reference*/(_src);
         }
 
         virtual void next()

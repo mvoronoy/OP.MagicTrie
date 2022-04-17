@@ -26,6 +26,7 @@
 #include <op/flur/Repeater.h>
 #include <op/flur/Minibatch.h>
 #include <op/flur/StringInput.h>
+#include <op/flur/PolymorphsBack.h>
 #include <op/flur/stl_adapters.h>
 
 namespace OP
@@ -171,7 +172,11 @@ namespace flur
             return of_string_split(
                     std::move(str), separators);
         }
-
+        template <class Poly>
+        auto back_to_lazy(Poly &&poly)
+        {
+            return make_lazy_range( OfReversePolymorphFactory<Poly>(std::forward<Poly>(poly)) );
+        }
 
     } //ns:src
     /** namespace for functions that creates elements of pipeline following after elements from `srs` namespace */
@@ -215,7 +220,7 @@ namespace flur
             return MappingFactory<f_t>(std::move(f));
         }
         template <class F>
-        constexpr auto force_order_mapping(F f) noexcept
+        constexpr auto keep_order_mapping(F f) noexcept
         {
             using f_t = std::decay_t<F>;
             return MappingFactory<f_t, true>(std::move(f));

@@ -34,17 +34,19 @@ namespace OP::flur
     template <class T, class Left, class Right, class Comp, bool implement_exists_c = false>
     struct Join : public OrderedSequence<T>
     {
-        static_assert(Left::ordered_c&& Right::ordered_c, "Join algorithm assumes ordering");
         using base_t = OrderedSequence<T>;
         using left_container_t = details::unpack_t<Left>;
         using right_container_t = details::unpack_t<Right>;
         using element_t = typename base_t::element_t;
 
         constexpr Join(Left&& left, Right&& right, Comp&& join_key_cmp) noexcept
-            : _left(std::forward<Left>(left))
-            , _right(std::forward<Right>(right))
+            : _left(std::move(left))
+            , _right(std::move(right))
             , _join_key_cmp(std::forward<Comp>(join_key_cmp))
         {
+            //"Join algorithm assumes ordering"
+            assert(details::get_reference(_left).is_sequence_ordered() 
+                && details::get_reference(_right).is_sequence_ordered());
         }
 
         virtual void start()

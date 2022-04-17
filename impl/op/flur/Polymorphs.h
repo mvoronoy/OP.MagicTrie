@@ -18,7 +18,7 @@ namespace OP::flur
         using element_t = Element;
         using sequence_t = Sequence<element_t>;
         using base_sequence_t = sequence_t;
-        constexpr static bool is_ordered_c = false;
+        constexpr static bool ordered_c = false;
 
         AbstractPolymorphFactory() = default;
         AbstractPolymorphFactory(const AbstractPolymorphFactory&) = delete;
@@ -26,6 +26,10 @@ namespace OP::flur
 
         virtual ~AbstractPolymorphFactory() = default;
         
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const 
+        {
+            return false;
+        }
         std::unique_ptr<sequence_t> compound_unique() const 
         {
             std::unique_ptr<sequence_t> target;
@@ -66,7 +70,12 @@ namespace OP::flur
         using unordered_base_t = AbstractPolymorphFactory<false, Element>;
 
         using sequence_t = OrderedSequence<element_t>;
-        constexpr static bool is_ordered_c = false;
+        constexpr static bool ordered_c = true;
+        
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
+        {
+            return true;
+        }
 
         // Overload, not override
         std::unique_ptr<sequence_t> compound_unique() const 
@@ -102,7 +111,7 @@ namespace OP::flur
     template <class Base>
     struct PolymorphFactory : Base,
         AbstractPolymorphFactory< 
-            details::polymorph_factory_result_t<Base>::ordered_c, 
+            details::does_factory_make_ordered_c<Base>, 
             typename details::polymorph_factory_result_t<Base>::element_t 
         >
     {
@@ -113,6 +122,7 @@ namespace OP::flur
             details::polymorph_factory_result_t<Base>::ordered_c, 
             typename details::polymorph_factory_result_t<Base>::element_t 
         >;
+        constexpr static bool ordered_c = polymorph_base_t::ordered_c;
 
         using element_t = typename polymorph_base_t::element_t;
         using sequence_t = typename polymorph_base_t::sequence_t;

@@ -89,8 +89,8 @@ namespace flur
         using unpack_t = decltype(unpack(std::declval< SomeContainer>()));
 
         template <class SomeContainer>
-        constexpr static inline bool does_factory_make_ordered_c = dereference_t<
-            unpack_t<SomeContainer>>::ordered_c;
+        constexpr static inline bool does_factory_make_ordered_c = std::decay_t< dereference_t<
+            unpack_t<std::decay_t<SomeContainer> >>>::ordered_c;
         
         //Compound togethere all factories to single construction
         template <class Tuple, std::size_t I = std::tuple_size<Tuple>::value >

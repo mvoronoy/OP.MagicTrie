@@ -23,6 +23,8 @@ namespace flur
     {
         using base_t = Base;
         using element_t = typename base_t::element_t;
+        using base_t::ordered_c;
+
         template <class U>
         constexpr Mapping(Src&& src, U f) noexcept
             : _src(std::move(src))

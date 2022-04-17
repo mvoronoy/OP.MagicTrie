@@ -57,8 +57,27 @@ namespace {
             make_shared(src::of_container(std::set<std::string>{})));
         tresult.assert_true(std::empty(*res));
     }
+    void test_polymorph_to_lazy_range(OP::utest::TestResult& tresult)
+    {
+        auto src = 
+            make_shared(src::of_container(std::set<std::string>{"a", "b", "c"}));
+        auto target = src::back_to_lazy(src);
+        using back_struct_t = std::decay_t<OP::flur::details::unpack_t<decltype(target)>>;
+        static_assert(back_struct_t::ordered_c, "must produce ordered");
+        for(const auto&c : target)
+            tresult.debug() << c << "\n";
+        tresult.assert_that<eq_sets>(target, std::set<std::string>{ "a"s, "b"s, "c"s }, OP_CODE_DETAILS());
+
+        auto src2 =
+            make_shared(src::of_container(std::vector<std::string>{"a", "b", "c"}));
+        auto target2 = src::back_to_lazy(src2);
+        using back_struct2_t = std::decay_t<OP::flur::details::unpack_t<decltype(target2)>>;
+        static_assert(!back_struct2_t::ordered_c, "must produce un-ordered");
+
+    }
     static auto module_suite = OP::utest::default_test_suite("flur.polymorphic")
         ->declare(test_mk_polymorph, "basic")
         ->declare(test_polymorph_cast, "cast")
+        ->declare(test_polymorph_to_lazy_range, "back")
         ;
 } //ns:<anonymous>

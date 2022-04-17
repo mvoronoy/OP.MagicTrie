@@ -3,6 +3,7 @@
 #define _OP_FLUR_SEQUENCE__H_
 
 #include <functional>
+#include <op/flur/typedefs.h>
 #include <op/flur/LazyRangeIter.h>
 
 namespace OP
@@ -26,6 +27,11 @@ namespace flur
 
         /** Type of element */
         using element_t = T;
+        
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const
+        {
+            return false;
+        }
 
         /** Start iteration from the beginning. If iteration was already in progress it resets.  */
         virtual void start() = 0;
@@ -62,6 +68,10 @@ namespace flur
         using base_t = Sequence<T>;
         using this_t = OrderedSequence<T>;
         using element_t = typename base_t::element_t;
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
+        {
+            return true;
+        }
     };
 
 
