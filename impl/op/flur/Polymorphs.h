@@ -9,27 +9,19 @@
 
 namespace OP::flur
 {
-    template <bool is_ordered, class Element>
-    struct AbstractPolymorphFactory;
-    
     template <class Element>
-    struct AbstractPolymorphFactory<false, Element> : FactoryBase
+    struct AbstractPolymorphFactory: FactoryBase
     {
         using element_t = Element;
         using sequence_t = Sequence<element_t>;
         using base_sequence_t = sequence_t;
-        constexpr static bool ordered_c = false;
 
         AbstractPolymorphFactory() = default;
         AbstractPolymorphFactory(const AbstractPolymorphFactory&) = delete;
         AbstractPolymorphFactory& operator=(const AbstractPolymorphFactory&) = delete;
 
         virtual ~AbstractPolymorphFactory() = default;
-        
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const 
-        {
-            return false;
-        }
+
         std::unique_ptr<sequence_t> compound_unique() const 
         {
             std::unique_ptr<sequence_t> target;
@@ -64,43 +56,11 @@ namespace OP::flur
     
     };
     
-    template <class Element>
-    struct AbstractPolymorphFactory<true, Element> : public AbstractPolymorphFactory<false, Element>
-    {
-        using unordered_base_t = AbstractPolymorphFactory<false, Element>;
-
-        using sequence_t = OrderedSequence<element_t>;
-        constexpr static bool ordered_c = true;
-        
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
-        {
-            return true;
-        }
-
-        // Overload, not override
-        std::unique_ptr<sequence_t> compound_unique() const 
-        {
-            auto base_ptr = unordered_base_t::compound_unique();
-            return std::unique_ptr<sequence_t>(
-                static_cast<sequence_t*>(base_ptr.release()));
-        }
-        // Overload, not override
-        std::shared_ptr<sequence_t> compound_shared() const 
-        {
-            return std::static_pointer_cast<sequence_t>(
-                std::move(unordered_base_t::compound_shared()));
-        }
-        // Overload, not override
-        std::shared_ptr<sequence_t> compound() const 
-        {
-            return compound_shared();
-        }
-    };
 
     namespace details
     {
         template <class Factory>
-        using polymorph_factory_result_t = std::decay_t<decltype( std::declval<const Factory&>().compound() )>;
+        using polymorph_factory_result_t = std::decay_t<decltype(get_reference(get_reference(std::declval<const Factory&>()).compound()) )>;
     } //ns:details
     /** 
     *   PolymorphFactory is a factory that allows construct other factories on the dynamic memory (heap).
@@ -110,8 +70,7 @@ namespace OP::flur
     */
     template <class Base>
     struct PolymorphFactory : Base,
-        AbstractPolymorphFactory< 
-            details::does_factory_make_ordered_c<Base>, 
+        AbstractPolymorphFactory<  
             typename details::polymorph_factory_result_t<Base>::element_t 
         >
     {
@@ -119,10 +78,8 @@ namespace OP::flur
             "Base must be derived from FactoryBase");
         using base_t = Base;
         using polymorph_base_t = AbstractPolymorphFactory< 
-            details::polymorph_factory_result_t<Base>::ordered_c, 
             typename details::polymorph_factory_result_t<Base>::element_t 
         >;
-        constexpr static bool ordered_c = polymorph_base_t::ordered_c;
 
         using element_t = typename polymorph_base_t::element_t;
         using sequence_t = typename polymorph_base_t::sequence_t;
