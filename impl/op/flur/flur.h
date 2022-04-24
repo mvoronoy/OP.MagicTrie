@@ -175,7 +175,8 @@ namespace flur
         template <class Poly>
         auto back_to_lazy(Poly &&poly)
         {
-            return make_lazy_range( OfReversePolymorphFactory<Poly>(std::forward<Poly>(poly)) );
+            using poly_t = std::decay_t<Poly>;
+            return make_lazy_range( OfReversePolymorphFactory<poly_t>(std::forward<Poly>(poly)) );
         }
 
     } //ns:src

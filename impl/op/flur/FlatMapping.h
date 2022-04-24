@@ -95,10 +95,6 @@ namespace OP
                 using function_res_t = std::decay_t<decltype(_applicator(details::get_reference(src).current()))>;
                 using target_set_t = details::sequence_type_t<function_res_t>;
 
-
-                //std::cout << "lambda-res for flat-map:" << typeid(function_res_t).name() << ", produce type:" << "\n";
-                //std::cout << "target-set for flat-map:" << typeid(target_set_t).name() << ", produce type:" << "\n";
-                //return OfValue<int>(75);
                 return FlatMapping<src_container_t, target_set_t, F>(
                     std::move(src), _applicator);
 

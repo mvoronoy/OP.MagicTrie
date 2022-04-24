@@ -22,18 +22,7 @@ namespace OP::flur
 
         virtual ~AbstractPolymorphFactory() = default;
 
-        std::unique_ptr<sequence_t> compound_unique() const 
-        {
-            std::unique_ptr<sequence_t> target;
-            compound(target);
-            return target;
-        }
-        std::shared_ptr<sequence_t> compound_shared() const 
-        {
-            std::unique_ptr<sequence_t> target;
-            compound(target);
-            return std::shared_ptr<sequence_t>(std::move(target));
-        }
+        virtual std::shared_ptr<sequence_t> compound_shared() const = 0;
 
         /** 
             As a FactoryBase this abstarction must support `compound()` so 
@@ -43,7 +32,6 @@ namespace OP::flur
         {
             return compound_shared();
         }
-        virtual void compound(std::unique_ptr<base_sequence_t>& target) const = 0;
 
         auto begin() const
         {
@@ -61,6 +49,9 @@ namespace OP::flur
     {
         template <class Factory>
         using polymorph_factory_result_t = std::decay_t<decltype(get_reference(get_reference(std::declval<const Factory&>()).compound()) )>;
+        
+        template<typename T> struct is_shared_ptr : std::false_type {};
+        template<typename T> struct is_shared_ptr<std::shared_ptr<T>> : std::true_type {};
     } //ns:details
     /** 
     *   PolymorphFactory is a factory that allows construct other factories on the dynamic memory (heap).
@@ -90,11 +81,22 @@ namespace OP::flur
         virtual ~PolymorphFactory() = default;
 
 
-        void compound(std::unique_ptr<typename polymorph_base_t::base_sequence_t>& target) const override
+        std::shared_ptr<typename polymorph_base_t::base_sequence_t> compound_shared() const override
         {
             auto result = base_t::compound();
-            using t_t = std::decay_t<decltype(result)>;
-            target.reset(new t_t{std::move(result)});
+            using result_seq_t = std::decay_t<decltype(result)>;
+            // underlaying factory may already produce shared ptr, so skip wrapping then
+            if constexpr(details::is_shared_ptr<result_seq_t>::value )
+            {
+                return result;
+            }
+            else
+            {
+                return std::shared_ptr<typename polymorph_base_t::base_sequence_t>(
+                    //uses move constructor
+                    new result_seq_t{std::move(result)}
+                );
+            }
         }
         //void compound(
         //std::unique_ptr<OP::flur::Sequence<const std::basic_string<char,std::char_traits<char>,std::allocator<char>> &>,std::default_delete<OP::flur::Sequence<const std::basic_string<char,std::char_traits<char>,std::allocator<char>> &>>> &) const': is abstract

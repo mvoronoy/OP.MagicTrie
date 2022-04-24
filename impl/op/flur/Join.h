@@ -152,9 +152,14 @@ namespace OP::flur
     template <class Left, class Right, class Comp>
     auto make_join(Left&& left, Right&& right, Comp&& comp)
     {
-        using src_conatiner_t = details::sequence_type_t<details::dereference_t<Left>>;
+        using left_t = std::decay_t<Left>;
+        using right_t = std::decay_t<Right>;
+        using src_conatiner_t = details::sequence_type_t<details::dereference_t<left_t>>;
         using element_t = typename src_conatiner_t::element_t;
-        return Join<element_t, Left, Right, Comp>(std::forward<Left>(left), std::forward<Right>(right), 
+
+        return Join<element_t, left_t, right_t, Comp>(
+            std::forward<Left>(left), 
+            std::forward<Right>(right),
             std::forward<Comp>(comp));
     }
 

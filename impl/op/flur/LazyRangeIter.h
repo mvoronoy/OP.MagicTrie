@@ -24,7 +24,7 @@ namespace flur
         using target_t = strip_generic_t;
 
         using iterator_category = std::forward_iterator_tag;
-        using value_type        = decltype(details::get_reference(std::declval< target_t>()).current());
+        using value_type        = decltype(details::get_reference(std::declval<const target_t&>()).current());
         using difference_type   = std::ptrdiff_t;
         using reference         = value_type&;
         using pointer           = void;

@@ -58,7 +58,7 @@ namespace OP::flur
 
         using base_seq_t = typename OP::flur::details::dereference_t<Poly>::sequence_t;
         
-        constexpr OfReversePolymorphFactory(Poly&& factory) noexcept
+        constexpr OfReversePolymorphFactory(Poly factory) noexcept
             : _polymorph_factory(std::move(factory))
         {
         }

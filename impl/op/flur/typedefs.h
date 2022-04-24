@@ -48,8 +48,18 @@ namespace flur
         }
 
         template <typename U>
-        U& get_reference(std::shared_ptr<U> u) {
-            return *u;
+        const U& get_reference(const std::shared_ptr<U>& u) {
+            return *u.get();
+        }
+        template <typename U>
+        U& get_reference(std::shared_ptr<U>& u) {
+            return *u.get();
+        }
+        template <typename U>
+        U& get_reference(std::shared_ptr<U>&& u) {
+            //invoking this code means very-very bad lost control, used only for type-deduction
+            assert(false);
+            return *u.get();
         }
 
         template <class Value>

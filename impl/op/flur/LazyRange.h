@@ -24,7 +24,7 @@ namespace flur
     struct LazyRange : FactoryBase
     {
         template <class A>
-        using target_range_t = std::decay_t<decltype(details::get_reference(std::declval<A>()))>;
+        using target_range_t = std::decay_t<decltype(details::get_reference(std::declval<A&>()))>;
 
         static_assert(
             std::conjunction_v<std::is_base_of<FactoryBase, target_range_t<Tx>>...>,
