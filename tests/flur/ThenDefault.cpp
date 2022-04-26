@@ -64,10 +64,7 @@ void test_SortedOrDefault(OP::utest::TestResult& tresult)
         src::of_container(std::cref(sample))
         >> then::filter([&](const auto& i) {return i.find_first_of(sylable_c) != std::string::npos; })
         ;
-    for (auto r : lr)
-    {
-        std::cout << r << "\n";
-    }
+    tresult.assert_that<eq_sets>(lr, std::set<std::string>{"a"s}, "Wrong filtering");
 
 }
 

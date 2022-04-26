@@ -2,13 +2,12 @@
 #ifndef _OP_FLUR_LAZYRANGEITER__H_
 #define _OP_FLUR_LAZYRANGEITER__H_
 
-#include <functional>
-#include <optional>
+#include <op/flur/typedefs.h>
 
-namespace OP
-{
-/** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
+#include <functional>
+#include <variant>
+
+namespace OP::flur
 {
     
     /** 
@@ -24,36 +23,39 @@ namespace flur
         using target_t = strip_generic_t;
 
         using iterator_category = std::forward_iterator_tag;
-        using value_type        = decltype(details::get_reference(std::declval<const target_t&>()).current());
+        using value_type        = 
+            
+            decltype(details::get_reference(details::get_reference(std::declval<target_t&>())).current());
         using difference_type   = std::ptrdiff_t;
         using reference         = value_type&;
         using pointer           = void;
 
+
         LazyRangeIterator (target_t&& r) noexcept
-            : _target{ std::move(r) }
+            : _target{std::move(r)}
         {
-            details::get_reference(*_target).start();
         }
         /** designated to construct std::end */
         constexpr LazyRangeIterator (nullptr_t) noexcept
+            :_target{}
         {
-            
         }
+
         LazyRangeIterator& operator ++() 
         {
-            details::get_reference(*_target).next();
+            details::get_reference(get()).next();
             return *this;
         }
         /** Note! not all targets supports copy operation so postfix ++ may fail at compile time*/
         LazyRangeIterator operator ++(int) 
         {
             LazyRangeIterator result(*this);
-            details::get_reference(*_target).next();
+            details::get_reference(get()).next();
             return result;
         }
         value_type operator *() const
         {         
-            return details::get_reference(*_target).current();
+            return details::get_reference(cget()).current();
         }
         bool operator == (const this_t& right) const
         {
@@ -68,10 +70,24 @@ namespace flur
 
     private:
         bool out_of_range() const
-        {   return !_target || !details::get_reference(*_target).in_range(); }
-        std::optional<target_t> _target;
+        { return is_empty() || !details::get_reference(cget()).in_range(); }
+        
+        const bool is_empty() const
+        {
+            return std::holds_alternative<std::monostate>(_target);
+        }
+
+        target_t& get()
+        {
+            return std::get<target_t>(_target);
+        }
+        const target_t& cget() const
+        {
+            return std::get<target_t>(_target);
+        }
+        using holder_t = std::variant< std::monostate, target_t>;
+        holder_t _target;
     };
 
-} //ns:flur
-} //ns:OP
+} //ns:OP::flur
 #endif //_OP_FLUR_LAZYRANGEITER__H_

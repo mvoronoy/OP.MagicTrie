@@ -179,12 +179,12 @@ void test_Iterate(OP::utest::TestResult& tresult)
     };
     std::for_each(
         check_ref >> then::mapping([&](const auto& i)->const std::string& {
-            std::cout << i << ", is same:" << term(i) << "\n";
+            tresult.debug() << i << ", is same:" << term(i) << "\n";
             return i; 
             }),
         [&](const auto& t)
     {
-        std::cout<< "\t"  << t << ", is same:" << term(t) << "\n";
+        tresult.debug() << "\t"  << t << ", is same:" << term(t) << "\n";
     });
     //test_method((check_ref ).compound());
 }

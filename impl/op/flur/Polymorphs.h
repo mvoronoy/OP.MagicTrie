@@ -35,11 +35,11 @@ namespace OP::flur
 
         auto begin() const
         {
-            return LazyRangeIterator< std::shared_ptr<sequence_t> >(compound_shared());
+            return details::begin_impl(*this);
         }
         auto end() const
         {
-            return LazyRangeIterator< std::shared_ptr<sequence_t> >(nullptr);
+            return details::end_impl(this);
         }
     
     };
@@ -50,8 +50,6 @@ namespace OP::flur
         template <class Factory>
         using polymorph_factory_result_t = std::decay_t<decltype(get_reference(get_reference(std::declval<const Factory&>()).compound()) )>;
         
-        template<typename T> struct is_shared_ptr : std::false_type {};
-        template<typename T> struct is_shared_ptr<std::shared_ptr<T>> : std::true_type {};
     } //ns:details
     /** 
     *   PolymorphFactory is a factory that allows construct other factories on the dynamic memory (heap).

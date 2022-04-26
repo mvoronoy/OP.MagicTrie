@@ -76,8 +76,11 @@ namespace OP
             template <class Left, class Right>
             constexpr bool operator()(const Left& left, const Right& right) const
             {
-                auto pr = std::mismatch(left.begin(), left.end(), right.begin(), right.end());
-                return pr.first == left.end() && pr.second == right.end();
+                auto end_left = std::end(left);
+                auto end_right = std::end(right);
+
+                auto pr = std::mismatch(std::begin(left), end_left, std::begin(right), end_right);
+                return pr.first == end_left && pr.second == end_right;
             }
         };
 

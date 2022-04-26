@@ -107,11 +107,11 @@ void test_Mt(OP::utest::TestResult& tresult)
             })
         >> then::cartesian(
             src::outer(std::ref(tee))  
-            >> then::mapping([](auto i) {
+            >> then::mapping([&](auto i) {
                 
-                std::ios_base::fmtflags out_flag(std::cout.flags());
+                std::ios_base::fmtflags out_flag(tresult.debug().flags());
                 std::cout << "\t>inner:(" << i <<")"<< std::hex << i << "\n";
-                std::cout.flags(out_flag);
+                tresult.debug().flags(out_flag);
                 return i;
             })
             >> then::repeater()

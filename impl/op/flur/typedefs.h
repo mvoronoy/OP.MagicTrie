@@ -16,6 +16,9 @@ namespace flur
 {
     namespace details
     {
+        template<typename T> struct is_shared_ptr : std::false_type {};
+        template<typename T> struct is_shared_ptr<std::shared_ptr<T>> : std::true_type {};
+
         template <typename U>
         U& get_reference(std::reference_wrapper<U> u) {
             return (U&)u.get();
@@ -48,11 +51,11 @@ namespace flur
         }
 
         template <typename U>
-        const U& get_reference(const std::shared_ptr<U>& u) {
+        decltype(auto) get_reference(const std::shared_ptr<U>& u) {
             return *u.get();
         }
         template <typename U>
-        U& get_reference(std::shared_ptr<U>& u) {
+        decltype(auto) get_reference(std::shared_ptr<U>& u) {
             return *u.get();
         }
         template <typename U>
@@ -97,10 +100,6 @@ namespace flur
         }
         template <class SomeContainer>
         using unpack_t = decltype(unpack(std::declval< SomeContainer>()));
-
-        template <class SomeContainer>
-        constexpr static inline bool does_factory_make_ordered_c = std::decay_t< dereference_t<
-            unpack_t<std::decay_t<SomeContainer> >>>::ordered_c;
         
         //Compound togethere all factories to single construction
         template <class Tuple, std::size_t I = std::tuple_size<Tuple>::value >

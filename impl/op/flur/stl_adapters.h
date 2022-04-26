@@ -41,5 +41,6 @@ namespace std
         for(get_reference(seq).start(); get_reference(seq).in_range(); get_reference(seq).next())
             f(std::move(get_reference(seq).current()));
     }
+
 } //ns:std
 #endif //_OP_FLUR_STL_ADAPTERS__H_

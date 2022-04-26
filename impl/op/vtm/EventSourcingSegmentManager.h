@@ -24,8 +24,11 @@ namespace OP
             ~EventSourcingSegmentManager()
             {
                 _done_captured_worker.store(true);
-                //guard_t acc(_dispose_lock);
-                _cv_disposer.notify_one();
+                if (1 == 1) 
+                {
+                    //guard_t acc(_dispose_lock);
+                    _cv_disposer.notify_one();
+                }
                 _captured_worker.join();
             }
 
@@ -482,8 +485,11 @@ namespace OP
                         _cv_disposer.wait(acc_job, [this](){
                                 return !_ready_to_dispose.empty() || _done_captured_worker.load();
                             });
-                        if(_ready_to_dispose.empty())
+                        if (_ready_to_dispose.empty())
+                        {
+                            acc_job.unlock();
                             continue;  //still empty just retry
+                        }
                     }
                     auto wipe_tran = _ready_to_dispose.back();
                     _ready_to_dispose.pop_back();

@@ -16,6 +16,46 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
+    namespace details
+    {
+        template <class Factory>
+        using lazy_iterator_deduction_t = LazyRangeIterator < std::shared_ptr<
+            std::decay_t<
+                OP::flur::details::dereference_t< OP::flur::details::unpack_t<Factory> >
+            >>
+            >;
+
+        template <class Factory>
+        auto begin_impl(const Factory& inst)
+        {
+            auto seq = inst.compound();
+            using t_t = std::decay_t<decltype(seq)>;
+            using result_t = OP::flur::details::lazy_iterator_deduction_t < Factory >;
+            
+            if constexpr (is_shared_ptr<t_t>::value)
+            {
+                seq->start();
+                return result_t(std::move(seq));
+            }
+            else
+            {
+                auto seq_ptr = std::make_shared<t_t>(std::move(seq));
+                seq_ptr->start();
+                return result_t(std::move(seq_ptr));
+            }
+        }
+        template <class Factory>
+        auto end_impl(const Factory* = nullptr) noexcept
+        {
+            using result_t = OP::flur::details::lazy_iterator_deduction_t < Factory >;
+            //using t_t = std::decay_t<decltype(inst.compound())>;
+            //if constexpr (OP::flur::details::is_shared_ptr<t_t>::value)
+            //    return LazyRangeIterator< t_t >(nullptr);
+            //else
+            //    return LazyRangeIterator< std::shared_ptr<t_t> >(nullptr);
+            return result_t{nullptr};
+        }
+    }
     /** 
     * Represent holder that allows at compile time form pipeline of source transformations 
     *  
@@ -101,14 +141,11 @@ namespace flur
 
         auto begin() const
         {
-            using t_t = decltype(compound());
-            auto seq_ptr = std::make_shared<t_t>(std::move(compound()));
-            return LazyRangeIterator< decltype(seq_ptr) >(std::move(seq_ptr));
+            return details::begin_impl(*this);
         }
         auto end() const
         {
-            using t_t = decltype(compound());
-            return LazyRangeIterator< std::shared_ptr<t_t> >(nullptr);
+            return details::end_impl<this_t>();
         }
 
     };
@@ -214,7 +251,25 @@ namespace flur
         return rseq.current();
 
     }
-
 } //ns:flur
 } //ns:OP
+namespace std
+{
+    template <class T>
+    constexpr std::enable_if_t < //
+        std::is_base_of_v<OP::flur::FactoryBase, T> && !OP::utils::is_generic<T, OP::flur::LazyRange>::value, 
+        OP::flur::details::lazy_iterator_deduction_t < T >
+    > begin(const T& inst)
+    {
+        return OP::flur::details::begin_impl(inst);
+    }
+    template <class T>
+    constexpr std::enable_if_t <
+        std::is_base_of_v<OP::flur::FactoryBase, T> && !OP::utils::is_generic<T, OP::flur::LazyRange>::value,
+        OP::flur::details::lazy_iterator_deduction_t < T > > end(const T& inst) noexcept
+    {
+        return OP::flur::details::end_impl(&inst);
+    }
+
+}//ns:std
 #endif //_OP_FLUR_LAZYRANGE__H_
