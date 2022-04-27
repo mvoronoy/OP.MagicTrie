@@ -18,7 +18,7 @@ namespace flur
     * Mapping converts one sequence to another by applying function to source element.
     * \tparam Src - source sequnce to convert
     */
-    template <class Base, class Src, class F>
+    template <class Base, class Src, class F, bool keep_mapping_c>
     struct Mapping : public Base
     {
         using base_t = Base;
@@ -31,6 +31,13 @@ namespace flur
             , _applicator(f)
         {
         }
+        
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
+        {
+            return keep_mapping_c 
+                && details::get_reference(_src).is_sequence_ordered();
+        }
+
         virtual void start()
         {
             details::get_reference(_src).start();
@@ -57,29 +64,34 @@ namespace flur
     * \tparam keep_order - true if function keeps order. NOTE! keep_order does not mean 'ordered', it just state 
     *   if source ordered then result just keep order.
     */
-    template < class F, bool keep_order = false >
+    template < class F, bool keep_order_c = false >
     struct MappingFactory : FactoryBase
     {
-        using ftraits_t = OP::utils::function_traits< F >;
-
         constexpr MappingFactory(F f) noexcept
             : _applicator(f)
         {
         }
+
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
             using input_t = std::decay_t<details::unpack_t<Src>>;
-            using src_container_t = std::decay_t < details::dereference_t<decltype(details::get_reference(std::declval< input_t >()))> >;
+            using src_container_t = std::decay_t < 
+                details::dereference_t<
+                    decltype(details::get_reference(std::declval< input_t >()))
+                > 
+            >;
 
-            using result_t = decltype( _applicator(std::declval< src_container_t >().current()) );
+            using result_t = decltype( 
+                _applicator(std::declval< src_container_t >().current()) 
+            );
 
-            using target_sequence_base_t = std::conditional_t<keep_order && src_container_t::ordered_c,
-                OrderedSequence<result_t>,
+            using target_sequence_base_t = std::conditional_t<keep_order_c,
+                OrderedSequence<result_t>/*Ordered sequenc is no garantee is_sequence_ordered() is true*/,
                 Sequence<result_t>
             >;
 
-            return Mapping<target_sequence_base_t, input_t, F>(
+            return Mapping<target_sequence_base_t, input_t, F, keep_order_c>(
                 std::move(src), 
                 _applicator);
         }
