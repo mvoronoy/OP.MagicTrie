@@ -50,9 +50,8 @@ namespace OP
             {
 
             }
-            TrieIterator()
-            {
-            }
+            TrieIterator() = default; 
+
             inline this_t& operator ++ ()
             {
                 _container->next(*this);

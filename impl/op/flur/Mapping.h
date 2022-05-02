@@ -32,7 +32,7 @@ namespace flur
         {
         }
         
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
+        bool is_sequence_ordered() const override
         {
             return keep_mapping_c 
                 && details::get_reference(_src).is_sequence_ordered();

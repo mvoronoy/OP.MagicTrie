@@ -95,10 +95,12 @@ struct JoinGeneratorFactory : OP::flur::FactoryBase
     {}
 
     template <class Src>
-    constexpr auto compound(Src&& src) const noexcept
+    constexpr auto compound(Src&& src) const /*noexcept*/
     {
         using src_container_t = OP::flur::details::sequence_type_t<Src>;
         using target_set_t = JoinGenerator<Trie, src_container_t>;
+        if(!OP::flur::details::get_reference(src).is_sequence_ordered())
+            throw std::runtime_error("join allowed for ordered sequence only");
         return target_set_t(_trie, std::move(src));
     }
 private:

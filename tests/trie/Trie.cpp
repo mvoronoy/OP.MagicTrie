@@ -388,13 +388,48 @@ void test_TrieLowerBound(OP::utest::TestResult& tresult)
         auto fl_div = fl + "0"_astr;
         tresult.assert_true(trie->insert(fl_div, 75.).second, "Item must not exists");
         fl += "xxx"_astr;
+
         auto fl_res = trie->lower_bound(fl);
-        tresult.assert_that<equals>(fl_res, trie->end(), "Item must not exists");
+        if(fl_res != trie->end())
+            tresult.assert_that<less>(fl, fl_res.key(), "Item must be less than ");
         fl_res = trie->lower_bound(fl_div);
         tresult.assert_that<equals>(fl_res.key(), fl_div, "Item must exists");
 
     }
 }
+void test_TrieLowerBound_ISSUE001(OP::utest::TestResult& tresult)
+{
+    auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+
+    const atom_string_t test_seq[] = { 
+        "abc"_astr, "abcx"_astr, "bcd"_astr, "bcdx"_astr, "def"_astr, "fgh"_astr, "fghy"_astr };
+    std::map<atom_string_t, double> test_values;
+
+    double x = 0.0;
+    for (auto i : test_seq)
+    {
+        const auto& test = i;
+        auto ins_res = trie->insert(test, x);
+        test_values.emplace(test, x);
+    }
+
+    tresult.assert_that<eq_sets>(trie->range() 
+        >> OP::flur::then::keep_order_mapping([](const auto& i) {return i.key(); }), 
+        std::set(std::begin(test_seq), std::end(test_seq))
+    );
+    //compare_containers(tresult, *trie, test_values);
+    auto runex = trie->lower_bound("abcy"_astr);
+    tresult.assert_that<logical_not<equals>>(runex, trie->end());
+    tresult.assert_that<equals>(runex, trie->find("bcd"_astr));
+    tresult.assert_that<equals>(trie->lower_bound("fghx"_astr), trie->find("fghy"_astr));
+    tresult.assert_that<equals>(trie->lower_bound("fghz"_astr), trie->end());
+}
+
 void test_PrefixedFind(OP::utest::TestResult& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
@@ -428,7 +463,8 @@ void test_PrefixedFind(OP::utest::TestResult& tresult)
     auto lw_ch1 = trie->lower_bound(i_root, std::string(".123"));
     tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
     tresult.assert_that<equals>(*lw_ch1, 1.9, "value mismatch");
-    tresult.assert_that<equals>(trie->lower_bound(i_root, std::string(".xyz")), trie->end(), "iterator must be end");
+    auto rdef = trie->lower_bound(i_root, std::string(".xyz"));
+    tresult.assert_that<equals>(rdef, trie->find("def."_astr), "iterator must be at last");
     auto i_end = trie->end();
     tresult.assert_that<equals>(trie->lower_bound(i_end, std::string(".123")), i_root, "iterator must point to 'abc'");
     lw_ch1 = trie->lower_bound(i_root, std::string(".1"));
@@ -1290,6 +1326,7 @@ static auto module_suite = OP::utest::default_test_suite("Trie.core")
 ->declare(test_TrieUpdate, "update values")
 ////->declare(test_TrieGrowAfterUpdate, "grow-after-update")
 ->declare(test_TrieLowerBound, "lower_bound")
+->declare(test_TrieLowerBound_ISSUE001, "lower_bound_ISSUE001")
 ->declare(test_PrefixedFind, "prefixed find")
 ->declare(test_TrieNoTran, "trie no tran")
 ////->declare(test_TrieSectionRange, "section range")

@@ -187,7 +187,7 @@ namespace OP::flur
         auto compound(Left&& left) const& noexcept
         {
             return make_join(std::forward<Left>(left), 
-                _right.compound(), _comp);
+                OP::flur::details::get_reference(_right).compound(), _comp);
         }
         template <class Left>
         constexpr auto compound(Left&& left) && noexcept

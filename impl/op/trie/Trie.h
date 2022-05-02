@@ -138,7 +138,7 @@ namespace OP
             * "abc"
             * "abc.1"
             * "abc.2"
-            * "abc.222", //not a sibling since 'abc.2' has a it as a child
+            * "abc.222", //not a sibling since 'abc.2' has a tail as a child
             * "abc.333"
             * "abcdef"
             * \endcode
@@ -1160,13 +1160,17 @@ namespace OP
                     auto lres = load_iterator(//need reload since after common_prefix may not be complete
                         start_from, prefix,
                         [&](ReadonlyAccess<node_t>& ro_node) {
-                        return ro_node->next_or_this(*begin);
-                    },
+                            return ro_node->next_or_this(*begin);
+                        },
                         &iterator::emplace);
                     if (!std::get<bool>(lres))
                     {
-                        prefix.clear();
-                        return false;
+                        //prefix.clear();
+                        if (!prefix.is_end())
+                        {
+                            _next(false/*no reason to enter deep*/, prefix);
+                        }
+                        return false; //not an exact match
                     }
                     if (is_not_set(prefix.back().terminality(), Terminality::term_has_data))
                     {
@@ -1179,8 +1183,8 @@ namespace OP
                     auto lres = load_iterator(//need reload since after common_prefix may not be complete
                         prefix.back().address(), prefix,
                         [&](ReadonlyAccess<node_t>& ro_node) {
-                        return make_nullable(prefix.back().key());
-                    },
+                            return make_nullable(prefix.back().key());
+                        },
                         &iterator::update_back);
                     assert(std::get<bool>(lres));
                     if (is_not_set(prefix.back().terminality(), Terminality::term_has_data))
