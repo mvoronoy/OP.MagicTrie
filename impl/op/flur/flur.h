@@ -26,6 +26,7 @@
 #include <op/flur/Repeater.h>
 #include <op/flur/Minibatch.h>
 #include <op/flur/StringInput.h>
+#include <op/flur/Distinct.h>
 #include <op/flur/PolymorphsBack.h>
 #include <op/flur/stl_adapters.h>
 
@@ -266,6 +267,19 @@ namespace flur
         constexpr auto take_awhile(Fnc f) noexcept
         {
             return TakeAwhileFactory<Fnc>(std::move(f));
+        }
+        /** Convert source by filtering out some ellements according to predicate 
+        * If applied to ordered source then result is ordered as well
+        * \tparam Fnc - must be a predicate producing false for items to filter out
+        */
+        template <class EqCmp>
+        constexpr auto distinct(EqCmp f) noexcept
+        {
+            return DistinctFactory<EqCmp>(std::move(f));
+        }
+        constexpr auto distinct() noexcept
+        {
+            return DistinctFactory<>();
         }
         /**
         *  Produce cartesian multiplication of 2 sources. 
