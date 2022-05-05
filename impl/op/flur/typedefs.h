@@ -106,7 +106,7 @@ namespace flur
         constexpr decltype(auto) compound_impl(const Tuple& t) noexcept
         {   //scan tuple in reverse order
             if constexpr (I == 1)
-            { //at zero level must reside no-arg `compound` implementation
+            { //at zero level must place no-arg `compound` implementation
                 return get_reference(std::get<0>(t)).compound();
             }
             else // non-zero level invokes recursively `compound` with previous layer result

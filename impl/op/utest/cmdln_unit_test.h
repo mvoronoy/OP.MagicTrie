@@ -3,6 +3,7 @@
 
 #include <string>
 #include <op/utest/unit_test.h>
+#include <op/common/IoFlagGuard.h>
 
 #include <ctime>
 #include <chrono>
@@ -207,7 +208,7 @@ namespace OP
             }
             OP::utest::TestRun::default_instance().options() = opts;
             // keep origin out formatting
-            std::ios_base::fmtflags cout_fmt_flags( std::cout.flags() );
+            IoFlagGuard cout_flags(std::cout);
 
             auto all_result = 
                 OP::utest::TestRun::default_instance().run_if(test_case_filter);
@@ -221,12 +222,13 @@ namespace OP
                 ++agg.first->second;
             }
             //restore cout formatting
-            std::cout.flags(cout_fmt_flags);
+            cout_flags.reset();
 
             std::cout << "==--Total run results--==:\n";
             //dump summary
-            for( auto agg : summary_map )
+            for( const auto& agg : summary_map )
             {
+                IoFlagGuard cout_flags(std::cout);
                 std::cout << "\t" << agg.first << std::setfill('-')<<std::setw(10)<< ">(" << agg.second << ")\n";
             }
             return status;

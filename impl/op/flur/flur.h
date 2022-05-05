@@ -268,18 +268,33 @@ namespace flur
         {
             return TakeAwhileFactory<Fnc>(std::move(f));
         }
-        /** Convert source by filtering out some ellements according to predicate 
-        * If applied to ordered source then result is ordered as well
-        * \tparam Fnc - must be a predicate producing false for items to filter out
+        /** 
+        *   Remove duplicates from source sequence. (Current implementation works only with 
+        *   sorted)
+        * \tparam EqCmp - binary comparator to return true if 2 items are equal
         */
-        template <class EqCmp>
-        constexpr auto distinct(EqCmp f) noexcept
+        template <class Eq>
+        constexpr auto unordered_distinct(Eq eq) noexcept
         {
-            return DistinctFactory<EqCmp>(std::move(f));
+            return DistinctFactory<UnorderedDistinctPolicyWithCustomComparator<Eq>>(std::move(eq));
         }
-        constexpr auto distinct() noexcept
+        constexpr auto unordered_distinct() noexcept
         {
-            return DistinctFactory<>();
+            return DistinctFactory<UnorderedHashDistinctPolicy>();
+        }
+        
+        /**
+        *   use `distinct` with `std::equal_to`
+        */
+        constexpr auto ordered_distinct() noexcept
+        {
+            return DistinctFactory<OrderedDistinctPolicy>();
+        }
+        template <class F>
+        constexpr auto ordered_distinct(F f) noexcept
+        {
+            return DistinctFactory<OrderedDistinctPolicyWithCustomComparator<F>>(
+                OrderedDistinctPolicyWithCustomComparator<F>(std::move(f)));
         }
         /**
         *  Produce cartesian multiplication of 2 sources. 

@@ -67,7 +67,11 @@ namespace OP
             }
         };
 
-        /** Marker to compare 2 heterogenous container with items supported operator `==` */
+        /** 
+        * Marker to compare 2 heterogenous container with items supported operator `==`.
+        * Method assumes strict order checking of both sequences.
+        * Complexity is about O(min(N, M))
+        */
         struct eq_sets
         {
             constexpr static size_t args_c = 2;
@@ -81,6 +85,64 @@ namespace OP
 
                 auto pr = std::mismatch(std::begin(left), end_left, std::begin(right), end_right);
                 return pr.first == end_left && pr.second == end_right;
+            }
+        };
+        namespace details
+        {
+            //from https://stackoverflow.com/questions/12753997/check-if-type-is-hashable
+            template <typename T, typename = std::void_t<>>
+            struct is_std_hashable : std::false_type { };
+
+            template <typename T>
+            struct is_std_hashable<T, std::void_t<decltype(std::declval<std::hash<T>>()(std::declval<T>()))>> : std::true_type { };
+
+            template <typename T>
+            constexpr bool is_std_hashable_v = is_std_hashable<T>::value;
+
+        }
+        /**
+        * Marker to compare 2 heterogenous container with items supported operator `==` and 
+        * one must support std::hash.
+        * Strict order checking is not needed
+        * Complexity is about O(N) + O(M)
+        */
+        struct eq_unordered_sets
+        {
+
+            constexpr static size_t args_c = 2;
+            using is_transparent = int;
+
+            template <class Left, class Right>
+            constexpr bool operator()(const Left& left, const Right& right) const
+            {
+                auto end_left = std::end(left);
+                auto end_right = std::end(right);
+                using element_left_t = std::decay_t<decltype(*end_left)>;
+                using element_right_t = std::decay_t<decltype(*end_right)>;
+
+                static_assert(
+                    details::is_std_hashable_v<element_left_t> || 
+                    details::is_std_hashable_v<element_right_t>,
+                    "At least one container must contain hash-able item");
+
+                auto drain_all_items = [](auto& hashed, const auto& seq) {
+                    for (const auto& x : seq)
+                        if (hashed.erase(x) != 1)
+                            return false;
+                    return hashed.empty();
+                };
+                if constexpr (details::is_std_hashable_v<element_left_t>)
+                {
+                    std::unordered_multiset< element_left_t> hashed(
+                        std::begin(left), end_left);
+                    return drain_all_items(hashed, right);
+                }
+                else
+                {
+                    std::unordered_multiset< element_right_t> hashed(
+                        std::begin(right), end_right);
+                    return drain_all_items(hashed, left);
+                }
             }
         };
 

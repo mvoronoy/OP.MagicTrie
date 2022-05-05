@@ -607,7 +607,6 @@ void test_Erase(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(tst_next, trie->erase(f), "iterators mismatch");
     test_values.erase(std::string((const char*)avg_key.c_str()));
     //
-    std::cout << '\n';
 
     tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);

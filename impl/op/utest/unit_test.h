@@ -22,6 +22,7 @@
 #include <signal.h> 
 #include <random>
 #include <op/utest/unit_test_is.h>
+#include <op/common/IoFlagGuard.h>
 
 
 /**Render inline information like __FILE__, __LINE__ in lazy way (rendered only on demand) */
@@ -715,7 +716,17 @@ namespace OP
 
                 for (auto& p : _suites)
                 {
-                    p.second->info() << "==["<< p.first <<"]"<< std::setfill ('=') << std::setw(_options.output_width() - p.first.length()) << ""<< std::endl;
+                    IoFlagGuard stream_guard( p.second->info() );
+
+                    p.second->info() 
+                        << "==["<< p.first <<"]"
+                        << std::setfill ('=') 
+                        << std::setw(_options.output_width() - p.first.length()) 
+                        << "" 
+                        << std::endl;
+
+                    stream_guard.reset();
+
                     for_each_case_if(*p.second,
                         f,
                         [&result](std::shared_ptr<TestResult> res){
