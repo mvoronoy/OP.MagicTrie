@@ -6,7 +6,7 @@
 using namespace OP::trie::stem;
 using namespace OP::trie;
 
-void test_StemStoreSimple(OP::utest::TestResult &tresult)
+void test_StemStoreSimple(OP::utest::TestRuntime &tresult)
 {
     //auto tst1 = std::unique_ptr<StemStore>(OP::trie::StemStore::create(1, 2));
     //tresult.assert_true(tst1->width() == 1 && tst1->height() == 2, OP_CODE_DETAILS());
@@ -116,7 +116,7 @@ void test_ContainerStoreMax(T* container, bool grant_unique = true)
         tresult.assert_true(safe_equal(pair_seq.first, pair_seq.second, rnd_begin, rnd_begin + accomodate_size), OP_CODE_DETAILS());
     }
 }
-void test_StemStoreIndex(OP::utest::TestResult &tresult)
+void test_StemStoreIndex(OP::utest::TestRuntime &tresult)
 {
     //auto store = std::unique_ptr<OP::trie::StemStore>(OP::trie::StemStore::create(16, 16));
     //auto index = std::unique_ptr<OP::trie::StemStoreIndex>(
@@ -209,7 +209,7 @@ void test_StemStoreIndex(OP::utest::TestResult &tresult)
     //tresult.assert_true(b_seq7 == std::end(seq7), OP_CODE_DETAILS());
 }
 
-void test_StemStoreMax(OP::utest::TestResult &tresult)
+void test_StemStoreMax(OP::utest::TestRuntime &tresult)
 {
     auto tst1 = std::unique_ptr<StemStore>(StemStore::create(256, 255));;
     for (auto i = 0; i < tst1->width(); ++i)
@@ -218,5 +218,5 @@ void test_StemStoreMax(OP::utest::TestResult &tresult)
 }
 
 static auto module_suite = OP::utest::default_test_suite("Stems")
-->declare(test_StemStoreMax, "max")
+.declare("max", test_StemStoreMax)
 ;

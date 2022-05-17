@@ -18,7 +18,7 @@ namespace {
     //    return 0;
     //}
 
-    void test_Join(TestResult& tresult)
+    void test_Join(TestRuntime& tresult)
     {
         using test_container_t = std::map<std::string, double>;
         test_container_t src1 {
@@ -182,7 +182,7 @@ namespace {
         //    {"mmxxx",  1.1}}));
 
     }
-    void test_JoinSingle(TestResult& tresult)
+    void test_JoinSingle(TestRuntime& tresult)
     {
         using test_container_t = std::map<std::string, double>;
         test_container_t src1{
@@ -210,8 +210,8 @@ namespace {
         );
 
     }
-    static auto module_suite = OP::utest::default_test_suite("flur.join")
-        ->declare(test_Join, "filter")
-        ->declare(test_JoinSingle, "with-single")
+    static auto& module_suite = OP::utest::default_test_suite("flur.join")
+        .declare("filter", test_Join)
+        .declare("with-single", test_JoinSingle)
         ;
 }//ns: empty

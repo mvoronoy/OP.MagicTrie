@@ -41,7 +41,7 @@ struct lexic_comparator_functor
     };
 };
 
-void test_RangeJoin(OP::utest::TestResult& tresult)
+void test_RangeJoin(OP::utest::TestRuntime& tresult)
 {
 
     test_container_t src1;
@@ -155,7 +155,7 @@ void test_RangeJoin(OP::utest::TestResult& tresult)
             {"ba",  1.1},
             {"mmxxx",  1.1}}));
 }
-void test_ApplyFncRange(OP::utest::TestResult& tresult)
+void test_ApplyFncRange(OP::utest::TestRuntime& tresult)
 {
     test_container_t src1;
     src1.emplace("a", 1.0);
@@ -206,7 +206,7 @@ bool _filter_sylable(const typename Container::iterator& it)
     using namespace OP::ranges;
     return sylable_set.find(it.key()[0]) != sylable_set.end();
 }
-void test_FilterRange(OP::utest::TestResult& tresult)
+void test_FilterRange(OP::utest::TestRuntime& tresult)
 {
     tresult.info() << "test empty set\n";
     test_container_t src0;
@@ -247,7 +247,7 @@ void test_FilterRange(OP::utest::TestResult& tresult)
     tresult.assert_true(OP::ranges::utils::range_map_equals(*r1_src1->filter(_filter_sylable<decltype(r1_src1)::element_type>), strain1));
 }
 
-void test_UnionAllRange(OP::utest::TestResult& tresult)
+void test_UnionAllRange(OP::utest::TestRuntime& tresult)
 {
     tresult.info() << "test empty set\n";
     test_container_t src_empty;
@@ -305,7 +305,7 @@ void test_UnionAllRange(OP::utest::TestResult& tresult)
 }
 
 
-void test_FirstThat(OP::utest::TestResult& tresult)
+void test_FirstThat(OP::utest::TestRuntime& tresult)
 {
     tresult.info() << "test empty set\n";
     test_container_t src_empty;
@@ -361,7 +361,7 @@ public:
 };
 
 template <class Container, class Key>
-static void eval_lower_bound(OP::utest::TestResult& tresult, const Container& co, const Key& not_exists, const Key& exact, const Key& lower)
+static void eval_lower_bound(OP::utest::TestRuntime& tresult, const Container& co, const Key& not_exists, const Key& exact, const Key& lower)
 {
     const auto& k1 = co.begin().key();
     auto r1 = co.lower_bound(k1);
@@ -379,7 +379,7 @@ static void eval_lower_bound(OP::utest::TestResult& tresult, const Container& co
     tresult.assert_that<less>(lower, r4.key(), OP_CODE_DETAILS(<< "lower_bound of lower"));
 }
 
-void test_LowerBoundAllRanges(OP::utest::TestResult& tresult)
+void test_LowerBoundAllRanges(OP::utest::TestRuntime& tresult)
 {
     tresult.info() << "apply lower_bound on container without native support\n";
 
@@ -413,7 +413,7 @@ void test_LowerBoundAllRanges(OP::utest::TestResult& tresult)
 
 }
 
-void test_LowerBound(OP::utest::TestResult& tresult)
+void test_LowerBound(OP::utest::TestRuntime& tresult)
 {
     tresult.info() << "apply lower_bound on container without native support\n";
 
@@ -464,7 +464,7 @@ void test_LowerBound(OP::utest::TestResult& tresult)
         );
 
 }
-void test_singletonRange(OP::utest::TestResult& tresult)
+void test_singletonRange(OP::utest::TestRuntime& tresult)
 {
     tresult.info() << "apply lower_bound on container without native support\n";
 
@@ -503,7 +503,7 @@ void test_singletonRange(OP::utest::TestResult& tresult)
         );
 }
 
-static void test_FlattenRange(OP::utest::TestResult& tresult)
+static void test_FlattenRange(OP::utest::TestRuntime& tresult)
 {
     tresult.info() << "flatten range empty\n";
 
@@ -558,7 +558,7 @@ static void test_FlattenRange(OP::utest::TestResult& tresult)
     tresult.assert_false(flatten_range3->in_range(flatten_range3->begin()), OP_CODE_DETAILS(<< "Empty flatten must generate empty flatten"));
 }
 
-static void test_DistinctRange(OP::utest::TestResult& tresult)
+static void test_DistinctRange(OP::utest::TestRuntime& tresult)
 {
     tresult.info() << "Test distinct range empty\n";
 
@@ -605,16 +605,16 @@ static void test_DistinctRange(OP::utest::TestResult& tresult)
         OP_CODE_DETAILS(<< "Distinct must eliminate dupplicates on 10*10"));
 
 }
-static auto module_suite = OP::utest::default_test_suite("Ranges")
-->declare(test_RangeJoin, "join")
-->declare(test_ApplyFncRange, "fnc")
-->declare(test_FilterRange, "filter")
-->declare(test_UnionAllRange, "union-all")
-->declare(test_FirstThat, "first-that")
-->declare(test_LowerBound, "lower_bound-base")
-->declare(test_LowerBoundAllRanges, "lower_bound-on-containers")
-->declare(test_singletonRange, "singleton-range")
-->declare(test_FlattenRange, "flatten")
-->declare(test_DistinctRange, "distinct")
+static auto& module_suite = OP::utest::default_test_suite("Ranges")
+.declare("join", test_RangeJoin)
+.declare("fnc", test_ApplyFncRange)
+.declare("filter", test_FilterRange)
+.declare("union-all", test_UnionAllRange)
+.declare("first-that", test_FirstThat)
+.declare("lower_bound-base", test_LowerBound)
+.declare("lower_bound-on-containers", test_LowerBoundAllRanges)
+.declare("singleton-range", test_singletonRange)
+.declare("flatten", test_FlattenRange)
+.declare("distinct", test_DistinctRange)
 
 ;

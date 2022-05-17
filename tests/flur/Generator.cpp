@@ -18,7 +18,7 @@ namespace {
     using namespace std::string_literals;
 
 
-    void test_noarg_gen(OP::utest::TestResult& tresult)
+    void test_noarg_gen(OP::utest::TestRuntime& tresult)
     {
         size_t invocked = 0;
         for (const auto& r : OP::flur::src::generator([&]() {
@@ -42,7 +42,7 @@ namespace {
 
         tresult.assert_that<equals>(10, invocked, "wrong invocation number");
     }
-    void test_boolarg_gen(OP::utest::TestResult& tresult)
+    void test_boolarg_gen(OP::utest::TestRuntime& tresult)
     {
         size_t invocked = 0;
         for (auto r : OP::flur::src::generator([&](bool first) {
@@ -72,7 +72,7 @@ namespace {
         }
         tresult.assert_that<equals>(10, invocked, "wrong invocation number");
     }
-    void test_exception(OP::utest::TestResult& tresult)
+    void test_exception(OP::utest::TestRuntime& tresult)
     {
         tresult.info() << "check exception during 'next'...\n";
         int i3 = 0;
@@ -92,7 +92,7 @@ namespace {
             });
     }
 
-    void test_ptr_gen(OP::utest::TestResult& tresult)
+    void test_ptr_gen(OP::utest::TestRuntime& tresult)
     {
         using set_t = std::set <std::string >;
         using target_set_t = std::set <std::string_view >;
@@ -112,9 +112,9 @@ namespace {
         tresult.assert_that<eq_sets>(subset, result, "generator doesn't produce expected result");
     }
 
-    static auto module_suite = OP::utest::default_test_suite("flur.generator")
-        ->declare(test_noarg_gen, "noarg")
-        ->declare(test_boolarg_gen, "bool-arg")
-        ->declare(test_exception, "exceptions")
-        ->declare(test_ptr_gen, "ptr");
+    static auto& module_suite = OP::utest::default_test_suite("flur.generator")
+        .declare("noarg", test_noarg_gen)
+        .declare("bool-arg", test_boolarg_gen)
+        .declare("exceptions", test_exception)
+        .declare("ptr", test_ptr_gen);
 } //ns:<anonymous>

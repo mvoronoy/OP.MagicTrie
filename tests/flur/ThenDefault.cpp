@@ -11,7 +11,7 @@ using namespace OP::utest;
 using namespace OP::flur;
 using namespace std::string_literals;
 
-void test_OrDefault(OP::utest::TestResult& tresult)
+void test_OrDefault(OP::utest::TestRuntime& tresult)
 {
     constexpr auto r_bool = src::of_value(false)
         >> then::filter([](bool i) {return i; })
@@ -46,7 +46,7 @@ void test_OrDefault(OP::utest::TestResult& tresult)
 
 }
 
-void test_SortedOrDefault(OP::utest::TestResult& tresult)
+void test_SortedOrDefault(OP::utest::TestRuntime& tresult)
 {
     std::set<std::string> sample{ "a"s, "b"s, "c"s };
     const std::string sylable_c{ 'a', 'e', 'i', 'o', 'u', 'y' };
@@ -68,7 +68,7 @@ void test_SortedOrDefault(OP::utest::TestResult& tresult)
 
 }
 
-static auto module_suite = OP::utest::default_test_suite("flur.then")
-->declare(test_OrDefault, "or_default")
-->declare(test_SortedOrDefault, "or_default_sorted")
+static auto& module_suite = OP::utest::default_test_suite("flur.then")
+.declare("or_default", test_OrDefault)
+.declare("or_default_sorted", test_SortedOrDefault)
 ;

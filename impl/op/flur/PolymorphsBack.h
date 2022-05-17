@@ -55,7 +55,6 @@ namespace OP::flur
     template < class Poly >
     struct OfReversePolymorphFactory : FactoryBase
     {
-
         using base_seq_t = typename OP::flur::details::dereference_t<Poly>::sequence_t;
         
         constexpr OfReversePolymorphFactory(Poly factory) noexcept
@@ -65,7 +64,7 @@ namespace OP::flur
 
         constexpr auto compound() const noexcept
         {
-            auto seq = _polymorph_factory->compound();
+            auto seq = details::get_reference(_polymorph_factory).compound();
 
             return OfReversePolymorph<decltype(seq), base_seq_t>(std::move(seq));
         }

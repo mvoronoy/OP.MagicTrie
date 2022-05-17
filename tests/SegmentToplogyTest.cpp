@@ -16,7 +16,7 @@ struct TestMemAlloc2
     double x;
     double y[121];
 };
-void test_SegmentTopology(OP::utest::TestResult& result)
+void test_SegmentTopology(OP::utest::TestRuntime& result)
 {
     const char seg_file_name[] = "segementation.test";
     typedef std::uint8_t assorted_t[13];
@@ -42,6 +42,6 @@ void test_SegmentTopology(OP::utest::TestResult& result)
 }
 
 //using std::placeholders;
-static auto module_suite = OP::utest::default_test_suite("SegmentTopology")
-->declare(test_SegmentTopology, "general")
+static auto& module_suite = OP::utest::default_test_suite("SegmentTopology")
+.declare("general", test_SegmentTopology)
 ;

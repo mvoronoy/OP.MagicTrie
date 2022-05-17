@@ -25,7 +25,7 @@ namespace {
             });
     }
 
-    void test_ExceptionOnStart(OP::utest::TestResult& tresult)
+    void test_ExceptionOnStart(OP::utest::TestRuntime& tresult)
     {
         tresult.info() << "check exception raised on start...\n";
 
@@ -39,7 +39,7 @@ namespace {
         tresult.assert_that<equals>(1, n, "single entry only");
 
     }
-    void test_ExceptionOnNext(OP::utest::TestResult& tresult)
+    void test_ExceptionOnNext(OP::utest::TestRuntime& tresult)
     {
         tresult.info() << "check exception raised on next...\n";
 
@@ -55,7 +55,7 @@ namespace {
         tresult.assert_that<equals>(sum, 58, "single entry only");
 
     }
-    void test_ExceptionOnInRange(OP::utest::TestResult& tresult)
+    void test_ExceptionOnInRange(OP::utest::TestRuntime& tresult)
     {
         tresult.info() << "check exception raised on in_range...\n";
 
@@ -86,7 +86,7 @@ namespace {
     }
 
 
-    void test_ExceptionOnCurrent(OP::utest::TestResult& tresult)
+    void test_ExceptionOnCurrent(OP::utest::TestRuntime& tresult)
     {
         tresult.info() << "check exception raised on current...\n";
 
@@ -105,7 +105,7 @@ namespace {
                 tresult.assert_that<equals>(1, n, "single entry only");
     }
 
-    void test_MultyExceptions(OP::utest::TestResult& tresult)
+    void test_MultyExceptions(OP::utest::TestRuntime& tresult)
     {
         tresult.info() << "check multi exceptions handler...\n";
 
@@ -143,11 +143,11 @@ namespace {
         tresult.assert_that<equals>(2, n, "1 entries only");
     }
 
-    static auto module_suite = OP::utest::default_test_suite("flur.then.exception")
-        ->declare(test_ExceptionOnStart, "on-start")
-        ->declare(test_ExceptionOnNext, "on-next")
-        ->declare(test_ExceptionOnInRange, "on-in_range")
-        ->declare(test_ExceptionOnCurrent, "on-current")
-        ->declare(test_MultyExceptions, "multi")
+    static auto& module_suite = OP::utest::default_test_suite("flur.then.exception")
+        .declare("on-start", test_ExceptionOnStart)
+        .declare("on-next", test_ExceptionOnNext)
+        .declare("on-in_range", test_ExceptionOnInRange)
+        .declare("on-current", test_ExceptionOnCurrent)
+        .declare("multi", test_MultyExceptions)
         ;
 }//ns:<empty>

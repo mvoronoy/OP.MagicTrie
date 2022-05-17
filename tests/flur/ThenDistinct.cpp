@@ -11,7 +11,7 @@ using namespace OP::utest;
 using namespace OP::flur;
 using namespace std::string_literals;
 
-void test_ThenOrderedDistinct(OP::utest::TestResult& tresult)
+void test_ThenOrderedDistinct(OP::utest::TestRuntime& tresult)
 {
     std::multiset<std::string> test_multi_seq {"aa", "aa", "bb", "bb", "bb", "c", "xx", "xx"};
 
@@ -97,7 +97,7 @@ namespace std
     };
 }
 
-void test_ThenUnorderedDistinct(OP::utest::TestResult& tresult)
+void test_ThenUnorderedDistinct(OP::utest::TestRuntime& tresult)
 {
     auto r_empt = src::of_container(/*copy*/std::vector<int>{})
         >> then::unordered_distinct()
@@ -156,7 +156,7 @@ void test_ThenUnorderedDistinct(OP::utest::TestResult& tresult)
 
 }
 
-static auto module_suite = OP::utest::default_test_suite("flur.then")
-    ->declare(test_ThenOrderedDistinct, "ordered-distinct")
-    ->declare(test_ThenUnorderedDistinct, "unordered-distinct")
+static auto& module_suite = OP::utest::default_test_suite("flur.then")
+    .declare("ordered-distinct", test_ThenOrderedDistinct)
+    .declare("unordered-distinct", test_ThenUnorderedDistinct)
 ;

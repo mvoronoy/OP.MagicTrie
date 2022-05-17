@@ -5,7 +5,7 @@
 
 
 template <class B>
-void generic_test(OP::utest::TestResult& tresult, B& container)
+void generic_test(OP::utest::TestRuntime& tresult, B& container)
 {
     for (auto i = 0; i < container.capacity(); ++i)
         container.clear(i);
@@ -33,7 +33,7 @@ void generic_test(OP::utest::TestResult& tresult, B& container)
             ((i & 1) ? container.get(i) : !container.get(i)), OP_CODE_DETAILS() << "Value must be " << (i & ~1));
     }
 }
-void test_Basic(OP::utest::TestResult& tresult)
+void test_Basic(OP::utest::TestRuntime& tresult)
 {
     OP::trie::Bitset<1> b1_t(0xAAAAAAAAAAAAAAAAULL);
     for (auto i = 0; i < b1_t.capacity(); ++i)
@@ -55,7 +55,7 @@ void test_Basic(OP::utest::TestResult& tresult)
     OP::trie::Bitset<8> b8_t;
     generic_test(tresult, b8_t);
 }
-void test_Finds(OP::utest::TestResult& tresult)
+void test_Finds(OP::utest::TestRuntime& tresult)
 {
     OP::trie::Bitset<3> b3_t;
     tresult.assert_true(b3_t.nil_c == b3_t.first_set());
@@ -110,7 +110,7 @@ void test_Finds(OP::utest::TestResult& tresult)
             tresult.assert_true((i + 1) == b1_t2.next_set(i), OP_CODE_DETAILS() << "next_set failed for i=" << i);
     }
 }
-static auto module_suite = OP::utest::default_test_suite("Bitset")
-->declare(test_Basic, "general")
-->declare(test_Finds, "finds")
+static auto& module_suite = OP::utest::default_test_suite("Bitset")
+.declare("general", test_Basic)
+.declare("finds", test_Finds)
 ;

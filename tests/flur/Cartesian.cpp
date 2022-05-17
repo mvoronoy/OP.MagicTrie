@@ -13,7 +13,7 @@ bool logic_or(bool a, bool b)
 {
     return a || b;
 }
-void test_ThenCartesian(OP::utest::TestResult& tresult)
+void test_ThenCartesian(OP::utest::TestRuntime& tresult)
 {
     tresult.info() << "Cartesian with empty source\n";
     constexpr auto r_bool = src::of_value(false)
@@ -62,6 +62,6 @@ void test_ThenCartesian(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(-135, OP::flur::reduce(r4, 0), "wrong result number");
 }
 
-static auto module_suite = OP::utest::default_test_suite("flur.then")
-->declare(test_ThenCartesian, "cartesian")
+static auto& module_suite = OP::utest::default_test_suite("flur.then")
+.declare("cartesian", test_ThenCartesian)
 ;

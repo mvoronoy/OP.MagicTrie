@@ -13,7 +13,7 @@ using namespace std::chrono_literals;
 
 namespace 
 {    
-void test_Integration(OP::utest::TestResult& tresult)
+void test_Integration(OP::utest::TestRuntime& tresult)
 {
     
     ThreadPool tp(1, 1);
@@ -43,8 +43,8 @@ void test_Integration(OP::utest::TestResult& tresult)
 }
 
 
-static auto module_suite = OP::utest::default_test_suite("thread-pool")
-->declare(test_Integration, "integration")
+static auto& module_suite = OP::utest::default_test_suite("thread-pool")
+.declare("integration", test_Integration)
 ;
 
 }

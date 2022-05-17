@@ -31,7 +31,7 @@ struct lexicographic_less {
         return std::lexicographical_compare(s1.begin(), s1.end(), s2.begin(), s2.end());
     }
 };
-void test_TrieCreation(OP::utest::TestResult& tresult)
+void test_TrieCreation(OP::utest::TestRuntime& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -63,7 +63,7 @@ void print_hex(O& os, const T& t)
 
 #include "TrieTestUtils.h"
 #include <random>
-void test_TrieInsert(OP::utest::TestResult& tresult)
+void test_TrieInsert(OP::utest::TestRuntime& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -200,7 +200,7 @@ void test_TrieInsert(OP::utest::TestResult& tresult)
     compare_containers(tresult, *trie, standard);
 }
 
-void test_TrieInsertGrow(OP::utest::TestResult& tresult)
+void test_TrieInsertGrow(OP::utest::TestRuntime& tresult)
 {
     std::random_device rd;
     std::mt19937 random_gen(rd());
@@ -230,7 +230,7 @@ void test_TrieInsertGrow(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(rand_idx.size(), trie->size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 }
-void test_TrieUpdate(OP::utest::TestResult& tresult)
+void test_TrieUpdate(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -282,7 +282,7 @@ void test_TrieUpdate(OP::utest::TestResult& tresult)
     compare_containers(tresult, *trie, test_values);
 }
 
-void test_TrieGrowAfterUpdate(OP::utest::TestResult& tresult)
+void test_TrieGrowAfterUpdate(OP::utest::TestRuntime& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -310,7 +310,7 @@ void test_TrieGrowAfterUpdate(OP::utest::TestResult& tresult)
     compare_containers(tresult, *trie, test_values);
     const std::string& upd = test_seq[std::extent<decltype(test_seq)>::value / 2];
 }
-void test_TrieLowerBound(OP::utest::TestResult& tresult)
+void test_TrieLowerBound(OP::utest::TestRuntime& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -397,7 +397,7 @@ void test_TrieLowerBound(OP::utest::TestResult& tresult)
 
     }
 }
-void test_TrieLowerBound_ISSUE001(OP::utest::TestResult& tresult)
+void test_TrieLowerBound_ISSUE001(OP::utest::TestRuntime& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -430,7 +430,7 @@ void test_TrieLowerBound_ISSUE001(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(trie->lower_bound("fghz"_astr), trie->end());
 }
 
-void test_PrefixedFind(OP::utest::TestResult& tresult)
+void test_PrefixedFind(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -506,7 +506,7 @@ void test_PrefixedFind(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(find_after_end.key(), "abc"_astr, "iterator must point at 'abc'");
 }
 
-void test_TrieNoTran(OP::utest::TestResult& tresult)
+void test_TrieNoTran(OP::utest::TestRuntime& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -550,7 +550,7 @@ inline void print_co(Stream& os, const Co& co)
     }
 }
 
-void test_Erase(OP::utest::TestResult& tresult)
+void test_Erase(OP::utest::TestRuntime& tresult)
 {
     std::random_device rd;
     std::mt19937 random_gen(rd());
@@ -684,7 +684,7 @@ void test_Erase(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
 }
-void test_Siblings(OP::utest::TestResult& tresult)
+void test_Siblings(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -731,7 +731,7 @@ void test_Siblings(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(i_sup, trie->end(), "run end failed");
 }
 
-void test_IteratorSync(OP::utest::TestResult& tresult)
+void test_IteratorSync(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -771,7 +771,7 @@ void test_IteratorSync(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(lw_ch2.key(), (const atom_t*)"abc.122x", "key mismatch");
 }
 
-void test_TrieUpsert(OP::utest::TestResult& tresult)
+void test_TrieUpsert(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -823,7 +823,7 @@ void test_TrieUpsert(OP::utest::TestResult& tresult)
     compare_containers(tresult, *trie, test_values);
 }
 
-void test_TriePrefixedInsert(OP::utest::TestResult& tresult)
+void test_TriePrefixedInsert(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -904,7 +904,7 @@ void test_TriePrefixedInsert(OP::utest::TestResult& tresult)
     compare_containers(tresult, *trie, test_values);
 }
 
-void test_TriePrefixedUpsert(OP::utest::TestResult& tresult)
+void test_TriePrefixedUpsert(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -989,7 +989,7 @@ void test_TriePrefixedUpsert(OP::utest::TestResult& tresult)
     compare_containers(tresult, *trie, test_values);
 }
 
-void test_TriePrefixedEraseAll(OP::utest::TestResult& tresult)
+void test_TriePrefixedEraseAll(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -1072,7 +1072,7 @@ void test_TriePrefixedEraseAll(OP::utest::TestResult& tresult)
 
 }
 
-void test_TriePrefixedKeyEraseAll(OP::utest::TestResult& tresult)
+void test_TriePrefixedKeyEraseAll(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -1163,7 +1163,7 @@ void test_TriePrefixedKeyEraseAll(OP::utest::TestResult& tresult)
 
 }
 
-void test_NativeRangeSupport(OP::utest::TestResult& tresult)
+void test_NativeRangeSupport(OP::utest::TestRuntime& tresult)
 {
     using namespace OP::flur;
     tresult.info() << "apply lower_bound on container with native support\n";
@@ -1203,7 +1203,7 @@ void test_NativeRangeSupport(OP::utest::TestResult& tresult)
 
 }
 
-void test_TrieCheckExists(OP::utest::TestResult& tresult)
+void test_TrieCheckExists(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -1250,7 +1250,7 @@ void test_TrieCheckExists(OP::utest::TestResult& tresult)
     probe = (const atom_t*)"xyz";
     tresult.assert_false(trie->check_exists(probe));
 }
-void test_NextLowerBound(TestResult& tresult)
+void test_NextLowerBound(TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -1318,26 +1318,26 @@ void test_NextLowerBound(TestResult& tresult)
 }   
 
 
-static auto module_suite = OP::utest::default_test_suite("Trie.core")
-->declare(test_TrieCreation, "creation")
-->declare(test_TrieInsert, "insertion")
-->declare(test_TrieInsertGrow, "insertion-grow")
-->declare(test_TrieUpdate, "update values")
-////->declare(test_TrieGrowAfterUpdate, "grow-after-update")
-->declare(test_TrieLowerBound, "lower_bound")
-->declare(test_TrieLowerBound_ISSUE001, "lower_bound_ISSUE001")
-->declare(test_PrefixedFind, "prefixed find")
-->declare(test_TrieNoTran, "trie no tran")
-////->declare(test_TrieSectionRange, "section range")
-->declare(test_Erase, "erase")
-->declare(test_Siblings, "siblings")
-->declare(test_IteratorSync, "sync iterator")
-->declare(test_TrieUpsert, "upsert")
-->declare(test_TriePrefixedInsert, "prefixed insert")
-->declare(test_TriePrefixedUpsert, "prefixed upsert")
-->declare(test_TriePrefixedEraseAll, "prefixed erase_all")
-->declare(test_TriePrefixedKeyEraseAll, "prefixed erase_all by key")
-->declare(test_TrieCheckExists, "check_exists")
-->declare(test_NextLowerBound, "next_lower_bound")
+static auto& module_suite = OP::utest::default_test_suite("Trie.core")
+.declare("creation", test_TrieCreation)
+.declare("insertion", test_TrieInsert)
+.declare("insertion-grow", test_TrieInsertGrow)
+.declare("update values", test_TrieUpdate)
+////.declare("grow-after-update", test_TrieGrowAfterUpdate)
+.declare("lower_bound", test_TrieLowerBound)
+.declare("lower_bound_ISSUE001", test_TrieLowerBound_ISSUE001)
+.declare("prefixed find", test_PrefixedFind)
+.declare("trie no tran", test_TrieNoTran)
+////.declare("section range", test_TrieSectionRange)
+.declare("erase", test_Erase)
+.declare("siblings", test_Siblings)
+.declare("sync iterator", test_IteratorSync)
+.declare("upsert", test_TrieUpsert)
+.declare("prefixed insert", test_TriePrefixedInsert)
+.declare("prefixed upsert", test_TriePrefixedUpsert)
+.declare("prefixed erase_all", test_TriePrefixedEraseAll)
+.declare("prefixed erase_all by key", test_TriePrefixedKeyEraseAll)
+.declare("check_exists", test_TrieCheckExists)
+.declare("next_lower_bound", test_NextLowerBound)
 ;
 }//ns:""

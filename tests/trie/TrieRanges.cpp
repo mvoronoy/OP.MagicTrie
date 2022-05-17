@@ -54,7 +54,7 @@ inline void print_co(Stream& os, const Co& co)
 #include "TrieTestUtils.h"
 #include <random>
 
-void test_TrieSubtree(OP::utest::TestResult& tresult)
+void test_TrieSubtree(OP::utest::TestRuntime& tresult)
 {
 
     std::random_device rd;
@@ -154,7 +154,7 @@ void test_TrieSubtree(OP::utest::TestResult& tresult)
 
 template <class R1, class R2, class Sample>
 void test_join(
-    OP::utest::TestResult& tresult, R1 r1, R2 r2, const Sample& expected)
+    OP::utest::TestRuntime& tresult, R1 r1, R2 r2, const Sample& expected)
 {
     using namespace OP::flur;
 
@@ -168,7 +168,7 @@ void test_join(
     auto result2 = r2 >> then::join(r1, cmp);
     tresult.assert_that<eq_sets>(result2, expected, OP_CODE_DETAILS());
 }
-void test_TrieSubtreeLambdaOperations(OP::utest::TestResult& tresult)
+void test_TrieSubtreeLambdaOperations(OP::utest::TestRuntime& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -305,7 +305,7 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestResult& tresult)
     //    OP_CODE_DETAILS());
 }
 
-void test_Flatten(OP::utest::TestResult& tresult)
+void test_Flatten(OP::utest::TestRuntime& tresult)
 {
     using namespace OP::flur;
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
@@ -427,7 +427,7 @@ void test_Flatten(OP::utest::TestResult& tresult)
 
 }
 
-//void test_TrieSectionRange(OP::utest::TestResult& tresult)
+//void test_TrieSectionRange(OP::utest::TestRuntime& tresult)
 //{
 //
 //    auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
@@ -532,7 +532,7 @@ void test_Flatten(OP::utest::TestResult& tresult)
 //}
 
 
-void test_ChildSelector(OP::utest::TestResult& tresult)
+void test_ChildSelector(OP::utest::TestRuntime& tresult)
 {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -612,7 +612,7 @@ void test_ChildSelector(OP::utest::TestResult& tresult)
 
 }
 
-void test_Range(OP::utest::TestResult& tresult)
+void test_Range(OP::utest::TestRuntime& tresult)
 {
     using namespace OP::flur;
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
@@ -662,7 +662,7 @@ void test_Range(OP::utest::TestResult& tresult)
 
     tresult.assert_that<equals>(7, std::distance(range_rest.begin(), range_rest.end()), "wrong counter");
 }
-void test_NativeRangeSupport(OP::utest::TestResult& tresult)
+void test_NativeRangeSupport(OP::utest::TestRuntime& tresult)
 {
     using namespace OP::flur;
     tresult.info() << "apply lower_bound on container with native support\n";
@@ -718,7 +718,7 @@ std::int64_t applyJoinRest(Range1 range1, Range2 range2, Vector &result)
     return retval;
 }
 
-void test_JoinRangeOverride(TestResult& tresult)
+void test_JoinRangeOverride(TestRuntime& tresult)
 {
     using namespace OP::flur;
 
@@ -824,7 +824,7 @@ void test_JoinRangeOverride(TestResult& tresult)
     //compare_containers(tresult, t2r1, test_values);
 
 }
-//void test_AllPrefixesRange(OP::utest::TestResult& tresult) {
+//void test_AllPrefixesRange(OP::utest::TestRuntime& tresult) {
 //    
 //    using namespace OP::flur;
 //
@@ -959,7 +959,7 @@ void test_JoinRangeOverride(TestResult& tresult)
 //        test_values, OP_CODE_DETAILS());
 //}
 
-void test_ISSUE_0001(OP::utest::TestResult& tresult) {
+void test_ISSUE_0001(OP::utest::TestRuntime& tresult) {
     OP::trie::atom_string_t source_seq[] = {
         { 0x13,0x04,0x10,0x50,0x12,0xc1,0x5b,0xa1,0x0e,0x9e,0x16,0xdc,0xef,0x4c,0x6e,0x34,0x9b,0x96 },
         { 0x14,0x44,0xa2,0xfa,0xdb,0x41,0xa1,0xd8,0x45,0xe0,0x12,0xfe,0x98,0x10,0x4d,0x55,0x87,0x04,0xf5,0x02,0x87,0x52,0x41,0xa1,0xd8,0x45,0xc0,0x12,0xfe,0x98,0x9c,0xbf,0x89,0xaa },
@@ -1229,18 +1229,18 @@ void test_ISSUE_0001(OP::utest::TestResult& tresult) {
 //
 //
 
-static auto module_suite = OP::utest::default_test_suite("Trie.range")
+static auto& module_suite = OP::utest::default_test_suite("Trie.range")
 
-->declare(test_TrieSubtree, "subtree of prefix")
-->declare(test_TrieSubtreeLambdaOperations, "lambda on subtree")
-->declare(test_Flatten, "flatten")
-////->declare(test_TrieSectionRange, "section range")
-////->declare(test_AllPrefixesRange, "all_prefixes_range")
-->declare(test_ChildSelector, "child")
-->declare(test_Range, "iterate all by range")
-->declare(test_NativeRangeSupport, "test native ranges of Trie")
-->declare(test_JoinRangeOverride, "override_join_range")
-->declare(test_ISSUE_0001, "ISSUE_0001")
+.declare("subtree of prefix", test_TrieSubtree)
+.declare("lambda on subtree", test_TrieSubtreeLambdaOperations)
+.declare("flatten", test_Flatten)
+////.declare("section range", test_TrieSectionRange)
+////.declare("all_prefixes_range", test_AllPrefixesRange)
+.declare("child", test_ChildSelector)
+.declare("iterate all by range", test_Range)
+.declare("test native ranges of Trie", test_NativeRangeSupport)
+.declare("override_join_range", test_JoinRangeOverride)
+.declare("ISSUE_0001", test_ISSUE_0001)
 //
 ;
 }//ns:""

@@ -8,7 +8,7 @@
 using namespace OP::utest;
 
 template <class Trie, class Map>
-void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const Map& map)
+void compare_containers(OP::utest::TestRuntime &tresult, const Trie& trie, const Map& map)
 {
     using namespace OP::utest;
 
@@ -53,7 +53,7 @@ void compare_containers(OP::utest::TestResult &tresult, const Trie& trie, const 
     }
 }
 template <class Trie, class Map>
-void compare_containers_relaxed_order(OP::utest::TestResult& tresult, const Trie& trie, Map map)
+void compare_containers_relaxed_order(OP::utest::TestRuntime& tresult, const Trie& trie, Map map)
 {
     auto tsn = trie.size(), msn = map.size();
     tresult.assert_that<equals>(tsn, msn, OP_CODE_DETAILS() << "Size is wrong, expected:" << msn << ", but: " << tsn);

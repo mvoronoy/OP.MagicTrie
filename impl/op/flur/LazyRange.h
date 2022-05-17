@@ -113,6 +113,12 @@ namespace flur
             using arg_t = LazyRange<Ux ...>;
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(std::move(_storage), lr._storage));
         }
+        template <class ... Ux>
+        constexpr auto operator >> (std::tuple<Ux ...> && lr) && noexcept
+        {
+            using arg_t = LazyRange<Ux ...>;
+            return LazyRange < Tx ..., Ux ... >(std::tuple_cat(std::move(_storage), lr));
+        }
 
         template <class ... Ux>
         constexpr auto operator >> (const LazyRange<Ux ...>& lr)const& noexcept

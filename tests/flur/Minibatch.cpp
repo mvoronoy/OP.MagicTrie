@@ -20,7 +20,7 @@ using namespace std::string_literals;
 namespace {
 
     template <size_t N>
-    void apply_minitest(OP::utest::TestResult & tresult)
+    void apply_minitest(OP::utest::TestRuntime & tresult)
     {
         OP::utils::ThreadPool tp(2);
 
@@ -42,13 +42,13 @@ namespace {
         }
         tresult.assert_that<equals>(order_check, 20, "wrong count of items in sequence");
     }
-    void test_minibatch(OP::utest::TestResult& tresult)
+    void test_minibatch(OP::utest::TestRuntime& tresult)
     {
         apply_minitest<2>(tresult);
         apply_minitest<3>(tresult);
     }
 
-    static auto module_suite = OP::utest::default_test_suite("flur.minibatch")
-        ->declare(test_minibatch, "base")
+    static auto& module_suite = OP::utest::default_test_suite("flur.minibatch")
+        .declare("base", test_minibatch)
         ;
 }

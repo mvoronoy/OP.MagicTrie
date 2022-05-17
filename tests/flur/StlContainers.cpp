@@ -40,7 +40,7 @@ struct TestCopySensetive
 
 };
 
-void test_Vector(OP::utest::TestResult& tresult)
+void test_Vector(OP::utest::TestRuntime& tresult)
 {
     using sens_vectror_t = std::vector<TestCopySensetive>;
     auto r = src::of_container(sens_vectror_t(3));
@@ -71,7 +71,7 @@ void test_Vector(OP::utest::TestResult& tresult)
     }
 
 }
-void test_Iota(OP::utest::TestResult& tresult)
+void test_Iota(OP::utest::TestRuntime& tresult)
 {
     constexpr auto pipeline = src::of_iota(1, 3);
     static_assert(pipeline.compound().ordered_c, "iota must produce ordered sequence");
@@ -83,7 +83,7 @@ void test_Iota(OP::utest::TestResult& tresult)
         "default with reduce failed");
 }
 
-void test_Map(OP::utest::TestResult& tresult)
+void test_Map(OP::utest::TestRuntime& tresult)
 {
     using tst_map_t = std::map<char, float>;
     using element_t = typename tst_map_t::value_type;
@@ -99,7 +99,7 @@ void test_Map(OP::utest::TestResult& tresult)
         
 }
 
-void test_Set(OP::utest::TestResult& tresult)
+void test_Set(OP::utest::TestRuntime& tresult)
 {
     using tst_set_t = std::set<std::string>;
     auto r = src::of_container(tst_set_t{ "a"s, "ab"s, ""s });
@@ -119,7 +119,7 @@ void test_Set(OP::utest::TestResult& tresult)
     }
 }
 
-void test_Optional(OP::utest::TestResult& tresult)
+void test_Optional(OP::utest::TestRuntime& tresult)
 {   
     constexpr auto r = src::of_optional(57.f);
     static_assert(r.compound().ordered_c, "Optional must produce ordered sequence");
@@ -140,7 +140,7 @@ void test_Optional(OP::utest::TestResult& tresult)
     
 }
 
-void test_Value(OP::utest::TestResult& tresult)
+void test_Value(OP::utest::TestRuntime& tresult)
 {
     constexpr auto r_bool = src::of_value(false);
     static_assert(r_bool.compound().ordered_c, "bool-singleton must produce ordered sequence");
@@ -150,7 +150,7 @@ void test_Value(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(42, OP::flur::reduce(src::of_value(42), 0.f),
         "Wrong count of single value");
 }
-void test_Iterate(OP::utest::TestResult& tresult)
+void test_Iterate(OP::utest::TestRuntime& tresult)
 {
     using tst_map_t = std::map<char, float>;
     using element_t = typename tst_map_t::value_type;
@@ -189,12 +189,12 @@ void test_Iterate(OP::utest::TestResult& tresult)
     //test_method((check_ref ).compound());
 }
 
-static auto module_suite = OP::utest::default_test_suite("flur.stl")
-->declare(test_Vector, "vector")
-->declare(test_Map, "map")
-->declare(test_Set, "set")
-->declare(test_Optional, "optional")
-->declare(test_Value, "value")
-->declare(test_Iota, "iota")
-->declare(test_Iterate, "iterate")
+static auto& module_suite = OP::utest::default_test_suite("flur.stl")
+.declare("vector", test_Vector)
+.declare("map", test_Map)
+.declare("set", test_Set)
+.declare("optional", test_Optional)
+.declare("value", test_Value)
+.declare("iota", test_Iota)
+.declare("iterate", test_Iterate)
 ;

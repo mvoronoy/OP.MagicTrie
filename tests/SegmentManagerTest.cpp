@@ -7,7 +7,7 @@
 #include "GenericMemoryTest.h"
 using namespace OP::trie;
 
-void test_SegmentManager(OP::utest::TestResult& result)
+void test_SegmentManager(OP::utest::TestRuntime& result)
 {
     const char seg_file_name[] = "segementation.test";
     GenericMemoryTest::test_MemoryManager<OP::trie::SegmentManager>(seg_file_name, result);
@@ -15,6 +15,6 @@ void test_SegmentManager(OP::utest::TestResult& result)
               
 
 //using std::placeholders;
-static auto module_suite = OP::utest::default_test_suite("SegmentManager")
-->declare(test_SegmentManager, "HeapManagerSlot")
+static auto& module_suite = OP::utest::default_test_suite("SegmentManager")
+.declare("HeapManagerSlot", test_SegmentManager)
 ;

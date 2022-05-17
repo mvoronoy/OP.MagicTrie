@@ -15,7 +15,7 @@ Os& operator << (Os& os, const OP::Range<Int1, Int2>& r)
 }
 
 template <class Container, class Sampler>
-void comparative_test(OP::utest::TestResult& tresult, Container& co, Sampler samples)
+void comparative_test(OP::utest::TestRuntime& tresult, Container& co, Sampler samples)
 {
     for (auto found = co.begin(); found != co.end(); ++found)
     {
@@ -27,7 +27,7 @@ void comparative_test(OP::utest::TestResult& tresult, Container& co, Sampler sam
 }
 
 template <class Span, class SpanContainer, class Sampler>
-void intersect_test(OP::utest::TestResult& tresult, const Span& test_span, SpanContainer& from, Sampler samples)
+void intersect_test(OP::utest::TestRuntime& tresult, const Span& test_span, SpanContainer& from, Sampler samples)
 {
     auto tracker = from.intersect_with(test_span);
     while (tracker != from.end() && OP::zones::is_overlapping(*tracker, test_span) && !samples.empty())
@@ -48,7 +48,7 @@ struct less_by_pos{ //used as less for std::set
 };
 using check_container_t = std::multiset<zone_t, less_by_pos>;
 
-void test_add(OP::utest::TestResult& tresult)
+void test_add(OP::utest::TestRuntime& tresult)
 {
     using span_container_t = OP::zones::SpanSet<zone_t>;
     using tracker_t = typename span_container_t::IntersectionTracker;
@@ -127,7 +127,7 @@ void test_add(OP::utest::TestResult& tresult)
             check_container_t{zone_t(1, 3), zone_t(1, 3), zone_t(1, 3), zone_t(10, 20), zone_t(10, 1000), zone_t(10, 1000)} );
     }
 }
-int overlap_add(OP::utest::TestResult& tresult)
+int overlap_add(OP::utest::TestRuntime& tresult)
 {
     using span_container_t = OP::zones::SpanSet<zone_t>;
     span_container_t container;
@@ -230,7 +230,7 @@ auto find_all_intersects = [](const zone_t& what, const check_container_t& from)
     return rv;
 };
 
-void random_stuff_test(OP::utest::TestResult& tresult)
+void random_stuff_test(OP::utest::TestRuntime& tresult)
 {
     using span_container_t = OP::zones::SpanSet<zone_t>;
     using tracker_t = typename span_container_t::IntersectionTracker ;
@@ -287,7 +287,7 @@ void random_stuff_test(OP::utest::TestResult& tresult)
         << std::chrono::duration<double, std::milli>(finish - start).count() << "[mks]"
         << std::endl;
 }
-void test_erase(OP::utest::TestResult& tresult)
+void test_erase(OP::utest::TestRuntime& tresult)
 {
     using span_container_t = OP::zones::SpanSet<zone_t>;
     span_container_t container;
@@ -368,7 +368,7 @@ void test_erase(OP::utest::TestResult& tresult)
 
     }
 }
-void test_dump(OP::utest::TestResult& tresult)
+void test_dump(OP::utest::TestRuntime& tresult)
 {
     using span_container_t = OP::zones::SpanSet<zone_t>;
     using tracker_t = typename span_container_t::IntersectionTracker ;
@@ -386,7 +386,7 @@ void test_dump(OP::utest::TestResult& tresult)
     container.dump(tresult.debug() << "--====##### Branches dump for :("<< limit_c<< ") node #####====--\n");
 }
 
-void test_map(OP::utest::TestResult& tresult)
+void test_map(OP::utest::TestRuntime& tresult)
 {
     
     using span_map_t = OP::zones::SpanMap<zone_t, double>;
@@ -421,10 +421,10 @@ void test_map(OP::utest::TestResult& tresult)
     }
     tresult.assert_true(sample_map.empty());
 }
-static auto module_suite = OP::utest::default_test_suite("SpanContainer")
-->declare(test_add, "add")
-->declare(overlap_add, "overlap")
-->declare(random_stuff_test, "random")
-->declare(test_erase, "erase")
-->declare(test_map, "map")
+static auto& module_suite = OP::utest::default_test_suite("SpanContainer")
+.declare("add", test_add)
+.declare("overlap", overlap_add)
+.declare("random", random_stuff_test)
+.declare("erase", test_erase)
+.declare("map", test_map)
 ;

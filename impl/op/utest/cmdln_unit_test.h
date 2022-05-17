@@ -163,13 +163,13 @@ namespace OP
                 .on("-l")
                 .description("list known test cases instead of run them")
                 .action([](){
-                    auto case_callback = [](OP::utest::TestCase& cs)-> bool {
-                        std::cout << "\t>" << cs.id() << "\n";
-                        return true;
-                    };
+                    
                     auto suite_callback = [&](OP::utest::TestSuite& sui) {
                         std::cout << sui.id() << "\n";
-                        sui.list_cases(case_callback);
+                        for (auto& cs : sui)
+                        {
+                            std::cout << "\t>" << cs->id() << "\n";
+                        }
                         return true;
                     };
                     OP::utest::TestRun::default_instance().list_suites(suite_callback);
@@ -214,11 +214,11 @@ namespace OP
                 OP::utest::TestRun::default_instance().run_if(test_case_filter);
             std::map<std::string, size_t> summary_map;
             int status = 0;
-            for (auto result : all_result)
+            for (auto& result : all_result)
             {
-                if (!*result)
-                    status = (int)result->status();
-                auto agg = summary_map.emplace(result->status_to_str(), 0);
+                if (!result) //encount last fail
+                    status = static_cast<int>(result.status());
+                auto agg = summary_map.emplace(result.status_to_str(), 0);
                 ++agg.first->second;
             }
             //restore cout formatting

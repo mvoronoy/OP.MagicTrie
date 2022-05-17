@@ -54,7 +54,7 @@ namespace functional {
 
 }  // namespace functional
 
-void test_FlatMapFromPipeline(OP::utest::TestResult& tresult)
+void test_FlatMapFromPipeline(OP::utest::TestRuntime& tresult)
 {
     constexpr int N = 4;
 
@@ -116,7 +116,7 @@ struct ExploreVector
 
     std::vector<T> _store;
 };
-void test_FlatMapFromContainer(OP::utest::TestResult& tresult)
+void test_FlatMapFromContainer(OP::utest::TestRuntime& tresult)
 {
     constexpr int N = 4;
     constexpr auto fm_lazy = src::of_iota(1, N + 1)
@@ -143,7 +143,7 @@ void test_FlatMapFromContainer(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(g_copied, 0, "Wrong times");
 }
 
-void test_FlatMapFromCref(OP::utest::TestResult& tresult)
+void test_FlatMapFromCref(OP::utest::TestRuntime& tresult)
 {
     struct User
     {
@@ -176,7 +176,7 @@ void test_FlatMapFromCref(OP::utest::TestResult& tresult)
     tresult.assert_that<equals>(g_moved, 0, "Wrong rref move times");
 }
 
-void test_FlatMapWithEmpty(OP::utest::TestResult& tresult)
+void test_FlatMapWithEmpty(OP::utest::TestRuntime& tresult)
 {
     struct User
     {
@@ -225,9 +225,9 @@ void test_FlatMapWithEmpty(OP::utest::TestResult& tresult)
     tresult.assert_that<eq_sets>(expected, lst3, "result sequene broken by empty-moddle");
 }
 
-static auto module_suite = OP::utest::default_test_suite("flur.then")
-->declare(test_FlatMapFromPipeline, "flatmap")
-->declare(test_FlatMapFromContainer, "rref-flatmap")
-->declare(test_FlatMapFromCref, "cref-flatmap")
-->declare(test_FlatMapWithEmpty, "flatmap-with-empty")
-;
+static auto& module_suite = OP::utest::default_test_suite("flur.then")
+.declare("flatmap", test_FlatMapFromPipeline)
+.declare("rref-flatmap", test_FlatMapFromContainer)
+.declare("cref-flatmap", test_FlatMapFromCref)
+.declare("flatmap-with-empty", test_FlatMapWithEmpty)
+ ;

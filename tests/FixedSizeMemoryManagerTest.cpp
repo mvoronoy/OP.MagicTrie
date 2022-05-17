@@ -13,7 +13,7 @@ static OP_CONSTEXPR(const) unsigned test_nodes_count_c = 101;
 
 
 template <class FixedSizeMemoryManager, class SegmentTopology>
-void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
+void test_Generic(OP::utest::TestRuntime &tresult, SegmentTopology& topology)
 {
     auto &mngr = topology.OP_TEMPL_METH(slot)<FixedSizeMemoryManager>();
     auto b100 = mngr.allocate();
@@ -45,7 +45,7 @@ void test_Generic(OP::utest::TestResult &tresult, SegmentTopology& topology)
         tresult.assert_true(i + 57 == to_test->inc, "Invalid value stored");
     }
 }
-void test_NodeManager(OP::utest::TestResult &tresult)
+void test_NodeManager(OP::utest::TestRuntime &tresult)
 {
 
     struct TestPayload
@@ -70,7 +70,7 @@ void test_NodeManager(OP::utest::TestResult &tresult)
     test_Generic<test_node_manager_t>(tresult, mngrToplogy);
 
 }
-void test_NodeManagerSmallPayload(OP::utest::TestResult &tresult)
+void test_NodeManagerSmallPayload(OP::utest::TestRuntime &tresult)
 {
     struct TestPayloadSmall
     {/*The size of Payload selected to be smaller than FixedSizeMemoryManager::ZeroHeader */
@@ -91,7 +91,7 @@ void test_NodeManagerSmallPayload(OP::utest::TestResult &tresult)
     test_Generic<test_node_manager_t>(tresult, mngrToplogy);
 }
 
-static auto module_suite = OP::utest::default_test_suite("FixedSizeMemoryManager")
-->declare(test_NodeManager, "general")
-->declare(test_NodeManagerSmallPayload, "small-payload")
+static auto& module_suite = OP::utest::default_test_suite("FixedSizeMemoryManager")
+.declare("general", test_NodeManager)
+.declare("small-payload", test_NodeManagerSmallPayload)
 ;

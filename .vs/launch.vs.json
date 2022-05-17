@@ -8,9 +8,8 @@
       "projectTarget": "trie_test.exe",
       "name": "trie_test.exe",
       "args": [
-        "-r MixedAdapter.prefix-join",
-        "-d",
-        "3"
+        "-r flur.then/.+",
+        "-d 1"
       ]
 
     }

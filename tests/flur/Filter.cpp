@@ -11,7 +11,7 @@ using namespace OP::flur;
 using namespace std::string_literals;
 
 namespace {
-    void test_ThenFilter(OP::utest::TestResult& tresult)
+    void test_ThenFilter(OP::utest::TestRuntime& tresult)
     {
         tresult.info() << "Filter empty source\n";
         const std::set<std::string> empty_set;
@@ -44,7 +44,7 @@ namespace {
         tresult.assert_that<equals>(1, invocations, "wrong result number");
 
     }
-    void test_FilterEdge(OP::utest::TestResult& tresult)
+    void test_FilterEdge(OP::utest::TestRuntime& tresult)
     {
         const std::vector<int> all_num = {1, 2, 3, 4, 5};
         auto r1 = src::of(all_num)
@@ -55,7 +55,7 @@ namespace {
         tresult.fail("In current codebase must fail");
     }
     static auto module_suite = OP::utest::default_test_suite("flur.then")
-        ->declare(test_ThenFilter, "filter")
-        ->declare(test_FilterEdge, "filter-edge")
+        .declare("filter", test_ThenFilter)
+        .declare("filter-edge", test_FilterEdge)
         ;
 }//ns: empty

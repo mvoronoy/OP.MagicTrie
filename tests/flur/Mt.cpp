@@ -82,7 +82,7 @@ int gcd(int a, int b)
 
 
 
-void test_Mt(OP::utest::TestResult& tresult)
+void test_Mt(OP::utest::TestRuntime& tresult)
 {
 
     //(src::of_iota(20, 114) >> then::mapping([](auto i) {
@@ -154,7 +154,7 @@ void test_Mt(OP::utest::TestResult& tresult)
         tresult.assert_that<equals>(count_out, (i_end - i_start) * big_int_basis.size(), "Wrong num of rows produced");
 }
 
-void test_mt_exceptions(OP::utest::TestResult& tresult)
+void test_mt_exceptions(OP::utest::TestRuntime& tresult)
 {
     auto f = std::async(std::launch::async, [] { return 0; });
     auto x1 = src::of_lazy_value([&]() {return std::move(f); });
@@ -231,7 +231,7 @@ void test_mt_exceptions(OP::utest::TestResult& tresult)
             */
         });
 }
-static auto module_suite = OP::utest::default_test_suite("flur.multithread")
-->declare(test_Mt, "mt")
-->declare(test_mt_exceptions, "exceptions")
+static auto& module_suite = OP::utest::default_test_suite("flur.multithread")
+.declare("mt", test_Mt)
+.declare("exceptions", test_mt_exceptions)
 ;

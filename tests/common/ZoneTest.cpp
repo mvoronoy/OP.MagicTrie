@@ -89,7 +89,7 @@ void test_Zones()
 
 }
 
-static auto module_suite = OP::utest::default_test_suite("Zones")
-->declare(test_ZoneContainer, "zoneConatiner")
-->declare(test_Zones, "zone")
+static auto& module_suite = OP::utest::default_test_suite("Zones")
+.declare("zoneConatiner", test_ZoneContainer)
+.declare("zone", test_Zones)
 ;

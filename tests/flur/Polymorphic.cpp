@@ -13,7 +13,7 @@ namespace {
     using namespace OP::utest;
     using namespace OP::flur;
     using namespace std::string_literals;
-    void test_mk_polymorph(OP::utest::TestResult& tresult)
+    void test_mk_polymorph(OP::utest::TestRuntime& tresult)
     {
         using set_t = std::set <std::string >;
 
@@ -41,7 +41,7 @@ namespace {
 
     }
 
-    void test_polymorph_to_lazy_range(OP::utest::TestResult& tresult)
+    void test_polymorph_to_lazy_range(OP::utest::TestRuntime& tresult)
     {
         auto src = 
             make_shared(src::of_container(std::set<std::string>{"a", "b", "c"}));
@@ -59,9 +59,9 @@ namespace {
         static_assert(!back_struct2_t::ordered_c, "must produce un-ordered");
 
     }
-    static auto module_suite = OP::utest::default_test_suite("flur.polymorphic")
-        ->declare(test_mk_polymorph, "basic")
+    static auto& module_suite = OP::utest::default_test_suite("flur.polymorphic")
+        .declare("basic", test_mk_polymorph)
         
-        ->declare(test_polymorph_to_lazy_range, "back")
+        .declare("back", test_polymorph_to_lazy_range)
         ;
 } //ns:<anonymous>

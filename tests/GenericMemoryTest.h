@@ -37,7 +37,7 @@ struct GenericMemoryTest{
     0x4E, 0xD5, 0xAE, 0x4B, 0xCE, 0xA4, 0x4B, 0x00, 0x00, 0x00 };
 
     template <class Sm>
-    static void test_MemoryManager(const char * seg_file_name, OP::utest::TestResult& result)
+    static void test_MemoryManager(const char * seg_file_name, OP::utest::TestRuntime& result)
     {
         result.info() << "test HeapManagerSlot on" << typeid(Sm).name() << "..." << std::endl;
         std::uint32_t tst_size = -1;

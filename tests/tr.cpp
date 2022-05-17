@@ -146,16 +146,16 @@ void test_CacheManager()
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     cache._check_integrity();
 }
-static void test_Abort(OP::utest::TestResult &result)
+static void test_Abort(OP::utest::TestRuntime &result)
 {
     assert(false);
     result.fail("Exception must be raised");
 }
 
-static auto module_suite = OP::utest::default_test_suite("Arbitrary")
-->declare(test_align, "align")
-->declare(test_CacheManager, "cacheManager")
-->declare_disabled/*declare_exceptional*/(test_Abort, "testAbort")
+static auto& module_suite = OP::utest::default_test_suite("Arbitrary")
+.declare("align", test_align)
+.declare("cacheManager", test_CacheManager)
+.declare_disabled/*declare_exceptional*/("testAbort", test_Abort)
 ;
 
 int main(int argc, char* argv[])

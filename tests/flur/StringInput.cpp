@@ -11,7 +11,7 @@ using namespace std::string_literals;
 using namespace std::string_view_literals;
 namespace {
 
-    void test_Split(OP::utest::TestResult& tresult)
+    void test_Split(OP::utest::TestRuntime& tresult)
     {
         tresult.assert_true(
             std::empty(src::of_string_split(""s))
@@ -45,7 +45,7 @@ namespace {
             src::of_string_split("aaa  bb c"s), 
             std::vector<std::string> {"aaa"s, "bb"s, "c"s}, "tripplet items failed");
     }
-    void test_SplitSep(OP::utest::TestResult& tresult)
+    void test_SplitSep(OP::utest::TestRuntime& tresult)
     {
         tresult.assert_that<eq_sets>(
             src::of_string_split("a b c"s, ""s), 
@@ -67,9 +67,9 @@ namespace {
             src::of_string_split("a\0a\0bbb\0cccc\0ddd dd\0"s, "\0"s), 
             std::vector<std::string> {"a"s, "a"s, "bbb"s, "cccc"s, "ddd dd"s}, "zero - char separator");
     }
-    static auto module_suite = OP::utest::default_test_suite("flur.string")
-        ->declare(test_Split, "split")
-        ->declare(test_SplitSep, "split-separator")
+    static auto& module_suite = OP::utest::default_test_suite("flur.string")
+        .declare("split", test_Split)
+        .declare("split-separator", test_SplitSep)
         ;
 
 } //ns:<>

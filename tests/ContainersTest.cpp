@@ -85,7 +85,7 @@ void NodeHash_insert( )
   
 }
 
-void NodeHash_erase(OP::utest::TestResult &tresult)
+void NodeHash_erase(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "test erase...\n";
     TestHashTable<16> tbl;
@@ -196,7 +196,7 @@ void NodeHash_erase(OP::utest::TestResult &tresult)
 }
 
 //using std::placeholders;
-static auto module_suite = OP::utest::default_test_suite("Containers")
-->declare(NodeHash_insert, "Hash(Insert)")
-->declare(NodeHash_erase, "Hash(Erase)")
+static auto& module_suite = OP::utest::default_test_suite("Containers")
+.declare("Hash(Insert)", NodeHash_insert)
+.declare("Hash(Erase)", NodeHash_erase)
 ;
