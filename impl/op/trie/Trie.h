@@ -554,7 +554,9 @@ namespace OP
                 auto on_update = [&op_g](iterator& ) {
                     op_g.rollback(); //do nothing on update TODO: check case of nested transaction if smthng is destroyed
                 };
-                return upsert_impl(end(), begin, aend, value_assigner, on_update);
+                auto result = std::make_pair(end(), true);
+                upsert_impl(result, begin, aend, value_assigner, on_update);
+                return result;
             }
             template <class AtomContainer>
             std::pair<iterator, bool> insert(const AtomContainer& container, Payload value)
@@ -580,7 +582,9 @@ namespace OP
                 auto on_update = [&](iterator& pos) {
                     //do nothing on update
                 };
-                return upsert_impl(of_prefix, begin, aend, value_assigner, on_update);
+                auto result = std::make_pair(of_prefix, true);
+                upsert_impl(result, begin, aend, value_assigner, on_update);
+                return result;
             }
             template <class AtomContainer>
             std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, const AtomContainer& container, Payload payload)
@@ -667,8 +671,11 @@ namespace OP
                     assert(v.has_data());
                     v.set_data(std::move(value));
                 };
-                return upsert_impl(of_prefix, begin, aend, value_assigner, on_update);
+                auto result = std::make_pair(of_prefix, true);
+                upsert_impl(result, begin, aend, value_assigner, on_update);
+                return result;
             }
+
             template <class AtomContainer>
             std::pair<iterator, bool> prefixed_upsert(iterator& prefix, const AtomContainer& container, Payload value)
             {
@@ -959,9 +966,8 @@ namespace OP
             *       just inserted item, otherwise it points to already existing key
             */
             template <class AtomIterator, class FValueEval, class FOnUpdate>
-            std::pair<iterator, bool> upsert_impl(const iterator& start_from, AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
+            void upsert_impl(std::pair<iterator, bool> &result, AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
             {
-                auto result = std::make_pair(start_from, true/*suppose insert succeeded*/);
                 auto& iter = result.first;
                 auto origin_begin = begin;
                 auto pref_res = common_prefix(begin, end, iter);
@@ -970,11 +976,11 @@ namespace OP
                 case stem::StemCompareResult::equals:
                     f_on_update(iter);
                     result.second = false;
-                    return result; //dupplicate found
+                    return /*result*/; //dupplicate found
                 case stem::StemCompareResult::no_entry:
                 {
                     unconditional_insert(pref_res.child_node, begin, end, iter, f_value_eval);
-                    return result;
+                    return /*result*/;
                 }
                 case stem::StemCompareResult::stem_end: //stem is over, just follow downstair to next node
                 {
@@ -986,7 +992,7 @@ namespace OP
                     node_addr = new_node();
                     wr_node->set_child(*_topology_ptr, static_cast<atom_t>(back.key()), node_addr);
                     unconditional_insert(node_addr, begin, end, iter, f_value_eval);
-                    return result;
+                    return /*result*/;
                 }
                 case stem::StemCompareResult::unequals:
                 {
@@ -1006,7 +1012,7 @@ namespace OP
                         wr_node->set_child(*_topology_ptr, (atom_t)back.key(), node_addr);
                     }
                     unconditional_insert(node_addr, begin, end, iter, f_value_eval);
-                    return result;
+                    return /*result*/;
                 }
                 case stem::StemCompareResult::string_end:
                 {
@@ -1045,12 +1051,12 @@ namespace OP
                     }
                     wr_node->set_value(*_topology_ptr, static_cast<atom_t>(back.key()), std::forward<Payload>(f_value_eval()));
                     iter.back()._terminality |= Terminality::term_has_data;
-                    return result;
+                    return /*result*/;
                 }
                 default:
                     assert(false);
                     result.second = false;
-                    return result; //fail stub
+                    return /*result*/; //fail stub
                 }
             }
             /**Return not fully valid iterator that matches common part specified by [begin, end)*/

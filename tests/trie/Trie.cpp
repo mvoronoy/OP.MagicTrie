@@ -31,6 +31,8 @@ struct lexicographic_less {
         return std::lexicographical_compare(s1.begin(), s1.end(), s2.begin(), s2.end());
     }
 };
+
+
 void test_TrieCreation(OP::utest::TestRuntime& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
@@ -860,7 +862,7 @@ void test_TriePrefixedInsert(OP::utest::TestRuntime& tresult)
     atom_string_t abc_str((const atom_t*)"abc");
     auto abc_iter = trie->find(abc_str);
     tresult.assert_false(abc_iter == trie->end(), "abc must exists");
-    auto abc_copy = abc_iter;
+    auto abc_copy = abc_iter; //make copy
     tresult.assert_that<logical_not<equals>>(trie->end(), trie->erase(abc_copy), "Erase failed");
     test_values.erase(abc_str);
     compare_containers(tresult, *trie, test_values);
@@ -987,6 +989,37 @@ void test_TriePrefixedUpsert(OP::utest::TestRuntime& tresult)
         });
     tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
     compare_containers(tresult, *trie, test_values);
+}
+
+void test_TriePrefixedIteratorStability(OP::utest::TestRuntime& rt)
+{
+    rt.info() << "Test all mutable prefixed operations keep prefix iterator at the right position...\n";
+    auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    auto prefix_a = trie->insert("prefix.a", 0.0);
+    auto prefix_b = trie->insert("prefix.b", 0.0);
+
+    auto key = "123"_astr;
+    auto ins_res = trie->prefixed_insert(
+        prefix_a.first, std::begin(key), std::end(key), 0.1);
+    rt.assert_true(ins_res.second, "must be unique");
+    rt.assert_that<equals>(prefix_a.first.key(), "prefix.a"_astr);
+
+    ins_res = trie->prefixed_upsert(
+        prefix_a.first, std::begin(key), std::end(key), 0.1);
+    rt.assert_false(ins_res.second, "must be dupplicate");
+    rt.assert_that<equals>(prefix_a.first.key(), "prefix.a"_astr);
+
+    ins_res = trie->prefixed_upsert(
+        prefix_b.first, std::begin(key), std::end(key), 0.1);
+    rt.assert_false(ins_res.second, "must be unique");
+    rt.assert_that<equals>(prefix_b.first.key(), "prefix.b"_astr);
+
 }
 
 void test_TriePrefixedEraseAll(OP::utest::TestRuntime& tresult)
@@ -1335,6 +1368,7 @@ static auto& module_suite = OP::utest::default_test_suite("Trie.core")
 .declare("upsert", test_TrieUpsert)
 .declare("prefixed insert", test_TriePrefixedInsert)
 .declare("prefixed upsert", test_TriePrefixedUpsert)
+.declare("prefixed iterator", test_TriePrefixedIteratorStability)
 .declare("prefixed erase_all", test_TriePrefixedEraseAll)
 .declare("prefixed erase_all by key", test_TriePrefixedKeyEraseAll)
 .declare("check_exists", test_TrieCheckExists)
