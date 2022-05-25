@@ -568,18 +568,20 @@ namespace OP
                     (function_traits_t::arity_c == 1
                         && std::is_same_v<TestSuite&, typename function_traits_t::arg_i<0>>),
                     "Functor for `before_suite` must accept 0 or 1 argument of `TestSuite&` type");
-
+                //Create wrapper that accept exactly 1 TestSuite parameter
                 _init_suite = [this, f = std::move(init_function)](TestSuite& owner)
                 {
                     if constexpr (function_traits_t::arity_c == 0)
-                    {
+                    { //user function has no arguments
                         auto res = f();
+                        //if init function  returns something - then treate as a shared state
                         if constexpr (!std::is_same_v<void, decltype(res)>)
                             _suite_shared_state = std::move(res);
                     }
                     else
                     {
                         auto res = f(*this);
+                        //if init function returns something - then treate as a shared state
                         if constexpr (!std::is_same_v<void, decltype(res)>)
                             _suite_shared_state = std::move(res);
                     }

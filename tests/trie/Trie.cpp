@@ -1001,8 +1001,8 @@ void test_TriePrefixedIteratorStability(OP::utest::TestRuntime& rt)
     typedef Trie<EventSourcingSegmentManager, double> trie_t;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
-    auto prefix_a = trie->insert("prefix.a", 0.0);
-    auto prefix_b = trie->insert("prefix.b", 0.0);
+    auto prefix_a = trie->insert("prefix.a"_astr, 0.0);
+    auto prefix_b = trie->insert("prefix.b"_astr, 0.0);
 
     auto key = "123"_astr;
     auto ins_res = trie->prefixed_insert(
@@ -1017,7 +1017,7 @@ void test_TriePrefixedIteratorStability(OP::utest::TestRuntime& rt)
 
     ins_res = trie->prefixed_upsert(
         prefix_b.first, std::begin(key), std::end(key), 0.1);
-    rt.assert_false(ins_res.second, "must be unique");
+    rt.assert_true(ins_res.second, "must be unique");
     rt.assert_that<equals>(prefix_b.first.key(), "prefix.b"_astr);
 
 }

@@ -29,8 +29,10 @@
 
 #if __cplusplus >= 202002L
     #define OP_VIRTUAL_CONSTEXPR constexpr virtual
+    #define OP_CONSTEXPR_CPP20 constexpr 
 #else
     #define OP_VIRTUAL_CONSTEXPR virtual
+    #define OP_CONSTEXPR_CPP20
 #endif //c++20
 
 

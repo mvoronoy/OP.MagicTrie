@@ -60,6 +60,7 @@ add_executable (trie_test
     "flur/Polymorphic.cpp" 
     "flur/StringInput.cpp"
     "flur/Join.cpp"
+    "flur/UnionAll.cpp"
 )
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)

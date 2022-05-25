@@ -27,6 +27,7 @@
 #include <op/flur/Minibatch.h>
 #include <op/flur/StringInput.h>
 #include <op/flur/Distinct.h>
+#include <op/flur/UnionAll.h>
 #include <op/flur/PolymorphsBack.h>
 #include <op/flur/stl_adapters.h>
 
@@ -252,6 +253,14 @@ namespace flur
         {
             return PartialJoinFactory<Right, Comp>(
                 std::forward<Right>(right), std::forward<Comp>(comp));
+        }
+        /** 
+        *   Non-ordered sequence that unions all (place side-by-side)
+        */
+        template <class ... Rx>
+        constexpr auto union_all(Rx&& ...right) noexcept
+        {
+            return UnionAllSequenceFactory<Rx...>(std::forward<Rx>(right) ...);
         }
 
         /** Convert source by filtering out some ellements according to predicate 

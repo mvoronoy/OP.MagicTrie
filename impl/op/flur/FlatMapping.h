@@ -23,9 +23,9 @@ namespace OP
             using base_t = Sequence<typename Target::element_t>;
             using element_t = typename base_t::element_t;
 
-            FlatMapping(Src&& src, const F& f)
+            FlatMapping(Src&& src, F f)
                 : _src(std::move(src))
-                , _applicator(f)
+                , _applicator(std::move(f))
             {
             }
 
@@ -34,14 +34,17 @@ namespace OP
                 details::get_reference(_src).start();
                 seek();
             }
+            
             virtual bool in_range() const
             {
                 return _defered && _defered->in_range();
             }
+            
             virtual element_t current() const
             {
                 return _defered->current();
             }
+            
             virtual void next()
             {
                 _defered->next();
@@ -89,7 +92,7 @@ namespace OP
             {
             }
             template <class Src>
-            constexpr auto compound(Src&& src) const noexcept
+            constexpr auto compound(Src&& src) const& noexcept
             {
                 using src_container_t = details::sequence_type_t<Src>;
                 using function_res_t = std::decay_t<decltype(_applicator(details::get_reference(src).current()))>;
@@ -97,6 +100,18 @@ namespace OP
 
                 return FlatMapping<src_container_t, target_set_t, F>(
                     std::move(src), _applicator);
+
+            }
+
+            template <class Src>
+            constexpr auto compound(Src&& src) && noexcept
+            {
+                using src_container_t = details::sequence_type_t<Src>;
+                using function_res_t = std::decay_t<decltype(_applicator(details::get_reference(src).current()))>;
+                using target_set_t = details::sequence_type_t<function_res_t>;
+
+                return FlatMapping<src_container_t, target_set_t, F>(
+                    std::move(src), std::move(_applicator) );
 
             }
             F _applicator;
