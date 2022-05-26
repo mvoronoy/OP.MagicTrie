@@ -89,11 +89,11 @@ namespace flur
 
         constexpr auto compound() const& noexcept
         {
-            return std::move(details::compound_impl(_storage));
+            return details::compound_impl(_storage);
         }
         constexpr auto compound() && noexcept
         {
-            return std::move(details::compound_impl(std::move(_storage)));
+            return details::compound_impl(std::move(_storage));
         }
 
         template <class T>
@@ -199,20 +199,6 @@ namespace flur
         using interface_t = typename impl_t::polymorph_base_t;
 
         return std::shared_ptr<interface_t>( new impl_t{ std::move(range) } );
-    }
-    template <class Iter >
-    constexpr auto make_union_all(Iter begin, Iter end) 
-    {
-        using factory_t = std::decay_t< decltype(begin) >;
-        if( begin == end )
-            throw std::out_of_range("union_all must provide 2+ factories");
-
-        factory_t first = *begin++;
-        if( begin == end )
-            throw std::out_of_range("union_all must provide 2+ factories");
-        factory_t second = *begin++;
-        UnionAllSequenceFactory<factory_t, factory_t> pair_union(std::move(first), std::move(second));
-
     }
 
     template <class ... Tx >

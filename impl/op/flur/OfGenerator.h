@@ -145,9 +145,13 @@ namespace OP
             {
             }
 
-            constexpr auto compound() const noexcept
+            constexpr auto compound() const& noexcept
             {
                 return generator_t(_gen);
+            }
+            constexpr auto compound() && noexcept
+            {
+                return generator_t(std::move(_gen));
             }
         };
 

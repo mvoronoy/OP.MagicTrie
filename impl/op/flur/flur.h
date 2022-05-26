@@ -143,7 +143,7 @@ namespace flur
         using String = T;
         /**
         * Create LazyRange to iterate over elements of string splitted by separator. Iteration 
-        * has minimal memory щмукруфв since to access uses std::string_view
+        * has minimal memory overhead since to access uses std::string_view
         * For example:\code
         * 
         * \endcode

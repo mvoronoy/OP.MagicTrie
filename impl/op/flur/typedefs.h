@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 #include <op/common/Utils.h>
 #include <op/common/ftraits.h>
@@ -18,6 +19,12 @@ namespace flur
     {
         template<typename T> struct is_shared_ptr : std::false_type {};
         template<typename T> struct is_shared_ptr<std::shared_ptr<T>> : std::true_type {};
+
+        template<typename ...T> struct is_unique_ptr : std::false_type {};
+        template<typename ...T> struct is_unique_ptr<std::unique_ptr<T...>> : std::true_type {};
+
+        template<typename T> struct is_optional : std::false_type {};
+        template<typename T> struct is_optional<std::optional<T>> : std::true_type {};
 
         template <typename U>
         U& get_reference(std::reference_wrapper<U> u) {
@@ -60,7 +67,7 @@ namespace flur
         }
         template <typename U>
         U& get_reference(std::shared_ptr<U>&& u) {
-            //invoking this code means very-very bad lost control, used only for type-deduction
+            //invoking this code means very-very bad lost control, used only for type-deduction only
             assert(false);
             return *u.get();
         }
@@ -86,7 +93,7 @@ namespace flur
         constexpr decltype(auto) unpack(SomeContainer&& co) noexcept
         {
             if constexpr (std::is_base_of_v<FactoryBase, dereference_t<SomeContainer> >)
-                return std::move(get_reference(co).compound());
+                return get_reference(co).compound();
             else
                 return std::move(co);
         }
@@ -94,7 +101,7 @@ namespace flur
         constexpr decltype(auto) unpack(const SomeContainer& co) noexcept
         {
             if constexpr (std::is_base_of_v<FactoryBase, dereference_t<SomeContainer> >)
-                return std::move(get_reference(co).compound());
+                return get_reference(co).compound();
             else
                 return co;
         }

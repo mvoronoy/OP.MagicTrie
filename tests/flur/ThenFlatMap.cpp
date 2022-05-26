@@ -53,32 +53,60 @@ namespace functional {
     }
 
 }  // namespace functional
+struct GenEmu
+{
+    int i, step;
+    GenEmu(int arg) :step(0), i(arg) { std::cout << "I'm plain ctor(" << arg << ")\n"; }
+    GenEmu(const GenEmu& other) :step(other.step), i(other.i) { std::cout << "I'm copy ctor(" << step << ", " << i << ")\n"; }
+    GenEmu(GenEmu&& other) :step(other.step), i(other.i) { std::cout << "I'm rref ctor(" << step << ", " << i << ")\n"; }
 
+    GenEmu& operator=(const GenEmu& other) {
+        step = other.step; i = (other.i);
+        std::cout << "I'm copy =(" << step << ", " << i << ")\n"; 
+        return *this;
+    }
+    GenEmu& operator = (GenEmu&&other) 
+    { 
+        step = other.step; i = (other.i);
+
+        std::cout << "I'm rref =(" << step << ", " << i << ")\n"; 
+        return *this;
+    }
+    
+    std::optional<int> operator()()
+    {
+        decltype(i) v = 1;
+        for (auto x = 0; x < step; ++x)
+            v *= i;
+        return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
+    }
+};
 void test_FlatMapFromPipeline(OP::utest::TestRuntime& tresult)
 {
     constexpr int N = 4;
 
     constexpr auto fm_lazy = src::of_iota(1, N + 1)
         >> then::flat_mapping([](auto i) {
-        return src::generator([step = 0, i]() mutable->std::optional<decltype(i)> {
-            decltype(i) v = 1;
-            for (auto x = 0; x < step; ++x)
-                v *= i;
-            return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
-        }
-        );
-            })
-        ;
-
-            constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
-            size_t cnt = 0;
-            for (auto i : fm_lazy)
+            return src::generator([step = 0, i]() mutable->std::optional<decltype(i)> 
             {
-                tresult.debug() << i << "\n";
-                ++cnt;
+                decltype(i) v = 1;
+                for (auto x = 0; x < step; ++x)
+                    v *= i;
+                return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
             }
-            tresult.assert_that<equals>(cnt, 12, "Wrong times");
-            tresult.assert_that<equals>(expected_sum, std::reduce(fm_lazy.begin(), fm_lazy.end(), 0), "invalid num");
+        );
+        })
+    ;
+
+    constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
+    size_t cnt = 0;
+    for (auto i : fm_lazy)
+    {
+        tresult.debug() << i << "\n";
+        ++cnt;
+    }
+    tresult.assert_that<equals>(cnt, 12, "Wrong times");
+    tresult.assert_that<equals>(expected_sum, std::reduce(fm_lazy.begin(), fm_lazy.end(), 0), "invalid num");
 }
 
 size_t g_copied = 0, g_moved = 0;
@@ -139,8 +167,30 @@ void test_FlatMapFromContainer(OP::utest::TestRuntime& tresult)
     tresult.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
 
     tresult.assert_that<equals>(cnt, 12, "Wrong times");
-    tresult.assert_that<equals>(g_moved, 20, "Wrong times");
+    tresult.assert_that<equals>(g_moved, 16, "Wrong times");
     tresult.assert_that<equals>(g_copied, 0, "Wrong times");
+
+    tresult.info() << "test flat-map works with sequence\n";
+    struct Some
+    {
+        OfContainerFactory<ExploreVector<std::string>> relates;
+        Some() :relates{ ExploreVector{ "a"s, "b"s, "c"s} } {};
+    };
+    const auto super_factory = src::of_container(std::vector{ Some{}, Some{} })
+        >> then::flat_mapping([](const auto& some_entry) {
+                return some_entry.relates.compound();
+            });
+    cnt = 0, g_copied = 0, g_moved = 0;
+    for (auto i : super_factory.compound())
+    {
+        tresult.debug() << i << ", ";
+        ++cnt;
+    }
+    tresult.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
+
+    tresult.assert_that<equals>(cnt, 6, "Wrong times");
+    tresult.assert_that<equals>(g_moved, 2, "Wrong times");
+    tresult.assert_that<equals>(g_copied, 4, "Wrong times");
 }
 
 void test_FlatMapFromCref(OP::utest::TestRuntime& tresult)
@@ -225,9 +275,29 @@ void test_FlatMapWithEmpty(OP::utest::TestRuntime& tresult)
     tresult.assert_that<eq_sets>(expected, lst3, "result sequene broken by empty-moddle");
 }
 
+void test_FlatMapShared(OP::utest::TestRuntime& rt)
+{
+    using namespace OP::flur;
+    auto shared_seq = make_shared(
+        src::of_container(std::vector{ 1, 3, 5, 7 })
+        >> then::flat_mapping([](auto odd) {
+            ExploreVector<int> even{2, 4, 6};
+            return make_shared(src::of_container(std::move(even)));
+            })
+    );
+    g_copied = 0;
+    g_moved = 0;
+    for (auto n : *shared_seq)
+        rt.debug() << n << ", ";
+    rt.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
+    rt.assert_that<equals>(4, g_copied);
+    rt.assert_that<equals>(16, g_moved);
+}
+
 static auto& module_suite = OP::utest::default_test_suite("flur.then")
 .declare("flatmap", test_FlatMapFromPipeline)
 .declare("rref-flatmap", test_FlatMapFromContainer)
 .declare("cref-flatmap", test_FlatMapFromCref)
 .declare("flatmap-with-empty", test_FlatMapWithEmpty)
+.declare("flatmap-shared", test_FlatMapShared)
  ;

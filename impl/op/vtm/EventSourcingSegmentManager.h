@@ -26,7 +26,7 @@ namespace OP
                 _done_captured_worker.store(true);
                 if (1 == 1) 
                 {
-                    //guard_t acc(_dispose_lock);
+                    guard_t acc(_dispose_lock);
                     _cv_disposer.notify_one();
                 }
                 _captured_worker.join();
