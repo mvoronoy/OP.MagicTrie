@@ -233,6 +233,7 @@ namespace OP
         {
             using time_point_t = std::chrono::steady_clock::time_point;
             friend struct TestCase;
+            friend struct TestRun;
 
             TestResult(const std::string& name)
                 : _name(name)
@@ -395,7 +396,7 @@ namespace OP
                 {
                     debug() << "intercepted exception: " << typeid(Exception).name();
                     if constexpr (std::is_base_of_v<std::exception, Exception>)
-                        debug() << ex.what();
+                        debug() << ": " << ex.what();
                     debug() << "... catched as expected\n";
                     return AssertExceptionWrapper<Exception>(*this, ex);
                 }
@@ -694,14 +695,17 @@ namespace OP
             template <class Predicate>
             std::deque<TestResult> run_if(Predicate& predicate)
             {
-                std::deque<TestResult> result;
                 // RAII to wrap init_suite/shutdown_suite
-                SuiteInitRAII initializer(this);
+                std::unique_ptr<SuiteInitRAII> initializer; //delayed untill real case need to run
                 
+                std::deque<TestResult> result;
                 for (auto& tcase : _tests)
                 {
                     if (!predicate(*this, *tcase))
                         continue;
+                    if (!initializer) //not initialized yet
+                        initializer = std::make_unique<SuiteInitRAII>(this);
+
                     TestRuntime runtime(
                         *this, tcase->id(), _run_env.options().log_level());
 
@@ -953,13 +957,37 @@ namespace OP
                         << std::endl;
 
                     stream_guard.reset();
-                    auto single_res = suite_decl.second->run_if(predicate);
-                    for( auto &r : single_res )
-                        result.emplace_back(std::move(r));
+                    try 
+                    { // This try allows intercept exceptions only from suite initialization
+                        auto single_res = suite_decl.second->run_if(predicate);
+                        for (auto& r : single_res)
+                            result.emplace_back(std::move(r));
+                    }
+                    catch (const std::exception& ex)
+                    {
+                        result.push_back(handle_environemnt_crash(
+                            *suite_decl.second, &ex));
+                    }
+                    catch (...)
+                    {
+                        result.push_back(handle_environemnt_crash(
+                            *suite_decl.second, nullptr));
+                    }
                 }
                 return result;
             }
         private:
+            static TestResult handle_environemnt_crash(TestSuite&suite, const std::exception* pex)
+            {
+                TestResult crash_res("ENVIRONMENT");
+                crash_res._status = TestResult::aborted;
+                suite.error() << "Test Environment Crash, aborted.";
+                if (pex)
+                    suite.error() << "----[exception-what]:" << pex->what();
+                suite.error() << "\n";
+                return crash_res;
+            }
+            /**Helper RAII to intercept all standart C++ `abort` signals*/
             struct sig_abort_guard
             {
                 sig_abort_guard()
