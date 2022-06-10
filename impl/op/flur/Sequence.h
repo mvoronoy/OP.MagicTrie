@@ -11,9 +11,6 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
-    /** Base for all classes that composes result Sequence */
-    struct FactoryBase {};
-    
     /** Abstraction that encapsulate iteration capability without specification of source container.
      \tparam T type of element resolved during iteration
      */

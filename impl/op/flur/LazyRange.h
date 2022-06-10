@@ -10,6 +10,7 @@
 #include <tuple>
 #include <op/flur/Polymorphs.h>
 #include <op/flur/Join.h>
+#include <op/flur/FactoryBase.h>
 
 namespace OP
 {
