@@ -111,7 +111,7 @@ namespace flur
         }
         virtual void next_lower_bound_of(const element_t& other) override
         {
-            pos() = details::get_reference(container()).lower_bound( 
+            base_t::pos() = details::get_reference(base_t::container()).lower_bound(
                 extract_key(other) );    
         }
 

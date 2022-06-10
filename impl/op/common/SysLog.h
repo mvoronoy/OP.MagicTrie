@@ -50,7 +50,7 @@ namespace OP
                 }
                 void print(const std::string& s)
                 {
-                    syslog(LOG_ERR, s.c_str());
+                    syslog(LOG_ERR, "%s", s.c_str());
                 }
 #endif // _WINDOWS
             };//Transport

@@ -1,19 +1,15 @@
-#pragma once
 #ifndef _OP_FLUR_LAZYRANGEITER__H_
 #define _OP_FLUR_LAZYRANGEITER__H_
+#pragma once
 
 #include <functional>
 #include <optional>
+#include <op/flur/typedefs.h>
 
-namespace OP
+namespace OP::flur
 {
-/** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
-{
-    
-    /** 
+    /**
     *   Iterator emulator
-    *  
     */
     template <class T>
     struct LazyRangeIterator 
@@ -24,7 +20,8 @@ namespace flur
         using target_t = strip_generic_t;
 
         using iterator_category = std::forward_iterator_tag;
-        using value_type        = decltype(details::get_reference(std::declval< target_t>()).current());
+        using value_type        = decltype(
+            OP::flur::details::get_reference(std::declval< target_t>()).current());
         using difference_type   = std::ptrdiff_t;
         using reference         = value_type&;
         using pointer           = void;
@@ -72,6 +69,5 @@ namespace flur
         std::optional<target_t> _target;
     };
 
-} //ns:flur
 } //ns:OP
 #endif //_OP_FLUR_LAZYRANGEITER__H_

@@ -22,6 +22,8 @@ namespace flur
     struct OfIterators : public Sequence<decltype(*std::declval<T>())>
     {
         using element_t = typename OfIterators<T>::element_t;
+        using base_t = Sequence<decltype(*std::declval<T>())>;
+        using this_t = OfIterators<T>;
 
         constexpr OfIterators(T begin, T end) noexcept
             : _begin(std::move(begin))
@@ -29,7 +31,7 @@ namespace flur
             , _current(_end)
         {
         }
-        constexpr OfIterators(std::pair<T, T> pair) noexcept
+        explicit constexpr OfIterators(std::pair<T, T> pair) noexcept
             : this_t(std::move(pair.first), std::move(pair.second))
         {}
 

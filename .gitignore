@@ -56,3 +56,9 @@ build.ninja
 /.vs
 !/.vs/launch.vs.json
 !/.vs/tasks.vs.json
+/Testing/Temporary/CTestCostData.txt
+/DartConfiguration.tcl
+/Testing/Temporary/LastTest.log
+/Testing/Temporary/LastTestsFailed.log
+/rules.ninja
+/trie_test

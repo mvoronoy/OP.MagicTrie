@@ -1,18 +1,13 @@
-#pragma once
 #ifndef _OP_FLUR_SEQUENCE__H_
 #define _OP_FLUR_SEQUENCE__H_
+#pragma once
 
 #include <functional>
 #include <op/flur/LazyRangeIter.h>
+#include <op/flur/FactoryBase.h>
 
-namespace OP
+namespace OP::flur
 {
-/** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
-{
-    /** Base for all classes that composes result Sequence */
-    struct FactoryBase {};
-    
     /** Abstraction that encapsulate iteration capability without specification of source container.
      \tparam T type of element resolved during iteration
      */
@@ -65,7 +60,6 @@ namespace flur
     };
 
 
-}//ns:flur
 }//ns:OP
 
 #endif //_OP_FLUR_SEQUENCE__H_

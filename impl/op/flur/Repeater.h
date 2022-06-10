@@ -89,7 +89,7 @@ namespace flur
         {
             using target_container_t = std::decay_t<decltype(OP::flur::details::get_reference(src))>;
             using src_container_t = OP::flur::details::unpack_t<Src>;
-            using element_t = target_container_t::element_t;
+            using element_t = typename target_container_t::element_t;
             using element_ref = const element_t&;
             using base_t = std::conditional_t< (target_container_t::ordered_c),
                 OrderedSequence<element_ref>,

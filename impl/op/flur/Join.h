@@ -87,7 +87,7 @@ namespace OP::flur
             details::has_next_lower_bound_of<U>::value;
 
         template <class U>
-        static void opt_next(U& src, const T& other_key)
+        void opt_next(U& src, const T& other_key) const
         {
             if constexpr (is_join_optimized_c<U>)
                 src.next_lower_bound_of(other_key);

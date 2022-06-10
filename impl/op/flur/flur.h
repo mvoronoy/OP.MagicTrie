@@ -1,6 +1,6 @@
-#pragma once
 #ifndef _OP_FLUR_FLUR__H_
 #define _OP_FLUR_FLUR__H_
+#pragma once
 
 #include <functional>
 #include <memory>
@@ -157,17 +157,19 @@ namespace flur
                     splitter_t(std::move(str), std::forward<String<Str2>>(separators))));
         }
         template <class Str>
+        const static inline std::basic_string< typename Str::value_type > separators(" ");
+
+        template <class Str>
         constexpr auto of_string_split(String<Str>&& str) noexcept
         {
             using raw_t = std::decay_t<Str>;
             using str_t = details::dereference_t<raw_t>;
-            const static std::basic_string< typename str_t::value_type > separators(" ");
             using str_view_t = std::basic_string_view< typename str_t::value_type >;
 
             using splitter_t = StringSplit<raw_t, str_view_t>;
             //Simple factory will use copy operation of the same instance
             return of_string_split(
-                    std::move(str), separators);
+                    std::move(str), separators<str_t>);
         }
 
 
