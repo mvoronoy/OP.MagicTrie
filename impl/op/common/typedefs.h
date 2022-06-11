@@ -45,7 +45,7 @@ namespace OP
         typedef std::basic_string<atom_t> atom_string_t;
         typedef std::basic_string_view<atom_t> atom_string_view_t;
         
-        inline constexpr const atom_t operator "" _atom(char c)
+        inline constexpr atom_t operator "" _atom(char c)
         {
             return (atom_t)c;
         }

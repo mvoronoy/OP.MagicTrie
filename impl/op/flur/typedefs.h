@@ -8,14 +8,9 @@
 
 #include <op/common/Utils.h>
 #include <op/common/ftraits.h>
-#include <op/flur/Sequence.h>
+#include <op/flur/FactoryBase.h>
 
-namespace OP
-{
-/** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
-{
-    namespace details
+namespace OP::flur::details
     {
         template<typename T> struct is_shared_ptr : std::false_type {};
         template<typename T> struct is_shared_ptr<std::shared_ptr<T>> : std::true_type {};
@@ -45,7 +40,7 @@ namespace flur
         }
         template <typename U>
         constexpr U&& get_reference(U&& u) noexcept{
-            return std::move(u);
+            return std::forward<U>(u);
         }
 
         template <typename U, typename ... Ux>
@@ -159,9 +154,6 @@ namespace flur
         using sequence_type_t = typename sequence_type<Value>::type;
 
 
-    }//ns::details
-
-} //ns:flur
-} //ns:OP
+    } //ns:OP
 
 #endif //_OP_FLUR_TYPEDEFS__H_

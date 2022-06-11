@@ -24,15 +24,6 @@ using namespace OP::utest;
 using namespace OP::flur;
 const char* test_file_name = "trie.test";
 
-template <class TStr = std::string>
-struct lexicographic_less {
-    bool operator() (const TStr& s1, const TStr& s2) const
-    {
-        return std::lexicographical_compare(s1.begin(), s1.end(), s2.begin(), s2.end());
-    }
-};
-
-
 void test_TrieCreation(OP::utest::TestRuntime& tresult)
 {
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
@@ -202,8 +193,9 @@ void test_TrieInsert(OP::utest::TestRuntime& tresult)
     compare_containers(tresult, *trie, standard);
 }
 
-void test_TrieInsertGrow(OP::utest::TestRuntime& tresult)
+void test_TrieInsertGrow(OP::utest::TestSuite& suite, OP::utest::TestRuntime& tresult)
 {
+
     std::random_device rd;
     std::mt19937 random_gen(rd());
 
@@ -217,13 +209,14 @@ void test_TrieInsertGrow(OP::utest::TestRuntime& tresult)
     // Populate trie with unique strings in range from [0..255]
     // this must cause grow of root node
     const std::string stems[] = { "abc", "", "x", std::string(256, 'z') };
-    std::array<std::uint16_t, 255> rand_idx;
+    std::array<std::uint16_t, 255> rand_idx{};
     std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
     std::shuffle(std::begin(rand_idx), std::end(rand_idx), random_gen);
     for (auto i : rand_idx)
     {
+        auto lookup_idx = tools::RandomGenerator::instance().next_in_range<size_t>(0, std::extent_v< decltype(stems)>);
         std::string test = std::string(1, (std::string::value_type)i) +
-            stems[rand() % std::extent< decltype(stems) >::value];
+            stems[lookup_idx];
         auto ins_res = trie->insert(test, (double)test.length());
         tresult.assert_true(ins_res.second);
         tresult.assert_true(tools::container_equals(ins_res.first.key(), test, &tools::sign_tolerant_cmp<atom_t>));
@@ -247,13 +240,13 @@ void test_TrieUpdate(OP::utest::TestRuntime& tresult)
     typedef std::pair<atom_string_t, double> p_t;
 
     const p_t ini_data[] = {
-        p_t((atom_t*)"aa1", 1.),
-        p_t((atom_t*)"aa2", 1.),
-        p_t((atom_t*)"abc", 1.),
-        p_t((atom_t*)"abc.12", 1.),
-        p_t((atom_t*)"abc.122x", 1),
-        p_t((atom_t*)"abc.123456789", 1),
-        p_t((atom_t*)"abd.12", 1.),
+        p_t("aa1"_atom, 1.),
+        p_t("aa2"_atom, 1.),
+        p_t("abc"_atom, 1.),
+        p_t("abc.12"_atom, 1.),
+        p_t("abc.122x"_atom, 1),
+        p_t("abc.123456789"_atom, 1),
+        p_t("abd.12"_atom, 1.),
     };
     std::map<atom_string_t, double> test_values;
     std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
@@ -297,7 +290,7 @@ void test_TrieGrowAfterUpdate(OP::utest::TestRuntime& tresult)
     // this must cause grow of root node
     const std::string test_seq[] = { "abc", "bcd", "def", "fgh", "ijk", "lmn" };
     double x = 0.0;
-    for (auto i : test_seq)
+    for (const auto& i : test_seq)
     {
         const std::string& test = i;
         auto ins_res = trie->insert(test, x);
@@ -519,12 +512,8 @@ void test_TrieNoTran(OP::utest::TestRuntime& tresult)
     std::string rnd_buf;
     for (auto i = 0; i < 1024; ++i)
     {
-        tools::randomize(rnd_buf, 1023, 1);
-        //if (rnd_buf.length() > 14 * 60)
-        //{
-        //    std::uint8_t c1 = rnd_buf[0], c2 = rnd_buf[1], c3 = rnd_buf[2]; //c1 == 0x41 && c2==0x4f && c3==0x4b
-        //    atoi("78");
-        //}
+        tools::random(rnd_buf, 1023, 1);
+
         auto b = std::begin(rnd_buf);
         auto post = trie->insert(b, std::end(rnd_buf), (double)rnd_buf.length());
         if (post.second)

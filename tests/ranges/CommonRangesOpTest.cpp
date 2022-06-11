@@ -584,7 +584,7 @@ static void test_DistinctRange(OP::utest::TestRuntime& tresult)
     std::generate_n(
         std::inserter(bulk_uniq_map, bulk_uniq_map.begin()),
         101,
-        []() { return std::make_pair(OP::utest::tools::randomize<std::string>(), 11); }
+        []() { return std::make_pair(OP::utest::tools::random<std::string>(), 11); }
     );
     auto distinct2 = OP::ranges::make_range_of_map(bulk_uniq_map)->distinct();
     tresult.assert_true(OP::ranges::utils::map_equals(*distinct2, bulk_uniq_map),
@@ -594,7 +594,7 @@ static void test_DistinctRange(OP::utest::TestRuntime& tresult)
     for (unsigned i = 0; i < 10; ++i)
         for (unsigned j = 0; j < 10; ++j)
         {   //create 10 duplicates
-            src2.emplace(std::make_pair(OP::utest::tools::randomize<std::string>(), j));
+            src2.emplace(std::make_pair(OP::utest::tools::random<std::string>(), j));
         }
     auto r2_src2 = OP::ranges::make_range_of_map(src2);
     //check that we have (10 same keys)*10

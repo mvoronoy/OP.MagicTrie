@@ -17,46 +17,7 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
-    namespace details
-    {
-        template <class Factory>
-        using lazy_iterator_deduction_t = LazyRangeIterator < std::shared_ptr<
-            std::decay_t<
-                OP::flur::details::dereference_t< OP::flur::details::unpack_t<Factory> >
-            >>
-            >;
 
-        template <class Factory>
-        auto begin_impl(const Factory& inst)
-        {
-            auto seq = inst.compound();
-            using t_t = std::decay_t<decltype(seq)>;
-            using result_t = OP::flur::details::lazy_iterator_deduction_t < Factory >;
-            
-            if constexpr (is_shared_ptr<t_t>::value)
-            {
-                seq->start();
-                return result_t(std::move(seq));
-            }
-            else
-            {
-                auto seq_ptr = std::make_shared<t_t>(std::move(seq));
-                seq_ptr->start();
-                return result_t(std::move(seq_ptr));
-            }
-        }
-        template <class Factory>
-        auto end_impl(const Factory* = nullptr) noexcept
-        {
-            using result_t = OP::flur::details::lazy_iterator_deduction_t < Factory >;
-            //using t_t = std::decay_t<decltype(inst.compound())>;
-            //if constexpr (OP::flur::details::is_shared_ptr<t_t>::value)
-            //    return LazyRangeIterator< t_t >(nullptr);
-            //else
-            //    return LazyRangeIterator< std::shared_ptr<t_t> >(nullptr);
-            return result_t{nullptr};
-        }
-    }
     /** 
     * Represent holder that allows at compile time form pipeline of source transformations 
     *  

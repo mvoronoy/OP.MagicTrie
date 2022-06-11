@@ -75,7 +75,8 @@ namespace OP
                 _index = 0;
                 if constexpr (ftraits_t::arity_c == 1)
                 {
-                    constexpr bool is_arg_bool_c = std::is_same_v<bool, typename ftraits_t::arg_i <0>>;
+                    constexpr bool is_arg_bool_c =
+                            std::is_same_v<bool, typename ftraits_t::template arg_i <0>>;
                     static_assert(is_arg_bool_c/*clang compatibility*/, "Unsupported generator signature neither: f() nor f(bool)");
                     _current = std::move(_generator(true));
                 }
@@ -92,7 +93,8 @@ namespace OP
                 ++_index;
                 if constexpr (ftraits_t::arity_c == 1)
                 {
-                    static_assert(std::is_same_v<bool, typename ftraits_t::arg_i<0>>, 
+                    static_assert(
+                        std::is_same_v<bool, typename ftraits_t::template arg_i<0>>,
                         "Unsupported generator signature neither: f() nor f(bool)");
                     _current = std::move(_generator(false));
                 }

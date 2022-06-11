@@ -757,9 +757,9 @@ void test_JoinRangeOverride(TestRuntime& tresult)
         tresult.debug()<<".";
         if((i % 32) == 0 )
             tresult.debug()<<i<<"\n";
-        OP::utest::tools::randomize_str(rnd_val, avg_str_len, avg_str_len, [&](){
-                return rand_str_base[OP::utest::tools::wrap_rnd() % rand_str_base.length()];
-            });
+        auto& rnds = OP::utest::tools::RandomGenerator::instance();
+        rnds.random_field(rnd_val, rand_str_base, avg_str_len, avg_str_len);
+
         trie1->insert(rnd_val, i);
         tresult.debug()<<":";
         if(((int)rnd_val[0]) % 2 == 0 )

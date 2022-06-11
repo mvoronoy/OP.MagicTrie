@@ -6,10 +6,7 @@
 #include <op/flur/typedefs.h>
 #include <op/flur/LazyRangeIter.h>
 
-namespace OP
-{
-/** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
+namespace OP::flur
 {
     /** Abstraction that encapsulate iteration capability without specification of source container.
      \tparam T type of element resolved during iteration
@@ -78,7 +75,6 @@ namespace flur
     };
 
 
-}//ns:flur
 }//ns:OP
 
 #endif //_OP_FLUR_SEQUENCE__H_

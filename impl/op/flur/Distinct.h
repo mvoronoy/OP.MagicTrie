@@ -277,9 +277,9 @@ namespace flur
         {
             using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
             using base_t = Sequence<typename src_conatiner_t::element_t>;
-            using effective_policy_t = decltype(_policy.construct<Src>());
+            using effective_policy_t = decltype(_policy.template construct<Src>());
             return Distinct<effective_policy_t, std::decay_t<Src>>(
-                std::move(src), _policy.construct<Src>());
+                std::forward<Src>(src), _policy.template construct<Src>());
         }
         Policy _policy;
     };

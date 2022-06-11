@@ -11,8 +11,9 @@ namespace OP::flur
 {
     
     /** 
-    *   Iterator emulator
-    *  
+    *   Iterator over LazyRange.
+    *  This iterator exposes std::input_iterator_tag that means support forward only
+     *  semantic without restart capability.
     */
     template <class T>
     struct LazyRangeIterator 
@@ -22,21 +23,19 @@ namespace OP::flur
         //resolve target type of T
         using target_t = strip_generic_t;
 
-        using iterator_category = std::forward_iterator_tag;
-        using value_type        = 
-            
+        using iterator_category [[maybe_unused]] = std::input_iterator_tag;
+        using value_type        =
             decltype(details::get_reference(details::get_reference(std::declval<target_t&>())).current());
         using difference_type   = std::ptrdiff_t;
         using reference         = value_type&;
         using pointer           = void;
 
-
-        LazyRangeIterator (target_t&& r) noexcept
+        explicit LazyRangeIterator (target_t&& r) noexcept
             : _target{std::move(r)}
         {
         }
         /** designated to construct std::end */
-        constexpr LazyRangeIterator (nullptr_t) noexcept
+        constexpr explicit LazyRangeIterator (nullptr_t) noexcept
             :_target{}
         {
         }
@@ -47,7 +46,7 @@ namespace OP::flur
             return *this;
         }
         /** Note! not all targets supports copy operation so postfix ++ may fail at compile time*/
-        LazyRangeIterator operator ++(int) 
+        LazyRangeIterator operator ++(int) &
         {
             LazyRangeIterator result(*this);
             details::get_reference(get()).next();
@@ -69,10 +68,10 @@ namespace OP::flur
         }
 
     private:
-        bool out_of_range() const
+        [[nodiscard]] bool out_of_range() const
         { return is_empty() || !details::get_reference(cget()).in_range(); }
         
-        const bool is_empty() const
+        [[nodiscard]] constexpr bool is_empty() const
         {
             return std::holds_alternative<std::monostate>(_target);
         }
@@ -89,5 +88,45 @@ namespace OP::flur
         holder_t _target;
     };
 
+    namespace details
+    {
+        template <class Factory>
+        using lazy_iterator_deduction_t = LazyRangeIterator < std::shared_ptr<
+                std::decay_t<
+                        OP::flur::details::dereference_t< OP::flur::details::unpack_t<Factory> >
+                >>
+        >;
+
+        template <class Factory>
+        auto begin_impl(const Factory& inst)
+        {
+            auto seq = inst.compound();
+            using t_t = std::decay_t<decltype(seq)>;
+            using result_t = OP::flur::details::lazy_iterator_deduction_t < Factory >;
+
+            if constexpr (is_shared_ptr<t_t>::value)
+            {
+                seq->start();
+                return result_t(std::move(seq));
+            }
+            else
+            {
+                auto seq_ptr = std::make_shared<t_t>(std::move(seq));
+                seq_ptr->start();
+                return result_t(std::move(seq_ptr));
+            }
+        }
+        template <class Factory>
+        auto end_impl(const Factory* = nullptr) noexcept
+        {
+            using result_t = OP::flur::details::lazy_iterator_deduction_t < Factory >;
+            //using t_t = std::decay_t<decltype(inst.compound())>;
+            //if constexpr (OP::flur::details::is_shared_ptr<t_t>::value)
+            //    return LazyRangeIterator< t_t >(nullptr);
+            //else
+            //    return LazyRangeIterator< std::shared_ptr<t_t> >(nullptr);
+            return result_t{nullptr};
+        }
+    }//ns:details
 } //ns:OP::flur
 #endif //_OP_FLUR_LAZYRANGEITER__H_

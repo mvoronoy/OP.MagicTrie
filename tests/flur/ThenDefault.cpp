@@ -32,7 +32,7 @@ void test_OrDefault(OP::utest::TestRuntime& tresult)
         src::of_container(some_arr)
         >> then::or_default(src::of_value(5))
         ;
-    static_assert(!static_pipeline.compound().ordered_c, "Unordered seq expected");
+
     //check or_default may produce multi-step sequence
     constexpr auto multi_seq = (src::of_container(some_arr)
         >> then::filter([](const auto& i) { return i > 10; }) //filter out all

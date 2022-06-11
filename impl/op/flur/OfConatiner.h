@@ -109,10 +109,11 @@ namespace flur
         {
             return it.first;
         }
-        //using key_t = declval(extract_key(std::declval<const element_t&>()));
-        virtual void next_lower_bound_of(const element_t& other) override
+
+        void next_lower_bound_of(const element_t& other) override
         {
-            pos() = details::get_reference(container()).lower_bound( extract_key(other) );    
+            base_t::pos() = details::get_reference(
+                    base_t::container()).lower_bound( extract_key(other) );
         }
         //void next_lower_bound_of(const key_t& other)
         //{
