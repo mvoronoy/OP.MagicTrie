@@ -53,34 +53,7 @@ namespace functional {
     }
 
 }  // namespace functional
-struct GenEmu
-{
-    int i, step;
-    GenEmu(int arg) :step(0), i(arg) { std::cout << "I'm plain ctor(" << arg << ")\n"; }
-    GenEmu(const GenEmu& other) :step(other.step), i(other.i) { std::cout << "I'm copy ctor(" << step << ", " << i << ")\n"; }
-    GenEmu(GenEmu&& other) :step(other.step), i(other.i) { std::cout << "I'm rref ctor(" << step << ", " << i << ")\n"; }
 
-    GenEmu& operator=(const GenEmu& other) {
-        step = other.step; i = (other.i);
-        std::cout << "I'm copy =(" << step << ", " << i << ")\n"; 
-        return *this;
-    }
-    GenEmu& operator = (GenEmu&&other) 
-    { 
-        step = other.step; i = (other.i);
-
-        std::cout << "I'm rref =(" << step << ", " << i << ")\n"; 
-        return *this;
-    }
-    
-    std::optional<int> operator()()
-    {
-        decltype(i) v = 1;
-        for (auto x = 0; x < step; ++x)
-            v *= i;
-        return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
-    }
-};
 void test_FlatMapFromPipeline(OP::utest::TestRuntime& tresult)
 {
     constexpr int N = 4;

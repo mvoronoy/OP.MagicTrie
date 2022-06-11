@@ -110,7 +110,7 @@ void test_Mt(OP::utest::TestRuntime& tresult)
             >> then::mapping([&](auto i) {
                 
                 std::ios_base::fmtflags out_flag(tresult.debug().flags());
-                std::cout << "\t>inner:(" << i <<")"<< std::hex << i << "\n";
+                tresult.debug() << "\t>inner:(" << i <<")"<< std::hex << i << "\n";
                 tresult.debug().flags(out_flag);
                 return i;
             })
@@ -140,9 +140,9 @@ void test_Mt(OP::utest::TestRuntime& tresult)
             {
                 count_out++;
                 tresult.assert_false(big_int_mask_c & std::get<1>(gcd_args), "Wrong bigint collected");
-                std::ios_base::fmtflags out_flag(std::cout.flags());
+                std::ios_base::fmtflags out_flag(tresult.debug().flags());
                 tresult.debug() << std::hex << std::get<0>(gcd_args) << ", " << std::get<1>(gcd_args) << " = " << std::get<2>(gcd_args) << "\n";
-                std::cout.flags(out_flag);
+                tresult.debug().flags(out_flag);
             }
         });
 

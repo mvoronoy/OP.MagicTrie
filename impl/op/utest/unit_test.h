@@ -22,9 +22,20 @@
 #include <cstdint>
 #include <csignal>
 #include <random>
+#include <optional>
+#include <limits>
 #include <op/utest/unit_test_is.h>
 #include <op/common/IoFlagGuard.h>
 #include <op/common/ftraits.h>
+
+#if defined( _MSC_VER ) 
+#if defined(max)
+#undef max
+#endif //max
+#if defined(min)
+#undef min
+#endif //min
+#endif //_MSC_VER
 
 
 /**Render inline information like __FILE__, __LINE__ in lazy way (rendered only on demand) */
@@ -1021,7 +1032,7 @@ namespace OP::utest
             void seed(size_t s)
             {
                 std::lock_guard l(_gen_acc);
-                _gen.seed(s);
+                _gen.seed(static_cast<std::mt19937::result_type>(s));
             }
             /**
              * Renders uniform distributed number in range [low, high)
@@ -1040,7 +1051,7 @@ namespace OP::utest
             template <class Int>
             Int next_in_range()
             {
-                return next_in_range(std::numeric_limits<Int>::min(),
+                return next_in_range<Int>(std::numeric_limits<Int>::min(),
                                      std::numeric_limits<Int>::max());
             }
 
@@ -1129,6 +1140,13 @@ namespace OP::utest
         inline T random()
         {
             return RandomGenerator::instance().template next_in_range<T>();
+        }
+
+        template <>
+        inline std::uint8_t random<std::uint8_t>()
+        {
+            auto r = RandomGenerator::instance().template next_in_range<std::uint16_t>();
+            return static_cast<std::uint8_t>((r >> 8) ^ r);
         }
 
         inline std::string& random(std::string& target, size_t max_size, size_t min_size = 0)

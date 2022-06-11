@@ -9,6 +9,7 @@
 
 #if defined( _MSC_VER ) && defined(max)
 #undef max
+#undef min
 #endif
 
 #define OP_EMPTY_ARG

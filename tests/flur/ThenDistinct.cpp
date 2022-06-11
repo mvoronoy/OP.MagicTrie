@@ -133,15 +133,9 @@ void test_ThenUnorderedDistinct(OP::utest::TestRuntime& tresult)
     std::mt19937 g(rd());
 
     std::shuffle(rand_vec.begin(), rand_vec.end(), g);
-    tresult.debug() << "===A===\n";
-    for(auto i : src::of_container(std::cref(rand_vec))
-            >> then::unordered_distinct())
-        std::cout << i << "\n";
+
     //make unique exemplar set
     std::set<int> exemplar(rand_vec.begin(), rand_vec.end());
-    tresult.debug() << "===B===\n";
-    for(auto i : exemplar)
-        std::cout << i << "\n";
 
     tresult.assert_that<eq_unordered_sets>(
         src::of_container(std::cref(rand_vec))
