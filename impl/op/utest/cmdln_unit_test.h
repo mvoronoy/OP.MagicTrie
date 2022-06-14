@@ -177,7 +177,7 @@ namespace OP
                 });
             processor
                 .on("-d")
-                .description("level of logging 1-3 (1=error, 2=info, 3=debug")
+                .description("level of logging 1-3 (1=error, 2=info, 3=debug)")
                 .action<int>([&](int level){
                     opts.log_level(static_cast<OP::utest::ResultLevel>(level));
                 })
@@ -193,6 +193,13 @@ namespace OP
                                 return std::regex_match(key, expression);
                             };
                 });
+            processor
+                .on("-s")
+                .description("set seed number for random generator to make tests reproducable. If not specified then default random generator used")
+                .action<int>([&](int seed){
+                    opts.random_seed(seed);
+                })
+                ;
 
             try
             {
