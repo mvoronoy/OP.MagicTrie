@@ -24,13 +24,13 @@
 
 # Executables
 /out
+/cmake-build-debug
 *.exe
 *.out
 *.app
-/tests/Debug/tr.log
+/tests
 *.idb
 *.pdb
-/tests/x64/Debug
 
 # Misk
 *.sdf
