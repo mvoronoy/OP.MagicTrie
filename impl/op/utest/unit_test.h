@@ -206,10 +206,7 @@ namespace OP::utest
             auto offset = _result.tellp();
             return offset == (std::streamoff)0;
         }
-//        std::ostream& as_stream()
-//        {
-//            return _result;
-//        }
+
         template <class T>
         friend inline Details& operator << (Details& d, T&& t)
         {
@@ -302,7 +299,7 @@ namespace OP::utest
 
         explicit TestResult(std::string  name)
             : _name(std::move(name))
-            , _status(not_started)
+            , _status(Status::not_started)
             , _run_number(0)
         {}
 
@@ -311,7 +308,7 @@ namespace OP::utest
             return _name;
         }
 
-        enum Status
+        enum class Status : std::uint32_t
         {
             _first_ = 0,
             not_started = _first_,
@@ -325,12 +322,13 @@ namespace OP::utest
             ok,
             _last_
         };
+        constexpr static size_t status_size_c = ((size_t)Status::_last_ - (size_t)Status::_first_);
 
-        bool operator !() const
+        constexpr bool operator !() const
         {
-            return _status != ok;
+            return _status != Status::ok;
         }
-        [[nodiscard]] Status status() const
+        [[nodiscard]] constexpr Status status() const
         {
             return _status;
         }
@@ -343,7 +341,31 @@ namespace OP::utest
             static const std::string values[] = {
                 "not started", "failed", "exception", "aborted", "ok"
             };
-            return values[(_status - _first_) % (_last_ - _first_)];
+            return values[((size_t)_status - (size_t)Status::_first_) % status_size_c];
+        }
+        //TODO Only temporal solution, nust be replaced to console-only with override the infor()/error() stream
+        [[nodiscard]] std::string status_to_colored_str() const
+        {
+            std::stringstream result;
+            switch(_status)
+            {
+                case TestResult::Status::failed:
+                    result << console::esc<console::yellow_t>(status_to_str());
+                    break;
+                case TestResult::Status::aborted:
+                    result << console::esc<console::background_red_t>(status_to_str());
+                    break;
+                case TestResult::Status::exception:
+                    result << console::esc<console::red_t>(status_to_str());
+                    break;
+                case TestResult::Status::ok:
+                    result << console::esc<console::green_t>(status_to_str());
+                    break;
+                default:
+                    result << console::esc<console::void_t>(status_to_str());
+                    break;
+            }        
+            return result.str();
         }
     private:
         Status _status;
@@ -540,7 +562,7 @@ namespace OP::utest
                 do_run(runtime, result);
             }
             result._end_time = std::chrono::steady_clock::now();
-            result._status = TestResult::ok;
+            result._status = TestResult::Status::ok;
             return result;
         }
     protected:
@@ -560,31 +582,35 @@ namespace OP::utest
             try
             {
                 this->run(runtime);
-                retval._status = TestResult::ok;
+                retval._status = TestResult::Status::ok;
             }
             catch (TestAbort const& e)
             {
                 retval._end_time = std::chrono::steady_clock::now();
-                retval._status = TestResult::aborted;
+                retval._status = TestResult::Status::aborted;
                 render_exception_status(runtime, e);
             }
             catch (TestFail const& e)
             {
                 retval._end_time = std::chrono::steady_clock::now();
-                retval._status = TestResult::failed;
+                retval._status = TestResult::Status::failed;
                 render_exception_status(runtime, e);
             }
             catch (std::exception const& e)
             {
                 retval._end_time = std::chrono::steady_clock::now();
-                retval._status = TestResult::exception;
+                retval._status = TestResult::Status::exception;
 
-                runtime.error() << "----[exception-what]:" << e.what() << "\n";
+                runtime.error() 
+                    << "\n----["
+                    <<console::esc<console::red_t>("exception")<<"] - what:("
+                    << e.what() 
+                    << ")\n";
             }
             catch (...)
             { //hide any other exception
                 retval._end_time = std::chrono::steady_clock::now();
-                retval._status = TestResult::exception;
+                retval._status = TestResult::Status::exception;
             }
         }
 
@@ -970,7 +996,7 @@ namespace OP::utest
         static TestResult handle_environment_crash(TestSuite&suite, const std::exception* pex)
         {
             TestResult crash_res("ENVIRONMENT");
-            crash_res._status = TestResult::aborted;
+            crash_res._status = TestResult::Status::aborted;
             suite.error() << "Test Environment Crash, aborted.";
             if (pex)
                 suite.error() << "----[exception-what]:" << pex->what();
@@ -1276,7 +1302,8 @@ namespace OP::utest
 
             info()
                     << "\t[" << tcase->id() << "] done with status:"
-                    << "-=[" << result.back().status_to_str() << "]=-"
+                    << "-=[" << result.back().status_to_colored_str()
+                    << "]=-"
                     << " in:" << std::fixed << result.back().ms_duration() << "ms\n";
         }
         return result;

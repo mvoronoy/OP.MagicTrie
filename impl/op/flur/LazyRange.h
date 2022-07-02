@@ -205,10 +205,6 @@ namespace flur
     template <class T >
     auto first(T flur_obj)
     {
-        //;
-        //auto seq = 
-        //    details::unpack(/*std::forward<T>*/(flur_obj));
-        //auto& rseq = details::get_reference(seq);
         auto seq = details::get_reference(flur_obj).compound();
         auto& rseq = details::get_reference(seq);
         rseq.start();

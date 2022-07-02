@@ -8,7 +8,7 @@
 #include <ctime>
 #include <chrono>
 #include <regex>
-#include <map>
+#include <array>
 #include <sstream>
 namespace OP
 {
@@ -219,24 +219,39 @@ namespace OP
 
             auto all_result = 
                 OP::utest::TestRun::default_instance().run_if(test_case_filter);
-            std::map<std::string, size_t> summary_map;
-            int status = 0;
+            using summary_t = std::tuple<size_t, std::string>;
+            constexpr size_t n_statuses_c = 
+                static_cast<std::uint32_t>(TestResult::Status::_last_) -
+                static_cast<std::uint32_t>(TestResult::Status::_first_);
+
+            std::array<summary_t, n_statuses_c> all_sumary;
+            int status = 0; //0 means everything good
             for (auto& result : all_result)
             {
-                if (!result) //encount last fail
-                    status = static_cast<int>(result.status());
-                auto agg = summary_map.emplace(result.status_to_str(), 0);
-                ++agg.first->second;
+                if (!result)
+                    status = 1;  //on exit will mean the some test failed
+
+                auto &reduce = all_sumary[(size_t)result.status() % n_statuses_c];
+                if(! std::get<size_t>(reduce)++ )
+                {
+                    std::get<std::string>(reduce) = result.status_to_colored_str();
+                }
             }
             //restore cout formatting
             cout_flags.reset();
 
             std::cout << "==--Total run results--==:\n";
             //dump summary
-            for( const auto& agg : summary_map )
+            for( const auto& agg : all_sumary )
             {
-                IoFlagGuard cout_flags(std::cout);
-                std::cout << "\t" << agg.first << std::setfill('-')<<std::setw(10)<< ">(" << agg.second << ")\n";
+                if(std::get<size_t>(agg))
+                {
+                    IoFlagGuard cout_flags(std::cout);
+                    std::cout 
+                        << "\t" << std::get<std::string>(agg) 
+                        << std::setfill('-')<<std::setw(10)
+                        << ">(" << std::get<size_t>(agg) << ")\n";
+                }
             }
             return status;
         }
