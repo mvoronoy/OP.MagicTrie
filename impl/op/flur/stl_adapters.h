@@ -1,7 +1,7 @@
 #pragma once
 #ifndef _OP_FLUR_STL_ADAPTERS__H_
 #define _OP_FLUR_STL_ADAPTERS__H_
-
+#include <numeric>
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
 #include <op/flur/LazyRange.h>
