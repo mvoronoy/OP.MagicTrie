@@ -21,7 +21,6 @@ namespace OP::console
         constexpr static const std::array<char, sizeof ... (esc)> seq_c = {esc ...};
     };
 
-    
 #if defined( OP_COMMON_OS_LINUX )
     inline
 #endif // OP_COMMON_OS_LINUX
@@ -75,8 +74,8 @@ namespace OP::console
             {
                 using esc_init_t = std::tuple<TEscInit ...>;
                 sequence_t result;
-                run_sequence(result, 
-                    std::make_index_sequence<esc_init_t, std::tuple_size_v<esc_init_t>>{});
+                run_sequence<esc_init_t>(result,
+                    std::make_index_sequence<std::tuple_size_v<esc_init_t>>{});
                 return result;
             }
             LinuxColorer(std::ostream& console_os, sequence_t seq)
