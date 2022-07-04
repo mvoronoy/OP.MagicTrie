@@ -292,7 +292,7 @@ namespace OP::console{
         using result_t = color_meets_value_t<std::decay_t<V>>;
         using colorer_t = typename result_t::colorer_t;
         return result_t(std::forward<V>(v),
-            std::move(colorer_t::type_2_sequence<TColor...>())
+            std::move(colorer_t::template type_2_sequence<TColor...>())
         );
     }
 
