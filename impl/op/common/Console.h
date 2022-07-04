@@ -26,7 +26,7 @@ namespace OP::console
     inline
 #endif // OP_COMMON_OS_LINUX
 
-    namespace linux {
+    namespace linux_os {
 
         template <char ... esc>
         using console_esc_t = Esc<'\x1b', '[', esc ..., 'm'>;
@@ -109,7 +109,7 @@ namespace OP::console
         };
         template <class ... TEscInit >
         using default_colorer_t = LinuxColorer<TEscInit ...>;
-    } //ns: linux
+    } //ns: linux_os
 
 #if defined( OP_COMMON_OS_WINDOWS )
 }//ns:OP::console
