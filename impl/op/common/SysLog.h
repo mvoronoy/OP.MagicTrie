@@ -2,19 +2,16 @@
 #ifndef _OP_COMMON_SYSLOG__H_
 #define _OP_COMMON_SYSLOG__H_
 
-#if defined (_WINDOWS) || defined(_WIN32) || defined(_WIN64)
-#define OP_COMMON_OS_WINDOWS
-#endif
+#include <op/common/OsDependedMacros.h>
+#include <string>
+
+#ifdef  OP_COMMON_OS_LINUX
+#include <syslog.h>
+#endif //OP_COMMON_OS_LINUX
 
 #ifdef OP_COMMON_OS_WINDOWS
-    #include <Windows.h>
-#ifdef max
-#undef max
-#endif
-#elif __linux__ //asume LINUX platform
-    #include <syslog.h>
-#endif // _WINDOWS
-#include <string>
+//#include <Windows.h>
+#endif //OP_COMMON_OS_WINDOWS
 
 namespace OP
 {
@@ -38,7 +35,7 @@ namespace OP
                 {
                     OutputDebugStringA(s.c_str());
                 }
-#elif defined(__linux__) //asume LINUX platform
+#elif defined(OP_COMMON_OS_LINUX) //asume LINUX platform
                 Transport()
                 {
                     openlog("", LOG_PID | LOG_CONS | LOG_NDELAY,
@@ -52,7 +49,7 @@ namespace OP
                 {
                     syslog(LOG_ERR, "%s", s.c_str());
                 }
-#endif // _WINDOWS
+#endif // _WINDOWS / LINUX
             };//Transport
             Transport _transport;
         public:

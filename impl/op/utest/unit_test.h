@@ -27,6 +27,7 @@
 #include <op/utest/unit_test_is.h>
 #include <op/common/IoFlagGuard.h>
 #include <op/common/ftraits.h>
+#include <op/common/Console.h>
 
 #if defined( _MSC_VER ) 
 #if defined(max)
@@ -343,29 +344,31 @@ namespace OP::utest
             };
             return values[((size_t)_status - (size_t)Status::_first_) % status_size_c];
         }
-        //TODO Only temporal solution, nust be replaced to console-only with override the infor()/error() stream
-        [[nodiscard]] std::string status_to_colored_str() const
+
+        using colored_wrap_t = console::WrapSeqBase<std::string>;
+        using colored_wrap_ptr = std::unique_ptr< colored_wrap_t>;
+        template <class C>
+        using colorer_impl_t = console::WrapSeq<console::default_colorer_t<C>, std::string>;
+        [[nodiscard]] colored_wrap_ptr status_to_colored_str() const
         {
-            std::stringstream result;
             switch(_status)
             {
                 case TestResult::Status::failed:
-                    result << console::esc<console::yellow_t>(status_to_str());
-                    break;
+                    return colored_wrap_ptr(
+                        new colorer_impl_t<console::yellow_t>(status_to_str()));
                 case TestResult::Status::aborted:
-                    result << console::esc<console::background_red_t>(status_to_str());
-                    break;
+                    return colored_wrap_ptr(
+                        new colorer_impl_t<console::background_red_t>(status_to_str()));
                 case TestResult::Status::exception:
-                    result << console::esc<console::red_t>(status_to_str());
-                    break;
+                    return colored_wrap_ptr(
+                        new colorer_impl_t<console::red_t>(status_to_str()));
                 case TestResult::Status::ok:
-                    result << console::esc<console::green_t>(status_to_str());
-                    break;
+                    return colored_wrap_ptr(
+                        new colorer_impl_t<console::green_t>(status_to_str()));
                 default:
-                    result << console::esc<console::void_t>(status_to_str());
-                    break;
+                    return colored_wrap_ptr(
+                        new colorer_impl_t<console::void_t>(status_to_str()));
             }        
-            return result.str();
         }
     private:
         Status _status;
@@ -1302,7 +1305,7 @@ namespace OP::utest
 
             info()
                     << "\t[" << tcase->id() << "] done with status:"
-                    << "-=[" << result.back().status_to_colored_str()
+                    << "-=[" << *result.back().status_to_colored_str()
                     << "]=-"
                     << " in:" << std::fixed << result.back().ms_duration() << "ms\n";
         }

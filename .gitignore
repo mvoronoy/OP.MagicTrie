@@ -28,7 +28,6 @@
 *.exe
 *.out
 *.app
-/tests
 *.idb
 *.pdb
 

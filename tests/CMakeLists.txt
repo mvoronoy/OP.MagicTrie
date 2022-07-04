@@ -3,6 +3,10 @@
 cmake_minimum_required (VERSION 3.8)
 project(trie_test)
 
+if(MSVC)
+#    add_compile_options("/P" )
+endif(MSVC)
+
 set(BOOST_ROOT $ENV{BOOST_ROOT})
 # per doc:
 #       Boost.Interprocess depends on Boost.DateTime, which needs separate compilation. However, 
