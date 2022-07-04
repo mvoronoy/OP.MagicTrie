@@ -2,6 +2,7 @@
 #define _OP_COMMON_CONSOLE__H_
 
 #include <type_traits>
+#include <array>
 #include <iostream>
 #include <op/common/OsDependedMacros.h>
 
@@ -17,17 +18,15 @@ namespace OP::console
     template <char ... esc>
     struct Esc
     {
-        constexpr static const char seq_c[] = {esc ...};
-        constexpr static const size_t seq_size_c = std::extent_v<seq_c>;
+        constexpr static const std::array<char, sizeof ... (esc)> seq_c = {esc ...};
     };
 
     
 #if defined( OP_COMMON_OS_LINUX )
     inline
 #endif // OP_COMMON_OS_LINUX
-
     namespace linux_os {
-
+        //Note: linux_os implementation also avaiable for win_os case (not vice-verse)
         template <char ... esc>
         using console_esc_t = Esc<'\x1b', '[', esc ..., 'm'>;
 
@@ -92,17 +91,22 @@ namespace OP::console
             {
                 if(_console_os)
                 {
-                    _console_os->write(esc_close_t::seq_c, esc_close_t::seq_size_c);
+                    _console_os->write(esc_close_t::seq_c.data(), esc_close_t::seq_c.size());
                     _console_os->flush();
                 }
             }
 
         private:
+            template<std::size_t I>
+            constexpr void run_single()
+            {
+                using elt_t = std::tuple_element_t<I, esc_init_t>;
+                _console_os->write(elt_t::seq_c.data(), elt_t::seq_c.size());
+            }
             template<std::size_t... I>
             constexpr void run_sequence(std::index_sequence<I...>)
             {
-                using elt_t = std::tuple_element_t<I, esc_init_t>;
-                _console_os->write(elt_t::seq_c, elt_t::seq_size_c);
+                (run_single<I>(), ...);
             }
 
             std::ostream* _console_os;
