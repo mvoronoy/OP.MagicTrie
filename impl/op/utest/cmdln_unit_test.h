@@ -219,13 +219,13 @@ namespace OP
 
             auto all_result = 
                 OP::utest::TestRun::default_instance().run_if(test_case_filter);
-            using text_wrap_t = typename TestResult::colored_wrap_ptr;
-            using summary_t = std::tuple<size_t, text_wrap_t>;
+
+            using summary_t = std::tuple<size_t, TestResult::Status>;
             constexpr size_t n_statuses_c = 
                 static_cast<std::uint32_t>(TestResult::Status::_last_) -
                 static_cast<std::uint32_t>(TestResult::Status::_first_);
 
-            std::array<summary_t, n_statuses_c> all_sumary;
+            std::array<summary_t, n_statuses_c> all_sumary{};
             int status = 0; //0 means everything good
             for (auto& result : all_result)
             {
@@ -235,7 +235,7 @@ namespace OP
                 auto &reduce = all_sumary[(size_t)result.status() % n_statuses_c];
                 if(! std::get<size_t>(reduce)++ )
                 {
-                    std::get<text_wrap_t>(reduce) = std::move(result.status_to_colored_str());
+                    std::get<TestResult::Status>(reduce) = result.status();
                 }
             }
             //restore cout formatting
@@ -248,8 +248,8 @@ namespace OP
                 if(std::get<size_t>(agg))
                 {
                     IoFlagGuard cout_flags(std::cout);
-                    std::cout 
-                        << "\t" << *std::get<text_wrap_t>(agg)
+                    std::cout
+                        << "\t" << TestResult::status_to_colored_str(std::get < TestResult::Status > (agg))
                         << std::setfill('-')<<std::setw(10)
                         << ">(" << std::get<size_t>(agg) << ")\n";
                 }

@@ -337,39 +337,45 @@ namespace OP::utest
         {
             return std::chrono::duration<double, std::milli>(_end_time - _start_time).count();
         }
-        [[nodiscard]] const std::string& status_to_str() const
+        [[nodiscard]] static const std::string& status_to_str(Status status) 
         {
             static const std::string values[] = {
                 "not started", "failed", "exception", "aborted", "ok"
             };
-            return values[((size_t)_status - (size_t)Status::_first_) % status_size_c];
+            return values[((size_t)status - (size_t)Status::_first_) % status_size_c];
+        }
+        [[nodiscard]] const std::string& status_to_str() const
+        {
+            return status_to_str(_status);
         }
 
-        using colored_wrap_t = console::WrapSeqBase<std::string>;
-        using colored_wrap_ptr = std::unique_ptr< colored_wrap_t>;
-        template <class C>
-        using colorer_impl_t = console::WrapSeq<console::default_colorer_t<C>, std::string>;
-        [[nodiscard]] colored_wrap_ptr status_to_colored_str() const
+        using colored_wrap_t = console::color_meets_value_t<std::string>;
+
+        [[nodiscard]] static colored_wrap_t status_to_colored_str(Status status) 
         {
-            switch(_status)
-            {
-                case TestResult::Status::failed:
-                    return colored_wrap_ptr(
-                        new colorer_impl_t<console::yellow_t>(status_to_str()));
-                case TestResult::Status::aborted:
-                    return colored_wrap_ptr(
-                        new colorer_impl_t<console::background_red_t>(status_to_str()));
-                case TestResult::Status::exception:
-                    return colored_wrap_ptr(
-                        new colorer_impl_t<console::red_t>(status_to_str()));
-                case TestResult::Status::ok:
-                    return colored_wrap_ptr(
-                        new colorer_impl_t<console::green_t>(status_to_str()));
-                default:
-                    return colored_wrap_ptr(
-                        new colorer_impl_t<console::void_t>(status_to_str()));
-            }        
+            using fclr_t = colored_wrap_t(*)(const std::string&);
+            const std::string& str = status_to_str(status);
+            static const fclr_t coloring_seq[] = { 
+                /*not_started*/
+                console::esc<console::void_t>,
+                /*failed*/
+                console::esc<console::yellow_t>,
+                /*exception*/
+                console::esc<console::red_t>,
+                /*aborted*/
+                console::esc<console::background_red_t>,
+                /*ok*/
+                console::esc<console::green_t> 
+            };
+            return 
+                coloring_seq[((size_t)status - (size_t)Status::_first_) % status_size_c](str);
+
         }
+        [[nodiscard]] colored_wrap_t status_to_colored_str() const
+        {
+            return status_to_colored_str(_status);
+        }
+        
     private:
         Status _status;
         unsigned _run_number;
@@ -1305,7 +1311,7 @@ namespace OP::utest
 
             info()
                     << "\t[" << tcase->id() << "] done with status:"
-                    << "-=[" << *result.back().status_to_colored_str()
+                    << "-=[" << result.back().status_to_colored_str()
                     << "]=-"
                     << " in:" << std::fixed << result.back().ms_duration() << "ms\n";
         }

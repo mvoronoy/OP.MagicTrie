@@ -65,17 +65,25 @@ namespace OP::console
         using reset_t = console_esc_t<'0'>;
         using void_t = Esc<>;
 
-        template <class ... TEscInit >
         struct LinuxColorer
         {
-            using esc_init_t = std::tuple<TEscInit ...>;
             using esc_close_t = reset_t;
+            using sequence_t = std::string;
 
-            LinuxColorer(std::ostream& console_os)
+            template <class ... TEscInit >
+            static sequence_t type_2_sequence()
+            {
+                using esc_init_t = std::tuple<TEscInit ...>;
+                sequence_t result;
+                run_sequence(result, 
+                    std::make_index_sequence<esc_init_t, std::tuple_size_v<esc_init_t>>{});
+                return result;
+            }
+            LinuxColorer(std::ostream& console_os, sequence_t seq)
                 : _console_os(&console_os)
             {
                 _console_os->flush(); //prevent stuck symbols be colored with unexpected color
-                run_sequence(std::make_index_sequence<std::tuple_size_v<esc_init_t>>{});
+                _console_os->write(seq.data(), seq.size());
             }
 
             LinuxColorer(LinuxColorer&& other) noexcept
@@ -95,24 +103,24 @@ namespace OP::console
                     _console_os->flush();
                 }
             }
-
         private:
-            template<std::size_t I>
-            constexpr void run_single()
+
+            template<class Tup, std::size_t I>
+            constexpr static void run_single(sequence_t& target)
             {
-                using elt_t = std::tuple_element_t<I, esc_init_t>;
-                _console_os->write(elt_t::seq_c.data(), elt_t::seq_c.size());
+                using elt_t = std::tuple_element_t<I, Tup>;
+                target.append(elt_t::seq_c.data(), elt_t::seq_c.size());
             }
-            template<std::size_t... I>
-            constexpr void run_sequence(std::index_sequence<I...>)
+            template<class Tup, std::size_t... I>
+            constexpr static void run_sequence(sequence_t& target, std::index_sequence<I...>)
             {
-                (run_single<I>(), ...);
+                (run_single<Tup, I>(target), ...);
             }
 
             std::ostream* _console_os;
         };
-        template <class ... TEscInit >
-        using default_colorer_t = LinuxColorer<TEscInit ...>;
+
+        using default_colorer_t = LinuxColorer;
     } //ns: linux_os
 
 #if defined( OP_COMMON_OS_WINDOWS )
@@ -163,23 +171,31 @@ namespace OP::console{
         using background_bright_white = console_esc_t<BACKGROUND_INTENSITY| BACKGROUND_RED| BACKGROUND_BLUE| BACKGROUND_GREEN>;
         using void_t = console_esc_t<>;
 
-        template <class ... TEscInit>
         struct WindowsConsoleColorer
         {
-            using esc_init_t = std::tuple<TEscInit ...>;
-            constexpr static bool is_void_c =
-                std::tuple_size_v< esc_init_t> == 0 
-                || (std::tuple_size_v< esc_init_t> == 1 
-                    && std::is_same_v<std::tuple_element_t <0, esc_init_t>,  void_t>);
+            using sequence_t = std::optional<WORD>;
 
-            constexpr static WORD color_c =
-                (TEscInit::color_c | ... | 0);
+            template <class ... TEscInit >
+            constexpr static sequence_t colors_c = (TEscInit::color_c | ... | 0);
 
-            WindowsConsoleColorer(std::ostream& os)
+            template <class ... TEscInit >
+            constexpr static sequence_t type_2_sequence()
+            {
+                using esc_init_t = std::tuple<TEscInit ...>;
+                constexpr bool is_void_c =
+                    (sizeof...(TEscInit) == 0)
+                    || (sizeof...(TEscInit) == 1
+                        && std::is_same_v<std::tuple_element_t <0, esc_init_t>, void_t>);
+                if constexpr(!is_void_c)
+                    return sequence_t ( colors_c< TEscInit...> );
+                return {};//void
+            }
+
+            WindowsConsoleColorer(std::ostream& os, sequence_t seq)
                 : _console_os(&os)
             {
                 _console_os->flush(); //prevent stuck symbols be colored with unexpected color
-                if constexpr (!is_void_c)
+                if (seq)
                 {
                     _h_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -188,7 +204,7 @@ namespace OP::console{
                     if (GetConsoleScreenBufferInfo(_h_stdout, &csbi_info))
                     {
                         _old_color_attr = csbi_info.wAttributes;
-                        SetConsoleTextAttribute(_h_stdout, color_c);//ignore error result
+                        SetConsoleTextAttribute(_h_stdout, *seq);//ignore error result
                     }
                     else//on error, just disalow another ops
                     {
@@ -224,34 +240,32 @@ namespace OP::console{
             std::ostream* _console_os;
         };
 
-        template <class ... TEscInit >
-        using default_colorer_t = WindowsConsoleColorer<TEscInit ...>;
+        using default_colorer_t = WindowsConsoleColorer;
     } //ns: win_os
 
 #endif // OP_COMMON_OS_WINDOWS
-    template <class V>
-    struct WrapSeqBase
-    {
-        virtual std::ostream& print(std::ostream& os) const = 0;
-    };
 
-    /** Encode value to print with Esc<...> sequence */
+    /** Holds os-depended color info + data to print */
     template <class Colorer, class V>
-    struct WrapSeq : WrapSeqBase<V>
+    struct ColoredValue
     {
+        using colorer_t = Colorer;
+        using colored_state_t = typename Colorer::sequence_t;
+
         template <class U>
-        constexpr WrapSeq(U&& u) noexcept
+        constexpr ColoredValue(U&& u, colored_state_t state) noexcept
             : _v(std::forward<U>(u))
+            , _color(std::move(state))
         {
         }
 
-        ~WrapSeq()
+        ~ColoredValue()
         {
         }
         
-        std::ostream& print(std::ostream& os) const override
+        std::ostream& print(std::ostream& os) const
         {
-            auto colorer = bind(os);
+            Colorer colorer(os, _color);
             os << _v;
             return os;
         }
@@ -259,13 +273,15 @@ namespace OP::console{
         const V _v;
 
         template <class ... ColorerArg>
-        constexpr Colorer bind(ColorerArg&& ... arg) const
+        constexpr Colorer bind(std::ostream& os, ColorerArg&& ... arg) const
         {
             return Colorer(std::forward<ColorerArg>(arg)...);
         }
     private:
-        bool _need_close = true;
+        colored_state_t _color;
     };
+    template <class V>
+    using color_meets_value_t = ColoredValue<default_colorer_t, V>;
 
     /** Allows wrap data with color sequence print 
     * For example:
@@ -274,11 +290,15 @@ namespace OP::console{
     template <class ... TColor, class V>
     constexpr auto esc(V && v) noexcept
     {
-        return WrapSeq<default_colorer_t<TColor...>, V>(std::forward<V>(v));
+        using result_t = color_meets_value_t<std::decay_t<V>>;
+        using colorer_t = typename result_t::colorer_t;
+        return result_t(std::forward<V>(v),
+            std::move(colorer_t::type_2_sequence<TColor...>())
+        );
     }
 
-    template <class V>
-    std::ostream& operator << (std::ostream& os, const WrapSeqBase<V>& colored_data)
+    template <class Colorer, class V>
+    std::ostream& operator << (std::ostream& os, const ColoredValue<Colorer, V>& colored_data)
     {
         return colored_data.print(os);
     }
