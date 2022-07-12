@@ -38,7 +38,7 @@ namespace OP::vtm
             template <class TSegmentTopology>
             StringMemoryManager(TSegmentTopology& topology)
                 : _segment_manager(topology.segment_manager())
-                , _heap_mngr(topology.slot<HeapManagerSlot>())
+                , _heap_mngr(topology.template slot<HeapManagerSlot>())
             {
             }
 
