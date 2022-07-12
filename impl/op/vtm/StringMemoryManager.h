@@ -42,6 +42,12 @@ namespace OP::vtm
             {
             }
 
+            /**
+            * Allocate new persisted string.
+            * \tparam StringLike - any type supporting size(), data() methods
+            * \throws std::out_of_range - when string size exceeds segment capacity
+            * \return FarAddress allocated by HeapManagerSlot
+            */
             template <class StringLike>
             FarAddress insert(const StringLike& str)
             {
@@ -83,9 +89,20 @@ namespace OP::vtm
                 op_g.commit();
             }
 
+            /**
+            *  Extract string from the persisted state.
+            *  \tparam OutIter - something like std::back_insert_iterator
+            *  \param str_addr - string previously allocated by #inset
+            *  \param offset - start taking persisted characters from this position, default 
+            *                   is 0. If offset exceeds persisted string size nothing copied to
+            *                   output iterator
+            *  \param length - desired length of persisted character sequence to extract, 
+            *                default is `std::numeric_limits<segment_pos_t>::max()`
+            */
             template<class OutIter>
             segment_pos_t get(FarAddress str_addr, OutIter out,
-                segment_pos_t offset = 0, segment_pos_t length = ~segment_pos_t{})
+                segment_pos_t offset = 0, 
+                segment_pos_t length = std::numeric_limits<segment_pos_t>::max())
             {
                 OP::vtm::TransactionGuard op_g(
                     _segment_manager.begin_transaction()); //invoke begin/end write-op
