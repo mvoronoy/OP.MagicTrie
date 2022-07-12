@@ -126,10 +126,6 @@ namespace OP::vtm
             op_g.commit();
         }
 
-        std::uint64_t address_to_index(FarAddress page) noexcept
-        {
-        }
-
         void _check_integrity(FarAddress segment_addr, SegmentManager& manager) override
         {
             if (segment_addr.segment != 0)
