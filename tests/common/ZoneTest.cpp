@@ -1,11 +1,13 @@
 #include <op/utest/unit_test.h>
 #include <op/common/Range.h>
 #include <op/vtm/SegmentManager.h>
+#include <op/vtm/SegmentHelper.h>
 #include <assert.h>
 #include <random>
 #include <map>
 
 using namespace OP;
+using namespace OP::vtm;
 using namespace OP::trie;
 void test_ZoneContainer()
 {

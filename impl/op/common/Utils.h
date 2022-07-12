@@ -142,14 +142,16 @@ namespace OP
         template <class T, size_t N = 1>
         struct memory_requirement
         {
-            using type = typename std::aligned_storage<sizeof(T)*N, alignof(T)>::type;
+            constexpr static std::uint32_t element_size_c =
+                static_cast<std::uint32_t>(
+                    ((sizeof(T) + alignof(T) - 1) / alignof(T)) * alignof(T));
 
-            static constexpr std::uint32_t requirement = static_cast<std::uint32_t>(sizeof(type));
+            constexpr static std::uint32_t requirement = element_size_c * N;
 
             template <typename Int>
             static constexpr Int array_size(Int n)
             {
-                return static_cast<Int>(sizeof(type))* n;
+                return static_cast<Int>(element_size_c) * n;
             }
         };
 
@@ -164,118 +166,13 @@ namespace OP
         {
             return align_on(static_cast<std::uint32_t>(memory_requirement<T>::requirement), base);
         }
+
         template <class T, class Y>
         inline bool is_aligned(T address, Y base)
         {
             return ((size_t)(address) % base) == 0;
         }
-        /** Detect result type of arbitrary function/functor/lambda/member 
-        * Thanks to: https://stackoverflow.com/a/27823546/149818
-        */
-        template <typename F>
-        struct return_type_impl;
-
-        template <typename R, typename... Args>
-        struct return_type_impl<R(Args...)> { using type = R; };
-
-        template <typename R, typename... Args>
-        struct return_type_impl<R(Args..., ...)> { using type = R; };
-
-        template <typename R, typename... Args>
-        struct return_type_impl<R(*)(Args...)> { using type = R; };
-
-        template <typename R, typename... Args>
-        struct return_type_impl<R(*)(Args..., ...)> { using type = R; };
-
-        template <typename R, typename... Args>
-        struct return_type_impl<R(&)(Args...)> { using type = R; };
-
-        template <typename R, typename... Args>
-        struct return_type_impl<R(&)(Args..., ...)> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...)> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...)> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) &> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) &> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) &&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) &&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) const> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) const> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) const&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) const&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) const&&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) const&&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) volatile> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) volatile> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) volatile&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) volatile&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) volatile&&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) volatile&&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) const volatile> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) const volatile> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) const volatile&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) const volatile&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args...) const volatile&&> { using type = R; };
-
-        template <typename R, typename C, typename... Args>
-        struct return_type_impl<R(C::*)(Args..., ...) const volatile&&> { using type = R; };
-
-        template <typename T, typename = void>
-        struct return_type
-            : return_type_impl<T> {};
-
-        template <typename T>
-        struct return_type<T, decltype(void(&T::operator()))>
-            : return_type_impl<decltype(&T::operator())> {};
-
-        template <typename T>
-        using return_type_t = typename return_type<T>::type;
-
+        
    } //utils
 } //OP
 #endif //_OP_TRIE_UTILS__H_

@@ -3,11 +3,13 @@
 
 #include <op/common/typedefs.h>
 #include <op/vtm/SegmentManager.h>
+#include <op/vtm/SegmentHelper.h>
 
 namespace OP
 {
     namespace trie
     {
+        using namespace OP::vtm;
         template <class T>
         struct PersistedReference
         {

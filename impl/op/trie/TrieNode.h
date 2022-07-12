@@ -32,12 +32,7 @@ namespace OP
             typedef ValueArrayData<payload_t> values_t;
             typedef PersistedArray<values_t> ref_values_t;
             
-
-            static const NodePersense f_addre_presence_c = fdef_1;
-            //typedef std::tuple<presence_t, ref_reindex_hash_t, ref_stems_t> node_def_t;
-            //node_def_t _data;
-
-            presence_t presence;
+            presence_t presence, child, data;
             /**modification version of node*/
             node_version_t version;
             ref_reindex_hash_t reindexer;
@@ -60,15 +55,12 @@ namespace OP
                     FarAddress a_child_node = FarAddress(), dim_t a_stem_rest = 0) noexcept
                     : compare_result{a_compare_result}
                     , child_node{ a_child_node }
-                    //, stem_rest{ a_stem_rest }
                 {}
 
-                /** result of comare string with node */
+                /** result of compare string with node */
                 stem::StemCompareResult compare_result;
                 /**address of further children to continue navigation*/
                 FarAddress child_node;
-                /** bytes that left in the node after string exhausted */
-                //atom_string_t stem_rest;
             };
 
             template <class TSegmentTopology, class Atom, class Iterator>
@@ -106,9 +98,7 @@ namespace OP
             /**
             * Method matches this node with key specified by [begin, end)
             * @param track_back - iterator that is populated at exit. 
-            *   @return \li get<0> - compare result;
-            *   \li get<1> length of string overlapped part;
-            *   \li get<2> address of further children to continue navigation
+            * @return  result where navigation been stopped
             */
             template <class TSegmentTopology, class Atom, class Iterator>
             nav_result_t navigate_over(
@@ -178,7 +168,8 @@ namespace OP
             
             
             /** 
-            *  @param payload_factory - may or not be used (if source string too long and should be placed to other page)
+            *  @param payload_factory - functor that postpone creation of value. May or not be used (if source 
+            *           string too long and should be placed to other node)
             *  @return true when end of iteration was reached and value assigned, false mean no value inserted
             */
             template <class TSegmentTopology, class Atom, class FProducePayload>
@@ -229,6 +220,8 @@ namespace OP
                     stem_manager.trunc_str(this->stems, static_cast<atom_t>(reindexed), 0);
 
                 presence.clear(key);
+                child.clear(key); 
+                data.clear(key);
                 //@! think to reduce space of hashtable
                 return presence.first_set() == presence_t::nil_c; //erase entire node if no more entries
             }
@@ -239,6 +232,7 @@ namespace OP
                 atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 value_manager.accessor(payload, capacity)[ reindexed ].set_child(address);
+                child.set(reindexed);
                 ++version;
             }
             /**Get child address if present, otherwise return null-pos*/
@@ -267,15 +261,14 @@ namespace OP
                 atom_t reindexed = reindex(topology, key);
                 ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
                 value_manager.accessor(payload, capacity)[ reindexed ].set_data(std::move(value));
+                data.set(reindexed);
                 ++version;
             }
             template <class TSegmentTopology>
             std::pair<bool, bool> get_presence(TSegmentTopology& topology, atom_t key) const
             {
                 atom_t reindexed = reindex(topology, key);
-                ValueArrayManager<TSegmentTopology, payload_t> value_manager(topology);
-                auto& vad = value_manager.view(payload, capacity)[reindexed];
-                return std::make_pair(vad.has_child(), vad.has_data());
+                return std::make_pair(child.get(reindexed), data.get(reindexed));
             }
             /**@return first position where child or value exists, may return dim_nil_c if node empty*/
             inline nullable_atom_t first() const
@@ -429,6 +422,7 @@ namespace OP
                 this->payload = value_grow_res.dest_addr();
                 ++version;
             }
+
             /**Apply `move_callback` to each existing item to move from previous container to new container (like a value- or stem- containers) */
             template <class Remap, class FMoveCallback>
             void copy_stuff(Remap& remap, FMoveCallback move_callback)

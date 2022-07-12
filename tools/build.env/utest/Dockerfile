@@ -18,7 +18,7 @@ RUN ssh-keygen -N '' -t rsa -f /etc/ssh/ssh_host_rsa_key \
 # RUN rm -rf OP.MagicTrie && mkdir OP.MagicTrie && cd  "$_" && git init \
 #    && git remote add origin https://github.com/mvoronoy/OP.MagicTrie.git \
 #    && git fetch origin \
-#    && git checkout -b master --track origin/master
+#    && git checkout -b main --track origin/main
 
     RUN git clone https://github.com/mvoronoy/OP.MagicTrie.git \
 

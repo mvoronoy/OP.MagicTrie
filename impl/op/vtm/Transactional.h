@@ -1,5 +1,6 @@
-#ifndef _OP_TR_TRANSACTIONAL__H_
-#define _OP_TR_TRANSACTIONAL__H_
+#pragma once
+#ifndef _OP_VTM_TRANSACTIONAL__H_
+#define _OP_VTM_TRANSACTIONAL__H_
 
 #include <type_traits>
 #include <iostream>
@@ -7,9 +8,8 @@
 #include <string>
 #include <typeinfo>
 
-namespace OP
+namespace OP::vtm
 {
-    namespace vtm{
         /**Exception is raised when imposible to obtain lock over memory block*/
         struct ConcurentLockException : public OP::trie::Exception
         {
@@ -79,9 +79,9 @@ namespace OP
                 , _is_closed(!_instance)//be polite to null transactions
                 , _do_commit_on_close(do_commit_on_close)
             {}
-			
-			TransactionGuard(const TransactionGuard&) = delete;
-			TransactionGuard& operator = (const TransactionGuard&) = delete;
+            
+            TransactionGuard(const TransactionGuard&) = delete;
+            TransactionGuard& operator = (const TransactionGuard&) = delete;
 
             void commit()
             {
@@ -153,7 +153,6 @@ namespace OP
             throw OP::vtm::ConcurentLockException("10");
         }
 
-    } //namespace vtm
-} //end of namespace OP
-#endif //_OP_TR_TRANSACTIONAL__H_
+} //end of namespace OP::vtm
+#endif //_OP_VTM_TRANSACTIONAL__H_
 

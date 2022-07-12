@@ -2,7 +2,8 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryChunks.h>
 #include <op/vtm/HeapManager.h>
-using namespace OP::trie;
+using namespace OP::trie;    
+using namespace OP::vtm;
 using namespace OP::utils;
 
 struct TestMemAlloc1
@@ -21,7 +22,7 @@ void test_SegmentTopology(OP::utest::TestRuntime& result)
     const char seg_file_name[] = "segementation.test";
     typedef std::uint8_t assorted_t[13];
 
-    auto options = OP::trie::SegmentOptions()
+    auto options = SegmentOptions()
         .heuristic_size(
         size_heuristic::of_array<TestMemAlloc1, 100>,
         size_heuristic::of_array<TestMemAlloc1, 900>,
@@ -29,7 +30,7 @@ void test_SegmentTopology(OP::utest::TestRuntime& result)
         size_heuristic::of_assorted<assorted_t, 3>,
         size_heuristic::add_percentage(5)/*+5% of total size*/
         );
-    auto mngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(seg_file_name, options);
+    auto mngr1 = SegmentManager::create_new<SegmentManager>(seg_file_name, options);
     auto tst_size = mngr1->segment_size();
     OP_CONSTEXPR(const) size_t control_size = ((align_on(sizeof(TestMemAlloc1) * 100, SegmentDef::align_c)
         + align_on(sizeof(TestMemAlloc1) * 900, SegmentDef::align_c)

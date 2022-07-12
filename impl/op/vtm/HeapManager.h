@@ -8,10 +8,8 @@
 #include <op/vtm/MemoryBlock.h>
 #include <op/vtm/Skplst.h>
 
-namespace OP
+namespace OP::vtm
 {
-    namespace trie
-    {
         struct HeapManagerSlot : public Slot
         {
             HeapManagerSlot()
@@ -58,18 +56,21 @@ namespace OP
                     current_mem_pos, OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c));
                 auto current_mem = current_mem_block.at<MemoryBlockHeader>(0);
                 
-                OP_CONSTEXPR(const) segment_pos_t mbh = 
-                    OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
+                OP_CONSTEXPR(const) segment_pos_t mbh = memory_requirement<MemoryBlockHeader>::requirement;
                 auto free_addr = FarAddress(free_block_pos);
                 segment_pos_t deposited_size = current_mem->real_size();
                 FarAddress retval;
-                if (current_mem->size() <= (size + mbh + SegmentHeader::align_c)) //existing block can fit only queried bytes
+                if (current_mem->size() <= (size + mbh)) //existing block can fit only queried bytes
                 {
                     current_mem->set_free(false);
                     //when existing block is used it is not needed to use 'real_size' - because header alredy counted
                     deposited_size -= mbh;
                     MemoryChunk result = 
-                        _segment_manager->writable_block(free_addr, size, WritableBlockHint::new_c | WritableBlockHint::allow_block_realloc);
+                        _segment_manager->writable_block(
+                            free_addr, 
+                            size, 
+                            WritableBlockHint::new_c | WritableBlockHint::allow_block_realloc
+                        );
                     retval = result.address();
                 }
                 else
@@ -89,11 +90,13 @@ namespace OP
                 g.commit();
                 return retval;
             }
+
             /** @return true if merge two adjacent block during deallocation is allowed */
             virtual bool has_block_merging() const
             {
                 return false;
             }
+
             /**\return number of bytes available for specific segment*/
             segment_pos_t available(segment_idx_t segment_idx) const
             {
@@ -106,6 +109,7 @@ namespace OP
                 auto ro_block = _segment_manager->readonly_block(pos, memory_requirement<segment_pos_t>::requirement);
                 return *ro_block.at<segment_pos_t>(0);
             }
+
             /**
             *   Deallocate memory block previously obtained by #allocate method.
             *  
@@ -127,7 +131,7 @@ namespace OP
                     //obtain RO block of memory header to validate address
                     auto ro_block =
                         _segment_manager->readonly_block(header_far, mbh,
-                            OP::trie::ReadonlyBlockHint::ro_keep_lock/*retain this block's header in scope of transaction*/);
+                            ReadonlyBlockHint::ro_keep_lock/*retain this block's header in scope of transaction*/);
                     const MemoryBlockHeader* header = ro_block.at<MemoryBlockHeader>(0);
                     if (!header->check_signature() || header->is_free())
                         throw trie::Exception(trie::er_invalid_block);
@@ -461,6 +465,6 @@ namespace OP
         };
 
 
-    }//namespace trie
-}//namespace OP
+    
+}//ns: OP:vtm
 #endif //_OP_TRIE_MEMORYMANAGER__H_

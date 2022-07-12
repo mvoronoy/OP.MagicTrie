@@ -10,10 +10,8 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryBlockHeader.h>
 
-namespace OP
+namespace OP::vtm
 {
-    namespace trie
-    {
         using namespace OP::utils;
 
 
@@ -26,7 +24,7 @@ namespace OP
             typedef Log2SkipList<Traits, bitmask_size_c> this_t;
 
             /**
-            *   Evaluate how many bytes expected to place header of this datastructure.
+            *   Evaluate how many bytes expected to place to the header of this datastructure.
             */
             OP_CONSTEXPR(OP_EMPTY_ARG) static segment_pos_t byte_size()
             {
@@ -37,7 +35,7 @@ namespace OP
             /**Format memory starting from param `start` for skip-list header
             *@return new instance of Log2SkipList
             */
-            static std::unique_ptr<this_t> create_new(SegmentManager& manager, OP::trie::far_pos_t start)
+            static std::unique_ptr<this_t> create_new(SegmentManager& manager, OP::vtm::far_pos_t start)
             {
                 auto wr = manager.writable_block(FarAddress(start), byte_size(), WritableBlockHint::new_c);
                 
@@ -49,7 +47,7 @@ namespace OP
             /**Open existing list from starting point 'start'
             *@return new instance of Log2SkipList
             */
-            static std::unique_ptr<this_t> open(SegmentManager& manager, OP::trie::far_pos_t start)
+            static std::unique_ptr<this_t> open(SegmentManager& manager, OP::vtm::far_pos_t start)
             {
                 return std::make_unique<this_t>(manager, start);
             }
@@ -58,11 +56,12 @@ namespace OP
             * \param start position where header will be placed. After this position header will occupy
             memory block of #byte_size() length
             */
-            Log2SkipList(SegmentManager& manager, OP::trie::far_pos_t start) :
+            Log2SkipList(SegmentManager& manager, OP::vtm::far_pos_t start) :
                 _segment_manager(manager),
                 _list_pos(start)
             {
-                static_assert(std::is_base_of<ForwardListBase, typename traits_t::target_t>::value, "To use skip-list you need inherit T from ForwardListBase");
+                static_assert(std::is_base_of_v<ForwardListBase, typename traits_t::target_t>, 
+                    "To use skip-list you need inherit T from ForwardListBase");
             }
 
             far_pos_t pull_not_less(traits_t& traits, typename Traits::key_t key)
@@ -168,7 +167,7 @@ namespace OP
 
         private:
             SegmentManager& _segment_manager;
-            OP::trie::far_pos_t _list_pos;
+            OP::vtm::far_pos_t _list_pos;
         private:
 
             FarAddress entry_offset_by_idx(size_t index) const
@@ -177,6 +176,6 @@ namespace OP
                 return r += memory_requirement<ForwardListBase>::array_size(static_cast<segment_pos_t>(index));
             }
         };
-    }//trie
-}//OP
+    
+}//ns: OP::vtm
 #endif //_OP_TRIE_SKPLST__H_

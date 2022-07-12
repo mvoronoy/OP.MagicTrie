@@ -397,7 +397,7 @@ namespace OP
             }
 
             /**
-            *   Get first child element resided below position specified by @param `of_this`. Since all values in Trie are lexicographically 
+            *   Get first child element resided below position specified by @param `of_this`. Since all keys in Trie are lexicographically 
             *   ordred the return iterator indicate smallest immediate children
             *   For example having entries in trie: \code
             *       abc, abc.1, abc.123, abc.2, abc.3
@@ -413,7 +413,7 @@ namespace OP
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
             }
             /**
-            *   Get last child element resided below position specified by `of_this`. Since all values in Trie are lexicographically 
+            *   Get last child element resided below position specified by `of_this`. Since all keys in Trie are lexicographically 
             *   ordred the return iterator indicate largest immediate children
             *   For example having entries in trie: \code
             *       abc, abc.1, abc.2, abc.3, abc.333
@@ -519,6 +519,7 @@ namespace OP
                 op_g.rollback();
                 throw std::invalid_argument("position has no value associated");
             }
+
             /**
             *   @return pair, where
             * \li `first` - has child
@@ -533,6 +534,7 @@ namespace OP
                 op_g.rollback();
                 throw std::invalid_argument("position has no value associated");
             }
+
             /**
             *   Insert string specified by pair [begin, end) and associate value with it.
             * @param begin start iterator of string to insert. 
@@ -558,12 +560,14 @@ namespace OP
                 upsert_impl(result, begin, aend, value_assigner, on_update);
                 return result;
             }
+            
             template <class AtomContainer>
             std::pair<iterator, bool> insert(const AtomContainer& container, Payload value)
             {
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
             }
+            
             template <class AtomIterator>
             std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, Payload value)
             {
@@ -586,11 +590,13 @@ namespace OP
                 upsert_impl(result, begin, aend, value_assigner, on_update);
                 return result;
             }
+            
             template <class AtomContainer>
             std::pair<iterator, bool> prefixed_insert(iterator& of_prefix, const AtomContainer& container, Payload payload)
             {
                 return prefixed_insert(of_prefix, std::begin(container), std::end(container), payload);
             }
+            
             /**
             *   @return number of items updated (1 or 0)
             */
@@ -615,7 +621,9 @@ namespace OP
                     ;
                 return 1;
             }
-            /**Update or insert value specified by key that formed as `[begin, end)`. 
+            
+            /**
+            * Update or insert value specified by key that formed as `[begin, end)`. 
             * @param value - payload to be assigned anyway 
             * @return pair of iterator and boolean indicator. When insert succeeded iterator is a position of
             *       just inserted item, otherwise it points to already existing key. Boolean indicator is false when
@@ -627,6 +635,7 @@ namespace OP
                 auto temp_end = end();
                 return prefixed_upsert(temp_end, begin, aend, std::move(value));
             }
+
             /**Update or insert value specified by key. In other words
             *   place a string bellow pointer specified by iterator.
             * @param key - a container that supports std::begin/std::end semantic
@@ -640,6 +649,7 @@ namespace OP
             {
                 return upsert(std::begin(key), std::end(key), std::move(value));
             }
+            
             /**Update or insert value specified by key that formed as `prefix.key + [begin, end)`. In other words
             *   place a string bellow pointer specified by iterator. 
             * @param value - payload to be assigned anyway 
@@ -722,13 +732,16 @@ namespace OP
                 if (count) { *count = 1; }
                 return result;
             }
+            
             /**Simplfied form of erase(iterator&, size_t*)*/
             iterator erase(iterator && pos)
             {
                 iterator snapshot = std::move(pos);
                 return erase(snapshot, nullptr);
             }
-            /**Erase every entries that begins with prfix specified by iterator. If trie contains entry excatly matched to 
+            
+            /**
+            * Erase every entries that begins with prfix specified by iterator. If trie contains entry excatly matched to 
             * prefix then it is erased as well
             * @param prefx{in,out} - iterator to erase, at exit contains synced iterator (the same version as entire Trie)
             * @return number of erased items
@@ -790,6 +803,7 @@ namespace OP
                 prefix.back()._terminality &= ~Terminality::term_has_child;
                 return std::abs(erased_terminals);
             }
+
             /**
             *   Remove all that starts with prefix
             */
@@ -823,6 +837,7 @@ namespace OP
                 }
                 return result;
             }
+
             /**
             *   Allows to apply multiple modification operations in a transaction. In fact this just decoration 
             * for \code
@@ -846,6 +861,7 @@ namespace OP
                     throw;
                 }
             }
+
             /**
             *   Allows to apply multiple readonly operations in a transaction. In fact this just decoration 
             * for \code
@@ -905,6 +921,7 @@ namespace OP
                 res.increase_nodes_allocated(+1);
                 return node_pos;
             }
+
             void remove_node(FarAddress addr, node_t& node)
             {
                 _hash_mngr.destroy(node.reindexer);
@@ -914,6 +931,7 @@ namespace OP
                 auto &res = _topology_ptr->OP_TEMPL_METH(slot)<TrieResidence>();
                 res.increase_nodes_allocated(-1);
             }
+
             /**
             *  On insert to `break_position` stem may contain chain to split. This method breaks the chain
             *  and place the rest to a new children node.

@@ -226,7 +226,7 @@ namespace OP::utest
         template <class Os>
         friend inline std::ostream& operator <<(Os& os, const Details& d)
         {
-            os << d._result.rdbuf();
+            os << d._result.str();  //rdbuf() not working there :(
             return os;
         }
 
@@ -390,11 +390,11 @@ namespace OP::utest
         friend struct TestRun;
 
         TestRuntime(
-            TestSuite& suite, std::string name, ResultLevel level)
+            TestSuite& suite, std::string name, TestRunOptions run_options)
             : _suite(suite)
             , _access_result(new std::recursive_mutex())
             , _name(std::move(name))
-            , _log_level (level)
+            , _run_options(std::move(run_options))
         {
         }
         TestRuntime(const TestRuntime&) = delete;
@@ -513,6 +513,7 @@ namespace OP::utest
         {
             throw TestFail();
         }
+
     private:
         TestSuite& _suite;
         const std::string _name;
@@ -523,7 +524,7 @@ namespace OP::utest
 
         _inner::null_buffer _null_buffer;
         mutable std::ostream _null_stream{ &_null_buffer };
-        ResultLevel _log_level = ResultLevel::info;
+        TestRunOptions _run_options;
     };
 
     /**Abstract definition of test */
@@ -636,9 +637,8 @@ namespace OP::utest
         using iterator = typename test_container_t::iterator;
         template <class Name>
         TestSuite(
-            TestRunOptions options, Name&& name, std::ostream& info_stream, std::ostream& error_stream)
+            Name&& name, std::ostream& info_stream, std::ostream& error_stream)
             : Identifiable(std::forward<Name>(name))
-            , _options(options)
             ,_info_stream(info_stream)
             ,_error_stream(error_stream)
         {
@@ -798,6 +798,13 @@ namespace OP::utest
         {
             return info();
         }
+        
+        /** Configurable options of this suite */
+        TestRunOptions& options()
+        {
+            return _options;
+        }
+
         template <class Predicate>
         std::deque<TestResult> run_if(Predicate& predicate);
     private:
@@ -982,6 +989,7 @@ namespace OP::utest
                     << std::endl;
 
                 stream_guard.reset();
+                suite_decl.second->options() = _options;
                 try
                 { // This try allows intercept exceptions only from suite initialization
                     auto single_res = suite_decl.second->run_if(predicate);
@@ -1089,7 +1097,11 @@ namespace OP::utest
                 return next_in_range<Int>(std::numeric_limits<Int>::min(),
                                      std::numeric_limits<Int>::max());
             }
-
+            template <class StrLike>
+            inline StrLike& next_alpha_num(StrLike& buffer, size_t max_size, size_t min_size = 0)
+            {
+                return random_str(buffer, max_size, min_size, rand_alphanum);
+            }
             /**
              * Generate random string of random length. It is most generic form of string
              * generation. Possible use cases:
@@ -1276,12 +1288,12 @@ namespace OP::utest
 
     inline std::ostream& TestRuntime::info() const
     {
-        return _log_level >= ResultLevel::info ? _suite.info() : _null_stream;
+        return _run_options.log_level() >= ResultLevel::info ? _suite.info() : _null_stream;
     }
 
     inline std::ostream& TestRuntime::debug() const
     {
-        return _log_level > ResultLevel::info ? _suite.debug() : _null_stream;
+        return _run_options.log_level() > ResultLevel::info ? _suite.debug() : _null_stream;
     }
     template<class Predicate>
     std::deque<TestResult> TestSuite::run_if(Predicate &predicate)
@@ -1303,7 +1315,7 @@ namespace OP::utest
                 initializer = std::make_unique<SuiteInitRAII>(this);
 
             TestRuntime runtime(
-                    *this, tcase->id(), _options.log_level());
+                    *this, tcase->id(), _options);
 
             //allow output error right after appear
             info() << "\t[" << tcase->id() << "]...\n";
@@ -1313,7 +1325,9 @@ namespace OP::utest
                     << "\t[" << tcase->id() << "] done with status:"
                     << "-=[" << result.back().status_to_colored_str()
                     << "]=-"
-                    << " in:" << std::fixed << result.back().ms_duration() << "ms\n";
+                    << " in:" << std::fixed << result.back().ms_duration() << "ms"
+                    << std::endl //need flush
+                ;
         }
         return result;
     }
@@ -1323,7 +1337,6 @@ namespace OP::utest
     {
         return TestRun::default_instance().declare(
             std::make_shared<TestSuite>(
-                TestRun::default_instance().options(),
                 std::forward<Name>(name), std::cout, std::cerr)
         );
     };
