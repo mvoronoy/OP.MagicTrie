@@ -216,7 +216,9 @@ namespace OP
             OP::utest::TestRun::default_instance().options() = opts;
             // keep origin out formatting
             IoFlagGuard cout_flags(std::cout);
-
+            std::set_terminate([]() {
+                std::cerr << "fatal termination happened...\n";
+                });
             auto all_result = 
                 OP::utest::TestRun::default_instance().run_if(test_case_filter);
 
