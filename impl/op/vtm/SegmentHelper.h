@@ -43,6 +43,7 @@ namespace OP::vtm
             align_c = 16
         };
     };
+
     union FarAddress
     {
         far_pos_t address;
@@ -89,9 +90,20 @@ namespace OP::vtm
             assert(segment == other.segment);
             return offset - other.offset;
         }
+        
         constexpr bool is_nil() const
         {
             return address == SegmentDef::far_null_c;
+        }
+
+        friend constexpr bool operator == (const FarAddress& left, const FarAddress& right)
+        {
+            return left.address == right.address;
+        }
+
+        friend constexpr bool operator != (const FarAddress& left, const FarAddress& right)
+        {
+            return left.address != right.address;
         }
     };
     /**get segment part from far address*/
@@ -276,5 +288,19 @@ namespace OP::vtm
 
     }//ns::details
 }   //ns: OP::vtm
+
+namespace std
+{
+    /** Define spacialization of std::has for FarAddress */
+    template<>
+    struct hash<OP::vtm::FarAddress>
+    {
+        std::size_t operator()(const OP::vtm::FarAddress& addr) const noexcept
+        {
+            return std::hash< OP::vtm::far_pos_t >{}(addr.address);
+        }
+    };
+
+} //ns: std
 #endif //_OP_TRIE_SEGMENTHELPER__H_
 

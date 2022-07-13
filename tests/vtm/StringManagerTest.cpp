@@ -104,20 +104,39 @@ void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
         << "-a1 avail:" << heap_mngr.available(0) << "\n";
     tresult.info() << "random insert...\n";
     size_t destroy_idx = 0;
+    std::unordered_map< FarAddress, std::string > model_reference;
     std::vector< FarAddress > allocated_strs;
     allocated_strs.reserve(1000);
     for (size_t i = 0; i < 1000; ++i)
     {
         auto rnd_str_addr = str_manager.insert(
             tools::RandomGenerator::instance().next_alpha_num(buffer, 4096, 0));
+        tresult.assert_true(model_reference.emplace(rnd_str_addr, buffer).second,
+            "Non-unique addr allocated");
         allocated_strs.push_back(rnd_str_addr);
-        if (i > 0 && !(i % 17))
-        {//cycada rhitm
+        if (i > 0 && !(i % 17)) //pseudo random de-alloc of previous string
+        {//cicada rhythm
             FarAddress to_remove;
             std::swap(allocated_strs[destroy_idx++], to_remove);
             str_manager.destroy(to_remove);
+            tresult.assert_that<equals>(1, model_reference.erase(to_remove),
+                "Unknown address of persisted string");
         }
     }
+    //check all strings persisted are valid
+    for (const FarAddress& to_check_addr : allocated_strs)
+    {
+        if (to_check_addr.is_nil()) //already erased
+            continue;
+        auto found = model_reference.find(to_check_addr);
+        tresult.assert_that<not_equals>(found, model_reference.end(),
+            "Something wrong - no such FarAddress in samples");
+        result.clear();
+        str_manager.get(to_check_addr, std::back_insert_iterator(result));
+        tresult.assert_that<equals>(found->second, result,
+            "String is not the same");
+    }
+    model_reference.clear(); //tear down
     //don't destroy str before `destroy_idx`
     allocated_strs.erase(allocated_strs.begin(), allocated_strs.begin() + destroy_idx);
     for(const FarAddress& to_del: allocated_strs)

@@ -359,13 +359,13 @@ namespace OP::utest
                 /*not_started*/
                 console::esc<console::void_t>,
                 /*failed*/
-                console::esc<console::yellow_t>,
+                console::esc<console::bright_yellow_t>,
                 /*exception*/
                 console::esc<console::red_t>,
                 /*aborted*/
                 console::esc<console::background_red_t>,
                 /*ok*/
-                console::esc<console::green_t> 
+                console::esc<console::bright_green_t> 
             };
             return 
                 coloring_seq[((size_t)status - (size_t)Status::_first_) % status_size_c](str);
@@ -844,6 +844,7 @@ namespace OP::utest
             func( inject_arg< std::decay_t<typename traits_t::template arg_i<I>> >(
                     result)... );
         }
+
         template <class TArg>
         auto& inject_arg(TestRuntime& result)
         {
@@ -869,6 +870,7 @@ namespace OP::utest
                 }
             }
         }
+        
         /**Pack user defined test-case into exactly 1 argument lambda*/
         template <class F>
         auto make_bind_expression(F f)
@@ -882,7 +884,6 @@ namespace OP::utest
                     f,
                     std::make_index_sequence<function_traits_t::arity_c>{});
             };
-
         }
 
         template <class F>

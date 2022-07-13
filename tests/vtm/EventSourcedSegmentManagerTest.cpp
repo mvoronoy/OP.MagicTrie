@@ -77,6 +77,7 @@ void test_overlappedException(Sm& tmanager)
         OP_UTEST_ASSERT(e.code() == er_overlapping_block);
     }
 }
+
 /**Check that this transaction sees changed data, but other transaction doesn't*/
 template <class Sm>
 void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t block_size, const std::uint8_t *written)
@@ -108,7 +109,50 @@ void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t bl
     });
     OP_UTEST_ASSERT( future_block2_t2.get() );
 }
+void test_Locking(OP::utest::TestRuntime& tresult)
+{
+    const char seg_file_name[] = "t-segementation.test";
 
+    auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(1024));
+    tmngr1->ensure_segment(0);
+    constexpr segment_pos_t start_offset_c = 0x40;
+    constexpr segment_pos_t test_seq_len_c = 0x20;
+    atom_string_t test_seq(write_fill_seq1, write_fill_seq1 + test_seq_len_c);
+
+    OP::vtm::TransactionGuard op_g(tmngr1->begin_transaction()); 
+    auto bx40_x20 = tmngr1->writable_block(FarAddress(0, start_offset_c), test_seq_len_c);
+    bx40_x20.byte_copy(test_seq.data(), test_seq_len_c);
+    auto check_wait = std::async(std::launch::async, [&]() {
+        OP::vtm::TransactionGuard guard2(tmngr1->begin_transaction());
+        tresult.assert_exception <OP::vtm::ConcurentLockException >([&]() {
+            tmngr1->writable_block(FarAddress(0, start_offset_c - 1), 0x2);
+            });
+        tresult.assert_exception <OP::vtm::ConcurentLockException >([&]() {
+            tmngr1->writable_block(FarAddress(0, start_offset_c), 0x2);
+            });
+        tresult.assert_exception <OP::vtm::ConcurentLockException >([&]() {
+            tmngr1->writable_block(FarAddress(0, start_offset_c+0x1E), 0x20);
+            });
+        //even after retry
+        tresult.assert_exception <OP::vtm::ConcurentLockException >([&]()
+            {
+                auto header = OP::vtm::transactional_yield_retry_n<10>([&]()
+                    {
+                        return tmngr1->wr_at<double>(FarAddress(0, start_offset_c));
+                    });
+                *header = 57.75;
+            });
+        guard2.commit();
+        });
+    check_wait.get();//void
+    op_g.commit();
+    auto ro_x40_x20 = tmngr1->readonly_block(FarAddress(0, start_offset_c), test_seq_len_c);
+    segment_pos_t idx = 0;
+    for (auto ca : test_seq)
+        tresult.assert_that<equals>(ca, ro_x40_x20.pos()[idx++]);
+}
 void test_EvSrcSegmentManager(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "test Transacted Segment Manager..." << std::endl;
@@ -943,6 +987,7 @@ void test_EvSrcBlockOverlapOnRead(OP::utest::TestRuntime &tresult)
 //using std::placeholders;
 static auto& module_suite = OP::utest::default_test_suite("EventSourcingSegmentManager")
 .declare("general", test_EvSrcSegmentManager)
+.declare("locking", test_Locking)
 //.declare("far address conversion", test_FarAddress)
 .declare("memoryAlloc", test_EvSrcSegmentGenericMemoryAlloc)
 .declare("multithreadAlloc", test_EvSrcSegmentManagerMultithreadMemoryAllocator)
