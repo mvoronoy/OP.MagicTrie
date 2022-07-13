@@ -62,9 +62,9 @@ namespace OP::vtm
                 if (header->_next == SegmentDef::far_null_c)
                 {  //need allocate new segment
                     _segment_manager->ensure_segment(avail_segments);
-                    //just to ensure last version of block. No locks required - since previous WR already captured
-                    header = _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
                 }
+                //just to ensure last version of block. No locks required - since previous WR already captured
+                header = _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
                 //`writable_block` used instead of `wr_at` to capture full block to improve transaction speed
                 auto void_block = _segment_manager->writable_block(
                     FarAddress(header->_next), entry_size_c, WritableBlockHint::block_for_write_c);
