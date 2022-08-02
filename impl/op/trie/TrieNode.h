@@ -8,6 +8,7 @@
 #include <op/trie/AntiHashTable.h>
 #include <op/trie/TriePosition.h>
 #include <op/vtm/PersistedReference.h>
+#include <op/vtm/StringMemoryManager.h>
 
 namespace OP
 {
