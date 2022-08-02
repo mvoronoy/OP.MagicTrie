@@ -76,7 +76,7 @@ namespace OP
                     {
                         auto& heap_manager = topology.OP_TEMPL_METH(slot)<HeapManagerSlot>();
                         auto& address = std::launder(reinterpret_cast<FarAddress*>(_data));
-                        auto& val = resolve_segment_manager(tsegment).writable_block(address,
+                        auto& val = resolve_segment_manager(topology).writable_block(address,
                             memory_requirement<payload_t>::requirement).template at<payload_t>(0);
                         val.~payload_t();
                         heap_manager.deallocate(address);
@@ -87,6 +87,7 @@ namespace OP
                         val->~payload_t();
                     }
                 }
+
             };
 
             /** Structure to report result of navigation over this particular TrieNode */
