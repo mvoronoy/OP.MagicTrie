@@ -3,7 +3,6 @@
 
 #include <op/trie/TrieNode.h>
 #include <op/common/typedefs.h>
-#include <op/trie/ValueArray.h>
 #include <op/trie/TriePosition.h>
 
 #include <string>
@@ -15,11 +14,11 @@ namespace OP
     {
 
         template <class Container>
-        class TrieIterator 
+        class TrieIterator
         {
         public:
             using iterator_category = std::bidirectional_iterator_tag;
-            using difference_type   = std::ptrdiff_t;
+            using difference_type = std::ptrdiff_t;
 
             typedef OP::trie::atom_string_t prefix_string_t;
             typedef prefix_string_t key_type;
@@ -33,24 +32,24 @@ namespace OP
 
             typedef std::vector<TriePosition> node_stack_t;
             node_stack_t _position_stack;
-            const Container * _container = nullptr;
+            const Container* _container = nullptr;
             prefix_string_t _prefix;
             node_version_t _version;
             struct end_marker_t {};
-            TrieIterator(const Container * container, const end_marker_t&) noexcept
+            TrieIterator(const Container* container, const end_marker_t&) noexcept
                 : _container(container)
                 , _version(0)
             {
             }
         public:
 
-            explicit TrieIterator(const Container * container) noexcept
+            explicit TrieIterator(const Container* container) noexcept
                 : _container(container)
                 , _version(_container->version())
             {
 
             }
-            TrieIterator() = default; 
+            TrieIterator() = default;
 
             inline this_t& operator ++ ()
             {
@@ -78,7 +77,7 @@ namespace OP
             {
                 return _container->value_of(_position_stack.back());
             }
-            
+
             inline bool operator == (const this_t& other) const  noexcept
             {
                 if (is_end())
@@ -116,23 +115,62 @@ namespace OP
             {
                 return std::move(_prefix);
             }
-            value_type value () const
+            value_type value() const
             {
                 return _container->value_of(_position_stack.back());
             }
         protected:
+            /** Reverse `at` allows assign named values to contained TriePosition
+            *   \param offset negative offset from back (valid value -1, -2 ...)
+            */
+/*            template <class ... Tx>
+            TriePosition& rat(int offset, TriePositionArg<Tx>&& ... tx)
+            {
+                assert(offset < 0);
+                auto& res = *(_position_stack.end() + offset);
+                res.assign(std::move(tx)...);
+                return res;
+            }
+*/
+            template <class T>
+            void _apply_arg_to_this(TriePositionArg<T>& arg)
+            {
+                if constexpr (std::is_same_v<atom_t, std::decay_t<T>>)
+                {
+                    _prefix.append(1, arg._t);
+                }    
+            }
+
+            /** Same as previous, but assumes offset = -1*/
+            template <class ... Tx>
+            const TriePosition& rat(TriePositionArg<Tx>&& ... tx)
+            {
+                (_apply_arg_to_this(tx), ...);
+                auto& res = _position_stack.back();
+                res.assign(std::move(tx)...);
+                return res;
+            }
+
+            template <class Iterator>
+            void update_stem(Iterator begin, Iterator end)
+            {
+                assert( _position_stack.back()._stem_size == dim_nil_c );
+                auto size = end - begin;
+                assert(size < std::numeric_limits<dim_t>::max());
+                _position_stack.back()._stem_size = static_cast<dim_t>(size);
+                _prefix.append(begin, end);
+            }
+
             /**Add position to iterator*/
             template <class Iterator>
             void _emplace(TriePosition&& position, Iterator begin, Iterator end)
             {
-                if (position.key() > std::numeric_limits<atom_t>::max())
-                    throw std::out_of_range("Range must be in [0..255]");
-                auto length = static_cast<dim_t>(end - begin);
+                assert(position.key() <= std::numeric_limits<atom_t>::max());
                 _prefix.append(1, (atom_t)position.key());
-                _prefix.append(begin, end);
-                _position_stack.emplace_back(
-                    std::move(position));
+                _position_stack.emplace_back(std::move(position));
+                update_stem(begin, end);
             }
+
             void emplace(TriePosition&& position, const atom_t* begin, const atom_t* end)
             {
                 _emplace<decltype(begin)>(std::move(position), begin, end);
@@ -142,25 +180,29 @@ namespace OP
             {
                 if (position.key() > std::numeric_limits<atom_t>::max())
                     throw std::out_of_range("Range must be in [0..255]");
-                auto &back = _position_stack.back();
-                _prefix.resize(_prefix.length() - back.deep()+1);
-
-                _prefix.back() = (atom_t)position.key();
-                _prefix.append(begin, end);
+                auto& back = _position_stack.back();
+                dim_t prev_delta = back.stem_size() + 1; 
+                dim_t next_delta = position.stem_size() + 1;
+                _prefix.reserve(_prefix.length() - prev_delta + next_delta + (end - begin));
+                //leave only common part with previous state
+                _prefix.resize(_prefix.length() - prev_delta);
                 back = position;
+                _prefix.append(1, (atom_t)position.key());
+                update_stem(begin, end);
             }
             /**Upsert (insert or update) */
             void upsert_back(TriePosition&& position, const atom_t* begin, const atom_t* end)
             {
-                if (position.key() > std::numeric_limits<atom_t>::max())
-                    throw std::out_of_range("Range must be in [0..255]");
-                if (_position_stack.empty() || _position_stack.back().address() == position.address() )
+                assert(position.key() <= std::numeric_limits<atom_t>::max());
+
+                if (_position_stack.empty() || _position_stack.back().address() == position.address())
                 {
                     emplace(std::move(position), begin, end);
                     return;
                 }
                 update_back(std::move(position), begin, end);
             }
+            /*
             TriePosition& back()
             {
                 return _position_stack.back();
@@ -169,42 +211,41 @@ namespace OP
             {
                 return _position_stack.back();
             }
+            */
+            template <class ... Tx>
+            TriePosition& push(TriePositionArg<Tx>&& ... tx)
+            {
+                (_apply_arg_to_this(tx), ...);
+                _position_stack.emplace_back(std::move(tx)...);
+                return  _position_stack.back();
+            }
+
             void pop()
             {
-                auto cut_len = _position_stack.back()._deep;
+                dim_t cut_len = _position_stack.back()._stem_size + 1; //+1 in the name of retained key
                 _prefix.resize(_prefix.length() - cut_len);
                 _position_stack.pop_back();
             }
             /** by poping back shrinks current iterator until it not bigger than `desired` (may be less with respect to allign to node's stem length)
-            @param desired number of chars to leave. 
+            @param desired number of chars to leave.
             @return desired alligned that was really shrinked (alligned on deep value of last node)
             */
             void pop_until_fit(dim_t desired)
             {
-                if( _prefix.length() <= desired )
+                if (_prefix.length() <= desired)
                     return; //nothing to do
                 dim_t cut_len;
-                for(cut_len = 0; 
-                    (_prefix.length() - cut_len) > desired; 
+                for (cut_len = 0;
+                    (_prefix.length() - cut_len) > desired;
                     )
                 {
-                    cut_len += _position_stack.back()._deep;
+                    cut_len += _position_stack.back()._stem_size + 1;
                     _position_stack.pop_back();
                 }
                 _prefix.resize(_prefix.length() - cut_len);
             }
-            /**Update last entry in iterator*/
-            template <class Iterator>
-            void correct_suffix(Iterator& new_suffix_begin, Iterator& new_suffix_end)
-            {
-                auto &back = _position_stack.back();
-                auto cut_len = back._deep;
-                _prefix.resize(_prefix.length() - back._deep);
-                auto l = _prefix.length();
-                _prefix.append(new_suffix_begin, new_suffix_end);
-                back._deep = static_cast<dim_t>((_prefix.length()) - l);
-            }
-            size_t deep() const
+
+            size_t node_count() const
             {
                 return _position_stack.size();
             }

@@ -15,8 +15,6 @@ namespace OP
     namespace utest{
         namespace cmdline
         {
-            using ArgumentDef = std::tuple<std::string, bool, std::string>;
-            
             template <char SwitchChar = '-'>
             struct ArgumentProcessor
             {
@@ -133,6 +131,13 @@ namespace OP
                         }
                     }
                 }
+                void help(std::ostream& os, const char* ident = "\t") const
+                {
+                    for(const auto &arg : _actions)
+                    {
+                        os << ident << arg.key << ident << arg.description << "\n";
+                    }
+                }
             private:
                 
                 struct Def
@@ -207,6 +212,7 @@ namespace OP
             } catch(const std::invalid_argument& e)
             {
                 std::cerr << e.what() << std::endl;
+                processor.help(std::cout);
                 return 1;
             } catch (std::regex_error & e)
             {

@@ -58,7 +58,8 @@ struct GenericMemoryTest{
             int _ntype;
             OP::trie::far_pos_t table_pos;
         };
-        typedef NodeHashTable<EmptyPayload, 8> htbl64_t;
+        struct TestEmptyPayload {};
+        typedef NodeHashTable<TestEmptyPayload, 8> htbl64_t;
 
         
         FarAddress one_byte_pos;

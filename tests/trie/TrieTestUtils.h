@@ -25,11 +25,14 @@ void compare_containers(OP::utest::TestRuntime &tresult, const Trie& trie, const
         //print_hex(tresult.info() << "1)", ti.key());
         //print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_true(ti.key().length() == mi->first.length(), 
-            OP_CODE_DETAILS()<<"step#"<< n << " has:" << ti.key().length() << ", while expected:" << mi->first.length());
+            OP_CODE_DETAILS(
+            <<"step#"<< n << " has key length:" << ti.key().length() << ", while expected:" << mi->first.length()
+                <<" \"" << (const char*)(ti.key().substr(0, 16).c_str()) << "\"..."
+            ));
         tresult.assert_true(tools::container_equals(ti.key(), mi->first, &tools::sign_tolerant_cmp<atom_t>),
-            OP_CODE_DETAILS()<<"step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.key().c_str());
+            OP_CODE_DETAILS()<<" step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.key().c_str());
         tresult.assert_that<equals>(ti.value(), mi->second,
-            OP_CODE_DETAILS()<<"Associated value error, has:" << ti.value() << ", expected:" << mi->second );
+            OP_CODE_DETAILS()<<" Associated value error, has:" << ti.value() << ", expected:" << mi->second );
     }
     if(mi != std::end(map))
     {

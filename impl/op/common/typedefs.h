@@ -41,10 +41,15 @@ namespace OP
 {
     namespace trie
     {
-        typedef std::uint8_t atom_t;
-        typedef std::pair<bool, atom_t> nullable_atom_t;
-        typedef std::basic_string<atom_t> atom_string_t;
-        typedef std::basic_string_view<atom_t> atom_string_view_t;
+        using atom_t = std::uint8_t;
+        using nullable_atom_t = std::pair<bool, atom_t>;
+        using atom_string_t = std::basic_string<atom_t>;
+        using atom_string_view_t = std::basic_string_view<atom_t>;
+
+        inline bool operator! (const nullable_atom_t& test)
+        {
+            return !test.first;
+        }
         
         inline constexpr atom_t operator "" _atom(char c)
         {

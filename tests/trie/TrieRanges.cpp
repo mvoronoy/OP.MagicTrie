@@ -344,13 +344,19 @@ void test_Flatten(OP::utest::TestRuntime& tresult)
         p_t((atom_t*)"jkl", 3.0),
         p_t((atom_t*)"lmn", 3.5) //common suffix for 3. & 4.
     };
-    std::for_each(std::begin(ini_data), std::end(ini_data), [&trie](const p_t& s) {
-        trie->insert(s.first, s.second);
-        });
-    auto _1_range = trie->prefixed_range(atom_string_t((atom_t*)"1."));
-    std::for_each(_1_range, [](const auto& i) {
-        std::cout << "{" << (const char*)i.key().c_str() << " = " << i.value() << "}\n";
-        });
+    for(const p_t& s: ini_data) 
+    {
+        auto ires = trie->insert(s.first, s.second);
+        tresult.assert_true(ires.second, "dup key");
+        tresult.assert_that<equals>(s.first, ires.first.key(), "wrong key");
+    }
+
+    auto _1_range = trie->prefixed_range("1."_astr);
+    for(const auto& i: _1_range) 
+    {
+        tresult.debug() << "{" << (const char*)i.key().c_str() << " = " << i.value() << "}\n";
+    }
+
     auto suffixes_range = _1_range 
         >> then::mapping([](const auto& i)->atom_string_t {
         return i.key().substr(2/*"1."*/);

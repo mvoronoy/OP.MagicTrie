@@ -8,10 +8,12 @@
 #include <memory>
 #include <future>
 #include <fstream>
+#include <op/common/has_member_def.h>
 #include <op/trie/Containers.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/FixedSizeMemoryManager.h>
 #include <op/vtm/HeapManager.h>
+#include <op/vtm/PersistedReference.h>
 
 namespace OP::vtm 
     {
@@ -35,13 +37,15 @@ namespace OP::vtm
         */
         struct StringMemoryManager 
         {
+            using element_t = typename smm::StringHead::value_type;
+            using persisted_char_array_t = PersistedSizedArray<element_t, segment_pos_t>;
+
             template <class TSegmentTopology>
             StringMemoryManager(TSegmentTopology& topology)
                 : _segment_manager(topology.segment_manager())
                 , _heap_mngr(topology.template slot<HeapManagerSlot>())
             {
             }
-
             /**
             * Allocate new persisted string.
             * \tparam StringLike - any type supporting size(), data() methods
@@ -51,32 +55,54 @@ namespace OP::vtm
             template <class StringLike>
             FarAddress insert(const StringLike& str)
             {
+                return insert(str.begin(), str.end());
+                //using namespace std::string_literals;
+                //if (str.size() >= _segment_manager.segment_size())
+                //    throw std::out_of_range("String must be less than "s
+                //        + std::to_string(_segment_manager.segment_size()));
+
+                //auto alloc_size = persisted_char_array_t::memory_requirement(
+                //    static_cast<segment_pos_t>(str.size()));
+
+                //OP::vtm::TransactionGuard op_g(
+                //    _segment_manager.begin_transaction()); //invoke begin/end write-op
+                ////
+                //persisted_char_array_t result (_heap_mngr.allocate(alloc_size));
+                //auto& content = result.ref(_segment_manager);
+
+                //content.size = static_cast<segment_pos_t>(str.size());
+                //memcpy(content.data, 
+                //    str.data(), 
+                //    static_cast<segment_pos_t>(str.size()) * sizeof(element_t) );
+
+                //op_g.commit();
+                //return result.address;
+            }                                          
+            template <class Iterator>
+            FarAddress insert(Iterator begin, Iterator end)
+            {
                 using namespace std::string_literals;
-                if (str.size() >= _segment_manager.segment_size())
+                auto size = (end - begin);
+                if (size >= _segment_manager.segment_size())
                     throw std::out_of_range("String must be less than "s
                         + std::to_string(_segment_manager.segment_size()));
 
-                auto alloc_size = //remember about +1 byte inside StringHead
-                    static_cast<segment_pos_t>(OP::utils::align_on(
-                        memory_requirement<smm::StringHead>::requirement
-                        + sizeof(typename smm::StringHead::value_type) * str.size(),
-                        SegmentHeader::align_c));
-                ;
+                segment_pos_t segment_adjusted_size = static_cast<segment_pos_t>(size);
+                auto alloc_size = persisted_char_array_t::memory_requirement(
+                    segment_adjusted_size);
 
                 OP::vtm::TransactionGuard op_g(
                     _segment_manager.begin_transaction()); //invoke begin/end write-op
                 //
-                auto result = _heap_mngr.allocate(alloc_size);
-                auto block = _segment_manager.writable_block(
-                    result, alloc_size, WritableBlockHint::new_c);
-                auto header = block.at<smm::StringHead>(0);
-                header->_size = static_cast<segment_pos_t>(str.size());
-                memcpy(header->buffer, 
-                    str.data(), 
-                    static_cast<segment_pos_t>(str.size()) * sizeof(typename smm::StringHead::value_type) );
+                persisted_char_array_t result (_heap_mngr.allocate(alloc_size));
+                auto& content = result.ref(_segment_manager, segment_adjusted_size);
+
+                content.size = segment_adjusted_size;
+                for(auto *p = content.data; begin != end; ++begin, ++p) 
+                    *p = *begin;
 
                 op_g.commit();
-                return result;
+                return result.address;
             }                                          
             
             /**
@@ -89,23 +115,33 @@ namespace OP::vtm
                 op_g.commit();
             }
 
+            segment_pos_t size(FarAddress str_addr)
+            {
+                persisted_char_array_t result (str_addr);
+                return result.size(_segment_manager);
+            }
             /**
             *  Extract string from the persisted state.
-            *  \tparam OutIter - something like std::back_insert_iterator
+            *  
             *  \param str_addr - string previously allocated by #inset
             *  \param offset - start taking persisted characters from this position, default 
             *                   is 0. If offset exceeds persisted string size nothing copied to
             *                   output iterator
             *  \param length - desired length of persisted character sequence to extract, 
             *                default is `std::numeric_limits<segment_pos_t>::max()`
+            *  \tparam  FOutControl - have signature `bool (TChar)`
+            *  \return total number of symbols loaded to `out_control` (this value is never exceeds persisted
+            *       string size and `length`)
             */
-            template<class OutIter>
-            segment_pos_t get(FarAddress str_addr, OutIter out,
+            template<class FOutControl>
+            std::enable_if_t<std::is_invocable_v<FOutControl, element_t>, segment_pos_t>
+            get(FarAddress str_addr, 
+                FOutControl out_control,
                 segment_pos_t offset = 0, 
                 segment_pos_t length = std::numeric_limits<segment_pos_t>::max())
             {
                 OP::vtm::TransactionGuard op_g(
-                    _segment_manager.begin_transaction()); //invoke begin/end write-op
+                    _segment_manager.begin_transaction()); //invoke begin/end read-op
                 auto head = view< smm::StringHead >(_segment_manager, str_addr);
                 if (offset >= head->_size)
                     return 0;
@@ -119,17 +155,38 @@ namespace OP::vtm
                         offsetof(smm::StringHead, buffer)
                         + offset * element_size_c)
                     ;
-                segment_pos_t size = std::min(length, head->_size);
+                segment_pos_t size = std::min(
+                    length, 
+                    head->_size - offset //it is safe since I've already check: `offset < head->_size`
+                );
                 ReadonlyMemoryChunk ra = _segment_manager.
                     readonly_block(
                         data_block,
-                        element_size_c * size,
-                        ReadonlyBlockHint::ro_no_hint_c);
+                        element_size_c * size);
                 auto source = ra.at<typename smm::StringHead::value_type>(0);
                 segment_pos_t result = 0;
-                for (; size; --size, ++out, ++source, ++result)
-                    *out = *source;
+                for (; size; --size, ++source, ++result)
+                {
+                    if(!out_control(*source))
+                        break;
+                }
                 return result;
+            }
+
+            /** 
+            * Simplified version of #get (see above), when instead of predicate the std::back_insert_iterator used.
+            *  \tparam OutIter - output iterator, something like std::back_insert_iterator. It
+            *       have to support `++` and `*` operators.
+            */
+            template<class OutIter>
+            std::enable_if_t< 
+                std::is_same_v<typename std::iterator_traits<OutIter>::iterator_category, std::output_iterator_tag >,
+                segment_pos_t>
+                get(FarAddress str_addr, OutIter out,
+                        segment_pos_t offset = 0, segment_pos_t length = std::numeric_limits<segment_pos_t>::max())
+            {
+                return this->get(str_addr,
+                    [&](element_t symb){*out = symb; ++out; return true;}, offset, length);
             }
 
         private:

@@ -255,7 +255,7 @@ namespace OP
 
             typedef std::uint16_t dim_t;
             typedef std::uint8_t atom_t;
-            static const dim_t nil_c = dim_t(~0u);
+            constexpr static const dim_t nil_c = dim_t(~0u);
             enum
             {
                 /**bits count in single entry*/
@@ -338,32 +338,42 @@ namespace OP
                 }
                 return nil_c;
             }
+            
             /**Return index of first bit that is not set*/
             inline dim_t first_clear() const
             {
                 return clearence_index(_presence);
             }
+            
             inline bool get(dim_t index)const
             {
                 assert(index < bit_length_c);
                 return 0 != (_presence[index / bits_c] & ( 1ULL << (index % bits_c) ));
             }
+            
             inline void set(dim_t index)
             {
                 assert(index < bit_length_c);
                 _presence[index / bits_c] |= 1ULL << (index % bits_c);
             }
+            
             inline void clear(dim_t index)
             {
                 assert(index < bit_length_c);
-
                 _presence[index / bits_c] &= ~(1ULL << (index % bits_c));
             }
+            
+            inline void assign(dim_t index, bool val)
+            {
+                val ? set(index):clear(index);
+            }
+
             inline void toggle(dim_t index)
             {
                 assert(index < bit_length_c);
                 _presence[index / bits_c] ^= (1ULL << (index % bits_c));
             }
+
             size_t capacity() const
             {
                 return bit_length_c;

@@ -44,5 +44,27 @@
 /** Complimentar to OP_DECLARE_CLASS_HAS_MEMBER - generate compile time const that indicate if class `A` has member `Member`*/
 #define OP_CHECK_CLASS_HAS_MEMBER(Class, Member) (OP_CHECK_CLASS_HAS_MEMBER_TYPE(Class, Member)::value)
 
+namespace OP::has_operators
+{
+    namespace details{
+
+        template<class T, class = decltype(std::declval<T>() < std::declval<T>() )> 
+        std::true_type  has_less_than_test(const T&);
+        std::false_type has_less_than_test(...);
+
+        template<class T, class = decltype( !std::declval<T>() )> 
+        std::true_type  has_logical_not_test(const T&);
+        std::false_type has_logical_not_test(...);
+    }//ns:details
+
+    /** Compile time check if type T supports operator less `<` */
+    template<class T> using less = decltype(has_less_than_test(std::declval<T>()));
+    template<class T> inline constexpr bool less_v = less<T>::value;
+
+    /** Compile time check if type T supports operator logical-not `!` */
+    template<class T> using logical_not = decltype(has_logical_not_test(std::declval<T>()));
+    template<class T> inline constexpr bool logical_not_v = logical_not::value;
+
+} //ns:OP::operators_check
 
 #endif //_OP_COMMON_HAS_MEMBER_DEF__H_

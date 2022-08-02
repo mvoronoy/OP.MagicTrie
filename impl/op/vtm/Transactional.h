@@ -119,13 +119,13 @@ namespace OP::vtm
         *   exceeding ConcurentLockException exception just propagated to caller
         */
         template <std::uint16_t N, typename  F, typename  ... Args>
-        inline typename std::result_of<F && (Args &&...)>::type transactional_retry_n(F && f, Args&& ... ax)
+        inline typename std::result_of<F(Args ...)>::type transactional_retry_n(F f, Args ... ax)
         {
             for (auto i = 0; i < N; ++i)
             {
                 try
                 {
-                    return std::forward<F>(f)(std::forward<Args>(ax)...);
+                    return f(ax...);//as soon this is a loop move/forward args must not be used
                 }
                 catch (const OP::vtm::ConcurentLockException &e)
                 {
@@ -135,14 +135,14 @@ namespace OP::vtm
             }
             throw OP::vtm::ConcurentLockException("10");
         }
-        template <std::uint16_t N, typename  F, typename  ... Args>
-        inline typename std::result_of<F && (Args &&...)>::type transactional_yield_retry_n(F && f, Args&& ... ax)
+        template <std::uint16_t N, typename F, typename  ... Args>
+        inline typename std::result_of<F(Args ...)>::type transactional_yield_retry_n(F f, Args ... ax)
         {
             for (auto i = 0; i < N; ++i)
             {
                 try
                 {
-                    return std::forward<F>(f)(std::forward<Args>(ax)...);
+                    return f(ax...);//as soon this is a loop move/forward args must not be used
                 }
                 catch (const OP::vtm::ConcurentLockException &)
                 {

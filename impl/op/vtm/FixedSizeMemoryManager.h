@@ -52,7 +52,7 @@ namespace OP::vtm
             OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
             auto avail_segments = _segment_manager->available_segments();
             //capture ZeroHeader for write during 10 tries
-            auto header = OP::vtm::transactional_yield_retry_n<10>([this]()
+            ZeroHeader* header = OP::vtm::transactional_yield_retry_n<10>([this]()
                 {
                     return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
                 });
@@ -83,16 +83,17 @@ namespace OP::vtm
                 {//only one entry left, so need rebuild further list
                     result->address = header->_next; //return exactly `block` address
                     header->_next = block->_next;
-                    //be proactive in predicting new segment allocation but only for single addr requested
-                    if (n == 1 && block->_next == SegmentDef::far_null_c)
-                    {
-                        //`n == 1` used to ensure no thread-waiting mechanic needed
-                        _segment_manager->thread_pool().one_way(
-                            [](SegmentManager* sm, segment_idx_t avail) {
-                                sm->ensure_segment(avail);
-                            },
-                            _segment_manager, avail_segments);
-                    }
+                    //@@@@!!! Must research multithread env
+                    ////be proactive in predicting new segment allocation but only for single addr requested
+                    //if (n == 1 && block->_next == SegmentDef::far_null_c)
+                    //{
+                    //    //`n == 1` used to ensure no thread-waiting mechanic needed
+                    //    _segment_manager->thread_pool().one_way(
+                    //        [](SegmentManager* sm, segment_idx_t avail) {
+                    //            sm->ensure_segment(avail);
+                    //        },
+                    //        _segment_manager, avail_segments);
+                    //}
                 }
                 constr(i, _segment_manager->wr_at<payload_t>(*result));
                 --header->_in_free;
@@ -100,11 +101,19 @@ namespace OP::vtm
             }
             op_g.commit();
         }
-
+        bool is_valid_address(FarAddress addr)
+        {
+            //@! todo: validate that addr belong to FixedSizeMemoryManager
+            return true;
+        }
         void deallocate(FarAddress addr)
         {
+            if( !is_valid_address(addr) )
+            {
+                using namespace std::string_literals;
+                throw std::runtime_error("Address doesn't belong to "s + typeid(*this).name());
+            }
             OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
-            //@! todo: validate that addr belong to FixedSizeMemoryManager
             //capture ZeroHeader for write during 10 tries
             auto header = OP::vtm::transactional_yield_retry_n<10>([this]()
                 {
@@ -190,7 +199,7 @@ namespace OP::vtm
             * This value can point not only single segment.
             */
             far_pos_t _next;
-            size_t _in_free = Capacity, _in_alloc = 0;
+            std::uint64_t _in_free = Capacity, _in_alloc = 0;
         };
         struct FreeBlockHeader
         {

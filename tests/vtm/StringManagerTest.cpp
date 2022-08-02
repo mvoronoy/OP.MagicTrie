@@ -35,41 +35,71 @@ void test_StringManager(OP::utest::TestRuntime &tresult)
     result.clear();
     str_manager.get(a1, std::back_insert_iterator(result), 1, 2);
     tresult.assert_that<equals>(result, "bc"s);
+    result.clear();
+    str_manager.get(a1, std::back_insert_iterator(result), 1, 12);
+    tresult.assert_that<equals>(result, "bc"s);
 }
 
+struct BigStringEmulatorIterator
+{
+    size_t _pos;
+    BigStringEmulatorIterator(size_t pos) :
+        _pos(pos) {}
+
+    char operator * () const
+    {
+        return '+';
+    }
+    BigStringEmulatorIterator& operator ++()
+    {
+        ++_pos;
+        return *this;
+    }
+    BigStringEmulatorIterator operator ++(int)
+    {
+        return BigStringEmulatorIterator(_pos++);
+    }
+    std::int64_t operator - (BigStringEmulatorIterator other) const
+    {
+        return static_cast<std::int64_t>(_pos - other._pos);
+    }
+    bool operator == (const BigStringEmulatorIterator other) const
+    {
+        return _pos == other._pos;
+    }
+    bool operator != (const BigStringEmulatorIterator other) const
+    {
+        return _pos != other._pos;
+    }
+};
 struct BigStringEmulator
 {
     size_t _emulate_size;
+
     BigStringEmulator(size_t emulate_size) 
         : _emulate_size(emulate_size)
     {
     }
 
-    size_t size() const
+    BigStringEmulatorIterator begin() const
     {
-        return _emulate_size;
+        return BigStringEmulatorIterator(0);
     }
     
-    const char* data() const
+    BigStringEmulatorIterator end() const
     {
-        return nullptr;
+        return BigStringEmulatorIterator(_emulate_size);
     }
 };
 
-void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
+template <class TSegmentTopology>
+void string_manager_edge_case(TSegmentTopology& topology, OP::utest::TestRuntime& tresult)
 {
     using namespace std::string_literals;
     using str_manager_t = OP::vtm::StringMemoryManager;
 
-    auto tmngr1 = SegmentManager::OP_TEMPL_METH(create_new) < EventSourcingSegmentManager > (
-        node_file_name,
-        OP::vtm::SegmentOptions()
-        .segment_size(0x110000)
-        );
-
-    SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
-    str_manager_t str_manager(mngr_toplogy);
-    auto& heap_mngr = mngr_toplogy.slot<HeapManagerSlot>();
+    str_manager_t str_manager(topology);
+    auto& heap_mngr = topology.slot<HeapManagerSlot>();
     auto start_avail_size = heap_mngr.available(0);
     std::string result;
 
@@ -77,9 +107,8 @@ void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
     str_manager.get(a0, std::back_insert_iterator(result), 1024, 2048);
     tresult.assert_that<equals>(result, ""s);
 
-
     tresult.assert_exception<std::out_of_range>([&]() {
-        str_manager.insert(BigStringEmulator(tmngr1->segment_size()));
+        str_manager.insert(BigStringEmulator(topology.segment_manager().segment_size()));
         });
     std::string buffer;
 
@@ -93,15 +122,23 @@ void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
     tresult.assert_that<equals>(result, std::string(buffer.begin()+1024, buffer.begin()+2048 + 1024));
 
     tresult.debug() << std::hex
-        << "000 avail:" << start_avail_size << '\n'
-        << "1+0 avail:" << heap_mngr.available(0) << "\n";
-    str_manager.destroy(a0);
+        << "000 avail:" << start_avail_size << '\n';
+    auto prev_avail = heap_mngr.available(0);
     tresult.debug() << std::hex
-        << "-a0 avail:" << heap_mngr.available(0) << "\n";
+        << "1+0 avail:" << prev_avail << "\n";
+    str_manager.destroy(a0);
+    tresult.assert_that<less>(prev_avail, heap_mngr.available(0));
+    prev_avail = heap_mngr.available(0);
+    tresult.debug() << std::hex
+        << "-a0 avail:" << prev_avail << "\n";
+
     str_manager.destroy(a1);
+    tresult.assert_that<less>(prev_avail, heap_mngr.available(0));
+    prev_avail = heap_mngr.available(0);
 
     tresult.debug() << std::hex
-        << "-a1 avail:" << heap_mngr.available(0) << "\n";
+        << "-a1 avail:" << prev_avail << "\n";
+
     tresult.info() << "random insert...\n";
     size_t destroy_idx = 0;
     std::unordered_map< FarAddress, std::string > model_reference;
@@ -144,8 +181,35 @@ void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
     tresult.debug() << std::hex
         << "all avail:" << heap_mngr.available(0) << "\n";
 }
+void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
+{
+    using namespace std::string_literals;
+    using str_manager_t = OP::vtm::StringMemoryManager;
+
+    auto tmngr1 = SegmentManager::OP_TEMPL_METH(create_new) < EventSourcingSegmentManager > (
+        node_file_name,
+        OP::vtm::SegmentOptions()
+        .segment_size(0x110000)
+        );
+
+    SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
+    string_manager_edge_case(mngr_toplogy, tresult);
+}
+
+void test_StringManagerEdgeCaseNoTran(OP::utest::TestRuntime& tresult)
+{
+
+    auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(
+        node_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
+    string_manager_edge_case(mngr_toplogy, tresult);
+}
 
 static auto& module_suite = OP::utest::default_test_suite("StringManager")
     .declare("basic", test_StringManager)
-    .declare("edgecase", test_StringManagerEdgeCase)
+    .declare("edgecase-transactional", test_StringManagerEdgeCase)
+    .declare("edgecase-no-tran", test_StringManagerEdgeCaseNoTran)
     ;

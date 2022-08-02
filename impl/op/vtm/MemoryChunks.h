@@ -325,9 +325,9 @@ namespace OP::vtm
     {
         using A = WritableAccess<T>;
             
-        auto size = OP::utils::memory_requirement<T>::array_size( number_elements );
+        const auto size = OP::utils::memory_requirement<T>::array_size( number_elements );
         return A(std::move(resolve_segment_manager(segment_manager_provider).
-            writable_block(pos, OP::utils::memory_requirement<T>::array_size(number_elements), hint)));
+            writable_block(pos, size, hint)));
     }
     /**Hint allows specify how readonly blocks will be used*/
     enum class ReadonlyBlockHint : std::uint8_t

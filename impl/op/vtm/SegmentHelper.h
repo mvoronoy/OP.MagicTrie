@@ -14,10 +14,8 @@ namespace OP::vtm
 
     typedef std::uint16_t dim_t;
     typedef std::uint_fast16_t fast_dim_t;
-    enum : dim_t
-    {
-        dim_nil_c = dim_t(-1)
-    };
+
+    static inline constexpr dim_t dim_nil_c = dim_t(-1);
 
     inline nullable_atom_t make_nullable(dim_t index)
     {

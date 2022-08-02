@@ -41,7 +41,7 @@
 
 /**Render inline information like __FILE__, __LINE__ in lazy way (rendered only on demand) */
 #define _OP_LAZY_INLINE_INFO(...) ([&]()->OP::utest::Details { OP::utest::Details res;\
-        res << "{File:" << __FILE__ << " at:" << __LINE__  << "}" __VA_ARGS__ ; return res;\
+        res << "{File:" << __FILE__ << " at:" << __LINE__  << "} " __VA_ARGS__ << "\n"; return res;\
     })
 /** Allows place useful information to details output.
 * Usage:
@@ -406,6 +406,11 @@ namespace OP::utest
         const std::string& test_name() const
         {
             return _name;
+        }
+
+        const TestRunOptions& run_options() const
+        {
+            return _run_options;
         }
 
         /**

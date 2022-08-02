@@ -1,15 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?> 
-<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010"> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 
-
-  <Type Name="std::basic_string&lt;unsigned char,std::char_traits&lt;unsigned char&gt;,std::allocator&lt;unsigned char&gt; &gt;">
+    <Type Name="std::basic_string&lt;std::uint8_t,*,*&gt;">
 
     <AlternativeType Name="std::basic_string&lt;unsigned char,*,*&gt;" />
-    <DisplayString>{_M_dataplus._M_p}</DisplayString>
+    <DisplayString>{_Mypair._Myval2._Bx._Ptr}</DisplayString>
     <Expand>
-      <Item Name="[string]" ExcludeView="simple">_M_dataplus._M_p</Item>
-      <Item Name="[size]">((std::basic_string&lt;char,$T2,$T3&gt;::_Rep*)_M_dataplus._M_p)[-1]._M_length</Item>
-      <Item Name="[capacity]">((std::basic_string&lt;char,$T2,$T3&gt;::_Rep*)_M_dataplus._M_p)[-1]._M_capacity</Item>
+      <Item Name="[string]" ExcludeView="simple">_Mypair._Myval2._Bx._Ptr</Item>
+      <Item Name="[size]">_Mypair._Myval2._Mysize</Item>
+      <Item Name="[capacity]">_Mypair._Myval2._Myres</Item>
     </Expand>
 
 <!--    <DisplayString Condition="_Mypair._Myval2._Myres &lt; _Mypair._Myval2._BUF_SIZE">{_Mypair._Myval2._Bx._Buf,s32}</DisplayString>

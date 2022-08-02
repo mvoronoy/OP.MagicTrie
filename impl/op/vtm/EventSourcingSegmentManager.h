@@ -156,7 +156,7 @@ namespace OP
                 {
                     auto& block_profile = blocks_in_touch->second;
                     // for WR any block from another transaction is a point to reject
-                   if (block_profile._used_in_transaction != current_transaction->transaction_id())
+                    if (block_profile._used_in_transaction != current_transaction->transaction_id())
                     {//cannot capture because other tran exists
                         throw ConcurentLockException("cannot capture WR-block while it is used in another transaction");
                     }
@@ -450,6 +450,7 @@ namespace OP
                         ++i;
                 }
             }
+
             /**
             * \tparam F - action in form `bool (const& typename block_in_use_t::iterator)` to apply to iterator from 
             *               _captured. Method invoked under mutex, so it already thread safe.
@@ -473,7 +474,8 @@ namespace OP
                     }
                 }
             }
-            /** Worker method to wipe from _cpatured not used references*/
+
+            /** Worker method to wipe from _captured not used references*/
             void release_captured_worker()
             {
                 while(!_done_captured_worker.load())
