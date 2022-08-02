@@ -238,56 +238,9 @@ namespace OP
             }
             
             
-            /** 
-            *  @param payload_factory - functor that postpone creation of value. May or not be used (if source 
-            *           string too long and should be placed to other node). Expected signature `payload_t ()`.
-            * 
-            */
-            template <class TSegmentTopology, class Iterator, class AtomIterator, class FProducePayload>
-            void insert$(TSegmentTopology& topology, Iterator& iter, 
-                AtomIterator& begin, const AtomIterator end, FProducePayload&& payload_factory)
-            {
-                ++_version;
-                for(;;)
-                {
-                    wrap_key_value_t container;
-                    kv_container(topology, container); //resolve correct instance implemented by this node
-                    const auto &back = iter.rat();
-                    atom_t key = static_cast<atom_t>(back.key());
-                    auto [hash, success] = container->insert(key, 
-                        [&](NodeData& to_construct) {
-                            ::new (&to_construct)NodeData;
-                            auto& heap_manager = topology.OP_TEMPL_METH(slot) < HeapManagerSlot > ();
-                            to_construct._data.allocate(heap_manager);
-                            auto& ref = to_construct._data.get(heap_manager);
-                            ref = payload_factory();
-                            iter._prefix.append(1, key);
-                            _value_presence.set(key);
-                            iter.rat(terminality_or(Terminality::term_has_data));
-                            if( begin != end )
-                            {
-                                StringMemoryManager str_manager(topology);
-                                auto size = end - begin;
-                                assert(size < 
-                                    std::numeric_limits<dim_t>::max());
-                                iter.rat(stem_size (static_cast<dim_t>(size)));
-                                iter.update_stem(begin, end);
-                                to_construct._stem = str_manager.insert(begin, end);
-                                begin = end;
-                            }
-                        });
-
-                    if (success)
-                        break;
-                    
-                    assert(hash == dim_nil_c);//only possible reason to be there - capacity is over
-                    grow(topology, *container);
-                }
-            }
-
             template <class TSegmentTopology, class AtomIterator, class FProducePayload>
             void insert(TSegmentTopology& topology, atom_t key, 
-                AtomIterator& begin, const AtomIterator end, FProducePayload&& payload_factory)
+                AtomIterator begin, const AtomIterator end, FProducePayload&& payload_factory)
             {
                 for(;;)
                 {
