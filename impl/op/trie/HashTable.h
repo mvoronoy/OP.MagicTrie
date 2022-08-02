@@ -258,7 +258,7 @@ namespace OP::trie::containers
         *   this became nil since no table should be used above 128
         * @return tuple of new dimension and functor that can be used as ruler how key is converted to new indexes 
         */
-        bool grow_from(KeyValueContainer& from, FarAddress& result) override
+        bool grow_from(base_t& from, FarAddress& result) override
         {
             assert(_node_info.capacity() < _capacity); //this object must be bigger
             result = create();

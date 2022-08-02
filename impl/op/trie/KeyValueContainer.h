@@ -91,7 +91,7 @@ namespace OP::trie::containers
 
         virtual bool erase(atom_t key) = 0;
 
-        virtual bool grow_from(KeyValueContainer& from, FarAddress& result) = 0;
+        virtual bool grow_from(base_t& from, FarAddress& result) = 0;
         
     protected:
         /** 

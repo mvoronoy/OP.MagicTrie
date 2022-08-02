@@ -115,7 +115,7 @@ namespace OP::trie::containers
             return true;
         }
 
-         bool grow_from(KeyValueContainer& from, FarAddress& result) override
+         bool grow_from(base_t& from, FarAddress& result) override
          {
             assert(_node_info.capacity() < capacity_c); //this object must be bigger
             result = create();
