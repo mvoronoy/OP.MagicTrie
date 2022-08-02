@@ -99,7 +99,7 @@ void string_manager_edge_case(TSegmentTopology& topology, OP::utest::TestRuntime
     using str_manager_t = OP::vtm::StringMemoryManager;
 
     str_manager_t str_manager(topology);
-    auto& heap_mngr = topology.slot<HeapManagerSlot>();
+    auto& heap_mngr = topology.template slot<HeapManagerSlot>();
     auto start_avail_size = heap_mngr.available(0);
     std::string result;
 
