@@ -31,10 +31,9 @@ namespace OP::vtm
                 OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
                 //try do without locking
                 
-                far_pos_t free_block_pos = OP::vtm::template transactional_yield_retry_n<10>([this](
-                    FreeMemoryBlockTraits& free_traits, segment_pos_t size){
+                far_pos_t free_block_pos = OP::vtm::template transactional_yield_retry_n<10>([&](){
                         return _free_blocks->pull_not_less(free_traits, size);
-                    }, free_traits, size);
+                    });
                 if (free_traits.is_eos(free_block_pos))
                 { //need lock - because may need allocate new segment
                     guard_t l(_segments_map_lock);
