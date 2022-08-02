@@ -699,8 +699,8 @@ namespace OP
                 if( capacity == dim_nil_c )
                     capacity = _capacity; 
                 return (capacity < 256) 
-                    ? out.construct<hash_table_t>(topology, *this, capacity)
-                    : out.construct<anti_hash_table_t>(topology, *this, capacity)
+                    ? out.template construct<hash_table_t>(topology, *this, capacity)
+                    : out.template construct<anti_hash_table_t>(topology, *this, capacity)
                     ;
             }
 
