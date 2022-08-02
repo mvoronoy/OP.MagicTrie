@@ -539,7 +539,7 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology_ptr->segment_manager().begin_transaction(), true);
                 auto node = view<node_t>(*_topology_ptr, position.address());
-                if (position.key() < (dim_t)containers::HashTableCapacity::_256)
+                if (position.key() < (dim_t)256)
                     return node->get_presence(*_topology_ptr, (atom_t)position.key());
                 op_g.rollback();
                 throw std::invalid_argument("position has no value associated");
@@ -1574,33 +1574,7 @@ namespace OP
                     dest._position_stack.back().address());
                 return classify_back(ro_node, dest);
             }
-            template <class TNode, class FIteratorUpdate>
-            void restore_iterator_from_pos(TNode& node, atom_t key, iterator& dest, FIteratorUpdate update_method)
-            {
-                return node->rawc(*_topology_ptr, key,
-                    [&](const auto& node_data) {
-                        if (!node_data._stem.is_nil())
-                        {//stem exists and must be placed to iterator
-                            StringMemoryManager smm(*_topology_ptr);
-                            atom_string_t buffer;
-                            smm.get(node_data._stem, std::back_inserter(buffer));
-                            (dest.*update_method)(std::move(root_pos),
-                                buffer.data(), buffer.data() + buffer.size());
-                        }
-                        else //no stem
-                        {
-                            (dest.*iterator_update)(std::move(root_pos), nullptr, nullptr);
-                        }
-                        dest.rat(
-                            terminality(
-                                (ro_node->has_value(pos.second) ? Terminality::term_has_data : Terminality::term_no)
-                                | (ro_node->has_child(pos.second) ? Terminality::term_has_child : Terminality::term_no)
-                            )
-                        );
-                        return std::make_tuple(true, node_data._child);
-                    });
 
-            }
             /**
             * \tparam FFindEntry - function `nullable_atom_t (ReadonlyAccess<node_t>&)` that resolve index inside node
             * \tparam FIteratorUpdate - pointer to one of iterator members - either to update 'back' position or insert new one to iterator
