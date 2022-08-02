@@ -758,21 +758,6 @@ namespace OP
                 assert(count < std::numeric_limits<dim_t>::max());
                 return std::make_tuple(result, static_cast<dim_t>(count));
             }
-            //
-            //struct GrowCallback : key_value_t::FPayloadFactory
-            //{
-            //    using kw_content_t = typename key_value_t::table_data_t;
-            //    GrowCallback(kw_content_t& src)
-            //        : _src(src)
-            //    {}
-            //    void inplace_construct(NodeData& to_construct) const
-            //    {
-            //        ::new (&to_construct)NodeData(
-            //            std::move(const_cast<NodeData&>(_src.payload)));
-            //        _src.flag &= ~fpresence_c;
-            //    }
-            //    kw_content_t& _src;
-            //};
 
             template <class TSegmentTopology>
             void grow(TSegmentTopology& topology, key_value_t& from_container)

@@ -21,6 +21,7 @@ namespace OP::trie::containers
 
         using persisted_table_t = PersistedArray<Payload>;
         using const_persisted_table_t = ConstantPersistedArray<Payload>;
+        using payload_factory_t = typename base_t::FPayloadFactory;
 
         /**
         * \tparam some specialization of SegmentTopology with mandatory slot `HeapManagerSlot`
@@ -54,7 +55,7 @@ namespace OP::trie::containers
         }
         
         std::pair<dim_t, bool> insert(
-            atom_t key, const FPayloadFactory& payload_factory) override
+            atom_t key, const payload_factory_t& payload_factory) override
         {
             assert(!_node_info.presence(key));
             persisted_table_t ref_data(_node_info.reindex_table());

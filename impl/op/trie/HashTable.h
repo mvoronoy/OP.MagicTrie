@@ -128,6 +128,7 @@ namespace OP::trie::containers
 
         using persisted_table_t = PersistedArray<Content>;
         using const_persisted_table_t = ConstantPersistedArray<Content>;
+        using payload_factory_t = typename base_t::FPayloadFactory;
 
         /**
         * \tparam some specialization of SegmentTopology with mandatory slot `HeapManagerSlot`
@@ -168,10 +169,9 @@ namespace OP::trie::containers
 
         /**
         *   @return insert position or #end() if no more capacity
-        * \tparam FPayloadFactory - functor of signature `void (Payload&)`
         */
         std::pair<dim_t, bool> insert(
-                atom_t key, const FPayloadFactory& payload_factory) override
+                atom_t key, const payload_factory_t& payload_factory) override
         {
             using namespace details;
             persisted_table_t ref_data(_node_info.reindex_table());
@@ -307,7 +307,7 @@ namespace OP::trie::containers
                 if (!v.presence)
                 { //nothing at this pos
                     v.key = key;
-                    if constexpr(std::is_base_of_v<FPayloadFactory, std::decay_t<F> >)
+                    if constexpr(std::is_base_of_v<payload_factory_t, std::decay_t<F> >)
                     {
                         payload_factory.inplace_construct(v.payload);
                     }
