@@ -118,7 +118,7 @@ namespace OP::vtm
         *   Number of repeating peformed by N template parameter, after this number 
         *   exceeding ConcurentLockException exception just propagated to caller
         */
-        template <std::uint16_t N, typename  F, typename  ... Args>
+        template <auto N, typename  F, typename  ... Args>
         inline typename std::result_of<F(Args ...)>::type transactional_retry_n(F f, Args ... ax)
         {
             for (auto i = 0; i < N; ++i)
@@ -135,7 +135,7 @@ namespace OP::vtm
             }
             throw OP::vtm::ConcurentLockException("10");
         }
-        template <std::uint16_t N, typename F, typename  ... Args>
+        template <auto N, typename F, typename  ... Args>
         inline typename std::result_of<F(Args ...)>::type transactional_yield_retry_n(F f, Args ... ax)
         {
             for (auto i = 0; i < N; ++i)
