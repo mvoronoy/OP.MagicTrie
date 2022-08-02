@@ -52,7 +52,7 @@ namespace OP::vtm
             OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
             auto avail_segments = _segment_manager->available_segments();
             //capture ZeroHeader for write during 10 tries
-            ZeroHeader* header = OP::vtm::transactional_yield_retry_n<10>([this]()
+            ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<10>([this]()
                 {
                     return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
                 });
@@ -115,7 +115,7 @@ namespace OP::vtm
             }
             OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
             //capture ZeroHeader for write during 10 tries
-            auto header = OP::vtm::transactional_yield_retry_n<10>([this]()
+            auto header = OP::vtm::template transactional_yield_retry_n<10>([this]()
                 {
                     return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
                 });
@@ -144,7 +144,7 @@ namespace OP::vtm
             auto header =
                 manager.readonly_block(
                     _zero_header_address, memory_requirement<ZeroHeader>::requirement)
-                .OP_TEMPL_METH(at) < ZeroHeader > (0);
+                .OP_TEMPL_METH(at)<ZeroHeader> (0);
             FarAddress block_addr = FarAddress{ header->_next };
             size_t n_free_blocks = 0;
             //count all free blocks
@@ -263,7 +263,7 @@ namespace OP::vtm
             }
             else
             {
-                header = OP::vtm::transactional_yield_retry_n<10>([this]()
+                header = OP::vtm::template transactional_yield_retry_n<10>([this]()
                     {
                         return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
                     });

@@ -103,7 +103,7 @@ namespace OP::vtm
                 auto index = traits.entry_index(key);
                 try{
                     //try to pull block from origin slot provided
-                    far_pos_t result = OP::vtm::transactional_yield_retry_n<3>(pull_op, index);
+                    far_pos_t result = OP::vtm::template transactional_yield_retry_n<3>(pull_op, index);
                     if (result != SegmentDef::far_null_c)
                         return result;
                 }
@@ -116,7 +116,7 @@ namespace OP::vtm
                 {
                     try{
                         //try to pull block from origin slot provided
-                        far_pos_t result = OP::vtm::transactional_yield_retry_n<3>(pull_op, i);
+                        far_pos_t result = OP::vtm::template transactional_yield_retry_n<3>(pull_op, i);
                         if (result != SegmentDef::far_null_c)
                             return result;
                     }
