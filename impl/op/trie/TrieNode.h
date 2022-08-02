@@ -69,7 +69,8 @@ namespace OP
                     }
                 }
 
-                void destroy(HeapManagerSlot& topology)
+                template <class TSegmentTopology>
+                void destroy(TSegmentTopology& topology)
                 {
                     if constexpr( big_payload_c )
                     {
