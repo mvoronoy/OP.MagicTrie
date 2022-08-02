@@ -70,7 +70,7 @@ namespace OP
             element_t* ref(TSegmentManager& manager, segment_pos_t capacity) const
             {
                 return array_accessor<element_t>(
-                        resolve_segment_manager(manager), address, capacity).at<T>(0);
+                        resolve_segment_manager(manager), address, capacity).template at<T>(0);
             }
             
             template <class TSegmentManager>
