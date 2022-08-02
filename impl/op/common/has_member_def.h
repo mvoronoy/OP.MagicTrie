@@ -63,7 +63,7 @@ namespace OP::has_operators
 
     /** Compile time check if type T supports operator logical-not `!` */
     template<class T> using logical_not = decltype(has_logical_not_test(std::declval<T>()));
-    template<class T> inline constexpr bool logical_not_v = logical_not::value;
+    template<class T> inline constexpr bool logical_not_v = logical_not<T>::value;
 
 } //ns:OP::operators_check
 
