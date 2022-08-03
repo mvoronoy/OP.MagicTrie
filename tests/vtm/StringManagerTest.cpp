@@ -36,6 +36,9 @@ void test_StringManager(OP::utest::TestRuntime &tresult)
     str_manager.get(a1, std::back_insert_iterator(result), 1, 2);
     tresult.assert_that<equals>(result, "bc"s);
     result.clear();
+    str_manager.get(a1, std::back_insert_iterator(result), 1, 1);
+    tresult.assert_that<equals>(result, "b"s);
+    result.clear();
     str_manager.get(a1, std::back_insert_iterator(result), 1, 12);
     tresult.assert_that<equals>(result, "bc"s);
 }
@@ -208,8 +211,49 @@ void test_StringManagerEdgeCaseNoTran(OP::utest::TestRuntime& tresult)
     string_manager_edge_case(mngr_toplogy, tresult);
 }
 
+void test_SmartStr(OP::utest::TestRuntime& tresult)
+{
+    auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(
+        node_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
+    using str_manager_t = OP::vtm::StringMemoryManager;
+    str_manager_t smm(mngr_toplogy);
+    auto& rndtool = tools::RandomGenerator::instance();
+
+    
+    for (size_t str_sz = 0; str_sz < sizeof(FarAddress) + 3; ++str_sz)
+    {
+        atom_string_t paste;
+        if (str_sz)
+            rndtool.next_alpha_num(paste, str_sz, str_sz);
+        auto smstr = smm.smart_insert(paste);
+        for (OP::vtm::segment_pos_t offset = 0; offset <= (str_sz); ++offset)
+        {
+            for (OP::vtm::segment_pos_t len = 0; len < (str_sz+2); ++len)
+            {
+                auto sample = paste.substr(offset, len);
+                atom_string_t test_str;
+                smm.get(smstr, std::back_inserter(test_str), offset, len);
+                tresult.assert_that<equals>(test_str, sample);
+                test_str.clear();
+                smm.get(smstr, [&test_str](auto c)->bool {
+                    test_str.append(1, c);
+                    return true;
+                    }, offset, len);
+                tresult.assert_that<equals>(test_str, sample);
+            }
+        }
+        smm.destroy(smstr);
+    }
+
+}
+
 static auto& module_suite = OP::utest::default_test_suite("StringManager")
     .declare("basic", test_StringManager)
     .declare("edgecase-transactional", test_StringManagerEdgeCase)
     .declare("edgecase-no-tran", test_StringManagerEdgeCaseNoTran)
+    .declare("smart-str", test_SmartStr)
     ;

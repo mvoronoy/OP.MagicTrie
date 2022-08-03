@@ -8,7 +8,7 @@
       "projectTarget": "trie_test.exe",
       "name": "trie_test.exe",
       "args": [
-        "-r Trie.range/flatten",
+        "-r Trie.+/erase.*",
         "-s 0",
         "-d 3"
       ]

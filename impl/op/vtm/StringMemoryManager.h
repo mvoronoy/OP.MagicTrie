@@ -26,7 +26,26 @@ namespace OP::vtm
                 segment_pos_t _size = 0;
                 value_type buffer[1];
             };
+            /** Allows optimize string storage when size less 8 bytes */
+            /** Allows optimize string storage when size less 8 bytes */
+            struct SmartStringAddress
+            {
+                constexpr static size_t data_byte_size_c = 
+                    memory_requirement<FarAddress>::requirement;
+                constexpr static std::uint8_t far_use_c = ~std::uint8_t{};
 
+                std::uint8_t _short_size = far_use_c;
+                union 
+                {
+                    FarAddress _far;
+                    char _buffer[1];
+                } _address = { FarAddress{} };
+
+                constexpr bool is_nil() const
+                {
+                    return _short_size == far_use_c && _address._far.is_nil();
+                }
+            };
         }//ns:smm
 
         /**
@@ -46,6 +65,7 @@ namespace OP::vtm
                 , _heap_mngr(topology.template slot<HeapManagerSlot>())
             {
             }
+
             /**
             * Allocate new persisted string.
             * \tparam StringLike - any type supporting size(), data() methods
@@ -56,27 +76,6 @@ namespace OP::vtm
             FarAddress insert(const StringLike& str)
             {
                 return insert(str.begin(), str.end());
-                //using namespace std::string_literals;
-                //if (str.size() >= _segment_manager.segment_size())
-                //    throw std::out_of_range("String must be less than "s
-                //        + std::to_string(_segment_manager.segment_size()));
-
-                //auto alloc_size = persisted_char_array_t::memory_requirement(
-                //    static_cast<segment_pos_t>(str.size()));
-
-                //OP::vtm::TransactionGuard op_g(
-                //    _segment_manager.begin_transaction()); //invoke begin/end write-op
-                ////
-                //persisted_char_array_t result (_heap_mngr.allocate(alloc_size));
-                //auto& content = result.ref(_segment_manager);
-
-                //content.size = static_cast<segment_pos_t>(str.size());
-                //memcpy(content.data, 
-                //    str.data(), 
-                //    static_cast<segment_pos_t>(str.size()) * sizeof(element_t) );
-
-                //op_g.commit();
-                //return result.address;
             }                                          
             template <class Iterator>
             FarAddress insert(Iterator begin, Iterator end)
@@ -105,6 +104,28 @@ namespace OP::vtm
                 return result.address;
             }                                          
             
+            template <class StringLike>
+            smm::SmartStringAddress smart_insert(const StringLike& str)
+            {
+                return smart_insert(str.begin(), str.end());
+            }
+            
+            template <class Iterator>
+            smm::SmartStringAddress smart_insert(Iterator begin, Iterator end)
+            {
+                auto sz = end - begin;
+                if(smm::SmartStringAddress::data_byte_size_c < sz)//regular long str
+                {
+                    return smm::SmartStringAddress{
+                        std::numeric_limits<std::uint8_t>::max(), 
+                        insert(begin, end)
+                    };
+                }
+                smm::SmartStringAddress short_address{ static_cast<std::uint8_t>(sz) };
+                std::copy(begin, end, short_address._address._buffer);
+                return short_address;
+            }
+
             /**
             *   \tparam Args - optional argument of Payload constructor.
             */
@@ -114,12 +135,32 @@ namespace OP::vtm
                 _heap_mngr.deallocate(str);
                 op_g.commit();
             }
+            
+            void destroy(const smm::SmartStringAddress& str)
+            {
+                if(smm::SmartStringAddress::data_byte_size_c < str._short_size )
+                { //regular str
+                    destroy(str._address._far);
+                    return;
+                }
+                //do nothing with short str
+            }
 
             segment_pos_t size(FarAddress str_addr)
             {
                 persisted_char_array_t result (str_addr);
                 return result.size(_segment_manager);
             }
+
+            segment_pos_t size(const smm::SmartStringAddress& str)
+            {
+                if(smm::SmartStringAddress::data_byte_size_c < str._short_size )
+                {
+                    return size(str._address._far);
+                }
+                return str._short_size;
+            }
+
             /**
             *  Extract string from the persisted state.
             *  
@@ -159,6 +200,8 @@ namespace OP::vtm
                     length, 
                     head->_size - offset //it is safe since I've already check: `offset < head->_size`
                 );
+                if (!size)
+                    return 0;
                 ReadonlyMemoryChunk ra = _segment_manager.
                     readonly_block(
                         data_block,
@@ -168,6 +211,33 @@ namespace OP::vtm
                 for (; size; --size, ++source, ++result)
                 {
                     if(!out_control(*source))
+                        break;
+                }
+                return result;
+            }
+
+            template<class FOutControl>
+            std::enable_if_t<std::is_invocable_v<FOutControl, element_t>, segment_pos_t>
+            get(const smm::SmartStringAddress& str_addr,
+                FOutControl out_control,
+                segment_pos_t offset = 0, 
+                segment_pos_t length = std::numeric_limits<segment_pos_t>::max())
+            {
+                if( smm::SmartStringAddress::data_byte_size_c < str_addr._short_size )
+                {
+                    return get(str_addr._address._far, out_control, offset, length);
+                }
+                //
+                if (offset >= str_addr._short_size)
+                    return 0;
+                segment_pos_t size = std::min(
+                    length, 
+                    static_cast<segment_pos_t >(str_addr._short_size) - offset //it is safe since I've already check: `offset < head->_size`
+                );
+                segment_pos_t result = 0;
+                for (; size; --size, ++result, ++offset)
+                {
+                    if(!out_control(str_addr._address._buffer[offset]))
                         break;
                 }
                 return result;
@@ -187,6 +257,32 @@ namespace OP::vtm
             {
                 return this->get(str_addr,
                     [&](element_t symb){*out = symb; ++out; return true;}, offset, length);
+            }
+
+            template<class OutIter>
+            std::enable_if_t< 
+                std::is_same_v<typename std::iterator_traits<OutIter>::iterator_category, std::output_iterator_tag >,
+                segment_pos_t>
+                get(const smm::SmartStringAddress& str_addr, OutIter out,
+                        segment_pos_t offset = 0, segment_pos_t length = std::numeric_limits<segment_pos_t>::max())
+            {
+                if( smm::SmartStringAddress::data_byte_size_c < str_addr._short_size )
+                {
+                    return get(str_addr._address._far, out, offset, length);
+                }
+                if (offset >= str_addr._short_size)
+                    return 0;
+                segment_pos_t size = std::min(
+                    length, 
+                    static_cast<segment_pos_t >(str_addr._short_size) - offset //it is safe since I've already check: `offset < head->_size`
+                );
+                segment_pos_t result = 0;
+                for (; size; --size, ++result, ++offset)
+                {
+                    *out = str_addr._address._buffer[offset]; 
+                    ++out; 
+                }
+                return result;
             }
 
         private:

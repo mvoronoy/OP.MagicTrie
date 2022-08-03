@@ -26,6 +26,10 @@ namespace OP
             /*declare 256-bit presence bitset*/
             using presence_t = Bitset<4, std::uint64_t> ;
 
+            /** Smart memory allocator for plain payload. When payload small
+            * it uses same storage space as FarAddress, when it doesn't fit 
+            * then HeapManager used to allocate memory
+            */
             struct DataStorage
             {
                 static_assert(std::is_standard_layout_v<Payload>, 
@@ -114,7 +118,7 @@ namespace OP
             struct NodeData
             {
                 FarAddress _child = {};
-                FarAddress _stem = {};
+                smm::SmartStringAddress _stem = {};
                 DataStorage _data;
             };
 
@@ -261,7 +265,7 @@ namespace OP
                                 auto size = end - begin;
                                 assert(size < 
                                     std::numeric_limits<dim_t>::max() - 1);
-                                to_construct._stem = str_manager.insert(begin, end);
+                                to_construct._stem = str_manager.smart_insert(begin, end);
                                 begin = end;
                             }
                         });
@@ -284,7 +288,7 @@ namespace OP
                 ++_version;
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
-                FarAddress stem_addr;
+                smm::SmartStringAddress stem_addr;
                 if (erase_data)
                 {
                     assert(presence(key));
@@ -539,14 +543,14 @@ namespace OP
                 str_manager.destroy(src_node_data->_stem);//remove previous
                 src_node_data->_stem = {};
                 if(!left_stem.empty())
-                    src_node_data->_stem = str_manager.insert(left_stem);
+                    src_node_data->_stem = str_manager.smart_insert(left_stem);
 
                 target_container->insert(new_key,
                     [&](NodeData& target_data) -> void {
                         target_data = {};
                         if (!cary_over_stem.empty())
                         {
-                            target_data._stem = str_manager.insert(cary_over_stem);
+                            target_data._stem = str_manager.smart_insert(cary_over_stem);
                         }
                         
                         //copy data/address to target
