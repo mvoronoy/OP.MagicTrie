@@ -138,7 +138,7 @@ namespace OP::trie
             return _version;
         }
         
-        /**Offset inside node. May be nil_c - if this position points to `end` */
+        /**Offset inside node. May be nil_c - if this position points to the `end` */
         constexpr dim_t key() const noexcept
         {
             return _key;

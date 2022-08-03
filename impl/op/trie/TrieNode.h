@@ -365,12 +365,6 @@ namespace OP
                 set_raw_value(topology, key, *node_data, std::forward<TData>(value));
             }
 
-            /** @return [if_child presence, if_data presence] */
-            std::pair<bool, bool> get_presence(atom_t key) const
-            {
-                return std::make_pair(_child_presence.get(key), _value_presence.get(key));
-            }
-
             /**@return first position where child or value exists, may return dim_nil_c if node empty*/
             inline nullable_atom_t first() const
             {
