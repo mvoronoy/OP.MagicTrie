@@ -92,9 +92,10 @@ void testChildConfig(OP::utest::TestRuntime& tresult)
         p_t("abcdef"_astr, 2.0),
     };
 
-    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+    for(const p_t& s: ini_data) 
+    {
         trie->insert(s.first, s.second);
-        });
+    }
     tresult.info() << "first/last child\n";
 
     atom_string_t common_prefix = "abc"_astr;

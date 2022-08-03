@@ -8,7 +8,7 @@
       "projectTarget": "trie_test.exe",
       "name": "trie_test.exe",
       "args": [
-        "-r Trie.+/erase.*",
+        "-r MixedAdapter/child",
         "-s 0",
         "-d 3"
       ]

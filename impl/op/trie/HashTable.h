@@ -32,7 +32,7 @@ namespace OP::trie::containers
                 return 4;
             default:
                 assert(false);
-                //no break (!)
+                [[fallthrough]]; //no break (!)
             case 256:
                 return 1;
             }
@@ -62,8 +62,7 @@ namespace OP::trie::containers
         {
             //table_size must be pow of 2 and in the range [8..256]
             assert(((table_size-1) & table_size) == 0 && table_size >=8 && table_size <= 256);
-            return static_cast<atom_t>(
-                 static_cast<dim_t>(k) & bitmask(table_size));
+            return static_cast<atom_t>((static_cast<dim_t>(101*k) ^ k) & bitmask(table_size));
         }
 
 
