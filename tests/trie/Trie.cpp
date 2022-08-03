@@ -1093,20 +1093,24 @@ namespace {
             p_t((atom_t*)"bc.123456789", 1),
             p_t((atom_t*)"bd.12", 1.),
         };
-        std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        for(const p_t& s: ini_data) 
+        {
             trie->insert(s.first, s.second);
             test_values.emplace(s.first, s.second);
-            });
+        }
         compare_containers(tresult, *trie, test_values);
 
         auto abc_iter = trie->prefixed_key_erase_all(s0);
         //prepare test map, by removing all string that starts from 'a' and bigger than 1 char
         for (auto wi = test_values.begin();
-            (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'a' /*&& itm.first.length() > 1*/; })) != test_values.end();
+            (wi = std::find_if(wi, test_values.end(), 
+                [](auto const& itm) {
+                    return itm.first[0] == (atom_t)'a' /*&& itm.first.length() > 1*/; 
+                })) != test_values.end();
             test_values.erase(wi++));
         compare_containers(tresult, *trie, test_values);
         //special case for restore iterator
-        atom_string_t en2((const atom_t*)"bc");
+        atom_string_t en2("bc"_astr);
         auto f2 = trie->find(en2);
         auto f2_copy = f2;
         tresult.assert_that<logical_not<equals>>(trie->end(), f2, OP_CODE_DETAILS());
@@ -1124,7 +1128,10 @@ namespace {
 
         //prepare test map, by removing all string that starts from 'bc' and bigger than 2 char
         for (auto wi = test_values.begin();
-            (wi = std::find_if(wi, test_values.end(), [](auto const& itm) {return itm.first[0] == (atom_t)'b' && itm.first[1] == (atom_t)'c' && itm.first.length() > 2; })) != test_values.end();
+            (wi = std::find_if(wi, test_values.end(), 
+                [](auto const& itm) {
+                    return itm.first[0] == (atom_t)'b' && itm.first[1] == (atom_t)'c' && itm.first.length() > 2; 
+                })) != test_values.end();
             test_values.erase(wi++));
 
         tresult.assert_that<equals>(3, trie->prefixed_erase_all(f2), OP_CODE_DETAILS());

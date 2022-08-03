@@ -95,26 +95,6 @@ namespace OP
 
             };
 
-            /** Structure to report result of navigation over this particular TrieNode */
-            struct nav_result_t
-            {
-                nav_result_t() noexcept
-                    : compare_result{ StemCompareResult::unequals }
-                    //, stem_rest{ 0 }
-                {}
-
-                nav_result_t(StemCompareResult a_compare_result, 
-                    FarAddress a_child_node = FarAddress(), dim_t a_stem_rest = 0) noexcept
-                    : compare_result{a_compare_result}
-                    , child_node{ a_child_node }
-                {}
-
-                /** result of compare string with node */
-                StemCompareResult compare_result;
-                /**address of further children to continue navigation*/
-                FarAddress child_node;
-            };
-
             struct NodeData
             {
                 FarAddress _child = {};
@@ -148,99 +128,16 @@ namespace OP
                 _hash_table = wrapper->create();
             }
 
-            /**
-            * Method matches this node with key specified by [begin, end)
-            * @param track_back - iterator that is populated at exit. 
-            * @param begin - on [in] point to the start string possition to 
-            *       match with this node content, on [out] exact place where 
-            *       first unmatch met or `end`. 
-            * @param end - end of the matching string possition 
-            * @return position where navigation has been stopped
-            */
-            template <class TSegmentTopology, class Atom, class Iterator>
-            nav_result_t navigate_over(
-                TSegmentTopology& topology, Atom& begin, Atom end, FarAddress this_node_addr, Iterator& track_back ) const
+            template <class Toplogy>
+            void destroy_interior(Toplogy& topology)
             {
-                assert(begin != end);
-                atom_t nav_key = *begin;
-                nav_result_t retval;
-                bool has_child = _child_presence.get(nav_key);
-                bool has_data = _value_presence.get(nav_key);
-
-                if (!has_child && !has_data) //no such entry at all
-                {
-                    retval.compare_result = StemCompareResult::no_entry;
-                    return retval;
-                }
-                //else detect how long common part is
-                ++begin; //first letter have been considered in `presence`
-                auto origin_begin = begin;
-
-                TriePosition pos{
-                    address(this_node_addr),
-                    key(nav_key),
-                    stem_size(0)/*dedicated for presence*/,
-                    node_version(this->_version),
-                    //disover terminaity
-                    terminality(
-                        (has_child ? Terminality::term_has_child : Terminality::term_no)
-                        | (has_data ? Terminality::term_has_data : Terminality::term_no))
-                };
-
-                wrap_key_value_t container;
-                kv_container(topology, container); //resolve correct instance implemented by this node
-
-                auto term = container->cget(nav_key);
-                assert(term);
-                retval.compare_result = StemCompareResult::equals;
-                if (!term->_stem.is_nil())
-                { //there is a stem
-                    //let's cut prefix from stem container
-                    dim_t deep = 0;
-                    std::tie(retval.compare_result, deep) = prefix_of(
-                        topology, term->_stem, begin, end);
-                    pos._stem_size += deep;
-                    switch (retval.compare_result)
-                    {
-                    case StemCompareResult::stem_end:
-                        { //stem ended, this mean either this is terminal or reference to other node
-                            assert(has_child || has_data); //otherwise Trie is corrupted
-                            retval.child_node = term->_child;
-                            break;
-                        }
-                    case StemCompareResult::equals:
-                        {
-                            if (!has_data)
-                            {   //case when string is over exactly on this node
-                                assert(has_child);
-                                retval.compare_result = StemCompareResult::string_end;
-                            }
-                            retval.child_node = term->_child;
-                            break;
-                        }
-                    default://terminality there = term_no
-                        {
-                            //navigation unmatched to query, wipe terminality
-                            pos._terminality = Terminality::term_no;
-                            break;
-                        }
-                    }
-                    //populate iterator 
-                    
-                }// end checking stem container
-                else 
-                {//no stems, just follow down
-                    assert(has_child|has_data);
-                    if (begin != end)
-                    {
-                        retval.compare_result = StemCompareResult::stem_end;
-                        retval.child_node = term->_child;
-                    }
-                }
-                track_back._emplace(std::move(pos), origin_begin, begin);
-                return retval;
+                assert(presence_first_set() == presence_t::nil_c);//all interior must be already deleted
+                wrap_key_value_t wrapper;
+                kv_container(topology, wrapper);
+                wrapper->destroy(_hash_table);
+                _hash_table = {};
             }
-            
+
             
             template <class TSegmentTopology, class AtomIterator, class FProducePayload>
             void insert(TSegmentTopology& topology, atom_t key, 
@@ -337,6 +234,7 @@ namespace OP
                 size_t data_slots = 0;
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
+                StringMemoryManager string_memory_manager(topology);
 
                 for(auto i = presence_first_set(); dim_nil_c != i; 
                     i = presence_next_set(static_cast<atom_t>(i)))
@@ -356,15 +254,12 @@ namespace OP
                         child_process.push(node->_child);
                         if(!node->_stem.is_nil())
                         {
-                            StringMemoryManager smm(topology);
-                            smm.destroy(node->_stem);
+                            string_memory_manager.destroy(node->_stem);
                             node->_stem = {};
                         }
                         _child_presence.clear(i);
                     }
                 }
-                container->destroy(_hash_table);
-                _hash_table = FarAddress{};
                 return data_slots;
             }
             

@@ -230,7 +230,7 @@ namespace OP
                 auto i_beg = i;//, i_end = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == StemCompareResult::equals //prefix fully matches to existing terminal
-                if (nav.compare_result == StemCompareResult::string_end) //key partially matches to some prefix
+                if (nav == StemCompareResult::string_end) //key partially matches to some prefix
                 { //correct string at the back of iterator
                     auto lres = load_iterator(i_beg.rat().address(), i_beg,
                         [&i](ReadonlyAccess<node_t>&) {
@@ -401,9 +401,9 @@ namespace OP
                 auto b = std::begin(container);
                 iterator iter = end();
 
-                auto nav_res = common_prefix(b, std::end(container), iter);
+                StemCompareResult nav_res = common_prefix(b, std::end(container), iter);
 
-                return (nav_res.compare_result == StemCompareResult::equals);
+                return (nav_res == StemCompareResult::equals);
             }
 
             /**
@@ -916,6 +916,8 @@ namespace OP
 
             void remove_node(FarAddress addr)
             {
+                auto wr_node = accessor<node_t>(*_topology_ptr, addr);
+                wr_node->destroy_interior(*_topology_ptr);
                 _topology_ptr->OP_TEMPL_METH(slot) < node_manager_t > ().deallocate(addr);
                 auto& res = _topology_ptr->OP_TEMPL_METH(slot) < TrieResidence > ();
                 res.increase_nodes_allocated(-1);
@@ -973,7 +975,7 @@ namespace OP
             StemCompareResult mismatch(iterator& iter, AtomIterator& begin, AtomIterator end) const
             {
                 using node_data_t = typename node_t::NodeData;
-                //auto pref_res = common_prefix(begin, end, iter);
+
                 StemCompareResult mismatch_result = StemCompareResult::equals;
                 for (FarAddress node_addr = iter.rat().address(); 
                     begin != end 
@@ -1097,8 +1099,12 @@ namespace OP
                     ;
             }
             
-            /**
-            * 
+            /**Insert or update value associated with key specified by pair [begin, end). 
+            * The value is passed as 2 spearate functors evaluated on demand - one for 
+            * insert other for update result.
+            * @param iter - iterator to start, note it MUST be already synced. At exit
+            *               it contains valid and actual points to just updated/inserted
+
             * \return true if value already exists, false if new value has been added
             */
             template <class AtomIterator, class FValueEval, class FOnUpdate>
@@ -1175,114 +1181,8 @@ namespace OP
                 iter._version = this_ver;
                 return false;//brand new entry
             }
-            /**Insert or update value associated with specified key. The value is passed as functor evaluated on demand.
-            * @param start_from - iterator to start, note it MUST be already synced. At exit
-            * @return pair of iterator and success indicator. When insert succeeded iterator is a position of
-            *       just inserted item, otherwise it points to already existing key
-            */
-            template <class AtomIterator, class FValueEval, class FOnUpdate>
-            void upsert_impl_ols(std::pair<iterator, bool>& result, AtomIterator begin, AtomIterator end, FValueEval f_value_eval, FOnUpdate f_on_update)
-            {
-                auto& iter = result.first;
-                auto origin_begin = begin;
-                auto pref_res = common_prefix(begin, end, iter);
-                switch (pref_res.compare_result)
-                {
-                case StemCompareResult::no_entry:
-                {
-                    unconditional_insert(iter, f_value_eval);
-                    return /*result*/;
-                }
-                case StemCompareResult::stem_end: //stem is over, just follow downstair to next node
-                {
-                    assert(!iter.is_end());
-                    auto& back = iter.back();
-                    FarAddress node_addr = back.address();
-                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
+            
 
-                    node_addr = new_node(iter.node_count());
-                    wr_node->set_child(*_topology_ptr, static_cast<atom_t>(back.key()), node_addr);
-                    unconditional_insert(iter, f_value_eval);
-                    return /*result*/;
-                }
-                case StemCompareResult::unequals:
-                {
-                    assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
-                    auto& back = iter.back();
-                    FarAddress node_addr = back.address();
-                    //entry should exists
-                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-                    if (origin_begin != begin)
-                    { //need split stem 
-                        node_addr =
-                            diversificate(*wr_node, iter);
-                    }
-                    else
-                    {// nothing to diversificate
-                        assert(pref_res.child_node.is_nil());
-                        node_addr = new_node(iter.node_count());
-                        wr_node->set_child(*_topology_ptr, (atom_t)back.key(), node_addr);
-                    }
-                    unconditional_insert(iter, f_value_eval);
-                    return /*result*/;
-                }
-                case StemCompareResult::equals:
-                    if (iter.back()._terminality & Terminality::term_has_data)
-                    {
-                        f_on_update(iter);
-                        result.second = false;
-                        return; //dupplicate found
-                    }
-                    // no break there
-                    [[fallthrough]];
-                case StemCompareResult::string_end:
-                {
-                    assert(!iter.is_end()); //even if unequal raised in root node it must lead to some stem
-                    //case about non-existing item
-                    _topology_ptr->OP_TEMPL_METH(slot) < TrieResidence > ()
-                        .increase_count(1) //number of terminals
-                        .increase_version() // version of trie
-                        ;
-
-                    auto& back = iter.back();
-                    FarAddress node_addr = back.address();
-                    auto wr_node = accessor<node_t>(*_topology_ptr, node_addr);
-                    wr_node->raw(*_topology_ptr, static_cast<atom_t>(back.key()),
-                        [&](auto& node_data) {
-                            if (!node_data._stem.is_nil())
-                            {
-                                StringMemoryManager smm(*_topology_ptr);
-                                auto size = smm.size(node_data._stem);
-
-                                //empty iterator should not be diversificated, just set value
-                                //terminal is not there, otherwise it would be StemCompareResult::equals
-                                if (back.deep() == size)
-                                {
-                                    //it is allowed only to have child, if 'has_data' set - then `common_prefix` works wrong
-                                    assert(!(back.terminality() & Terminality::term_has_data));
-                                    //don't do anything, wait until wr_node->set_value
-                                }
-                                else
-                                {
-                                    diversificate(*wr_node, iter);
-                                }
-                            }
-
-                            wr_node->set_raw_value(
-                                *_topology_ptr, static_cast<atom_t>(back.key()),
-                                node_data, std::forward<Payload>(f_value_eval()));
-                            back._version = wr_node->_version;
-                        });
-
-                    iter.back()._terminality |= Terminality::term_has_data;
-                    return /*result*/;
-                }
-                default:
-                    assert(false);
-                    result.second = false;
-                    return /*result*/; //fail stub
-                }
-            }
             /** Prepares `result_iter` to further navigation deep, if it is empty 
             * method prepares navigation from root node
             */
@@ -1331,67 +1231,21 @@ namespace OP
                     );
                 }
             }
-            /**Return not fully valid iterator that matches common part specified by [begin, end)*/
+            /**Return not fully valid iterator that matches common part specified by [begin, end)
+            * \return reason why iterator unmacthes to query string
+            */
             template <class Atom>
-            typename node_t::nav_result_t common_prefix(Atom& begin, Atom end, iterator& result_iter) const
+            StemCompareResult common_prefix(Atom& begin, Atom end, iterator& result_iter) const
             {
-                typename node_t::nav_result_t retval{};
+                StemCompareResult retval = StemCompareResult::unequals;
                 if (begin == end || !navigation_mode(result_iter))
                 { //nothing to consider
                     return retval;
                 }
 
-                retval.compare_result =
+                retval =
                     mismatch(result_iter, begin, end);
-                retval.child_node = result_iter.rat().address();
                 return retval;
-                //if (end == begin)
-                //{
-                //    return retval;
-                //}
-                //FarAddress node_addr;
-                //if (!result_iter.is_end()) //discover from previously positioned iterator
-                //{
-                //    //there is great assumption that result_iter's deep points to full stem
-                //    auto cls = classify_back(result_iter);
-                //    if (!std::get<1>(cls)) //no way down
-                //    {
-                //        return retval;//end()
-                //    }
-                //    node_addr = std::get<FarAddress>(cls);
-                //}
-                //else
-                //{ //start from root node
-                //    node_addr = _topology_ptr->OP_TEMPL_METH(slot) < TrieResidence > ().get_root_addr();
-                //}
-                //for (;;)
-                //{
-                //    auto node =
-                //        view<node_t>(*_topology_ptr, node_addr);
-
-                //    atom_t key = *begin;
-                //    retval =
-                //        node->navigate_over(*_topology_ptr, begin, end, node_addr, result_iter);
-
-                //    // all cases excluding StemCompareResult::stem_end mean that need return current iterator state
-                //    if (StemCompareResult::stem_end == retval.compare_result)
-                //    {
-                //        node_addr = retval.child_node;
-                //        if (node_addr.address == SegmentDef::far_null_c)
-                //        {  //no way down, 
-                //            return retval; //@! it is the prefix that is not satisfied lower_bound
-                //        }
-                //    }
-                //    else if (StemCompareResult::no_entry == retval.compare_result)
-                //    {
-                //        retval.child_node = node_addr;
-                //        return retval;
-                //    }
-                //    else
-                //        break;
-
-                //} //for(;;)
-                //return retval;
             }
             template <class FChildLocator>
             iterator position_child(iterator& of_this, FChildLocator locator) const
@@ -1425,7 +1279,6 @@ namespace OP
             template <class Atom>
             bool lower_bound_impl(Atom& begin, Atom aend, iterator& prefix) const
             {
-                //auto nav_res = common_prefix(begin, aend, prefix);
                 if (begin == aend || !navigation_mode(prefix))
                 {
                     prefix = end();
@@ -1471,7 +1324,7 @@ namespace OP
                 }
                 case StemCompareResult::string_end:
                 {
-                    auto lres = load_iterator(//need reload since after common_prefix may not be complete
+                    auto lres = load_iterator(
                         prefix.rat().address(), prefix,
                         [&](ReadonlyAccess<node_t>& ro_node) {
                             return make_nullable(prefix.rat().key());
@@ -1626,7 +1479,7 @@ namespace OP
             */
             bool _begin(const FarAddress& node_addr, iterator& i) const
             {
-                //ensure iterator points to a valid entry (that may be result of common_prefix  unequal result)
+                //ensure iterator points to a valid entry
                 auto lres = load_iterator(node_addr, i,
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); },
                     &iterator::update_back);

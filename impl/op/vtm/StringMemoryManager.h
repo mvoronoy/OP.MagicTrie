@@ -20,20 +20,27 @@ namespace OP::vtm
         using namespace OP::utils;
         namespace smm
         {
+            /** Header for string persisted state */
             struct StringHead
             {
                 using value_type = char;
                 segment_pos_t _size = 0;
                 value_type buffer[1];
             };
-            /** Allows optimize string storage when size less 8 bytes */
-            /** Allows optimize string storage when size less 8 bytes */
+            /** Allows optimize string storage when size less than 8 bytes 
+            * by avoiding memory allocation and placing characters instead 
+            * dynamic memory to of FarAddress
+            */
             struct SmartStringAddress
             {
+                /** Limit of string size that can be stored in short form (byte 
+                * length of FarAddress structure
+                */
                 constexpr static size_t data_byte_size_c = 
                     memory_requirement<FarAddress>::requirement;
+                /** Const used as indicator for FarAddress useage */
                 constexpr static std::uint8_t far_use_c = ~std::uint8_t{};
-
+                /** flag that allow distinguish short-string from heap-allocated string*/
                 std::uint8_t _short_size = far_use_c;
                 union 
                 {
@@ -41,6 +48,7 @@ namespace OP::vtm
                     char _buffer[1];
                 } _address = { FarAddress{} };
 
+                /** Check if current state points nowhere */
                 constexpr bool is_nil() const
                 {
                     return _short_size == far_use_c && _address._far.is_nil();
@@ -117,7 +125,7 @@ namespace OP::vtm
                 if(smm::SmartStringAddress::data_byte_size_c < sz)//regular long str
                 {
                     return smm::SmartStringAddress{
-                        std::numeric_limits<std::uint8_t>::max(), 
+                        smm::SmartStringAddress::far_use_c, 
                         insert(begin, end)
                     };
                 }
