@@ -1370,9 +1370,9 @@ namespace OP
                         it._position_stack.erase( //cut stack
                             it._position_stack.begin() + order, 
                             it._position_stack.end()); 
-
+                        auto str_beg = repeat_search_key.begin();
                         if (!lower_bound_impl(
-                            repeat_search_key.begin(), repeat_search_key.end(), it))
+                            str_beg, repeat_search_key.end(), it))
                         {
                             it = end();
                             return false;
