@@ -1237,23 +1237,7 @@ namespace OP
                 return retval;
             }
             
-            template <class FIteratorUpdate>
-            void load_stem_to_iterator(const smm::SmartStringAddress& stem, iterator& dest, FIteratorUpdate update_method)
-            {
-                if (!stem.is_nil())
-                {//if stem exists should be placed to iterator
-                    StringMemoryManager smm(*_topology_ptr);
-                    atom_string_t buffer;
-                    smm.get(node_data._stem, std::back_inserter(buffer));
-                    (dest.*iterator_update)(std::move(root_pos),
-                        buffer.data(), buffer.data() + buffer.size());
-                }
-                else //no stem
-                {
-                    (dest.*iterator_update)(std::move(root_pos), nullptr, nullptr);
-                }
 
-            }
             template <class FChildLocator>
             iterator children_navigation(iterator& of_this, FChildLocator locator) const
             {
