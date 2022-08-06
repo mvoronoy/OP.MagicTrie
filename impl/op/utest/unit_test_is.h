@@ -7,6 +7,7 @@
 #include <map>
 #include <set>
 #include <unordered_set>
+#include <op/utest/details.h>
 
 namespace OP::utest
 {
@@ -22,7 +23,7 @@ namespace OP::utest
 
         /** Taking tuple U applies arguments to functor Marker in range [from 0 to ... I)*/
         template <class Marker, class U, size_t ... I>
-        bool apply_prefix(Marker& f, U& u, std::index_sequence<I...>)
+        auto apply_prefix(Marker& f, U& u, std::index_sequence<I...>)
         {
             return std::invoke(f, std::get<I>(u)...);
         }
@@ -49,9 +50,18 @@ namespace OP::utest
     {
         Marker m;
         template <class ...Args>
-        constexpr bool operator() (Args&& ... x)  const
+        constexpr auto operator() (Args&& ... x)  const
         {
-            return !m(std::forward<Args>(x)...);
+            auto res = m(std::forward<Args>(x)...);
+            if constexpr (std::is_convertible_v<std::decay_t<decltype(res)>, bool>)
+            {//no additional info provided
+                return !res;
+            }
+            else
+            { //previous check provides some details
+                std::get<bool>(res) = !std::get<bool>(res);
+                return res;
+            }
         }
     };
     template <class Marker>
@@ -61,9 +71,22 @@ namespace OP::utest
     struct equals : details::marker_arity<2>
     {
         template <class Left, class Right>
-        constexpr bool operator()(Left left, Right right)  const
+        constexpr auto operator()(Left left, Right right) const
         {
-            return left == right;
+            using namespace OP::has_operators;
+            bool result = left == right;
+            if constexpr (ostream_out_v<Left> && ostream_out_v<Right>)
+            {
+                if (result)
+                    return std::make_pair( true, OP::utest::Details{} );
+                OP::utest::Details fail;
+                fail << "Assertion of equality check: [" << left << "] vs [" << right << "]\n";
+                return std::make_pair( false, std::move(fail));
+            }
+            else
+            {
+                return result;
+            }
         }
     };
 

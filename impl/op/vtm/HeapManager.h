@@ -15,6 +15,7 @@ namespace OP::vtm
             HeapManagerSlot()
             {
             }
+
             /**
             * Allocate memory block without initialization that can accomodate sizeof(T)*count bytes. As usual result block little bigger (on allignment of Segment::align_c)
             * @throw trie::Exception When there is no memory on 2 possible reasons:

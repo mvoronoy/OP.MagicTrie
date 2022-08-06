@@ -29,7 +29,7 @@ namespace {
     {
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+            .segment_size(0x1100000));
         typedef Trie<EventSourcingSegmentManager, double> trie_t;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
@@ -90,7 +90,7 @@ namespace {
         auto ir2 = trie->insert(stem1, v_order + 101.0);
         tresult.assert_false(
             ir2.second,
-            OP_CODE_DETAILS() << "insert must disallow dupplicates");
+            OP_CODE_DETAILS( << "insert must disallow dupplicates"));
         tresult.assert_true(trie->size() == 2);
 
         auto ir3 = trie->insert(stem1_deviation1, v_order);
@@ -1087,6 +1087,7 @@ namespace {
             p_t((atom_t*)"a2", 1.),
             p_t((atom_t*)"xyz", 1.),
             p_t((atom_t*)"klmnopqrstuffjfisdifsd sduf asdasjkdhasjhjkahaskdask asaskdhaskhdkasdasjdasjkdhaskasdjk hkasdjhdkashaskdaksdasjkhdjkash djkashkdashjkdhasjkhdkashdjkashdjkasklmnopqrstuffjfisdifsd sduf asdasjkdhasjhjkahaskdask asaskdhaskhdkasdasjdasjkdhaskasdjk hkasdjhdkashaskdaksdasjkhdjkash djkashkdashjkdhasjkhdkashdjkashdjkas", 11.1),
+            p_t((atom_t*)"b", 0.1),
             p_t((atom_t*)"bc", 1.),
             p_t((atom_t*)"bc.12", 1.),
             p_t((atom_t*)"bc.122x", 1),
@@ -1126,18 +1127,63 @@ namespace {
         tresult.assert_true(trie->insert(en2, 0.).second);
         test_values.emplace(en2, 0.);
 
-        //prepare test map, by removing all string that starts from 'bc' and bigger than 2 char
+        //prepare test map, by removing all string that starts from 'bc' 
         for (auto wi = test_values.begin();
             (wi = std::find_if(wi, test_values.end(), 
                 [](auto const& itm) {
-                    return itm.first[0] == (atom_t)'b' && itm.first[1] == (atom_t)'c' && itm.first.length() > 2; 
+                    return itm.first.length() >= 2 && itm.first[0] == (atom_t)'b' && itm.first[1] == (atom_t)'c' ;
                 })) != test_values.end();
             test_values.erase(wi++));
 
-        tresult.assert_that<equals>(3, trie->prefixed_erase_all(f2), OP_CODE_DETAILS());
+        auto deb_print = [&](const auto& range) {
+            auto& out = tresult.debug();
+            out << "Trie size:" << trie->size() << "\n";
+            size_t n = 0;
+            for (const auto& i : range)
+            {
+                out << '"' << (const char*)i.key().c_str() << "\"=" << *i << "\n";
+                ++n;
+            }
+            out << "Trie effective size:" << n << "\n";
+        };
+
+        deb_print(trie->range());
+        f2_copy = f2;
+        auto deb_count = trie->prefixed_erase_all(f2_copy);
+        tresult.debug() << "-------\n";
+        deb_print(trie->range());
+        tresult.assert_that<equals>(4, deb_count, OP_UTEST_DETAILS());
+        f2_copy = f2;
+        tresult.assert_that<equals>(0, trie->prefixed_erase_all(f2_copy), 
+            OP_UTEST_DETAILS(<< "Check of use obsolete iterator"));
+        auto [upsert_ptr, _] = trie->upsert(en2, 57.75); //reinsert "bc" again
+        tresult.assert_that<eq_sets>(upsert_ptr.key(), en2);
+        tresult.assert_that<equals>(*upsert_ptr, 57.75);
+        tresult.assert_that<eq_sets>(trie->find(en2).key(), en2);
+
+        tresult.debug() << "====\n";
+        deb_print(trie->range());
+        tresult.assert_that<equals>(1, trie->prefixed_erase_all(upsert_ptr), OP_UTEST_DETAILS());
+        tresult.debug() << "====\n";
+        deb_print(trie->range());
         tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
         compare_containers(tresult, *trie, test_values);
 
+        //repeat "bc" test for flag "erase_prefix" = false
+        tresult.assert_true(trie->insert("bc.1"_astr, .1).second);
+        tresult.assert_true(trie->insert("bc.12"_astr, .12).second);
+        tresult.assert_true(trie->insert("bc"_astr, 1.).second);
+        tresult.assert_true(trie->insert("bc.a"_astr, 1.).second);
+        tresult.assert_true(trie->insert("bc.xbsbhdasdajs"_astr, 1.).second);
+
+        test_values.emplace("bc"_astr, 1.);
+        tresult.debug() << "*)========\n";
+        deb_print(trie->range());
+
+        f2 = trie->find(en2); //repeat search
+        tresult.assert_that<equals>(4, trie->prefixed_erase_all(f2, false));
+        tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
+        compare_containers(tresult, *trie, test_values);
     }
 
     void test_TriePrefixedKeyEraseAll(OP::utest::TestRuntime& tresult)
@@ -1355,12 +1401,13 @@ namespace {
         //    tresult.debug() << (const char*)i.key().c_str() << "=" << i.value() << "\n";
         //});
         auto start_i = trie->find("a"_astr);
-        tresult.assert_true(trie->in_range(start_i), OP_CODE_DETAILS() << "wrong find");
+        tresult.assert_true(trie->in_range(start_i), 
+            OP_CODE_DETAILS( << "wrong find"));
         auto tsti_1 = start_i;
         trie->next_lower_bound_of(tsti_1, "aa"_astr);
-        tresult.assert_true(trie->in_range(tsti_1), OP_CODE_DETAILS() << "wrong exact next_lower_bound");
+        tresult.assert_true(trie->in_range(tsti_1), OP_CODE_DETAILS(<< "wrong exact next_lower_bound"));
         tresult.debug() << "lower_next =" << (const char*)tsti_1.key().c_str() << "\n";
-        tresult.assert_that<equals>(tsti_1.key(), "aa"_astr, OP_CODE_DETAILS() << "wrong exact next_lower_bound");
+        tresult.assert_that<equals>(tsti_1.key(), "aa"_astr, OP_CODE_DETAILS( << "wrong exact next_lower_bound"));
         auto test = start_i;
         //test through all with 1 step ahead (emulate pure `next` behaviour)
         for (size_t i = 1; i < (sizeof(ini_data) / sizeof(ini_data[0])); ++i)

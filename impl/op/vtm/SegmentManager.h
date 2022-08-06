@@ -659,13 +659,12 @@ namespace OP::vtm
         };
         
         /**Resolver of SegmentManager */
-        template <class T, typename std::enable_if< std::is_convertible<T&, SegmentManager&>::value >::type* = nullptr>
-        inline SegmentManager& resolve_segment_manager(T& t)
+        inline SegmentManager& resolve_segment_manager(SegmentManager& t)
         {
             return ((SegmentManager&)t);
         }
-        template <class T, typename std::enable_if< has_segment_manager_accessor<T>::has_c >::type* = nullptr>
-        inline SegmentManager& resolve_segment_manager(T& t)
+        template <class T>
+        inline std::enable_if_t< std::is_invocable_v<decltype(&T::segment_manager), T& >, SegmentManager&> resolve_segment_manager(T& t)
         {
             return resolve_segment_manager(t.segment_manager());
         }

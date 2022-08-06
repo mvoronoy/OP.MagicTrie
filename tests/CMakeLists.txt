@@ -51,6 +51,7 @@ add_executable (trie_test
     "trie/Trie.cpp"
     "trie/TrieRanges.cpp"
     "trie/testMixedAdapter.cpp"
+    "trie/trieValueManager.cpp"
     
 
     "flur/StlContainers.cpp" 

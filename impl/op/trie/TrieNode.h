@@ -4,6 +4,8 @@
 #include <op/common/Bitset.h>
 #include <op/common/StackAlloc.h>
 
+#include <op/vtm/SegmentManager.h>
+
 #include <op/trie/HashTable.h>
 #include <op/trie/AntiHashTable.h>
 #include <op/trie/TriePosition.h>
@@ -33,7 +35,7 @@ namespace OP
             struct DataStorage
             {
                 static_assert(std::is_standard_layout_v<Payload>, 
-                    "only standart-layout alllowed in TrieNode");
+                    "only standart-layout allowed in TrieNode");
                 constexpr static bool big_payload_c = sizeof(payload_t) > sizeof(FarAddress);
                 constexpr static size_t byte_size_c = sizeof(FarAddress);
                 constexpr static size_t align_size_c = std::max(alignof(payload_t), alignof(FarAddress));
@@ -41,11 +43,12 @@ namespace OP
                 alignas(align_size_c) std::byte _data[byte_size_c];
                 
 
-                void allocate(HeapManagerSlot& heap_manager) 
+                template <class TSegmentTopology>
+                void allocate(TSegmentTopology& topology)
                 {
                     if constexpr( big_payload_c )
                     {
-                        //auto& address = heap_manager.make_new<payload_t>(std::forward<Args>(args)...);
+                        auto& heap_manager = topology.OP_TEMPL_METH(slot) < HeapManagerSlot > ();
                         auto& address = heap_manager.allocate(memory_requirement<payload_t>::requirement);
                         *std::launder(reinterpret_cast<FarAddress*>(_data)) = address;
                     }
@@ -56,21 +59,39 @@ namespace OP
                     }
                 }
 
-                template <class TSegmentTopology>
-                payload_t& get(TSegmentTopology& tsegment) 
+                template <class TSegmentTopology, class FDataCallback>
+                void raw(TSegmentTopology& tsegment, FDataCallback payload_callback)
                 {
                     if constexpr( big_payload_c )
                     {
-                        auto& address = std::launder(reinterpret_cast<FarAddress*>(_data));
-                        return 
-                            resolve_segment_manager(tsegment)
-                                .writable_block(address, 
-                                    memory_requirement<payload_t>::requirement)
-                                .template at<payload_t>(0);
+                        auto& address = *std::launder(reinterpret_cast<FarAddress*>(_data));
+                        auto wr_data = OP::vtm::resolve_segment_manager(tsegment)
+                            .writable_block(address,
+                                memory_requirement<payload_t>::requirement);
+                        payload_callback(*wr_data.template at<payload_t>(0));
                     }
                     else
                     {
-                        return *std::launder(reinterpret_cast<payload_t*>(_data));
+                        payload_callback(
+                            *std::launder(reinterpret_cast<payload_t*>(_data)));
+                    }
+                }
+
+                template <class TSegmentTopology, class FDataCallback>
+                void rawc(TSegmentTopology& tsegment, FDataCallback payload_callback) const
+                {
+                    if constexpr (big_payload_c)
+                    {
+                        const auto& address = *std::launder(reinterpret_cast<const FarAddress*>(_data));
+                        auto ro_data = OP::vtm::resolve_segment_manager(tsegment)
+                            .readonly_block(address,
+                                memory_requirement<payload_t>::requirement);
+                        payload_callback(ro_data.template at<payload_t>(0));
+                    }
+                    else
+                    {
+                        payload_callback(
+                            *std::launder(reinterpret_cast<const payload_t*>(_data)));
                     }
                 }
 
@@ -102,6 +123,9 @@ namespace OP
                 DataStorage _data;
             };
 
+            static_assert(std::is_standard_layout_v<NodeData>, 
+                    "self-control of NodeData failed - result structure is not plain");
+
             using key_value_t = containers::KeyValueContainer< NodeData, this_t >;
             
             const dim_t magic_word_c = 0x55AA;
@@ -120,16 +144,16 @@ namespace OP
                 assert( _capacity >= 8 && _capacity <= 256 && ((_capacity - 1) & _capacity) == 0 );
             }
 
-            template <class Toplogy>
-            void create_interior(Toplogy& topology)
+            template <class TTopology>
+            void create_interior(TTopology& topology)
             {
                 wrap_key_value_t wrapper;
                 kv_container(topology, wrapper);
                 _hash_table = wrapper->create();
             }
 
-            template <class Toplogy>
-            void destroy_interior(Toplogy& topology)
+            template <class TTopology>
+            void destroy_interior(TTopology& topology)
             {
                 assert(presence_first_set() == presence_t::nil_c);//all interior must be already deleted
                 wrap_key_value_t wrapper;
@@ -151,10 +175,8 @@ namespace OP
                     auto [hash, success] = container->insert(key, 
                         [&](NodeData& to_construct) {
                             ::new (&to_construct)NodeData;
-                            auto& heap_manager = topology.OP_TEMPL_METH(slot) < HeapManagerSlot > ();
-                            to_construct._data.allocate(heap_manager);
-                            auto& ref = to_construct._data.get(heap_manager);
-                            ref = payload_factory();
+                            to_construct._data.allocate(topology);
+                            to_construct._data.raw(topology, payload_factory);
                             _value_presence.set(key);
                             if( begin != end )
                             {
@@ -194,8 +216,7 @@ namespace OP
                     assert(node);
 
                     if (_child_presence.get(key))
-                    {
-                        //erase data only
+                    {//in case there is a child, need keep this entry and erase data only
                         node->_data.destroy(
                             topology.OP_TEMPL_METH(slot) < HeapManagerSlot > ()
                         );
@@ -222,14 +243,13 @@ namespace OP
             }
 
             /** 
-            *   Entirely remove this node and content and give a caller address of all descendant children.
-            *   So without recursion caller is responsible to destroy children as well, otherwise appears memory 
-            *   leaking.
+            *   Frees content of this node and give a caller addresses of all descendant children.
+            *   So without recursion caller can destroy children afterall.
             *   Node is not destroyed.
             *   @return number of data-slots destroyed
             */
             template <class TSegmentTopology>
-            size_t erase_interior(TSegmentTopology& topology, std::stack<FarAddress>& child_process)
+            size_t erase_all(TSegmentTopology& topology, std::stack<FarAddress>& child_process)
             {
                 size_t data_slots = 0;
                 wrap_key_value_t container;
@@ -243,20 +263,19 @@ namespace OP
                     assert(node);
                     if(_value_presence.get(i))
                     {//wipe-out data
-                        node->_data.destroy(
-                            topology.OP_TEMPL_METH(slot) < HeapManagerSlot > ());
+                        node->_data.destroy(topology);
                         _value_presence.clear(i);
                         ++data_slots;
+                    }
+                    if(!node->_stem.is_nil())
+                    {
+                        string_memory_manager.destroy(node->_stem);
+                        node->_stem = {};
                     }
                     if(_child_presence.get(i))
                     {//wipe children
                         assert(!node->_child.is_nil());
                         child_process.push(node->_child);
-                        if(!node->_stem.is_nil())
-                        {
-                            string_memory_manager.destroy(node->_stem);
-                            node->_stem = {};
-                        }
                         _child_presence.clear(i);
                     }
                 }
@@ -344,13 +363,23 @@ namespace OP
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
                 auto node = container->cget(key);
-                return node->_data.get(topology);
+                payload_t result;
+                node->_data.rawc(topology, [&result](const payload_t& raw) {result = raw; });
+                return result;
             }
 
             template <class TSegmentTopology, class TData>
             void set_raw_value(TSegmentTopology& topology, atom_t key, NodeData& node, TData&& value)
             {
-                node._data.get(topology) = std::forward<TData>(value);
+                set_raw_factory_value(topology, key, node, [&](auto& raw) {
+                    raw = std::forward<TData>(value);
+                    });
+            }
+            
+            template <class TSegmentTopology, class FPayloadFactory>
+            void set_raw_factory_value(TSegmentTopology& topology, atom_t key, NodeData& node, FPayloadFactory&& value_eval)
+            {
+                node._data.raw(topology, value_eval);
                 _value_presence.set(key);
                 ++_version;
             }
@@ -416,23 +445,30 @@ namespace OP
 
                 auto* src_node_data = src_container->get(key);
                 assert(src_node_data);
-                assert( !src_node_data->_stem.is_nil()); //call move_to assumes valid stem
+                move_from_entry(topology, key, *src_node_data, in_stem_pos, target_node);
+            }
+
+            template <class TSegmentTopology>
+            void move_from_entry(TSegmentTopology& topology, atom_t source_key, NodeData& source, dim_t in_stem_pos, 
+                WritableAccess<this_t>& target_node)
+            {
+                assert( !source._stem.is_nil()); //call move_to assumes valid stem
                 
                 wrap_key_value_t target_container;
                 target_node->kv_container(topology, target_container);
                 //take stem to memory
                 StringMemoryManager str_manager(topology);
                 atom_string_t stem_buf;
-                str_manager.get(src_node_data->_stem, std::back_inserter(stem_buf));
+                str_manager.get(source._stem, std::back_inserter(stem_buf));
                 assert(in_stem_pos < stem_buf.size());
                 atom_string_view_t left_stem(stem_buf.data(), in_stem_pos);
                 atom_t new_key = stem_buf[in_stem_pos++];
                 atom_string_view_t cary_over_stem(
                     stem_buf.data() + in_stem_pos, stem_buf.size() - in_stem_pos);
-                str_manager.destroy(src_node_data->_stem);//remove previous
-                src_node_data->_stem = {};
+                str_manager.destroy(source._stem);//remove previous
+                source._stem = {};
                 if(!left_stem.empty())
-                    src_node_data->_stem = str_manager.smart_insert(left_stem);
+                    source._stem = str_manager.smart_insert(left_stem);
 
                 target_container->insert(new_key,
                     [&](NodeData& target_data) -> void {
@@ -443,19 +479,19 @@ namespace OP
                         }
                         
                         //copy data/address to target
-                        target_data._child = src_node_data->_child;
-                        target_node->_child_presence.assign(new_key, _child_presence.get(key));
-                        src_node_data->_child = target_node.address();
-                        _child_presence.set(key); //override for a case prev wasn't set
-                        if (_value_presence.get(key))
+                        target_data._child = source._child;
+                        target_node->_child_presence.assign(new_key, _child_presence.get(source_key));
+                        source._child = target_node.address();
+                        _child_presence.set(source_key); //override for a case prev wasn't set
+                        if (_value_presence.get(source_key))
                         {
                             //as soon _value_presence cleared, twice destructor wouldn't called
-                            target_data._data = src_node_data->_data;
-                            _value_presence.clear(key);
+                            target_data._data = source._data;
+                            _value_presence.clear(source_key);
                             target_node->_value_presence.set(new_key);
                         }
                         else
-                        { //no-data must be same
+                        { // 'no-data' must be same
                             assert(!target_node->_value_presence.get(new_key));
                         }
                     }

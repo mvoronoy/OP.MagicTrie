@@ -39,7 +39,8 @@ void test_Basic(OP::utest::TestRuntime& tresult)
     for (auto i = 0; i < b1_t.capacity(); ++i)
     {
         tresult.assert_true(
-            (i & 1) ? b1_t.get(i) : !b1_t.get(i), OP_CODE_DETAILS() << "Value must be " << (i & ~1));
+            (i & 1) ? b1_t.get(i) : !b1_t.get(i), 
+            OP_CODE_DETAILS( << "Value must be " << (i & ~1)));
     }
     generic_test(tresult, b1_t);
 
@@ -105,9 +106,11 @@ void test_Finds(OP::utest::TestRuntime& tresult)
     for (auto i = 0; i < b1_t2.bit_length_c; ++i)
     {
         if (i != 0)
-            tresult.assert_true((i - 1) == b1_t2.prev_set(i), OP_CODE_DETAILS() << "prev_set failed for i=" << i);
+            tresult.assert_true((i - 1) == b1_t2.prev_set(i), 
+                OP_CODE_DETAILS(<< "prev_set failed for i=" << i));
         if ((i + 1) != b1_t2.bit_length_c)
-            tresult.assert_true((i + 1) == b1_t2.next_set(i), OP_CODE_DETAILS() << "next_set failed for i=" << i);
+            tresult.assert_true((i + 1) == b1_t2.next_set(i), 
+                OP_CODE_DETAILS( << "next_set failed for i=" << i));
     }
 }
 static auto& module_suite = OP::utest::default_test_suite("Bitset")

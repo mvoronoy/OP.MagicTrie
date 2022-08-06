@@ -411,11 +411,6 @@ namespace OP::trie::containers
         const dim_t _capacity;
     };
 
-    //template <class T, class >
-    //inline SegmentManager& resolve_segment_manager(PersistedHashTable<T>& htbl)
-    //{
-    //    return htbl.topology().segment_manager();
-    //}
 }//ns: OP::trie::containers
 
 

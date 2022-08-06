@@ -25,9 +25,11 @@
 #include <optional>
 #include <limits>
 #include <op/utest/unit_test_is.h>
+#include <op/utest/details.h>
 #include <op/common/IoFlagGuard.h>
 #include <op/common/ftraits.h>
 #include <op/common/Console.h>
+#include <op/common/has_member_def.h>
 
 #if defined( _MSC_VER ) 
 #if defined(max)
@@ -43,6 +45,7 @@
 #define _OP_LAZY_INLINE_INFO(...) ([&]()->OP::utest::Details { OP::utest::Details res;\
         res << "{File:" << __FILE__ << " at:" << __LINE__  << "} " __VA_ARGS__ << "\n"; return res;\
     })
+#define OP_UTEST_DETAILS(...)  _OP_LAZY_INLINE_INFO(__VA_ARGS__)
 /** Allows place useful information to details output.
 * Usage:
 * \code
@@ -175,63 +178,6 @@ namespace OP::utest
         }
     private:
         id_t _id;
-    };
-    /**
-     * ostream-like class that allows:
-     * -# inline construction. For example:
-     *   OP::utils::Details() << 123 << "abc";
-    */
-    struct Details
-    {
-        Details() = default;
-
-        Details(Details&& other) noexcept
-            : _result(std::move(other._result))
-        {
-        }
-
-        Details(const Details& other)
-            : _result(other._result.str())
-        {
-//            operator<<(as_stream(), other);
-        }
-
-        std::string result() const
-        {
-            return _result.str();
-        }
-
-        bool is_empty()
-        {
-            _result.seekp(0, std::ios_base::end);
-            auto offset = _result.tellp();
-            return offset == (std::streamoff)0;
-        }
-
-        template <class T>
-        friend inline Details& operator << (Details& d, T&& t)
-        {
-            d._result << std::forward<T>(t);
-            return d;
-        }
-
-        template <class T>
-        friend inline Details operator << (Details&& d, T&& t)
-        {
-            Details inl(std::move(d));
-            inl._result << std::forward<T>(t);
-            return std::move(inl);
-        }
-
-        template <class Os>
-        friend inline std::ostream& operator <<(Os& os, const Details& d)
-        {
-            os << d._result.str();  //rdbuf() not working there :(
-            return os;
-        }
-
-    private:
-        std::ostringstream _result;
     };
 
     /**Specialization of exception to distinguish fail from aborted state*/
@@ -473,10 +419,24 @@ namespace OP::utest
             Marker m;
             //consciously don't use make_tuple to have reference to argument
             auto pack_arg = std::tuple<Args...>(std::forward<Args>(args)...);
-            if (!details::apply_prefix(m, pack_arg, std::make_index_sequence<Marker::args_c>()))
-            {
-                auto bind_fail = [this](auto&& ... t) {
-                    fail(std::forward<decltype(t)>(t)...);
+            auto that_result = details::apply_prefix(m, pack_arg, std::make_index_sequence<Marker::args_c>());
+            bool succeeded;
+            if constexpr (std::is_convertible_v<std::decay_t<decltype(that_result)>, bool>)
+                succeeded = that_result;
+            else
+                succeeded = std::get<bool>(that_result);
+
+            if (!succeeded)
+            { //predicate failed, print fail details
+                auto bind_fail = [&](auto&& ... t) {
+                    if constexpr (!std::is_convertible_v<std::decay_t<decltype(that_result)>, bool>)
+                    { //predicate result containing additional details to print
+
+                        fail(std::get<OP::utest::Details>(that_result),
+                            std::forward<decltype(t)>(t)...);
+                    }
+                    else //predicate is plain bool
+                        fail(std::forward<decltype(t)>(t)...);
                 };
                 //need pass argument to fail
                 details::apply_rest< Marker::args_c>(bind_fail, pack_arg,
@@ -510,7 +470,14 @@ namespace OP::utest
         void fail(Xetails&& ...details)
         {
             guard_t g(*_access_result);
-            ((error() << std::forward<Xetails>(details)), ...);
+            auto one_step_print = [&](auto& item)
+            {
+                if constexpr (std::is_invocable_v<decltype(item)>)
+                    error() << item();
+                else
+                    error() << item;
+            };
+            (one_step_print(std::forward<Xetails>(details)), ...);
             fail();
         }
 

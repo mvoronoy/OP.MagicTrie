@@ -55,16 +55,24 @@ namespace OP::has_operators
         template<class T, class = decltype( !std::declval<T>() )> 
         std::true_type  has_logical_not_test(const T&);
         std::false_type has_logical_not_test(...);
+
+        template<class T, class = decltype(std::declval<std::ostream&>() << std::declval<T>() )> 
+        std::true_type  has_ostream_out(const T&);
+        std::false_type has_ostream_out(...);
+    
     }//ns:details
 
     /** Compile time check if type T supports operator less `<` */
-    template<class T> using less = decltype(has_less_than_test(std::declval<T>()));
+    template<class T> using less = decltype(details::has_less_than_test(std::declval<T>()));
     template<class T> inline constexpr bool less_v = less<T>::value;
 
     /** Compile time check if type T supports operator logical-not `!` */
-    template<class T> using logical_not = decltype(has_logical_not_test(std::declval<T>()));
+    template<class T> using logical_not = decltype(details::has_logical_not_test(std::declval<T>()));
     template<class T> inline constexpr bool logical_not_v = logical_not<T>::value;
 
+    /** Compile time check if type T supports operator << for std::ostream */
+    template<class T> using ostream_out = decltype(details::has_logical_not_test(std::declval<T>()));
+    template<class T> inline constexpr bool ostream_out_v = logical_not<T>::value;
 } //ns:OP::operators_check
 
 #endif //_OP_COMMON_HAS_MEMBER_DEF__H_
