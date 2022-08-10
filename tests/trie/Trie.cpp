@@ -7,6 +7,7 @@
 
 #include <op/ranges/OrderedRange.h>
 #include <op/trie/Trie.h>
+#include <op/trie/PlainValueManager.h>
 #include <op/ranges/RangeUtils.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
@@ -19,18 +20,20 @@
 #include "../AtomStrLiteral.h"
 #include "TrieTestUtils.h"
 
-namespace {
+namespace 
+{
     using namespace OP::trie;
     using namespace OP::utest;
     using namespace OP::flur;
     const char* test_file_name = "trie.test";
+    using test_trie_t = Trie<EventSourcingSegmentManager, OP::trie::PlainValueManager<double>>;
 
     void test_TrieCreation(OP::utest::TestRuntime& tresult)
     {
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x1100000));
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         tresult.assert_true(0 == trie->size());
@@ -61,7 +64,7 @@ namespace {
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
         std::map<std::string, double> standard;
         double v_order = 0.1;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
@@ -202,7 +205,7 @@ namespace {
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         std::map<std::string, double> test_values;
@@ -231,7 +234,7 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         auto tmp_end = trie->end();
@@ -284,7 +287,7 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
         trie->insert("abcdefghi"_astr, 1.0);
         trie->insert("a"_astr, 2.0);
@@ -300,7 +303,7 @@ namespace {
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         std::map<std::string, double> test_values;
@@ -328,7 +331,7 @@ namespace {
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         std::map<atom_string_t, double> test_values;
@@ -419,7 +422,7 @@ namespace {
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
 
@@ -453,7 +456,7 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -512,6 +515,7 @@ namespace {
         size_t cnt = 0;
         trie->erase(fnd_copy, &cnt);
         tresult.assert_that<equals>(1, cnt, "Nothing was erased");
+
         //test that iterator recovers after erase
         lw_ch1 = trie->lower_bound(fnd_aa, std::string("1"));
         tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"aa1", "key mismatch");
@@ -528,7 +532,8 @@ namespace {
         auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        typedef Trie<SegmentManager, double> trie_t;
+        using trie_t = Trie<SegmentManager, PlainValueManager<double>>;
+
         std::map<std::string, double> standard;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         std::string rnd_buf;
@@ -581,7 +586,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -716,7 +722,7 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -763,7 +769,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -803,7 +810,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -855,7 +863,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -940,7 +949,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -1026,7 +1036,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         auto prefix_a = trie->insert("prefix.a"_astr, 0.0);
@@ -1056,7 +1067,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -1136,21 +1148,21 @@ namespace {
             test_values.erase(wi++));
 
         auto deb_print = [&](const auto& range) {
-            auto& out = tresult.debug();
-            out << "Trie size:" << trie->size() << "\n";
-            size_t n = 0;
-            for (const auto& i : range)
-            {
-                out << '"' << (const char*)i.key().c_str() << "\"=" << *i << "\n";
-                ++n;
-            }
-            out << "Trie effective size:" << n << "\n";
+            //auto& out = tresult.debug();
+            //out << "-------\n" << "Trie size:" << trie->size() << "\n";
+            //size_t n = 0;
+            //for (const auto& i : range)
+            //{
+            //    out << '"' << (const char*)i.key().c_str() << "\"=" << *i << "\n";
+            //    ++n;
+            //}
+            //out << "Trie effective size:" << n << "\n";
         };
 
         deb_print(trie->range());
         f2_copy = f2;
         auto deb_count = trie->prefixed_erase_all(f2_copy);
-        tresult.debug() << "-------\n";
+
         deb_print(trie->range());
         tresult.assert_that<equals>(4, deb_count, OP_UTEST_DETAILS());
         f2_copy = f2;
@@ -1161,10 +1173,9 @@ namespace {
         tresult.assert_that<equals>(*upsert_ptr, 57.75);
         tresult.assert_that<eq_sets>(trie->find(en2).key(), en2);
 
-        tresult.debug() << "====\n";
         deb_print(trie->range());
         tresult.assert_that<equals>(1, trie->prefixed_erase_all(upsert_ptr), OP_UTEST_DETAILS());
-        tresult.debug() << "====\n";
+
         deb_print(trie->range());
         tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
         compare_containers(tresult, *trie, test_values);
@@ -1192,7 +1203,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -1298,7 +1310,7 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        using trie_t = OP::trie::Trie<OP::trie::SegmentManager, double>;
+        using trie_t = OP::trie::Trie<OP::trie::SegmentManager, PlainValueManager<double>>;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         for (const auto& pair : src1) trie->insert(pair.first, pair.second);
         auto g_pos = trie->find("g"_astr);
@@ -1323,7 +1335,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -1370,7 +1383,8 @@ namespace {
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        typedef Trie<EventSourcingSegmentManager, double> trie_t;
+        using trie_t = test_trie_t;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<const atom_string_t, double> p_t;
@@ -1431,7 +1445,76 @@ namespace {
         trie->next_lower_bound_of(test, "c"_astr);
         tresult.assert_that<equals>(test, trie->end(), OP_CODE_DETAILS() << "wrong end() check");
     }
+    static std::uint8_t g_test_sensor_seq = 0;
+    struct DestroySensor
+    {
+        std::uint8_t uid;
+        float v;
+        double pad = 11.11;
+        DestroySensor(float a)
+            :v(a)
+        {
+            uid = ++g_test_sensor_seq;
+        }
+        DestroySensor()
+        {
+            uid = ++g_test_sensor_seq;
+            v = 57.75f;
+        }
+        ~DestroySensor() 
+        {
+            //std::cout << "destroy sensor #:" << (int)uid << ", " << v << "\n";
+        }
+        friend inline std::ostream& operator << (std::ostream& os, const DestroySensor& d)
+        {
+            return os << "<sensor>:" << (int)d.uid << ", " << d.v;
+        }
+        bool operator == (const DestroySensor& right) const
+        {
+            return v == right.v;
+        }
+    };
+    void issue_erase_seq_of_4(TestRuntime& tresult)
+    {
+        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::trie::SegmentOptions()
+            .segment_size(0x110000));
 
+        using trie_t = Trie<EventSourcingSegmentManager, OP::trie::PlainValueManager<DestroySensor>>;
+
+        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+        std::map<atom_string_t, DestroySensor> test_values;
+
+        atom_string_t test_seq[] {
+            "4sU7E6MZtGxjXTxvZl9biOvaOg85GCLJHeUoIKuZ2R3iQiHUfosGAjZRGhE8WJEDyCf7YJ5CFOi2Ap4xMJZGODVDGuOuy7heCZFnz"_astr,
+            "4UbkzaWdUxNFiJLtpK7Ao7HPuEqkZX3uRBI4qznPoNBk5DcQAIuVpzOkN6GM6dtro9YvY4AOB58FNyYatum17ILUy9pTSOoLX1mjdy2SqCp9niCLKHNUUBbA3Qs5afGL4WV6OqGBuzO0gP4lKNYt0dBS9WVax6TKFLwBbeckkSi4ClKi"_astr,
+            "4fITmCEZNCxhqbojW4iLcOeesKlHuZqNRk5z2WwhlojtCnqxL6DBx6NMUeylZJTGKbWQqZhWJInjjJYKlyJ1U7TYrBjVv8jvWF4OAj4STDbIncl7iqa2fcJN605yEIRpKSk30O"_astr,
+            "4"_astr,
+            "4IBLoxMgMVlO5VOQpDnnjo8Nu7gp6a5x2VMPje54NbnYupmbomzOwQbwUB2uAqpKZrsdZeUeQVWxxnXaL7RLcOLk4L4XFVuVeT8poRymOWSpKPtqPE4giYCbcn5Yuugjv1GcwczBeF3mUIcOrZ1RhYm9cdmxMAJOtgeuXSI1athvM8pYhI7"_astr,
+            "4hlJLhtnZfexL3EvE2rcHM9ybVyWouBpfuWeIQB4LLJpi4UGEsaZQG4b5iS48bD"_astr,
+            "4DdAVCU8ZGVxwOJ7PurlEIlJxUbuhW3ZaJTMO0o6vsvbcTfBQ5F9KgffKuY9h18gMXvrcg9GUqR0VkdhRZmW4sbzEeDhJHAJPSK8bLn4opGwXinar11I2yjLdvVxNPMK7SMqIN82SBK5JMR5aSlQi3dGfIHLSI4F3Ji7boq60N9MNZT1UlEGiKkfgTjtl"_astr,
+            "4jyenCJOc5PQdFx11BjSzUydYmUhLoF1vfEoeLxk2DqfV3X6nxRGroHbhc6NjYL3em9RX21RNX9W0Ibzms5q7L99g8qW6hPAxEOvORq3zGfVAR"_astr,
+            "4AJkXVQMp8oBx7x1fFGpSQG54ni56G0Uk9WjTBnPPRLay5QTCcc3WCNQBtj0ZobYeEP4Q2EoLYgfbCU163ePn8vOBpYCyMP"_astr,
+            "4dTueDWE72V5OqoitnriodH7bfUCr8dINLibVCLySYue17v6HePhllZsd5obs8naubf51XN9SBtTeO9du3ADovNdSzEMiAfFxbHFH1LAdZUiHZ504TNQBzkBis2Kc1HSkZmWqUgsgTBw1BnhZwAYxnsOkru6T6ODgQAYauCnoGHGm0S"_astr,
+            "4x8b2sDGwh4BqL9WCqn3XqDfnFxPTYY7F5LAa5SIsBqQeO65y8rML90LvAJykFPsrpjwmkSzVAYaZpqryVRhGH5zmOBj40xEEOMmMrumuwBp2N69vW2vm9Yp6I13kKwn2YFUiXCkwApibXOBkgs2zIxBFV6658rNRBWWt"_astr,
+            "4kQ34q04Zi3CX4h8UM1BP4jJWjyI7RM7mkI"_astr,
+            "4iEMZwm6Cjz1vLuViBoUDvJ56eNU2WpbZlh99g1pNiNukzRspHbiEcW2DvPjepBKvb6S60T1HNRBBk3kTgW7"_astr,
+            "4gKmvHaENlfbFgCyHePind6olqzDtW0Ib52aHdNkm5COsWRlqwflS8LkbThryNLt0xEqR8oYnt8zpNq"_astr,
+            "4vT9kwF6j6q8lcpdH9NLjyeUtLNVDlZtgfyVCBvpzlPuLbJeOB5ymZBK5BkRfnBkmYLyP7r5wU3xHYcedzFeSqVMMFJT8uDsRN10Bvsfw8dubfAViczAbwqJL277nSYfWnIrf9LS1aQdxxhuhpQRqrXvGIKUoeotJEg16ZMOb4Ia3QN28a6PziRLJD6hiMoYVv0gb30ou5brSKCM4KztFCZiO43uSC0Ea"_astr,
+        };
+        for(const auto& s: test_seq)
+        {
+            trie->insert(s, (float)s.size());
+            test_values.emplace(s, (float)s.size());
+        }
+
+        size_t n_cnt = trie->nodes_count();
+        //tresult.debug() << "Node count:" << n_cnt << "\n";
+        compare_containers(tresult, *trie, test_values);
+        //tresult.debug() << "*********delmode**********\n";
+        trie->prefixed_key_erase_all("4"_astr);
+        tresult.assert_that<equals>(n_cnt - 1, trie->nodes_count());
+    }
 
     static auto& module_suite = OP::utest::default_test_suite("Trie.core")
         .declare("creation", test_TrieCreation)
@@ -1456,5 +1539,6 @@ namespace {
         .declare("prefixed erase_all by key", test_TriePrefixedKeyEraseAll)
         .declare("check_exists", test_TrieCheckExists)
         .declare("next_lower_bound", test_NextLowerBound)
+        .declare("issue_erase_seq_of_4", issue_erase_seq_of_4)
         ;
 }//ns:""

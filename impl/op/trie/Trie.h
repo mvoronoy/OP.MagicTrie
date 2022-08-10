@@ -11,16 +11,20 @@
 #include <memory>
 #include <future>
 #include <stack>
+
 #include <op/trie/Containers.h>
 #include <op/vtm/FixedSizeMemoryManager.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryChunks.h>
 #include <op/vtm/HeapManager.h>
+
 #include <op/trie/TrieNode.h>
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
 #include <op/trie/TrieRangeAdapter.h>
 #include <op/trie/SectionAdapter.h>
+#include <op/trie/StoreConverter.h>
+
 #include <op/vtm/StringMemoryManager.h>
 
 namespace OP
@@ -41,21 +45,21 @@ namespace OP
         };
 
 
-        template <class TSegmentManager, class Payload, std::uint32_t initial_node_count = 8192>
-        struct Trie : public std::enable_shared_from_this< Trie<TSegmentManager, Payload, initial_node_count> >
+        template <class TSegmentManager, class TPayloadManager, std::uint32_t initial_node_count = 8192>
+        struct Trie : public std::enable_shared_from_this< Trie<TSegmentManager, TPayloadManager, initial_node_count> >
         {
         public:
-            using payload_t = Payload;
-            using trie_t = Trie<TSegmentManager, payload_t, initial_node_count>;
+            using trie_t = Trie<TSegmentManager, TPayloadManager, initial_node_count>;
+            using payload_manager_t = TPayloadManager;
+            using payload_t = typename payload_manager_t::payload_t;
             using this_t = trie_t;
             using iterator = TrieIterator<this_t>;
-            using value_type = payload_t;
-            using node_t = TrieNode<payload_t>;
+            using value_type = typename payload_manager_t::source_payload_t;
+            using node_t = TrieNode<payload_manager_t>;
             using position_t = TriePosition;
             using key_t = atom_string_t;
-            using value_t = payload_t;
             using insert_result_t = std::pair<iterator, bool>;
-
+            using storage_converter_t = typename payload_manager_t::storage_converter_t;
 
             virtual ~Trie()
             {
@@ -517,12 +521,18 @@ namespace OP
                 return ordered_range_ptr( new result_t(source, std::move(prefix)) );
             } */
 
-            value_type value_of(position_t pos) const
+            auto value_of(position_t pos) const
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true);
                 auto node = view<node_t>(*_topology, pos.address());
                 if (pos.key() < dim_t{ 256 })
-                    return node->get_value(*_topology, (atom_t)pos.key());
+                {
+                    return node->get_value(*_topology, (atom_t)pos.key(), [this](const auto& ref){
+                        return OP::trie::store_converter::Storage<
+                                typename payload_manager_t::source_payload_t
+                            >::deserialize(*_topology, ref);
+                    });
+                }
                 op_g.rollback();
                 throw std::invalid_argument("position has no value associated");
             }
@@ -536,7 +546,7 @@ namespace OP
             *       just inserted item, otherwise it points to already existing key
             */
             template <class AtomIterator, class FPayloadFactory>
-            std::enable_if_t<std::is_invocable_v<FPayloadFactory, payload_t&>, insert_result_t> 
+            std::enable_if_t<std::is_invocable_v<FPayloadFactory>, insert_result_t>
                 insert(AtomIterator& begin, AtomIterator aend, FPayloadFactory&& value_assigner)
             {
                 if (begin == aend)
@@ -544,18 +554,15 @@ namespace OP
 
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true);
                 
-                auto on_update = [&op_g](iterator&) {
-                    op_g.rollback(); //do nothing on update TODO: check case of nested transaction if smthng is destroyed
-                };
-                
                 auto result = std::make_pair(end(), true);
-                result.second = !upsert_impl(
-                    result.first, begin, aend, std::move(value_assigner), on_update);
+                result.second = !insert_impl(
+                    result.first, begin, aend, std::move(value_assigner));
 
                 return result;
             }
+
             template <class StringLike, class FPayloadFactory>
-            std::enable_if_t<std::is_invocable_v<FPayloadFactory, payload_t&>, insert_result_t>
+            std::enable_if_t<std::is_invocable_v<FPayloadFactory>, insert_result_t>
                 insert(const StringLike& str, FPayloadFactory&& value_assigner)
             {
                 auto b = str.begin();
@@ -563,15 +570,15 @@ namespace OP
             }
 
             template <class AtomIterator>
-            insert_result_t insert(AtomIterator& begin, AtomIterator aend, payload_t value)
+            insert_result_t insert(AtomIterator& begin, AtomIterator aend, value_type value)
             {
-                return insert(begin, std::move(aend), [&](payload_t& dest) {
-                    dest = std::move(value);
+                return insert(begin, std::move(aend), [&]() -> const value_type&{
+                    return value;
                     });
             }
 
             template <class AtomContainer>
-            std::pair<iterator, bool> insert(const AtomContainer& container, Payload value)
+            std::pair<iterator, bool> insert(const AtomContainer& container, value_type value)
             {
                 auto b = std::begin(container);
                 return insert(b, std::end(container), value);
@@ -595,7 +602,7 @@ namespace OP
             *       pair `(end(), false)`
             */
             template <class AtomIterator, class FPayloadFactory>
-            std::enable_if_t<std::is_invocable_v<FPayloadFactory, payload_t&>, insert_result_t>
+            std::enable_if_t<std::is_invocable_v<FPayloadFactory>, insert_result_t>
                 prefixed_insert(
                 iterator& of_prefix, AtomIterator begin, AtomIterator aend, FPayloadFactory&& value_factory)
             {
@@ -609,13 +616,10 @@ namespace OP
                 { //no entry for previous iterator
                     return insert(fallback_key.append(begin, aend), std::move(value_factory));
                 }
-                auto on_update = [&](iterator& pos) {
-                    //do nothing on update
-                };
                 auto result = std::make_pair(of_prefix, true);
                 alter_navigation(result.first);
-                result.second = !upsert_impl(
-                    result.first, begin, aend, std::move(value_factory), on_update);
+                result.second = !insert_impl(
+                    result.first, begin, aend, std::move(value_factory));
                 return result;
             }
 
@@ -626,7 +630,7 @@ namespace OP
             *       std::string, std::string_view, std::u8string, ...)
             */
             template <class TStringLike, class FPayloadFactory>
-            std::enable_if_t<std::is_invocable_v<FPayloadFactory, payload_t&>, insert_result_t>
+            std::enable_if_t<std::is_invocable_v<FPayloadFactory>, insert_result_t>
                 prefixed_insert(iterator& of_prefix, const TStringLike& container, FPayloadFactory&& payload_factory)
             {
                 return prefixed_insert(of_prefix, std::begin(container), std::end(container), std::move(payload_factory));
@@ -642,8 +646,8 @@ namespace OP
             {
                 return prefixed_insert(
                     of_prefix, std::move(begin), std::move(aend), 
-                    [&](payload_t& dest) {
-                        dest = std::move(value);
+                    [&]() -> const value_type&{
+                        return value;
                     });
             }
 
@@ -662,7 +666,7 @@ namespace OP
             /**
             *   @return number of items updated (1 or 0)
             */
-            size_t update(iterator& pos, Payload&& value)
+            size_t update(iterator& pos, value_type value)
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true);
                 
@@ -671,18 +675,7 @@ namespace OP
                     return 0;
                 }
 
-                const auto& back = pos.rat();
-                assert(all_set(back.terminality(), Terminality::term_has_data));
-
-                auto wr_node = accessor<node_t>(*_topology, back.address());
-                wr_node->set_value(*_topology, (atom_t)back.key(), std::move(value));
-                pos.rat(node_version(wr_node->_version));
-                const auto this_ver = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
-                    .increase_version() // version of trie
-                    .current_version()
-                    ;
-                pos._version = this_ver;
-                return 1;
+                return update_impl(pos, std::move(value));
             }
 
             /**
@@ -693,7 +686,7 @@ namespace OP
             *       item already exists and true when it was inserted
             */
             template <class AtomIterator>
-            std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, Payload&& value)
+            std::pair<iterator, bool> upsert(AtomIterator begin, AtomIterator aend, payload_t&& value)
             {
                 auto temp_end = end();
                 return prefixed_upsert(temp_end, begin, aend, std::move(value));
@@ -708,7 +701,7 @@ namespace OP
             *       item already exists and true when it was inserted
             */
             template <class AtomContainer>
-            std::pair<iterator, bool> upsert(const AtomContainer& key, Payload&& value)
+            std::pair<iterator, bool> upsert(const AtomContainer& key, payload_t&& value)
             {
                 return upsert(std::begin(key), std::end(key), std::move(value));
             }
@@ -722,7 +715,7 @@ namespace OP
             *       pair `(end(), false)`
             */
             template <class AtomIterator>
-            insert_result_t prefixed_upsert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, Payload value)
+            insert_result_t prefixed_upsert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, value_type value)
             {
                 if (begin == aend)
                     return std::make_pair(end(), false); //empty string is not operatable
@@ -733,25 +726,23 @@ namespace OP
                 { //no entry for previous iterator, just insert
                     return insert(fallback_key.append(begin, aend), std::move(value));
                 }
-                auto value_assigner = [&](payload_t& dest) {
-                    dest = std::move(value);
+                auto value_assigner = [&]() ->const value_type &{
+                    return value;
                 };
-                auto on_update = [&](iterator& pos) {
-                    const auto& back = pos.rat();
-                    assert(all_set(back.terminality(), Terminality::term_has_data));
-                    //access values for write
-                    auto wr_node = accessor<node_t>(*_topology, back.address());
-                    wr_node->set_value(*_topology, (atom_t)back.key(), std::move(value));
-                };
+
                 auto result = std::make_pair(of_prefix, true);
                 alter_navigation(result.first);
-                result.second = !upsert_impl(
-                    result.first, begin, aend, value_assigner, on_update);
+                if (insert_impl(
+                    result.first, begin, aend, value_assigner))
+                {
+                    result.second = false;//already exists
+                    update_impl(result.first, std::move(value));
+                }
                 return result;
             }
 
             template <class AtomContainer>
-            std::pair<iterator, bool> prefixed_upsert(iterator& prefix, const AtomContainer& container, Payload value)
+            std::pair<iterator, bool> prefixed_upsert(iterator& prefix, const AtomContainer& container, payload_t value)
             {
                 return prefixed_upsert(prefix, std::begin(container), std::end(container), std::move(value));
             }
@@ -824,7 +815,7 @@ namespace OP
                     return 0;
                 }
 
-                auto rat = prefix.rat();//no ref!
+                auto rat = prefix.rat();//not a ref!
                 if (erase_prefix && is_not_set(rat.terminality(), Terminality::term_has_child))
                 { //no child below, so only 1 erase
                     size_t counter = 0;
@@ -864,9 +855,12 @@ namespace OP
                     .increase_version() // version of trie
                     ;
                 prefix._version = residence.current_version();
-                prefix.rat(
-                    node_version(parent_wr_node->_version),
-                    terminality_and(~Terminality::term_has_child));
+                if (!prefix.is_end())
+                {
+                    prefix.rat(
+                        node_version(parent_wr_node->_version),
+                        terminality_and(~Terminality::term_has_child));
+                }
                 return erased_terminals;
             }
 
@@ -1017,7 +1011,12 @@ namespace OP
                 wr_node->insert(
                     *_topology, key, 
                     result._prefix.end() - back.stem_size(), result._prefix.end(),
-                    std::move(fassign));
+                    [&](auto& raw_payload) {
+                        storage_converter_t::serialize(*_topology,
+                            fassign(),
+                            raw_payload
+                        );
+                    });
                 result.rat(
                     node_version(wr_node->_version),
                     terminality_or(Terminality::term_has_data)
@@ -1146,10 +1145,16 @@ namespace OP
                         auto target_node = accessor<node_t>(*_topology, new_node_addr);
                         wr_node->move_from_entry(*_topology, step_key, src_entry, back.stem_size(), target_node);
                     }
-                    assert(!wr_node->has_value(step_key)); 
-                    wr_node->set_raw_factory_value(
-                        *_topology, step_key, src_entry, std::move(f_value_eval));
+                    assert(!wr_node->has_value(step_key));
+                    //assign (new!) value to the just freed position
+                    payload_manager_t::allocate(*_topology, src_entry._value);
 
+                    wr_node->set_raw_factory_value(
+                        *_topology, step_key, src_entry, 
+                        [&](payload_t& dest) {
+                            
+                            storage_converter_t::serialize(*_topology, f_value_eval(), dest);
+                        });
                 });
                 iter.rat(
                     terminality_or(
@@ -1163,6 +1168,29 @@ namespace OP
                     ;
             }
             
+            
+            size_t update_impl(iterator& pos, value_type value)
+            {
+                const auto& back = pos.rat();
+                assert(all_set(back.terminality(), Terminality::term_has_data));
+
+                auto wr_node = accessor<node_t>(*_topology, back.address());
+                atom_t up_key = static_cast<atom_t>(back.key());
+                wr_node->raw(*_topology, up_key, [&](auto& node_data) {
+                        wr_node->set_raw_factory_value(*_topology, up_key, node_data, [&](auto& dest) {
+                            storage_converter_t::reassign(*_topology, value, dest);
+                        });
+                });
+
+                pos.rat(node_version(wr_node->_version));
+                const auto this_ver = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .increase_version() // version of trie
+                    .current_version()
+                    ;
+                pos._version = this_ver;
+                return 1;
+            }
+
             /**Insert or update value associated with key specified by pair [begin, end). 
             * The value is passed as 2 spearate functors evaluated on demand - one for 
             * insert other for update result.
@@ -1173,9 +1201,9 @@ namespace OP
             *
             * \return true if value already exists, false if new value has been added
             */
-            template <class AtomIterator, class FValueFactory, class FOnUpdate>
-            bool upsert_impl(
-                iterator& iter, AtomIterator begin, AtomIterator end, FValueFactory&& value_factory, FOnUpdate f_on_update)
+            template <class AtomIterator, class FValueFactory>
+            bool insert_impl(
+                iterator& iter, AtomIterator begin, AtomIterator end, FValueFactory&& value_factory)
             {
                 if (iter.is_end())
                 { //start from root node
@@ -1189,7 +1217,6 @@ namespace OP
                 
                 if (begin == end && mismatch_result == StemCompareResult::equals)//full match
                 {
-                    f_on_update(iter);
                     return true;
                 }
 
@@ -1224,10 +1251,6 @@ namespace OP
                     }
                     else //stem is fully processed
                     {
-                        //wr_node->set_child(*_topology, step_key, new_node_addr);
-                        //iter.rat(
-                        //    terminality_or(Terminality::term_has_child),
-                        //    node_version(wr_node->_version));
                         auto target_node = accessor<node_t>(*_topology, new_node_addr);
 
                         wr_node->move_to(*_topology, step_key, back.stem_size(), target_node);
@@ -1386,7 +1409,7 @@ namespace OP
                 }
                 case StemCompareResult::string_end:
                 {
-                    auto [ok, child]= load_iterator(
+                    auto [ok, child] = load_iterator(
                         prefix.rat().address(), prefix,
                         [&](ReadonlyAccess<node_t>& ro_node) {
                             return make_nullable(prefix.rat().key());
@@ -1467,7 +1490,7 @@ namespace OP
             *           that resolve index inside node;
             * \tparam FIteratorUpdate - pointer to one of iterator members - either to 
             *           update 'back' position or insert new one to iterator;
-            * @return pair (bool, FarAddress) where bool indicate if further navigation 
+            * \return pair (bool, FarAddress) where bool indicate if further navigation 
             *           is possible, and FarAddress where to make next in-deep step.
             */
             template <class FFindEntry, class FIteratorUpdate>

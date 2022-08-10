@@ -71,8 +71,8 @@ namespace OP::has_operators
     template<class T> inline constexpr bool logical_not_v = logical_not<T>::value;
 
     /** Compile time check if type T supports operator << for std::ostream */
-    template<class T> using ostream_out = decltype(details::has_logical_not_test(std::declval<T>()));
-    template<class T> inline constexpr bool ostream_out_v = logical_not<T>::value;
+    template<class T> using ostream_out = decltype(details::has_ostream_out(std::declval<T>()));
+    template<class T> inline constexpr bool ostream_out_v = ostream_out<T>::value;
 } //ns:OP::operators_check
 
 #endif //_OP_COMMON_HAS_MEMBER_DEF__H_

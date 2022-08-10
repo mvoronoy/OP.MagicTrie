@@ -71,7 +71,7 @@ namespace OP::utest
     struct equals : details::marker_arity<2>
     {
         template <class Left, class Right>
-        constexpr auto operator()(Left left, Right right) const
+        constexpr auto operator()(Left&& left, Right&& right) const
         {
             using namespace OP::has_operators;
             bool result = left == right;

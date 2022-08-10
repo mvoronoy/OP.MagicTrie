@@ -7,6 +7,8 @@
 
 #include <op/ranges/OrderedRange.h>
 #include <op/trie/Trie.h>
+#include <op/trie/PlainValueManager.h>
+
 #include <op/ranges/RangeUtils.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
@@ -23,6 +25,7 @@ using namespace OP::trie;
 using namespace OP::utest;
 using namespace OP::flur;
 const char* test_file_name = "trie.test";
+using test_trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
 
 template <class TStr = std::string>
 struct lexicographic_less {
@@ -63,7 +66,7 @@ void test_TrieSubtree(OP::utest::TestRuntime& tresult)
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = test_trie_t;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
     std::map<atom_string_t, double> test_values;
     // Populate trie with unique strings in range from [0..255]
@@ -173,7 +176,8 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestRuntime& tresult)
     auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = test_trie_t;
+
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
     // Populate trie with unique strings in range from [0..255]
     // this must cause grow of root node
@@ -312,7 +316,8 @@ void test_Flatten(OP::utest::TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = test_trie_t;
+
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
     typedef std::pair<const atom_string_t, double> p_t;
@@ -544,7 +549,8 @@ void test_ChildSelector(OP::utest::TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = test_trie_t;
+
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
     typedef std::pair<const atom_string_t, double> p_t;
@@ -625,7 +631,7 @@ void test_Range(OP::utest::TestRuntime& tresult)
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>> ;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
     typedef std::pair<atom_string_t, double> p_t;
@@ -690,7 +696,8 @@ void test_NativeRangeSupport(OP::utest::TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    using trie_t = OP::trie::Trie<OP::trie::SegmentManager, double>;
+    using trie_t = OP::trie::Trie<OP::trie::SegmentManager, PlainValueManager<double>>;
+
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
     for (const auto& pair : src1) trie->insert(pair.first, pair.second);
     auto g_pos = trie->find("g"_astr);
@@ -739,7 +746,7 @@ void test_JoinRangeOverride(TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<EventSourcingSegmentManager, size_t> trie_t;
+    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<size_t>> ;
     tresult.info()<<"create trie #1...\n";
     std::shared_ptr<trie_t> trie1 = trie_t::create_new(tmngr1);
 
@@ -1193,7 +1200,8 @@ void test_ISSUE_0001(OP::utest::TestRuntime& tresult) {
     auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>> ;
+
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     const atom_string_t to_erase
     { 0x17, 0x80, 0x04, 0x5d, 0x48, 0x29, 0x4b, 0x40, 0xad, 0xee, 0x40, 0xe3, 0x4c, 0x0b, 0x9f, 0x84, 0x37, 0x44, 0xf1, 0x01, 0x00, 0x00, 0x00, 0x0a };

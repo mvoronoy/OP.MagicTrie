@@ -7,6 +7,8 @@
 
 #include <op/ranges/OrderedRange.h>
 #include <op/trie/Trie.h>
+#include <op/trie/PlainValueManager.h>
+
 #include <op/ranges/RangeUtils.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
@@ -32,7 +34,7 @@ void testDefault(OP::utest::TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>> ;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     using mix_ns = Ingredient<trie_t>;
 
@@ -75,7 +77,7 @@ void testChildConfig(OP::utest::TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     using mix_ns = Ingredient<trie_t>;
 
@@ -147,7 +149,8 @@ void test_ISSUE_0002(OP::utest::TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
+
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     using mix_ns = Ingredient<trie_t>;
 
@@ -205,7 +208,7 @@ void test_PrefixJoin(TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    typedef Trie<EventSourcingSegmentManager, double> trie_t;
+    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     //empty trie intersection
     tresult.assert_true(std::empty(
