@@ -290,6 +290,31 @@ namespace
 
     }
 
+    void testStrCompact(OP::utest::TestRuntime& tresult)
+    {
+        using namespace OP::flur;
+        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>("trie2.test",
+            OP::trie::SegmentOptions()
+            .segment_size(0x110000));
+
+        using trie_t = Trie<
+            EventSourcingSegmentManager, PlainValueManager<std::string, 16>, 1ull << 9
+        >;
+        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+        std::map<atom_string_t, std::string> test_values;
+        constexpr size_t N = 1025;
+        for (auto i = 0; i < N; ++i)
+        {
+            std::string rstr;
+            tools::RandomGenerator::instance().next_alpha_num(rstr, 0xFF, 1);
+            trie->insert(rstr, rstr);
+            test_values.emplace(atom_string_t(reinterpret_cast<const atom_t*>(rstr.c_str())), rstr);
+        }
+        compare_containers(tresult, *trie, test_values);
+
+    }
+
     void testErase(OP::utest::TestRuntime& tresult)
     {
         auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
@@ -302,7 +327,8 @@ namespace
             std::string
         >;
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<test_variant_t>
+            EventSourcingSegmentManager, PlainValueManager<test_variant_t, 16>,
+            1ull << 10
         >;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
@@ -329,6 +355,7 @@ namespace
         .declare("variant", testVariant)
         .declare("tuple", testTuple)
         .declare("str", testStr)
+        .declare("str-compact", testStrCompact)
         .declare("erase", testErase)
         ;
 }
