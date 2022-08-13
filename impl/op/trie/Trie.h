@@ -45,7 +45,7 @@ namespace OP
         };
 
 
-        template <class TSegmentManager, class TPayloadManager, std::uint32_t initial_node_count = 8192>
+        template <class TSegmentManager, class TPayloadManager, std::uint32_t initial_node_count = 512>
         struct Trie : public std::enable_shared_from_this< Trie<TSegmentManager, TPayloadManager, initial_node_count> >
         {
         public:
@@ -197,24 +197,17 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
 
-                if (!sync_iterator(i))
+                if (!sync_iterator(i) || key.empty())
                     return;
-                //find `i` and `key` common prefix
-                size_t com_prefix = 0;
-
-                for (size_t smallest = std::min(i.key().size(), key.size());
-                    com_prefix < smallest && i.key()[com_prefix] == key[com_prefix]; ++com_prefix)
-                {
-                    /*do nothing*/
-                }
-                if (!com_prefix) //no common prefix at all, just position at right bound
-                {
-                    i = lower_bound(key);
-                    return;
-                }
-                i.pop_until_fit(static_cast<dim_t>(com_prefix)); //cut `i` on common prefix
-                auto kbeg = key.begin() + com_prefix;
-                lower_bound_impl(kbeg, key.end(), i);
+                auto [mis_it, mis_key] = std::mismatch(
+                    i.key().begin(), i.key().end(), key.begin(), key.end());
+                while (mis_it < i.key().end())
+                    i.pop();
+                bool exact_match = (mis_key != key.end())
+                    ? lower_bound_impl(mis_key, key.end(), i)
+                    : lower_bound_impl(key.begin(), key.end(), end());
+                //if (exact_match)//when equals need re-position to the next
+                //    _next(true, i);
             }
 
             /** return first entry that contains prefix specified by string [begin, aend)
@@ -642,7 +635,7 @@ namespace OP
             *   \param value - value to assign to new key
             */
             template <class AtomIterator>
-            insert_result_t prefixed_insert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, payload_t value)
+            insert_result_t prefixed_insert(iterator& of_prefix, AtomIterator begin, AtomIterator aend, value_type value)
             {
                 return prefixed_insert(
                     of_prefix, std::move(begin), std::move(aend), 
@@ -658,7 +651,7 @@ namespace OP
             *       std::string, std::string_view, std::u8string, ...)
             */
             template <class TStringLike>
-            insert_result_t prefixed_insert(iterator& of_prefix, const TStringLike& container, payload_t payload)
+            insert_result_t prefixed_insert(iterator& of_prefix, const TStringLike& container, value_type payload)
             {
                 return prefixed_insert(of_prefix, std::begin(container), std::end(container), payload);
             }
@@ -1363,9 +1356,15 @@ namespace OP
             template <class Atom>
             bool lower_bound_impl(Atom& begin, Atom aend, iterator& prefix) const
             {
-                if (begin == aend || !navigation_mode(prefix))
+                if (begin == aend)
                 {
                     prefix = end();
+                    return false;
+                }
+                if (!navigation_mode(prefix))
+                {
+                    //prefix.pop();
+                    _next(true, prefix);
                     return false;
                 }
                 auto unmatch_result = mismatch(prefix, begin, aend);

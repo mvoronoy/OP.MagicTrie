@@ -8,6 +8,7 @@
 #include <set>
 #include <unordered_set>
 #include <op/utest/details.h>
+#include <op/common/has_member_def.h>
 
 namespace OP::utest
 {

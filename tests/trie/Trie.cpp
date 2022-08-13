@@ -14,6 +14,7 @@
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <op/ranges/FlattenRange.h>
 #include <op/trie/TrieRangeAdapter.h>
+#include <op/trie/JoinGenerator.h>
 
 #include <algorithm>
 #include "../test_comparators.h"
@@ -1403,10 +1404,11 @@ namespace
             p_t("abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"_astr, 1.31),
             p_t("ba"_astr, 1.4),
         };
-        std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        for(const p_t& s: ini_data) 
+        {
             trie->insert(s.first, s.second);
             test_values.emplace(s.first, s.second);
-            });
+        }
         tresult.assert_that<eq_sets>(
             trie->range() >> then::mapping(pair_extractor),
             test_values,
@@ -1516,6 +1518,77 @@ namespace
         tresult.assert_that<equals>(n_cnt - 1, trie->nodes_count());
     }
 
+    void issue_next_sibling(TestRuntime& tresult)
+    {
+        using namespace OP::flur;
+        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::trie::SegmentOptions()
+            .segment_size(0x110000));
+
+        using trie_t = test_trie_t;
+
+        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+        auto [x, y] = trie->insert("a"_astr, 1);
+        trie->insert("aa"_astr, 1);
+        tresult.debug() << "x=" << (const char*)x.key().c_str();
+        trie->next_lower_bound_of(x, "a"_astr);
+        tresult.debug() << ", next(x)=" << (const char*)x.key().c_str() << "\n";
+
+        atom_string_t test_seq[] {
+            "gAAAAAAAAAI"_astr,
+            "gAAAAAAAAAI\x86"_astr,
+            "gAAAAAAAAAM"_astr,
+            "gAAAAAAAAAM\x86"_astr,
+            "gAAAAAAAAAQ"_astr,
+            "gAAAAAAAAAU"_astr,
+            "gAAAAAAAAAY"_astr,
+            "gAAAAAAAAAU\x87"_astr,
+            "gAAAAAAAAAU\x87gAAAAAAAAAI"_astr,
+            "gAAAAAAAAAY\x87"_astr,
+            "gAAAAAAAAAY\x87gAAAAAAAAAI"_astr,
+            "gAAAAAAAAAY\x87gAAAAAAAAAM"_astr
+        };
+        const auto prefix = "\x80"_astr;
+        auto [prefix_iter, _] = trie->insert(prefix, 0.0);
+        for(const auto& k : test_seq)
+        {
+            trie->prefixed_insert(prefix_iter, k, 0.1);
+        }
+        auto dbg_prn =[&](const auto& range){
+            for(auto it: range)
+                tresult.debug() << '[' << it.key().size() << ']' 
+                    << (const char*)it.key().c_str() << "\n";
+        };
+
+        dbg_prn(trie->range());
+        std::set<atom_string_t> test_values = {
+            {"\x80gAAAAAAAAAU\x87"_astr},
+            {"\x80gAAAAAAAAAU\x87gAAAAAAAAAI"_astr},
+            {"\x80gAAAAAAAAAY\x87"_astr},
+            {"\x80gAAAAAAAAAY\x87gAAAAAAAAAI"_astr},
+            {"\x80gAAAAAAAAAY\x87gAAAAAAAAAM"_astr}
+        };
+
+        auto only_nodes = src::of_container(std::set<atom_string_t>{
+                "\x80gAAAAAAAAAI\x87"_astr,
+                "\x80gAAAAAAAAAM\x87"_astr,
+                "\x80gAAAAAAAAAQ\x87"_astr,
+                "\x80gAAAAAAAAAU\x87"_astr/*must exists*/,
+                "\x80gAAAAAAAAAY\x87"_astr/*must exists*/
+        });
+        //JoinGenerator<trie_t, decltype(only_nodes)> joins(
+        //    std::const_pointer_cast<trie_t const>(trie), std::move(only_nodes));
+        auto joins = only_nodes >> then::prefix_join(trie);
+        tresult.debug() << "==========\n";
+        dbg_prn(joins);
+
+        tresult.assert_that<eq_sets>(
+            joins >> then::mapping([](const auto& i) {return i.key(); }), test_values
+            //OP::flur::src::of_container(test_values)
+            //>> OP::flur::then::mapping([](const auto&))
+            );
+    }
+
     static auto& module_suite = OP::utest::default_test_suite("Trie.core")
         .declare("creation", test_TrieCreation)
         .declare("insertion", test_TrieInsert)
@@ -1540,5 +1613,6 @@ namespace
         .declare("check_exists", test_TrieCheckExists)
         .declare("next_lower_bound", test_NextLowerBound)
         .declare("issue_erase_seq_of_4", issue_erase_seq_of_4)
+        .declare("issue_next_sibling", issue_next_sibling)
         ;
 }//ns:""

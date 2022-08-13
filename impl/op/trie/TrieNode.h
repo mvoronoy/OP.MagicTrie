@@ -25,7 +25,7 @@ namespace OP
             using this_t = TrieNode<payload_manager_t>;
             using payload_t = typename payload_manager_t::payload_t;
             using data_storage_t = typename payload_manager_t::data_storage_t;
-
+            using stem_str_address_t = smm::SmartStringAddress<>;
 
             /*declare 256-bit presence bitset*/
             using presence_t = Bitset<4, std::uint64_t> ;
@@ -33,7 +33,7 @@ namespace OP
             struct NodeData
             {
                 FarAddress _child = {};
-                smm::SmartStringAddress _stem = {};
+                stem_str_address_t _stem = {};
                 data_storage_t _value = {};
             };
 
