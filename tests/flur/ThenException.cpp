@@ -64,13 +64,15 @@ namespace {
             LocalSeq(int) {}
             void start() override {};
 
-            bool in_range() const {
+            bool in_range() const override 
+            {
                 throw std::runtime_error{ "" };
             }
-            int current() const {
+            int current() const override 
+            {
                 return 0;
             }
-            void next() {};
+            void next() override {};
         };
 
         auto pipeline = make_lazy_range(SimpleFactory<int, LocalSeq>())

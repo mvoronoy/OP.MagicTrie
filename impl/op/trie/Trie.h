@@ -203,9 +203,16 @@ namespace OP
                     i.key().begin(), i.key().end(), key.begin(), key.end());
                 while (mis_it < i.key().end())
                     i.pop();
-                bool exact_match = (mis_key != key.end())
-                    ? lower_bound_impl(mis_key, key.end(), i)
-                    : lower_bound_impl(key.begin(), key.end(), end());
+                if (mis_key != key.end())
+                {
+                    lower_bound_impl(mis_key, key.end(), i);
+                }
+                else
+                {
+                    auto kbeg = key.begin();
+                    auto iend = end();
+                    lower_bound_impl(kbeg, key.end(), iend);
+                }
                 //if (exact_match)//when equals need re-position to the next
                 //    _next(true, i);
             }

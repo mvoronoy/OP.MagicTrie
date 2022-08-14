@@ -29,6 +29,7 @@ namespace OP::trie::containers
         
         using base_t = KeyValueContainer<Payload, ParentInfo>;
 
+        virtual ~KeyValueContainer() = default;
         /**
         * Create persisted storage 
         * @return far-address wrapped with table management interface (\sa #PersistedSizedArray)

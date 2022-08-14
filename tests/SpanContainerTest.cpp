@@ -3,16 +3,16 @@
 #include <random>
 #include <algorithm>
 
-#include <op/common/SpanContainer.h>
-#include <op/common/Range.h>
 #include <map>
 #include <set>
 
+#include <op/common/Range.h>
 template <class Os, class Int1, class Int2 >
 Os& operator << (Os& os, const OP::Range<Int1, Int2>& r)
 {
     return os << r.pos() << ":" << r.right() << "(" << r.count() << ")";
 }
+#include <op/common/SpanContainer.h>
 
 template <class Container, class Sampler>
 void comparative_test(OP::utest::TestRuntime& tresult, Container& co, Sampler samples)
@@ -90,9 +90,9 @@ void test_add(OP::utest::TestRuntime& tresult)
         check_container_t check_container;
         intersect_test(tresult, test_span, container, check_container_t{zone_t(10, 1000), zone_t(1001, 1)});
     }
-    std::cout << "test dupplicate addings...\n";
+    tresult.info() << "test dupplicate addings...\n";
     {   
-        std::cout << "\tover existing values\n";
+        tresult.info() << "\tover existing values\n";
         check_container.emplace(1001, 1);
         check_container.emplace(1, 3);
         

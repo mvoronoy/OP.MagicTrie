@@ -29,7 +29,7 @@ namespace OP::trie::store_converter
     inline bool operator == (const PersistedVariant<Tx...>& left, const PersistedVariant<Tx...>& right) 
     {
         if (left._selector == right._selector)
-            return memcmp(left._data, right._data, buffer_size_c) == 0;
+            return memcmp(left._data, right._data, left.buffer_size_c) == 0;
         return false;
     }
 //---------------------
@@ -185,7 +185,7 @@ namespace
         auto ab_range = trie->prefixed_range("ab"_astr);
         OP::vtm::TransactionGuard op_g(
             trie->segment_manager().begin_transaction(), true);
-        for (auto& iter : ab_range)
+        for (auto iter : ab_range)
         {
             test_variant_t empt{};
             trie->update(iter, empt);
@@ -197,7 +197,7 @@ namespace
 
         OP::vtm::TransactionGuard op_g2(
             trie->segment_manager().begin_transaction(), true);
-        for (auto& iter : ab_range)
+        for (auto iter : ab_range)
         {
             std::string rstr;
             test_variant_t new_var{tools::RandomGenerator ::instance().next_alpha_num(rstr, 32)};

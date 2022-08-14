@@ -25,74 +25,74 @@ namespace OP
     template <class T>
     struct RangeContainer;
 
-	namespace zones
-	{
-		template <class R>
-		inline auto pos(const R& r) -> decltype(r.pos())
-		{
-			return r.pos();
-		}
-		template <class R>
-		inline auto count(const R& r) -> decltype(r.count())
-		{
-			return r.count();
-		}
-		template <class R>
-		inline auto right(const R& r) -> decltype(pos(r))
-		{
-			return pos(r) + count(r);
-		}
-		/** Check that [ a ) & [ b ) is not empty */
-		template <class R1, class R2>
-		inline bool is_overlapping(const R1& a, const R2& b) 
-		{
-			return (right(a) > pos(b)) && (pos(a) < right(b));
-		}
-		/**Check if the `point` is inside the range [ a ) */
-		template <class R>
-		bool in(const R& a, decltype(pos(a)) check) 
-		{
-			return check >= pos(a) && check < right(a);
-		}
-		template <class R>
-		bool empty(const R& a)
-		{
-			return !count(a);
-		}
-		/**Check if 'other' fully inside [ a ) */
-		template <class R1, class R2>
-		bool is_included(const R1& a, const R2& other)
-		{
-			return pos(a) <= pos(other) && right(other) <= right(a);
-		}
-		/**Operation is true if second range follows first without gap*/
-		template <class R1, class R2>
-		bool is_left_adjacent(const R2& a, const R2& other) 
-		{
-			return right(other) == pos(a);
-		}
-		/**Operation is true if first range follows second without gap*/
-		template <class R1, class R2>
-		bool is_right_adjacent(const R1& a, const R2& other) 
-		{
-			return right(a) == pos(other);
-		}
-		/**Operation is true if eaither right or left ajusted*/
-		template <class R1, class R2>
-		bool is_adjacent(const R1& a, const R2& other) 
-		{
-			return is_left_adjacent(a, other) || is_right_adjacent(a, other);
-		}
-		template <class R1, class R2>
-		bool less(const R1& a, const R2& b)
-		{
-			return (pos(a) < pos(b)) && !(pos(b) < right(a));
-		}
-		template <class R1, class R2>
-		bool equal (const R1& a, const R2& b)
-		{
-			return (pos(a) == pos(b)) && (count(a) == count(b));
-		}
+    namespace zones
+    {
+        template <class R>
+        inline auto pos(const R& r) -> decltype(r.pos())
+        {
+            return r.pos();
+        }
+        template <class R>
+        inline auto count(const R& r) -> decltype(r.count())
+        {
+            return r.count();
+        }
+        template <class R>
+        inline auto right(const R& r) -> decltype(pos(r))
+        {
+            return pos(r) + count(r);
+        }
+        /** Check that [ a ) & [ b ) is not empty */
+        template <class R1, class R2>
+        inline bool is_overlapping(const R1& a, const R2& b) 
+        {
+            return (right(a) > pos(b)) && (pos(a) < right(b));
+        }
+        /**Check if the `point` is inside the range [ a ) */
+        template <class R>
+        bool in(const R& a, decltype(pos(a)) check) 
+        {
+            return check >= pos(a) && check < right(a);
+        }
+        template <class R>
+        bool empty(const R& a)
+        {
+            return !count(a);
+        }
+        /**Check if 'other' fully inside [ a ) */
+        template <class R1, class R2>
+        bool is_included(const R1& a, const R2& other)
+        {
+            return pos(a) <= pos(other) && right(other) <= right(a);
+        }
+        /**Operation is true if second range follows first without gap*/
+        template <class R1, class R2>
+        bool is_left_adjacent(const R2& a, const R2& other) 
+        {
+            return right(other) == pos(a);
+        }
+        /**Operation is true if first range follows second without gap*/
+        template <class R1, class R2>
+        bool is_right_adjacent(const R1& a, const R2& other) 
+        {
+            return right(a) == pos(other);
+        }
+        /**Operation is true if eaither right or left ajusted*/
+        template <class R1, class R2>
+        bool is_adjacent(const R1& a, const R2& other) 
+        {
+            return is_left_adjacent(a, other) || is_right_adjacent(a, other);
+        }
+        template <class R1, class R2>
+        bool less(const R1& a, const R2& b)
+        {
+            return (pos(a) < pos(b)) && !(pos(b) < right(a));
+        }
+        template <class R1, class R2>
+        bool equal (const R1& a, const R2& b)
+        {
+            return (pos(a) == pos(b)) && (count(a) == count(b));
+        }
         template <class TZone>
         TZone unite_zones(const TZone& lar, const TZone& rar)
         {
@@ -102,23 +102,24 @@ namespace OP
                 return lar;
             auto leftmost = std::min(zones::pos(lar), zones::pos(rar));
             return TZone(leftmost, 
-			    static_cast<typename TZone::distance_t>( 
-				    std::max(zones::right(lar), zones::right(rar)) - leftmost));
+                static_cast<typename TZone::distance_t>( 
+                    std::max(zones::right(lar), zones::right(rar)) - leftmost));
         }
         template <class TZone>
         TZone join_zones(const TZone& lar, const TZone& rar)
         {
             auto leftmost_right = std::min(
-			    zones::right(lar), zones::right(rar));
+                zones::right(lar), zones::right(rar));
             auto rightmost_left = std::max(
-			    zones::pos(lar), zones::pos(rar));
+                zones::pos(lar), zones::pos(rar));
             return rightmost_left < leftmost_right 
                 ? TZone(rightmost_left, static_cast<typename TZone::distance_t>(leftmost_right - rightmost_left))
                 : TZone(rightmost_left, 0);
         }
 
 
-	};
+    } //ns:zones
+
     template <class T, class Distance = unsigned int>
     struct Range 
     {

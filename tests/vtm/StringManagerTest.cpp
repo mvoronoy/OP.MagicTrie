@@ -15,7 +15,7 @@ static const char *node_file_name = "StringManager.test";
 void test_StringManager(OP::utest::TestRuntime &tresult)
 {
     using namespace std::string_literals;
-    using str_manager_t = OP::vtm::StringMemoryManager;
+    using str_manager_t = OP::vtm::StringMemoryManager<>;
 
     auto tmngr1 = SegmentManager::OP_TEMPL_METH(create_new)<EventSourcingSegmentManager>(
         node_file_name, 
@@ -99,7 +99,7 @@ template <class TSegmentTopology>
 void string_manager_edge_case(TSegmentTopology& topology, OP::utest::TestRuntime& tresult)
 {
     using namespace std::string_literals;
-    using str_manager_t = OP::vtm::StringMemoryManager;
+    using str_manager_t = OP::vtm::StringMemoryManager<>;
 
     str_manager_t str_manager(topology);
     auto& heap_mngr = topology.template slot<HeapManagerSlot>();
@@ -187,7 +187,7 @@ void string_manager_edge_case(TSegmentTopology& topology, OP::utest::TestRuntime
 void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
 {
     using namespace std::string_literals;
-    using str_manager_t = OP::vtm::StringMemoryManager;
+    using str_manager_t = OP::vtm::StringMemoryManager<>;
 
     auto tmngr1 = SegmentManager::OP_TEMPL_METH(create_new) < EventSourcingSegmentManager > (
         node_file_name,
@@ -219,7 +219,7 @@ void test_SmartStr(OP::utest::TestRuntime& tresult)
         .segment_size(0x110000));
 
     SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
-    using str_manager_t = OP::vtm::StringMemoryManager;
+    using str_manager_t = OP::vtm::StringMemoryManager<>;
     str_manager_t smm(mngr_toplogy);
     auto& rndtool = tools::RandomGenerator::instance();
 

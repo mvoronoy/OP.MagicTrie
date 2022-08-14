@@ -40,22 +40,22 @@ namespace OP::flur
             return false;
         }
 
-        virtual void start()
+        void start() override
         {
             _index = 0;
             at(_index).start();
             seek();
         }
-        virtual bool in_range() const
+        bool in_range() const override
         {
             return ( _index < union_size() )
                 && at(_index).in_range();
         }
-        virtual element_t current() const
+        element_t current() const override
         {
             return at(_index).current();
         }
-        virtual void next()
+        void next() override
         {
             at(_index).next();
             seek();

@@ -367,7 +367,7 @@ const auto& pt_get(const PersistedTuple<Tx...>& tup)
         template <class TTopology>
         static void destroy(TTopology& topology, storage_type_t& dest)
         {
-            destroy_impl(topology, dest, std::make_index_sequence<type_t>{});
+            destroy_impl(topology, dest, std::make_index_sequence<sizeof ...(Tx)>{});
             std::destroy_at(&dest); //call destructor for PersistedTuple
         }
     private:

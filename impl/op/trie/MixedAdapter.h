@@ -127,7 +127,7 @@ namespace OP::trie
                 : _prefix(std::get<atom_string_t>(args))
             {
             }
-            constexpr PrefixedLowerBound(atom_string_t prefix) noexcept
+            OP_CONSTEXPR_CPP20 PrefixedLowerBound(atom_string_t prefix) noexcept
                 : _prefix(std::move(prefix))
             {
             }

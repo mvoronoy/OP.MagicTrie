@@ -38,19 +38,19 @@ namespace flur
                 && details::get_reference(_src).is_sequence_ordered();
         }
 
-        virtual void start()
+        void start() override
         {
             details::get_reference(_src).start();
         }
-        virtual bool in_range() const
+        bool in_range() const override
         {
             return details::get_reference(_src).in_range();
         }
-        virtual element_t current() const
+        element_t current() const override
         {
             return _applicator(details::get_reference(_src).current());
         }
-        virtual void next()
+        void next() override
         {
             details::get_reference(_src).next();
         }

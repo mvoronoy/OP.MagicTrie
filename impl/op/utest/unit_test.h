@@ -470,7 +470,7 @@ namespace OP::utest
         void fail(Xetails&& ...details)
         {
             guard_t g(*_access_result);
-            auto one_step_print = [&](auto& item)
+            auto one_step_print = [&](auto&& item)
             {
                 if constexpr (std::is_invocable_v<decltype(item)>)
                     error() << item();

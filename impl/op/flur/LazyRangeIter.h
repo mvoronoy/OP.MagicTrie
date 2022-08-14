@@ -30,12 +30,13 @@ namespace OP::flur
         using reference         = value_type&;
         using pointer           = void;
 
-        explicit LazyRangeIterator (target_t&& r) noexcept
+        explicit LazyRangeIterator(target_t&& r) noexcept
             : _target{std::move(r)}
         {
         }
+
         /** designated to construct std::end */
-        constexpr explicit LazyRangeIterator (nullptr_t) noexcept
+        constexpr explicit LazyRangeIterator(std::nullptr_t) noexcept
             :_target{}
         {
         }

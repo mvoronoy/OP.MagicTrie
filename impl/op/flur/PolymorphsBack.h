@@ -18,7 +18,7 @@ namespace OP::flur
     {
         //static constexpr bool ordered_c = Base::ordered_c;
         using Base::ordered_c;
-        using Base::element_t;
+        using typename Base::element_t;
 
         OfReversePolymorph(Holder src)
             : _src(std::move(src))

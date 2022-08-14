@@ -69,7 +69,7 @@ namespace OP::trie
             if constexpr( data_storage_t::big_payload_c )
             {
                 auto& heap_manager = topology.OP_TEMPL_METH(slot) < HeapManagerSlot > ();
-                auto& address = heap_manager.allocate(
+                auto address = heap_manager.allocate(
                     memory_requirement<payload_t>::requirement);
                 *std::launder(reinterpret_cast<FarAddress*>(storage._data)) = address;
             }
