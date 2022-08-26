@@ -175,6 +175,19 @@ namespace flur
         }
         return count;
     }
+    template <class G>
+    std::enable_if_t<std::is_base_of_v<FactoryBase, G>, size_t> consume_all(G& range) 
+    {
+        size_t count = 0;
+        auto seq = range.compound();
+        auto& seq_ref = details::get_reference(seq);
+        for (seq_ref.start(); seq_ref.in_range(); seq_ref.next())
+        {
+            static_cast<void>(seq_ref.current()); //ignore return value
+            ++count;
+        }
+        return count;
+    }
 
     /*template <class T >
     auto first( Sequence<T>& seq) 

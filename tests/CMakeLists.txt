@@ -57,6 +57,8 @@ add_executable (trie_test
     "flur/StlContainers.cpp" 
     "flur/ThenDefault.cpp" 
     "flur/Mt.cpp" 
+    "flur/Filter.cpp" 
+    "flur/maf.cpp" 
     "flur/Cartesian.cpp"
     "flur/Generator.cpp"
     "flur/ThenFlatMap.cpp"

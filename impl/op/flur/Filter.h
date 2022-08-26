@@ -28,8 +28,8 @@ namespace flur
             , _predicate(std::move(f))
             , _end (true)
         {
-            
         }
+
         virtual void start()
         {
             auto& source = details::get_reference(_src);
@@ -37,19 +37,23 @@ namespace flur
             _end = !source.in_range();
             seek();
         }
+
         virtual bool in_range() const
         {
             return !_end;
         }
+
         virtual element_t current() const
         {
             return details::get_reference(_src).current();
         }
+
         virtual void next()
         {
             details::get_reference(_src).next();
             seek();
         }
+
     private:
         void seek()
         {
@@ -59,7 +63,8 @@ namespace flur
                 if (_predicate(source.current()))
                     return;
             }
-         }
+        }
+
         bool _end;
         Src _src;
         Fnc _predicate;

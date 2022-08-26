@@ -28,7 +28,7 @@ namespace flur
         template <class U>
         constexpr Mapping(Src&& src, U f) noexcept
             : _src(std::move(src))
-            , _applicator(f)
+            , _applicator(std::move(f))
         {
         }
         
@@ -58,6 +58,48 @@ namespace flur
         Src _src;
         F _applicator;
     };
+    
+    /** Helper class allows to reduce allocattions number when mapping result
+    * is a heap consuming entity. For example, following code allocates memory for 
+    `std::string` several times:
+     \code
+        src::of_iota(5, 7)
+        >> then::keep_order_mapping([](auto n)->std::string{ return std::to_string(n); }
+    \endcode
+    To optimize it we can add state-full functor:\code
+        src::of_iota(5, 7)
+        >> then::keep_order_mapping(
+            ReusableMapBuffer([](auto n, std::string& already_existing) -> void
+            { 
+                std::format_to(
+                    std::back_inserter(already_existing), "{}", n); 
+            })
+        );
+    \endcode
+
+    */
+    template <class F>
+    struct ReusableMapBuffer
+    {
+        using traits_t = OP::utils::function_traits<F>;
+        using from_t = std::decay_t<typename traits_t::template arg_i<0>>;
+        using to_t = std::decay_t<typename traits_t::template arg_i<1>>;
+        
+        ReusableMapBuffer(F f) 
+            : _f(std::move(f)) 
+        {
+        }
+
+        const to_t& operator()(const from_t& from) const
+        {
+            _f(from, _entry);
+            return _entry;
+        }
+
+        F _f;
+        mutable to_t _entry;
+    };
+    
 
     /**
     *

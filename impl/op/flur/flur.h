@@ -21,6 +21,7 @@
 #include <op/flur/TakeAwhile.h>
 #include <op/flur/FlatMapping.h>
 #include <op/flur/Mapping.h>
+#include <op/flur/maf.h>
 #include <op/flur/OrDefault.h>
 #include <op/flur/OnException.h>
 #include <op/flur/Repeater.h>
@@ -224,11 +225,36 @@ namespace flur
             using f_t = std::decay_t<F>;
             return MappingFactory<f_t>(std::move(f));
         }
+
         template <class F>
         constexpr auto keep_order_mapping(F f) noexcept
         {
             using f_t = std::decay_t<F>;
             return MappingFactory<f_t, true>(std::move(f));
+        }
+
+        /** Map and Filter factory that unions both operations to the single code.
+        * \tparam F functor with the signature `bool(typename Src::element_t, <desired-mapped-type> &result)`
+        *       Note that implementation assumes that <desired-mapped-type> is default constructible
+        */
+        template <class F>
+        constexpr auto maf(F f) noexcept
+        {
+            using f_t = std::decay_t<F>;
+            return MapAndFilterFactory<f_t>(std::move(f));
+        }
+
+        /** Map and Filter factory with keep ordering that unions both operations to the single code.
+        * Result sequence is not mandatory ordered it just commitment of developer of `F` to keep order  
+        * if source sequenceis ordered as well.
+        * \tparam F functor with the signature `bool(typename Src::element_t, <desired-mapped-type> &result)`
+        *       Note that implementation assumes that <desired-mapped-type> is default constructible
+        */
+        template <class F>
+        constexpr auto keep_order_maf(F f) noexcept
+        {
+            using f_t = std::decay_t<F>;
+            return MapAndFilterFactory<f_t, true>(std::move(f));
         }
 
         /** Same as mapping, but assume function F produces some set instead of single value 

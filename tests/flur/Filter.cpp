@@ -4,7 +4,6 @@
 #include <numeric>
 #include <op/utest/unit_test.h>
 #include <op/flur/flur.h>
-#include <op/flur/Reducer.h>
 
 using namespace OP::utest;
 using namespace OP::flur;
@@ -20,8 +19,8 @@ namespace {
             tresult.fail("Empty must not invoke filter");
             return true; })
         ;
-        static_assert(r_empty.compound().ordered_c, "filter must keep ordering");
-        tresult.assert_true(r_empty.empty(), "wrong result number");
+
+        tresult.assert_true(std::empty(r_empty), "wrong result number");
 
         const std::set<std::string> single_set = { "a" };
         size_t invocations = 0;
@@ -30,20 +29,19 @@ namespace {
             ++invocations;
             return false;
         });
-        tresult.assert_true(r_empty2.empty(), "wrong result number");
+        tresult.assert_true(std::empty(r_empty2), "wrong result number");
         tresult.assert_that<equals>(1, invocations, "wrong result number");
         
-        std::set<std::string> tri_set = { "a", "bb", "ccc" };
         invocations = 0;
-        auto r3 = OP::flur::make_unique(
-            src::of_container(std::move(tri_set)),
+        auto r3 = 
+            src::of_container(std::set<std::string>{ "a", "bb", "ccc" })
+            >>
             then::filter([&](const std::string& a) {
-            return !a.empty() && a[0] == 'b';
-        });
-        tresult.assert_true(r_empty2.empty(), "wrong result number");
-        tresult.assert_that<equals>(1, invocations, "wrong result number");
-
+                return !a.empty() && a[0] == 'b';
+            });
+        tresult.assert_that<eq_sets>(r3, std::set<std::string>{ "bb" }, "wrong result number");
     }
+
     void test_FilterEdge(OP::utest::TestRuntime& tresult)
     {
         const std::vector<int> all_num = {1, 2, 3, 4, 5};
@@ -51,10 +49,9 @@ namespace {
             >> then::filter([&](const auto& n) {
             return (n & 1) == 0;
         });
-        tresult.assert_that<eq_sets>(r1, {2, 4}, OP_CODE_DETAILS());
-        tresult.fail("In current codebase must fail");
+        tresult.assert_that<eq_sets>(r1, std::vector<int>{2, 4}, OP_CODE_DETAILS());
     }
-    static auto module_suite = OP::utest::default_test_suite("flur.then")
+    static auto& module_suite = OP::utest::default_test_suite("flur.then")
         .declare("filter", test_ThenFilter)
         .declare("filter-edge", test_FilterEdge)
         ;
