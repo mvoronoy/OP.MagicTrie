@@ -21,7 +21,8 @@ namespace flur
     template <class T>
     struct OfIterators : public Sequence<decltype(*std::declval<T>())>
     {
-        using element_t = typename OfIterators<T>::element_t;
+        using base_t = Sequence<decltype(*std::declval<T>())>;
+        using element_t = typename base_t::element_t;
         using this_t = OfIterators<T>;
         constexpr OfIterators(T begin, T end) noexcept
             : _begin(std::move(begin))
@@ -45,7 +46,7 @@ namespace flur
 
         virtual element_t current() const
         {
-            return _current;
+            return *_current;
         }
 
         virtual void next()

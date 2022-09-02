@@ -69,7 +69,8 @@ add_executable (trie_test
     "flur/StringInput.cpp"
     "flur/Join.cpp"
     "flur/UnionAll.cpp"
-)
+    "flur/Iterators.cpp"
+ )
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
