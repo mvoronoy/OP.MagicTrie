@@ -9,90 +9,155 @@
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
 
-namespace OP
-{
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
+namespace OP::flur
 {
-
-    template <class Src, class Alien, class Fnc, class R> 
-    struct Cartesian : public Sequence< R >
+    template <class R, class F, class ... Seqx>
+    struct CartesianSequence: public Sequence< R >
     {
-        using result_t = R;
+        using base_t = Sequence< R >;
+        using base_t::base_t;
 
-        template <class F>
-        constexpr Cartesian(Src&& src, Alien&& alien, F f) noexcept
-            :_src(std::move(src))
-            , _alien(std::move(alien))
-            , _applicator(std::move(f))
+        constexpr CartesianSequence(F applicator, Seqx&& ...sx) noexcept
+            : _applicator(applicator)
+            , _sources(std::move(sx)...)
+            , _all_good(false)
         {
         }
-        virtual void start()
+
+        void start() override
         {
-            details::get_reference(_src).start();
-            details::get_reference(_alien).start();
-        }
-        virtual bool in_range() const
-        {
-            return details::get_reference(_src).in_range() 
-                && details::get_reference(_alien).in_range();
-        }
-        virtual result_t current() const
-        {
-            return _applicator(
-                details::get_reference(_src).current(), details::get_reference(_alien).current());
-        }
-        virtual void next()
-        {
-            details::get_reference(_alien).next();
-            if (!details::get_reference(_alien).in_range())
+            auto ini_seq = [](auto& seq) -> bool 
             {
-                details::get_reference(_src).next();
-                if (details::get_reference(_src).in_range())
-                    details::get_reference(_alien).start();
+                auto& ref = details::get_reference(seq);
+                ref.start();
+                return ref.in_range();
+            };
+            //start all
+            _all_good = std::apply( 
+                [&](auto& ...seq) ->bool {  
+                    return (ini_seq(seq) && ...);
+            }, _sources);
+        }
+
+        bool in_range() const override
+        {
+            return _all_good;
+        }
+
+        element_t current() const override
+        {
+            // this class as an applicator can be used with `void`, so add special case handler
+            if constexpr(std::is_same_v<void, element_t>)
+            {
+                do_call(std::make_index_sequence<seq_size_c>{});
+            }
+            else
+            {
+                return do_call(std::make_index_sequence<seq_size_c>{});
             }
         }
-        Src _src;
-        Alien _alien;
-        //std::function<R(const typename Src::element_t&, const typename Alien::element_t&)> _applicator;
-        Fnc _applicator;
+
+        void next() override
+        {
+            _all_good = do_next(std::make_index_sequence<seq_size_c>{});
+        }
+
+    private:
+        static constexpr size_t seq_size_c = sizeof ... (Seqx);
+
+        template <size_t... I>
+        bool do_next(std::index_sequence<I...>)
+        {
+            bool sequence_failed = false;
+            bool result = (do_step<I>(sequence_failed) || ...);
+            return !sequence_failed && result;
+        }
+
+        template <size_t I>
+        bool do_step(bool& sequence_failed)
+        {
+            auto &seq = std::get<I>(_sources);
+            
+            if(!seq.in_range()) //indication of empty sequence stop all
+            {
+                sequence_failed = true;
+                return true; //don't propagate
+            }
+            seq.next();    
+            if( seq.in_range() )
+                return true; //stop other sequences propagation
+            seq.start(); //restart 
+            if( !seq.in_range() )
+            {
+                sequence_failed = true;
+                return true; //don't propagate
+            }
+            return false; //propagate sequences enumeration
+        }
+
+        template <size_t... I>
+        auto do_call(std::index_sequence<I...>) const
+        {
+            return _applicator(std::get<I>(_sources).current()...);
+        }
+
+        F _applicator;
+        std::tuple<Seqx...> _sources;
+        bool _all_good;
     };
 
 
-    template <class Alien, class F >
+    template <class F, class ... Lx>
     struct CartesianFactory : FactoryBase
     {
-        using pure_f = std::decay_t<F>;
-        using alien_src_t = details::sequence_type_t<Alien>;
-
-        //using second_src_t = std::conditional_t < std::is_base_of_v<FactoryBase, Alien>,
-        //    std::decay_t <decltype(std::declval<Alien>().compound())>,
-        //    Alien>;
-        constexpr CartesianFactory(Alien&& alien, F f) noexcept
-            :_alien(std::move(alien))
+        constexpr CartesianFactory(F f, Lx&& ... alien) noexcept
+            : _alien_factory(std::forward<Lx>(alien) ... )
             , _applicator(std::move(f))
         {
         }
+
+        template <class L>
+        using nth_sequence_t = std::decay_t<decltype(
+            details::get_reference(details::get_reference(std::declval<L&>()).compound())
+        )>;
+        
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
-            using result_t = decltype(
-                _applicator(details::get_reference(src).current(), 
-                    details::get_reference(std::declval<const alien_src_t&>()).current())
-                );
-            //using result_t = typename f_traits_t::result_t;
-            return Cartesian<Src, alien_src_t, F, result_t>(
-                std::move(src),
-                std::move(details::get_reference(_alien).compound()),
-                _applicator);
+            return construct_sequence(
+                std::make_index_sequence<sizeof...(Lx)>{}, std::forward<Src>(src)
+            );
         }
 
-        Alien _alien;
+        // factory can be used as a source (without previous `sequence >> cartesian`)
+        constexpr auto compound() const noexcept
+        {
+            return construct_sequence(
+                std::make_index_sequence<sizeof...(Lx)>{} );
+        }
+
+    private:
+        template <class ... Seqx, size_t ... I>
+        constexpr auto construct_sequence(std::index_sequence<I...>, Seqx&& ... sx ) const noexcept
+        {
+            using result_t = decltype(
+                _applicator(
+                    details::get_reference(sx).current()...,
+                    std::declval<nth_sequence_t<Lx>&>().current()...)
+                );
+            using sequence_t = CartesianSequence<
+                result_t, F, Seqx..., nth_sequence_t<Lx>...>;
+            return sequence_t(
+                _applicator,
+                std::move(sx)...,
+                std::move(details::get_reference(std::get<I>(_alien_factory)).compound())...
+                );    
+        }
+        std::tuple<Lx...> _alien_factory;
         F _applicator;
     };
 
-    
-} //ns:flur
-} //ns:OP
+} //ns:OP::flur
 
 #endif //_OP_FLUR_CARTESIAN__H_

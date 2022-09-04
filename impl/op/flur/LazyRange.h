@@ -12,10 +12,8 @@
 #include <op/flur/Join.h>
 #include <op/flur/FactoryBase.h>
 
-namespace OP
-{
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
+namespace OP::flur
 {
 
     /** 
@@ -228,8 +226,9 @@ namespace flur
         return rseq.current();
 
     }
-} //ns:flur
-} //ns:OP
+
+} //ns:OP::flur
+
 namespace std
 {
     template <class T>

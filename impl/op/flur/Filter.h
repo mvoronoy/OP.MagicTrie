@@ -9,10 +9,7 @@
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
 
-namespace OP
-{
-/** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
+namespace OP::flur
 {
 
     template <class Fnc, class Src, class Base>
@@ -117,7 +114,7 @@ namespace flur
     template <class Fnc>
     using FilterFactory = FilterFactoryBase< FilterFactoryTrait<Fnc, Filter> >;
 
-} //ns:flur
-} //ns:OP
+}  //ns:OP::flur
+
 
 #endif //_OP_FLUR_FILTER__H_

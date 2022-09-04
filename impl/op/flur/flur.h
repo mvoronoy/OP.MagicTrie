@@ -30,14 +30,13 @@
 #include <op/flur/Distinct.h>
 #include <op/flur/UnionAll.h>
 #include <op/flur/PolymorphsBack.h>
+#include <op/flur/Applicator.h>
 #include <op/flur/stl_adapters.h>
 
-namespace OP
-{
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
+namespace OP::flur
 {
-    /** namespace for function that are source of LazyRange */
+    /** namespace for functions that are source of LazyRange */
     namespace src
     {
         /**
@@ -344,7 +343,7 @@ namespace flur
         {
             //const second_src_t<Alien>&
             //auto cros = std::function<R(const Src&, const R&)>(fnc);
-            return CartesianFactory<Alien, F>(std::move(alien), std::move(f));
+            return CartesianFactory<F, Alien>(std::move(f), std::move(alien));
         }
 
         /** Produce repeater (for details see OP::flur::Repeater */
@@ -360,8 +359,19 @@ namespace flur
         }
 
     } //ns:then
+    namespace apply
+    {
+        template <class ... Lx>
+        constexpr auto cartesian(Lx&& ... lx)
+        {
+            return CartesianApplicator(std::forward<Lx>(lx)...);    
+        }
 
-} //ns:flur
-} //ns:OP
+        template <class F, class ... Lx>
+        constexpr auto zip()
+        {return 42;}
+
+    }//ns:apply
+} //ns:OP::flur
 
 #endif //_OP_FLUR_FLUR__H_
