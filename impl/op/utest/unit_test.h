@@ -77,7 +77,7 @@ namespace OP::utest
     /**
     *   Level of result logging
     */
-    enum class ResultLevel
+    enum class ResultLevel : std::uint64_t
     {
         /**Display errors only*/
         error [[maybe_unused]] = 1,

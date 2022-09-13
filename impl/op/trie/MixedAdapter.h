@@ -428,6 +428,5 @@ namespace OP::trie
 
 */
 } //ns:OP::trie
-#undef OP_DECLARE_CLASS_HAS_MEMBER
-#undef OP_CHECK_CLASS_HAS_MEMBER
+
 #endif //_OP_TRIE_MIXEDADAPTER__H_

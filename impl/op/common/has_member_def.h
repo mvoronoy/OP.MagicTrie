@@ -22,6 +22,25 @@
     };
 
 /** 
+    Define macro same as OP_DECLARE_CLASS_HAS_MEMBER but allows to check presence of template member.
+    For example you need check if some class has defined `template <typename T> method`.  
+    Define is similary straigh `OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(method)`. Later use:
+    ~~~~~~~~~~~~~~~~~~~~~~
+    has_method<MyClassWithMethod, int*>::value //evaluates true if defined MyClassWithMethod::method<int*>()
+    ~~~~~~~~~~~~~~~~~~~~~~
+*/
+#define OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(Member)  template <typename A, typename ...Ts>\
+    class has_##Member \
+    { \
+        typedef char YesType[1]; \
+        typedef char NoType[2]; \
+        template <typename C> static YesType& test( decltype(&C::template Member<Ts ...>) ) ; \
+        template <typename C> static NoType& test(...); \
+    public: \
+        enum { value = sizeof(test<A>(nullptr)) == sizeof(YesType) }; \
+    };
+
+/** 
     Define macro to create compile-time checker of specific type definition in arbitrary class.
     For example you need check if some class has `iterator` definition. To accomplish define somewhere 
     checker `OP_DECLARE_HAS_TYPEDEF(iterator)`. Later use:

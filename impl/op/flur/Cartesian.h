@@ -77,7 +77,7 @@ namespace OP::flur
         template <size_t I>
         bool do_step(bool& sequence_failed)
         {
-            auto &seq = std::get<I>(_sources);
+            auto &seq = details::get_reference(std::get<I>(_sources));
             
             if(!seq.in_range()) //indication of empty sequence stop all
             {
@@ -99,7 +99,8 @@ namespace OP::flur
         template <size_t... I>
         auto do_call(std::index_sequence<I...>) const
         {
-            return _applicator(std::get<I>(_sources).current()...);
+            return _applicator(
+                details::get_reference(std::get<I>(_sources)).current()...);
         }
 
         F _applicator;
@@ -147,12 +148,12 @@ namespace OP::flur
                     std::declval<nth_sequence_t<Lx>&>().current()...)
                 );
             using sequence_t = CartesianSequence<
-                result_t, F, Seqx..., nth_sequence_t<Lx>...>;
-            return sequence_t(
+                result_t, F, std::decay_t<Seqx>..., nth_sequence_t<Lx>...>;
+            return sequence_t{
                 _applicator,
-                std::move(sx)...,
+                std::move(details::get_reference(sx))...,
                 std::move(details::get_reference(std::get<I>(_alien_factory)).compound())...
-                );    
+            };
         }
         std::tuple<Lx...> _alien_factory;
         F _applicator;

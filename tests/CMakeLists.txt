@@ -28,12 +28,18 @@ find_package(Threads REQUIRED)
 
 enable_testing()
 
+# Allow /P preprocess file   
+# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /P")
+#set_source_files_properties("tests/tr.cpp" PROPERTIES COMPILE_FLAGS /P)
+
+
 # Add source to this project's executable.
 add_executable (trie_test 
     
     "BitsetTest.cpp"
 
     "common/UtilsTest.cpp"
+    "common/CmdLine.cpp"
     "common/ZoneTest.cpp"
     "common/ThreadPool.cpp"
 
