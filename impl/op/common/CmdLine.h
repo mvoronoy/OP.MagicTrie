@@ -35,7 +35,7 @@ namespace OP::console
         template <class F, class Iter, size_t...I, typename ftraits_t = OP::utils::function_traits<F>>
         void invoke(F& f, Iter& from, Iter to, std::index_sequence<I...>)
         {
-            f(take_arg< ftraits_t::template arg_i<I> >(from, to) ...);
+            f(take_arg< typename ftraits_t::template arg_i<I> >(from, to) ...);
         }
 
     }//ns:details
@@ -225,7 +225,7 @@ namespace OP::console
         void when_match(Iter& current, Iter end)
         {
             details::invoke(
-                [this](T t) {*_dest = std::move(t); }, 
+                [this](T t) { *_dest = std::move(t); }, 
                 current, end, std::make_index_sequence<1>{});
         }
 
