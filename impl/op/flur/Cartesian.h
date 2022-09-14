@@ -17,6 +17,7 @@ namespace OP::flur
     {
         using base_t = Sequence< R >;
         using base_t::base_t;
+        using element_t = typename base_t::element_t;
 
         constexpr CartesianSequence(F applicator, Seqx&& ...sx) noexcept
             : _applicator(applicator)
