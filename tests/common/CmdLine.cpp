@@ -6,6 +6,7 @@ namespace
     using namespace OP::utest;
     using namespace std::string_literals;
     using namespace OP::console;
+    using namespace std::placeholders;
 
     void test_CmdLine(OP::utest::TestRuntime& tresult)
     {
@@ -61,7 +62,7 @@ namespace
             }
         );
         CommandLineParser cml4(
-            arg(key("-a"), key("--auto"), action(std::bind(&X::setter, x)))
+            arg(key("-a"), key("--auto"), action(std::bind(&X::setter, x, _1)))
         );
         cml3.parse(std::vector{ "-a"s, "11"s});
         tresult.assert_that<equals>(11, x.v);
