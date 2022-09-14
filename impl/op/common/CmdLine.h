@@ -32,8 +32,8 @@ namespace OP::console
             }
         };
 
-        template <class F, class Iter, size_t...I, typename ftraits_t = OP::utils::function_traits<F>>
-        void invoke(F& f, Iter& from, Iter to, std::index_sequence<I...>)
+        template <class F, class Iter, size_t...I, typename ftraits_t = OP::utils::function_traits<std::decay_t<F>>>
+        void invoke(F&& f, Iter& from, Iter to, std::index_sequence<I...>)
         {
             f(take_arg< typename ftraits_t::template arg_i<I> >(from, to) ...);
         }
