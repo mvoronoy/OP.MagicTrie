@@ -33,7 +33,7 @@ namespace OP
             OP::utest::TestRun::default_instance().list_suites(suite_callback);
             std::exit(0);
         }
-        template<char RegexKey = 'r'>
+
         inline int simple_command_line_run(int argc, char **argv)
         {
             using namespace OP::console;
