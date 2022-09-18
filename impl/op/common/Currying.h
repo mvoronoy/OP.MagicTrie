@@ -79,7 +79,7 @@ namespace OP::currying
                 //move this tuple to lambda owning since don't need this anymore
                 args = CurryingTuple(std::move(this->_arguments))]
             //declare free (binding) arguments
-            (typename ftraits_t::template arg_i<std::is_placeholder<Ax>::value - 1>...ax) mutable -> decltype(auto)
+            (typename ftraits_t::template arg_i<std::is_placeholder<Ax>::value - 1>&&...ax) mutable -> decltype(auto)
             {
                 return args
                     .typed_invoke(f, std::move(ax)...);
@@ -97,7 +97,8 @@ namespace OP::currying
         {
             using ftraits_t = OP::utils::function_traits<TCallable>;
             return typed_invoke_impl(
-                func, std::make_index_sequence<ftraits_t::arity_c - sizeof...(Ax)>{}, std::forward<Ax>(ax)...);
+                func, std::make_index_sequence<ftraits_t::arity_c - sizeof...(Ax)>{}, 
+                std::forward<Ax>(ax)...);
         }
 
     private:
