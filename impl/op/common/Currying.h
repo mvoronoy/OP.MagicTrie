@@ -142,7 +142,7 @@ namespace OP::currying
         }
         template <size_t I>
         using raw_t = std::decay_t<
-            decltype(inject_argument(std::get<I>(std::declval<arguments_t>())))
+            decltype(inject_argument(std::get<I>(std::declval<arguments_t&>())))
         >;
 
         /** Taken tuple #arguments_t return index of type `T` entry */
