@@ -46,22 +46,27 @@ namespace OP
             CommandLineParser processor(
                 arg(
                     key("-h"), key("--help"), key("-?"),
-                    desc("Show this usage"),
+                    desc("Show this usage."),
                     action(show_usage)
                 ),
                 arg(
                     key("-l"), 
-                    desc("list known test cases instead of run them"),
+                    desc("List known test cases instead of run."),
                     action(list_cases)
                 ),
                 arg(
                     key("-d"),
-                    desc("level of logging 1-3 (1=error, 2=info, 3=debug)"),
+                    desc("Specify level of logging 1-3 (1=error, 2=info, 3=debug)."),
                     action([&opts](std::uint64_t level) {opts.log_level(static_cast<ResultLevel>(level)); })
                 ), 
                 arg(
                     key("-r"),
-                    desc("<regexp> - regular expression to filter test cases. Regex is matched agains pattern <Test SuiteName>/<Test Case Name>"),
+                    desc("<suite-regexp>/<case-regexp> - Run only test cases matched to both regular expression.\n" 
+                        "\tFor example:\n"
+                        "\t\t-r \".+/.+\" - run all tests\n"
+                        "\t\t-r \"[tT]est-[1-9]/.*runtime.*\" - run all test suites numbered 'test-1'...'test-9' with\n"
+                        "\t\t\tcases containing word 'runtime'."
+                        ),
                     action( [&](const std::string& arg){
                         std::regex expression(arg);
 
@@ -73,7 +78,7 @@ namespace OP
                 ),
                 arg(
                     key("-s"),
-                    desc("set seed number for random generator to make tests reproducable. If not specified then default random generator used"),
+                    desc("Set seed number for random generator to make tests reproducable. Without this seed inititalized with current time."),
                     action([&opts](std::uint64_t seed) {opts.random_seed(seed); })
                     )
                 )
@@ -89,9 +94,10 @@ namespace OP
                 return 1;
             } catch (std::regex_error & e)
             {
-                std::cerr << "Invalid -r argument:" << e.what() << "\n";
+                std::cerr << "Invalid regex in -r argument: '" << e.what() << "'\n";
                 return 1;
             }
+
             OP::utest::TestRun::default_instance().options() = opts;
             // keep origin out formatting
             IoFlagGuard cout_flags(std::cout);
@@ -122,7 +128,7 @@ namespace OP
             //restore cout formatting
             cout_flags.reset();
 
-            std::cout << "==--Total run results--==:\n";
+            std::cout << "--== Total run results ==--:\n";
             //dump summary
             for( const auto& agg : all_sumary )
             {

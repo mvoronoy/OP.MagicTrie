@@ -446,11 +446,12 @@ namespace OP::console
         /** Renders usage text from the existing defined rules */
         void usage(std::ostream& os) 
         {
+            size_t n = 0;
             std::apply([&](auto& ... a)
                 {   
-                    size_t n = 0;
                     ((os << (n++ ? usage_line_feed : ""s) << a.usage(usage_separator, usage_pad)), ...);
                 }, _rules);
+            os << (n ? usage_line_feed : ""s);
         }
         
         /** Parse multiple argument from template argument `Container`.
@@ -489,7 +490,7 @@ namespace OP::console
                 }
                 if (!match_res)
                 {
-                    throw std::invalid_argument(std::string("Unknown argument:") + *i);
+                    throw std::invalid_argument(std::string("Unknown argument: '") + *i + "'"s);
                 }
             }
             std::apply([](auto & ...arg) {
@@ -503,7 +504,7 @@ namespace OP::console
         void parse(int argc, const char**argv)
         {
             if (argc < 1)
-                throw std::runtime_error("Wrong parser arguments provided");
+                throw std::runtime_error("Wrong number of parser arguments provided, it must be at least 1.");
             std::vector<std::string> cmds(argv + 1, argv + argc);
             parse(std::move(cmds));
         }
