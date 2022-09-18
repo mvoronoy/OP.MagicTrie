@@ -81,8 +81,9 @@ namespace OP::currying
             //declare free (binding) arguments
             (typename ftraits_t::template arg_i<std::is_placeholder<Ax>::value - 1>&&...ax) mutable -> decltype(auto)
             {
+
                 return args
-                    .typed_invoke(f, std::move(ax)...);
+                    .typed_invoke(f, std::forward<decltype(ax)>(ax)...);
             };
         }
 
