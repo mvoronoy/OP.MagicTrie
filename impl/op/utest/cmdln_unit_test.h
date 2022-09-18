@@ -23,10 +23,10 @@ namespace OP
         inline void list_cases()
         {
             auto suite_callback = [&](OP::utest::TestSuite& sui) {
-                std::cout << sui.id() << "\n";
+                std::cout << sui.id() << ":\n";
                 for (auto& cs : sui)
                 {
-                    std::cout << "\t>" << cs->id() << "\n";
+                    std::cout << "\t" << cs->id() << "\n";
                 }
                 return true;
             };
@@ -42,12 +42,12 @@ namespace OP
                 = [](OP::utest::TestSuite&, OP::utest::TestCase&) { return true; };
             OP::utest::TestRunOptions opts;
 
-            std::function<void()> show_usage;
+            std::function<void()> show_usage; //need later definition since `action(...)` cannot reference to `processor` var
             CommandLineParser processor(
                 arg(
                     key("-h"), key("--help"), key("-?"),
                     desc("Show this usage."),
-                    action(show_usage)
+                    action([&](){ show_usage(); })
                 ),
                 arg(
                     key("-l"), 
@@ -61,11 +61,11 @@ namespace OP
                 ), 
                 arg(
                     key("-r"),
-                    desc("<suite-regexp>/<case-regexp> - Run only test cases matched to both regular expression.\n" 
+                    desc("<suite-regex>/<case-regex> - Run only test cases matched to both regular expressions.\n" 
                         "\tFor example:\n"
-                        "\t\t-r \".+/.+\" - run all tests\n"
-                        "\t\t-r \"[tT]est-[1-9]/.*runtime.*\" - run all test suites numbered 'test-1'...'test-9' with\n"
-                        "\t\t\tcases containing word 'runtime'."
+                        "\t\t-r \".+/.+\" - run all test cases;\n"
+                        "\t\t-r \"test-[1-9]/.*runtime.*\" - run all test suites in range 'test-1'...'test-9' with all\n"
+                        "\t\t    cases containing the word 'runtime'."
                         ),
                     action( [&](const std::string& arg){
                         std::regex expression(arg);
@@ -83,7 +83,10 @@ namespace OP
                     )
                 )
                 ;
-            show_usage = [&]() {processor.usage(std::cout); };
+            show_usage = [&]() {
+                processor.usage(std::cout); 
+                std::exit(0);
+            };
             try
             {
                 processor.parse(argc, const_cast<const char**>(argv));
