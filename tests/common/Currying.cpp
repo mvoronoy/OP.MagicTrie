@@ -41,6 +41,14 @@ namespace
         tresult.assert_false(invoke_evidence);
         f3();
         tresult.assert_true(invoke_evidence);
+        //free args
+        invoke_evidence = false;
+        auto f4 = arguments(std::ref(int_sample), std::ref(invoke_evidence),
+            std::cref(s_sample), /*redundant arg*/5.7, "")
+            .tdef(test_function, std::placeholders::_1);
+        tresult.assert_false(invoke_evidence);
+        f4(tresult);
+        tresult.assert_true(invoke_evidence);
 
     }
 

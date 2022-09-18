@@ -66,13 +66,24 @@ namespace OP::currying
             });
         }
 
-        template <class TCallable>
-        constexpr decltype(auto) tdef(TCallable f)&& noexcept
+        /** Collate existing arguments and bind them to the TCallable arguments
+        * using type matching.
+        * @return function of zero arguments that is bind to the current tuple
+        */ 
+        template <class TCallable, typename ...Ax>
+        constexpr decltype(auto) tdef(TCallable f, Ax ... )&& noexcept
         {
-            return of_callable([f = std::move(f), 
-                args = CurryingTuple<Tx...>(std::move(this->_arguments))]() mutable -> decltype(auto){
-                return args.typed_invoke(f);
-            });
+            using ftraits_t = OP::utils::function_traits<TCallable>;
+            return 
+                [f = std::move(f), 
+                //move this tuple to lambda owning since don't need this anymore
+                args = CurryingTuple(std::move(this->_arguments))]
+            //declare free (binding) arguments
+            (typename ftraits_t::template arg_i<std::is_placeholder<Ax>::value - 1>...ax) mutable -> decltype(auto)
+            {
+                return args
+                    .typed_invoke(f, std::move(ax)...);
+            };
         }
 
         template <typename F>
@@ -81,30 +92,32 @@ namespace OP::currying
             return do_invoke(func, std::make_index_sequence<sizeof...(Tx)>());
         }
 
-        template <typename F>
-        auto typed_invoke(F& func) 
+        template <typename TCallable, typename ... Ax>
+        auto typed_invoke(TCallable& func, Ax&&...ax )
         {
-            using ftraits_t = OP::utils::function_traits<F>;
+            using ftraits_t = OP::utils::function_traits<TCallable>;
             return typed_invoke_impl(
-                func, std::make_index_sequence<ftraits_t::arity_c>{});
+                func, std::make_index_sequence<ftraits_t::arity_c - sizeof...(Ax)>{}, std::forward<Ax>(ax)...);
         }
 
     private:
 
-        template <typename F, size_t... I, typename ftraits_t = OP::utils::function_traits<F> >
-        auto typed_invoke_impl(F& func, std::index_sequence<I...>)
+        template <typename F, size_t... I, typename ... Ax, typename ftraits_t = OP::utils::function_traits<F> >
+        auto typed_invoke_impl(F& func, std::index_sequence<I...>, Ax&& ...ax)
         {
+            constexpr size_t Pn = sizeof...(Ax);
             return do_invoke(func, 
                 std::integer_sequence<size_t, 
                 // reindex tuple elements according to types
-                index_of_type<typename ftraits_t::template arg_i<I>>()...>{}
+                index_of_type<typename ftraits_t::template arg_i<I + Pn >>()...>{},
+                std::forward<Ax>(ax)...
                 );
         }
 
-        template <typename F, size_t... I>
-        auto do_invoke(F& func, std::index_sequence<I...>)
+        template <typename F, size_t... I, typename ... Ax>
+        auto do_invoke(F& func, std::index_sequence<I...>, Ax&& ...ax)
         {
-            return func(
+            return func(std::forward<Ax>(ax)...,
                 inject_argument(std::get<I>(_arguments))...
                 );
         }
