@@ -42,6 +42,7 @@ add_executable (trie_test
     "common/CmdLine.cpp"
     "common/ZoneTest.cpp"
     "common/ThreadPool.cpp"
+    "common/Currying.cpp"
 
     "vtm/ContainersTest.cpp"
     "vtm/FixedSizeMemoryManagerTest.cpp"
