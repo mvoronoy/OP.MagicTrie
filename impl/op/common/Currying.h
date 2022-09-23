@@ -180,7 +180,7 @@ namespace OP::currying
             using element_t = std::decay_t<decltype(element)>;
             if constexpr (std::is_base_of_v<CurryingArgSpec, element_t>)
             {
-                return element.extract<T>();
+                return element.template extract<T>();
             }
             else
                 return element;
