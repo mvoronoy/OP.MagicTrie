@@ -299,7 +299,7 @@ namespace OP::currying
             (typename ftraits_t::template arg_i<Ns>&&...ax) mutable -> decltype(auto)
             {
                 constexpr size_t Pn = sizeof...(ax);
-                return args.typed_invoke_impl<front_invoke>(
+                return args.template typed_invoke_impl<front_invoke>(
                     func, 
                     std::make_index_sequence<ftraits_t::arity_c - Pn>{},
                     std::forward<std::decay_t<decltype(ax)>>(ax)...
