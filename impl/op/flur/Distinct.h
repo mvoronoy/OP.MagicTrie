@@ -245,10 +245,10 @@ namespace flur
     *   Factory that creates Distinct sequence.
     * Implementation allows support ordered and unordered sequences, depending on policy provided.
     * \tparam Policy one of predefined or custom policies. Known policies are:
-    *   - OrderedDistinctPolicy
-    *   - OrderedDistinctPolicyWithCustomComparator
-    *   - UnorderedHashDistinctPolicy
-    *   - UnorderedDistinctPolicyWithCustomComparator
+    *   - OrderedDistinctPolicy - sequence is ordered, to compare elements used `operator <`
+    *   - OrderedDistinctPolicyWithCustomComparator - sequence is ordered but custom comparator is used
+    *   - UnorderedHashDistinctPolicy - sequence is unordered and default std::equals_t/std::hash are used
+    *   - UnorderedDistinctPolicyWithCustomComparator - sequence is unordered but comparator/hash are used
     * You can create your own policy for example to use more memory efficient storages than std::unordered_set.
     * Just declare functor and policy method `construct` to create functor:\code
     *   

@@ -6,7 +6,6 @@ namespace
 
     using namespace OP::utest;
 
-    
     void test_Plain(OP::utest::TestRuntime& tresult)
     {
         const std::string s_sample("xyz");
@@ -28,7 +27,7 @@ namespace
         const int int_sample(n_sample); //explicit match
         auto f2 = arguments(std::ref(int_sample), std::ref(invoke_evidence), 
             std::ref(tresult), std::cref(s_sample), /*redundant arg*/5.7, "")
-            .tdef(test_function);
+            .typed_bind(test_function);
         tresult.assert_false(invoke_evidence);
         f2();
         tresult.assert_true(invoke_evidence);
@@ -36,8 +35,8 @@ namespace
         invoke_evidence = false;
         auto f3 = arguments(
             std::ref(int_sample), std::ref(invoke_evidence),
-            std::ref(tresult), of_callable([&]() -> const std::string&{return s_sample; }), /*redundant arg*/5.7, "")
-            .tdef(test_function);
+            std::ref(tresult), of_callable([&]() -> const std::string&{ return s_sample; }), /*redundant arg*/5.7, "")
+            .typed_bind(test_function);
         tresult.assert_false(invoke_evidence);
         f3();
         tresult.assert_true(invoke_evidence);
@@ -45,15 +44,33 @@ namespace
         invoke_evidence = false;
         auto f4 = arguments(std::ref(int_sample), std::ref(invoke_evidence),
             std::cref(s_sample), /*redundant arg*/5.7, "")
-            .tdef(test_function, std::placeholders::_1);
+            .typed_bind_front<1>(test_function);
         tresult.assert_false(invoke_evidence);
         f4(tresult);
         tresult.assert_true(invoke_evidence);
-
     }
 
+    void test_Cast(OP::utest::TestRuntime& tresult)
+    {
+        const int mark_int = 57;
+        auto src1 = [&](const int& x, bool& evidence) {
+            tresult.assert_that<equals>(x, mark_int); 
+            evidence = true; 
+        };
+        bool evidence = false;
+        std::any shared_data;
+        CurryingTuple <Var<bool>, Unpackable<std::any> > attrs{
+            of_var(evidence),
+            of_unpackable(shared_data)
+        };
+        auto f1 = attrs.typed_bind(src1);
+        shared_data = mark_int;
+        f1();
+        tresult.assert_true(evidence);
+    }
 
     static auto& module_suite = OP::utest::default_test_suite("Currying")
-    .declare("plain", test_Plain)
+    .declare("basic", test_Plain)
+    .declare("cast", test_Cast)
     ;
 }//ns:""

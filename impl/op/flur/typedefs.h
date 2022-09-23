@@ -22,16 +22,16 @@ namespace OP::flur::details
     template<typename T> struct is_optional<std::optional<T>> : std::true_type {};
 
     template <typename U>
-    U& get_reference(std::reference_wrapper<U> u) {
+    U& get_reference(std::reference_wrapper<U> u) noexcept {
         return (U&)u.get();
     }
     template <typename U>
-    const U& get_reference(std::reference_wrapper<U const> u) {
+    const U& get_reference(std::reference_wrapper<U const> u) noexcept {
         return (U&)u.get();
     }
 
     template <typename U>
-    constexpr U& get_reference(U& u) noexcept{
+    constexpr U& get_reference(U& u) noexcept {
         return u;
     }
     template <typename U>
@@ -44,16 +44,16 @@ namespace OP::flur::details
     }
 
     template <typename U, typename ... Ux>
-    U& get_reference(std::unique_ptr<U, Ux ...>& u) {
+    U& get_reference(std::unique_ptr<U, Ux ...>& u) noexcept {
         return *u;
     }
     template <typename U, typename ... Ux>
-    const U& get_reference(const std::unique_ptr< U, Ux ...>& u) {
+    const U& get_reference(const std::unique_ptr< U, Ux ...>& u) noexcept {
         return *u;
     }
 
     template <typename U>
-    decltype(auto) get_reference(const std::shared_ptr<U>& u) {
+    decltype(auto) get_reference(const std::shared_ptr<U>& u) noexcept {
         return *u.get();
     }
     template <typename U>
@@ -61,7 +61,7 @@ namespace OP::flur::details
         return *u.get();
     }
     template <typename U>
-    U& get_reference(std::shared_ptr<U>&& u) {
+    U& get_reference(std::shared_ptr<U>&& u) noexcept {
         //invoking this code means very-very bad lost control, used only for type-deduction only
         assert(false);
         return *u.get();

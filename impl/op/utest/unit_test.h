@@ -30,6 +30,7 @@
 #include <op/common/ftraits.h>
 #include <op/common/Console.h>
 #include <op/common/has_member_def.h>
+#include <op/common/Currying.h>
 
 #if defined( _MSC_VER ) 
 #if defined(max)
@@ -499,6 +500,16 @@ namespace OP::utest
         TestRunOptions _run_options;
     };
 
+    using namespace OP::currying;
+
+    using test_run_shared_args_t = CurryingTuple<
+        // Current instance of TestRuntime
+        Var<TestRuntime>,
+        // Current instance of TestSuite
+        Var<TestSuite>,
+        // Shared state from `before_suite`
+        Unpackable<std::any> >;
+
     /**Abstract definition of test */
     struct TestCase : public Identifiable
     {
@@ -511,16 +522,17 @@ namespace OP::utest
         TestCase(const TestCase&) = delete;
         TestCase(TestCase&&) = delete;
 
-        /**Invoke test single times*/
-        TestResult execute(TestRuntime& runtime)
+        /** Invoke test once */
+        TestResult execute(test_run_shared_args_t& runtime)
         {
             TestResult retval(id());
             retval._start_time = std::chrono::steady_clock::now();
-            do_run(runtime, retval);
+            isolate_exception_run(runtime, retval);
             retval._end_time = std::chrono::steady_clock::now();
             retval._run_number = 1;
             return retval;
         }
+
         /**
         *   Start same test multiple times
         *   @param result - accumulate results of all execution into single one. At exit this parameter
@@ -529,7 +541,7 @@ namespace OP::utest
         *   @param warm_up - some number of executions before measure time begins. Allows
          *                  warm-up CPU, internal cache and so on...
         */
-        TestResult load_execute(TestRuntime& runtime, unsigned run_number, unsigned warm_up = 10)
+        TestResult load_execute(test_run_shared_args_t& runtime, unsigned run_number, unsigned warm_up = 10)
         {
             while (warm_up--)
             {
@@ -541,25 +553,28 @@ namespace OP::utest
             result._start_time = std::chrono::steady_clock::now();
             for (; run_number; --run_number, ++result._run_number)
             {
-                do_run(runtime, result);
+                isolate_exception_run(runtime, result);
             }
             result._end_time = std::chrono::steady_clock::now();
             result._status = TestResult::Status::ok;
             return result;
         }
+
     protected:
-        virtual void run(TestRuntime& retval) = 0;
+        virtual void run(test_run_shared_args_t& retval) = 0;
 
     private:
         template <class Exception>
-        static inline void render_exception_status(TestRuntime& runtime, Exception const& e)
+        static inline void render_exception_status(test_run_shared_args_t& runtime, Exception const& e)
         {
+            TestRuntime& tr = runtime.get<Var<TestRuntime>>();
             if (e.what() && *e.what())
             {
-                runtime.error() << e.what();
+                tr.error() << e.what();
             }
         }
-        void do_run(TestRuntime& runtime, TestResult& retval)
+
+        void isolate_exception_run(test_run_shared_args_t& runtime, TestResult& retval)
         {
             try
             {
@@ -583,9 +598,9 @@ namespace OP::utest
                 retval._end_time = std::chrono::steady_clock::now();
                 retval._status = TestResult::Status::exception;
 
-                runtime.error() 
+                runtime.get<TestRuntime>().error()
                     << "\n----["
-                    <<console::esc<console::red_t>("exception")<<"] - what:("
+                    << console::esc<console::red_t>("exception")<<"] - what:("
                     << e.what() 
                     << ")\n";
             }
@@ -595,7 +610,6 @@ namespace OP::utest
                 retval._status = TestResult::Status::exception;
             }
         }
-
     };
 
     /** Represent logical grouping of multiple test cases */
@@ -639,30 +653,14 @@ namespace OP::utest
                 throw std::runtime_error("TestSuite('"s + _name + "') already has defined `before_suite`"s);
 
             using function_traits_t = OP::utils::function_traits<F>;
-
             static_assert(
                 function_traits_t::arity_c == 0 ||
                 (function_traits_t::arity_c == 1
                     && std::is_same_v<TestSuite&, typename function_traits_t::template arg_i<0>>),
                 "Functor for `before_suite` must accept 0 or 1 argument of `TestSuite&` type");
             //Create wrapper that accept exactly 1 TestSuite parameter
-            _init_suite = [this, f = std::move(init_function)](TestSuite& owner)
-            {
-                if constexpr (function_traits_t::arity_c == 0)
-                { //user function has no arguments
-                    auto res = f();
-                    //if init function  returns something - then treat as a shared state
-                    if constexpr (!std::is_same_v<void, decltype(res)>)
-                        _suite_shared_state = std::move(res);
-                }
-                else
-                {
-                    auto res = f(*this);
-                    //if init function returns something - then treat as a shared state
-                    if constexpr (!std::is_same_v<void, decltype(res)>)
-                        _suite_shared_state = std::move(res);
-                }
-            };
+            _init_suite = 
+                OP::currying::arguments(std::ref(*this)).def(std::move(init_function));
             return *this;
         }
 
@@ -673,38 +671,28 @@ namespace OP::utest
             using function_traits_t = OP::utils::function_traits<F>;
             if ((bool)_shutdown_suite)
                 throw std::runtime_error("TestSuite('"s + _name + "') already has defined `after_suite`"s);
-            _shutdown_suite = [this, f = std::move(tear_down)](TestSuite& owner)
-            {
-                if constexpr (function_traits_t::arity_c == 0)
-                {
-                    f();
-                }
-                else
-                {
-                    f(*this);
-                }
-            };
+            _shutdown_suite =
+                OP::currying::arguments(std::ref(*this)).def(std::move(tear_down));
         }
 
         /**
         *   Register test case in this suite to execute.
         * \param name - symbolic name of case inside the suite.
         * \param f - functor to execute during test run. Input parameters for the functor
-        *            may be empty or be any combination in any order of the following
-        *           types:
+        *            may be empty or any combination in any order of the following
+        *            types:
         *               - TestSuite& - accept this instance of test suite;
         *               - TestRuntime& - accept utility class with a lot of useful
-        *                   logging and assert-methods in it;
+        *                   logging and assert-methods;
         *               - `std::any` or user type with value constructed inside `#before_suite`
         */
         template <class F>
         TestSuite& declare(std::string name, F f)
         {
-            auto bind_expression = make_bind_expression(std::move(f));
             return this->declare_case(
-                std::make_unique<FunctionalTestCase<decltype(bind_expression)>>(
+                std::make_unique<FunctionalTestCase<F>>(
                     std::move(name),
-                    std::move(bind_expression)
+                    std::move(f)
                     )
             );
         }
@@ -719,7 +707,6 @@ namespace OP::utest
             return this->declare(name, std::move(f));
         }
 
-
         template <class F>
         TestSuite& declare_disabled(const std::string&, F )
         {
@@ -729,11 +716,10 @@ namespace OP::utest
         template <class F>
         TestSuite& declare_exceptional(std::string name, F f)
         {
-            auto bind_expr = make_bind_expression(std::move(f));
             return this->declare_case(
-                std::unique_ptr<TestCase> (new AnyExceptionTestCase<decltype(bind_expr)>(
+                std::unique_ptr<TestCase> (new AnyExceptionTestCase<F>(
                     std::move(name),
-                    std::move(bind_expr)
+                    std::move(f)
                 ))
             );
         }
@@ -751,6 +737,7 @@ namespace OP::utest
         {
             return const_cast<test_container_t&>(_tests).begin();
         }
+        
         /**Enumerate all test cases without run
         * \sa begin()
         */
@@ -758,14 +745,17 @@ namespace OP::utest
         {
             return const_cast<test_container_t&>(_tests).end();
         }
+        
         std::ostream& info()
         {
             return _info_stream;
         }
+        
         std::ostream& error()
         {
             return _error_stream;
         }
+        
         std::ostream& debug()
         {
             return info();
@@ -779,27 +769,42 @@ namespace OP::utest
 
         template <class Predicate>
         std::deque<TestResult> run_if(Predicate& predicate);
+
+    protected:
+        /** Initialization right before suite run */
+        virtual void before_exec()
+        {
+            if(_init_suite)
+                _init_suite();    
+        } 
+        /** Tear down right after suite run */
+        virtual void after_exec()
+        {
+            if(_shutdown_suite)
+                _shutdown_suite();    
+        } 
+
     private:
-        using bootstrap_t = std::function<void(TestSuite&)>;
+        using bootstrap_t = std::function<void()>;
 
         struct SuiteInitRAII
         {
             explicit SuiteInitRAII(this_t* owner)
                 :_owner(owner)
             {
-                _initialized = false;
-                if (_owner->_init_suite)
-                    _owner->_init_suite(*_owner);
+                _owner->before_exec();
                 _initialized = true;
             }
+
             ~SuiteInitRAII()
             {
-                if (_initialized && _owner->_shutdown_suite)
-                    _owner->_shutdown_suite(*_owner);
-                _owner->_suite_shared_state.reset();
+                if (_initialized)
+                    _owner->after_exec();
             }
+
+            std::any _suite_shared_state;
             this_t* _owner;
-            bool _initialized;
+            bool _initialized = false;
         };
 
         TestRunOptions _options;
@@ -807,56 +812,36 @@ namespace OP::utest
         test_container_t _tests;
         std::ostream& _info_stream;
         std::ostream& _error_stream;
-        std::any _suite_shared_state;
+
         bootstrap_t _init_suite, _shutdown_suite;
 
-        template <typename traits_t, typename F, size_t... I>
-        void do_method(TestRuntime& result, F& func, std::index_sequence<I...>)
-        {
-            func( inject_arg< std::decay_t<typename traits_t::template arg_i<I>> >(
-                    result)... );
-        }
 
-        template <class TArg>
-        auto& inject_arg(TestRuntime& result)
-        {
-            using namespace std::string_literals;
+        //template <class TArg>
+        //auto& inject_arg(TestRuntime& result)
+        //{
+        //    using namespace std::string_literals;
 
-            if constexpr (std::is_same_v<TestRuntime, TArg>)
-                return result;
-            else if constexpr (std::is_same_v<TestSuite, TArg>)
-                return *this;
-            else
-            {
-                if (!_suite_shared_state.has_value())
-                    throw std::runtime_error(
-                        "Test case:'"s + _name + "/"s + result.test_name()
-                        + "' expected shared value of type '"s
-                        + typeid(TArg).name()
-                        + "', but TestSuite::before_suite did not provided");
-                if constexpr (std::is_same_v<std::any, TArg>)
-                    return _suite_shared_state;
-                else
-                { //treat this case as arbitrary argument, so try extract it from std::any
-                    return *std::any_cast<TArg>(&_suite_shared_state);
-                }
-            }
-        }
+        //    if constexpr (std::is_same_v<TestRuntime, TArg>)
+        //        return result;
+        //    else if constexpr (std::is_same_v<TestSuite, TArg>)
+        //        return *this;
+        //    else
+        //    {
+        //        if (!_suite_shared_state.has_value())
+        //            throw std::runtime_error(
+        //                "Test case:'"s + _name + "/"s + result.test_name()
+        //                + "' expected shared value of type '"s
+        //                + typeid(TArg).name()
+        //                + "', but TestSuite::before_suite did not provided");
+        //        if constexpr (std::is_same_v<std::any, TArg>)
+        //            return _suite_shared_state;
+        //        else
+        //        { //treat this case as arbitrary argument, so try extract it from std::any
+        //            return *std::any_cast<TArg>(&_suite_shared_state);
+        //        }
+        //    }
+        //}
         
-        /**Pack user defined test-case into exactly 1 argument lambda*/
-        template <class F>
-        auto make_bind_expression(F f)
-        {
-            using function_traits_t = OP::utils::function_traits<F>;
-
-            return [this, f = std::move(f)](TestRuntime& result) ->void
-            {
-                do_method<function_traits_t>(
-                    result,
-                    f,
-                    std::make_index_sequence<function_traits_t::arity_c>{});
-            };
-        }
 
         template <class F>
         struct FunctionalTestCase : public TestCase
@@ -866,11 +851,13 @@ namespace OP::utest
                 _function(std::move(f))
             {
             }
+
         protected:
-            void run(TestRuntime& retval) override
+            void run(test_run_shared_args_t& retval) override
             {
-                _function(retval);
+                retval.typed_invoke(_function);
             }
+
         private:
             F _function;
         };
@@ -884,7 +871,7 @@ namespace OP::utest
             {
             }
         protected:
-            void run(TestRuntime& retval) override
+            void run(test_run_shared_args_t& retval) override
             {
                 try
                 {
@@ -892,14 +879,13 @@ namespace OP::utest
                     throw TestFail("exception was expected");
                 }
                 catch (...) {
-                    //normal case
-                    retval.debug() << "exception was raised as normal case\n";
+                    //normal flow
+                    retval.get<TestRuntime>().debug() << "exception was raised as expected\n";
                 }
             }
         };
 
     };
-
 
     struct TestRun
     {
@@ -908,19 +894,23 @@ namespace OP::utest
             : _options(options)
         {
         }
+        
         static TestRun& default_instance()
         {
             static TestRun instance;
             return instance;
         }
+        
         TestSuite& declare(test_suite_ptr suite)
         {
             return *_suites.emplace(suite->id(), std::move(suite))->second;
         }
+        
         TestRunOptions& options()
         {
             return _options;
         }
+        
         /**
         *   Just enumerate all test-suites without run
         * @tparam F predicate that matches to signature `bool F(TestSuite&)`
@@ -939,6 +929,7 @@ namespace OP::utest
         {
             return run_if([](TestSuite&, TestCase&) {return true; });
         }
+
         /**
         * Run all tests that match to predicate specified
         * \tparam Predicate predicate that matches to signature `bool F(TestSuite&, TestCase&)`
@@ -982,6 +973,7 @@ namespace OP::utest
             }
             return result;
         }
+
     private:
         static TestResult handle_environment_crash(TestSuite&suite, const std::exception* pex)
         {
@@ -993,6 +985,7 @@ namespace OP::utest
             suite.error() << "\n";
             return crash_res;
         }
+
         /**Helper RAII to intercept all standard C++ `abort` signals*/
         struct sig_abort_guard
         {
@@ -1015,6 +1008,7 @@ namespace OP::utest
         suites_t _suites;
         TestRunOptions _options;
     };
+
     namespace _inner
     {
         inline bool _unconditional_exception_raise(const std::string& x)
@@ -1022,6 +1016,7 @@ namespace OP::utest
             throw OP::utest::TestFail(x);
         }
     }
+    
     namespace tools
     {
         /** Thread safe wrapper for centralized unit-test level random generation
@@ -1050,6 +1045,7 @@ namespace OP::utest
                 std::lock_guard l(_gen_acc);
                 _gen.seed(static_cast<std::mt19937::result_type>(s));
             }
+
             /**
              * Renders uniform distributed number in range [low, high)
              * @tparam Int type to generate
@@ -1064,17 +1060,20 @@ namespace OP::utest
                 std::lock_guard l(_gen_acc);
                 return pick(_gen);
             }
+    
             template <class Int>
             Int next_in_range()
             {
                 return next_in_range<Int>(std::numeric_limits<Int>::min(),
                                      std::numeric_limits<Int>::max());
             }
+            
             template <class StrLike>
             inline StrLike& next_alpha_num(StrLike& buffer, size_t max_size, size_t min_size = 0)
             {
                 return random_str(buffer, max_size, min_size, rand_alphanum);
             }
+
             /**
              * Generate random string of random length. It is most generic form of string
              * generation. Possible use cases:
@@ -1115,6 +1114,7 @@ namespace OP::utest
 
                 return target;
             }
+            
             /**
              * Generate random string from characters specified by param `field`
              *
@@ -1245,7 +1245,6 @@ namespace OP::utest
     }
 
 
-
     template<class Exception>
     template<class Predicate, typename... Xetails>
     AssertExceptionWrapper<Exception> &AssertExceptionWrapper<Exception>::then(Predicate f, Xetails &&... details)
@@ -1268,6 +1267,7 @@ namespace OP::utest
     {
         return _run_options.log_level() > ResultLevel::info ? _suite.debug() : _null_stream;
     }
+
     template<class Predicate>
     std::deque<TestResult> TestSuite::run_if(Predicate &predicate)
     {
@@ -1278,21 +1278,27 @@ namespace OP::utest
         }
         // RAII to wrap init_suite/shutdown_suite
         std::unique_ptr<SuiteInitRAII> initializer; //delayed until real case need to run
-
+        test_run_shared_args_t runtime_vars;
+        runtime_vars.assign(of_var(*this));
+            
         std::deque<TestResult> result;
         for (auto& tcase : _tests)
         {
             if (!predicate(*this, *tcase))
                 continue;
-            if (!initializer) //not initialized yet
-                initializer = std::make_unique<SuiteInitRAII>(this);
 
+            if (!initializer) //not initialized yet
+            {
+                initializer = std::make_unique<SuiteInitRAII>(this);
+                runtime_vars.assign(of_unpackable(initializer->_suite_shared_state));
+            }
             TestRuntime runtime(
                     *this, tcase->id(), _options);
+            runtime_vars.assign(of_var(runtime));
 
             //allow output error right after appear
             info() << "\t[" << tcase->id() << "]...\n";
-            result.emplace_back( tcase->execute(runtime) );
+            result.emplace_back( tcase->execute(runtime_vars) );
 
             info()
                     << "\t[" << tcase->id() << "] done with status:"

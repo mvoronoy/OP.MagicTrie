@@ -52,7 +52,7 @@ namespace OP::flur
         template <class T, std::enable_if_t<std::is_invocable<decltype(of_container<T>), T&&>::value, int> = 0>
         constexpr auto of(T&& t)  noexcept
         {
-            return of_container(std::move(t));
+            return of_container(std::forward<T>(t));
         }
         /**
         * Create new LazyRange from std::optional. Result range is ordered and allows 0 to 1 iteration by 

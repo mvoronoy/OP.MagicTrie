@@ -78,7 +78,7 @@ namespace OP
                 ),
                 arg(
                     key("-s"),
-                    desc("Set seed number for random generator to make tests reproducable. Without this seed inititalized with current time."),
+                    desc("Set seed number for the internal random generator to make tests reproducable. Without this paramater the seed is inititalized with current time."),
                     action([&opts](std::uint64_t seed) {opts.random_seed(seed); })
                     )
                 )
