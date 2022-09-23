@@ -313,14 +313,14 @@ namespace OP::currying
             using ftraits_t = OP::utils::function_traits<TCallable>;
             constexpr size_t Pn = sizeof ... (Ax);
             if constexpr (front_invoke) //free args go in front
-                return func(std::forward<Ax>(ax)...,
+                return func(ax...,
                     inject_argument<typename ftraits_t::template arg_i<I + Pn>>(
                         std::get<I>(_arguments))...
                 );
             else // bind free args back
                 return func(inject_argument<typename ftraits_t::template arg_i<I>>(
                     std::get<I>(_arguments))...,
-                    std::forward<Ax>(ax)...)
+                    ax...)
                 ;
         }
 
