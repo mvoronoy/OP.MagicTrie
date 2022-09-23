@@ -300,8 +300,10 @@ namespace OP::currying
             {
                 constexpr size_t Pn = sizeof...(ax);
                 return args.typed_invoke_impl<front_invoke>(
-                    func, std::make_index_sequence<ftraits_t::arity_c - Pn>{},
-                    std::forward<decltype(ax)>(ax)...);
+                    func, 
+                    std::make_index_sequence<ftraits_t::arity_c - Pn>{},
+                    std::forward<std::decay_t<decltype(ax)>>(ax)...
+                    );
             };
         }
 
