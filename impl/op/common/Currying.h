@@ -318,7 +318,7 @@ namespace OP::currying
                         std::get<I>(_arguments))...
                 );
             else // bind free args back
-                return func(inject_argument<typename ftraits_t::arg_i<I>>(
+                return func(inject_argument<typename ftraits_t::template arg_i<I>>(
                     std::get<I>(_arguments))...,
                     std::forward<Ax>(ax)...)
                 ;
