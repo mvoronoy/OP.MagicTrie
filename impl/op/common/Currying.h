@@ -356,7 +356,7 @@ namespace OP::currying
                 if constexpr (std::is_same_v<t_t, std::decay_t<expected_t> >)
                     return deref(a);
                 else
-                    return a.extract<expected_t>();
+                    return a.template extract<expected_t>();
             }
             else
                 return deref(a);
