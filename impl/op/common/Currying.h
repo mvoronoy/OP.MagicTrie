@@ -407,7 +407,7 @@ namespace OP::currying
             using t_t = std::decay_t<T>;
             if constexpr (std::is_base_of_v<CurryingArgSpec, current_t>)
             {
-                if constexpr (current_t::can_handle<t_t>())
+                if constexpr (current_t::template can_handle<t_t>())
                     return I;
                 else
                     return index_of_implicit_type<T, I + 1>();
