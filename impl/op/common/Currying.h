@@ -314,7 +314,7 @@ namespace OP::currying
             constexpr size_t Pn = sizeof ... (Ax);
             if constexpr (front_invoke) //free args go in front
                 return func(std::forward<Ax>(ax)...,
-                    inject_argument<typename ftraits_t::arg_i<I + Pn>>(
+                    inject_argument<typename ftraits_t::template arg_i<I + Pn>>(
                         std::get<I>(_arguments))...
                 );
             else // bind free args back
