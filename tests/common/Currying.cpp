@@ -63,6 +63,7 @@ namespace
             of_var(evidence),
             of_unpackable(shared_data)
         };
+
         auto f1 = attrs.typed_bind(src1);
         shared_data = mark_int;
         f1();

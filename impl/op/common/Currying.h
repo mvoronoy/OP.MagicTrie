@@ -195,11 +195,13 @@ namespace OP::currying
         }
 
         template <class TCallable>
-        constexpr decltype(auto) def(TCallable f)&& noexcept
+        constexpr decltype(auto) def(TCallable func)&& noexcept
         {
-            return of_callable([f = std::move(f), 
-                args = CurryingTuple<Tx...>(std::move(this->_arguments))]() mutable -> decltype(auto){
-                return args.invoke(f);
+            return of_callable([
+                func = std::move(func), 
+                args = CurryingTuple(std::move(this->_arguments))
+                ]() mutable -> decltype(auto){
+                    return args.do_invoke<true>(func, std::make_index_sequence<sizeof...(Tx)>{});
             });
         }
 
@@ -224,8 +226,8 @@ namespace OP::currying
             };
         }
 
-        template <typename F>
-        constexpr auto invoke(F& func) 
+        template <typename TCallable>
+        constexpr auto invoke(TCallable& func)
         {
             return do_invoke<true>(func, std::make_index_sequence<sizeof...(Tx)>());
         }
@@ -276,14 +278,26 @@ namespace OP::currying
         template <bool front_invoke, typename F, size_t... I, typename ... Ax, typename ftraits_t = OP::utils::function_traits<F> >
         auto typed_invoke_impl(F& func, std::index_sequence<I...>, Ax&& ...ax)
         {
-            constexpr size_t Pn = sizeof...(Ax);
-            return do_invoke<front_invoke>(
-                func,
-                std::integer_sequence<size_t,
-                // reindex tuple elements according to types
-                index_of_type<typename ftraits_t::template arg_i<I + Pn>>()...>{},
-                std::forward<Ax>(ax)...
-                );
+            if constexpr (front_invoke)
+            {
+                constexpr size_t Pn = sizeof...(Ax);
+                return func(ax...,
+                    inject_argument<typename ftraits_t::template arg_i<I + Pn>>(
+                        std::get<
+                        // reindex tuple elements according to types
+                        index_of_type<typename ftraits_t::template arg_i<I + Pn>>()
+                        >(_arguments))...);
+            }
+            else
+            {
+                return func(
+                    inject_argument<typename ftraits_t::template arg_i<I>>(
+                        std::get<
+                        // reindex tuple elements according to types
+                        index_of_type<typename ftraits_t::template arg_i<I>>()
+                        >(_arguments))..., ax...);
+            }
+
         }
 
         template <bool front_invoke, typename TCallable, size_t... Ns>
@@ -312,6 +326,7 @@ namespace OP::currying
         {
             using ftraits_t = OP::utils::function_traits<TCallable>;
             constexpr size_t Pn = sizeof ... (Ax);
+
             if constexpr (front_invoke) //free args go in front
                 return func(ax...,
                     inject_argument<typename ftraits_t::template arg_i<I + Pn>>(
