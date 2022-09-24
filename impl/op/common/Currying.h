@@ -201,7 +201,7 @@ namespace OP::currying
                 func = std::move(func), 
                 args = CurryingTuple(std::move(this->_arguments))
                 ]() mutable -> decltype(auto){
-                    return args.do_invoke<true>(func, std::make_index_sequence<sizeof...(Tx)>{});
+                    return args.template do_invoke<true>(func, std::make_index_sequence<sizeof...(Tx)>{});
             });
         }
 
