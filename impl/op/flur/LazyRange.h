@@ -51,6 +51,7 @@ namespace OP::flur
         {
             return details::compound_impl(_storage);
         }
+
         constexpr auto compound() && noexcept
         {
             return details::compound_impl(std::move(_storage));

@@ -2,6 +2,7 @@
 #define _OP_COMMON_CURRYING__H_
 
 #include <tuple>
+#include <any>
 #include <op/common/ftraits.h>
 
 namespace OP::currying
@@ -17,7 +18,7 @@ namespace OP::currying
     {
         using result_t = decltype(std::declval<TCallable>()());
 
-        constexpr F(TCallable callable):
+        constexpr F(TCallable callable) noexcept:
             _callable(std::move(callable))
             {}
 
@@ -47,16 +48,16 @@ namespace OP::currying
     {
         using result_t = T&;
 
-        constexpr Var(T& val) :
+        constexpr Var(T& val) noexcept:
             _val(&val)
         {}
 
-        constexpr Var() :
+        constexpr Var() noexcept:
             _val(nullptr)
         {}
 
         template <typename U>
-        static constexpr bool can_handle()
+        static constexpr bool can_handle() noexcept
         {
             return std::is_same_v<T, U>;
         }
@@ -152,6 +153,7 @@ namespace OP::currying
     template <class ... Tx>
     struct CurryingTuple
     {
+        using this_t = CurryingTuple<Tx...>;
         using arguments_t = std::tuple<Tx...>;
         arguments_t _arguments;
 
@@ -173,17 +175,31 @@ namespace OP::currying
         }
 
         template <class T>
-        decltype(auto) get()
+        decltype(auto) get() 
         {
-            constexpr size_t I = index_of_type<T>();
-            auto& element = std::get<I>(_arguments);
-            using element_t = std::decay_t<decltype(element)>;
-            if constexpr (std::is_base_of_v<CurryingArgSpec, element_t>)
+            constexpr size_t type_idx = match_type_explicit<T, 0>();
+            if constexpr (type_idx < sizeof...(Tx))
             {
-                return element.template extract<T>();
+                return std::get<type_idx>(_arguments);
             }
             else
-                return element;
+            {
+                constexpr size_t impl_idx = match_type_implicit<T, 0>();
+                auto& element = std::get<impl_idx>(_arguments);
+                using element_t = std::decay_t<decltype(element)>;
+                if constexpr (std::is_base_of_v<CurryingArgSpec, element_t>)
+                {
+                    return element.template extract<T>();
+                }
+                else
+                    return element;
+            }
+        }
+        
+        template <class T>
+        decltype(auto) get() const
+        {
+            return const_cast<this_t*>(this)->get<T>();
         }
 
         template <class TCallable>
@@ -207,67 +223,92 @@ namespace OP::currying
 
         /** Collate existing arguments and bind them to the TCallable arguments
         * using type matching.
-        * @return function of zero arguments that is bind to the current tuple
+        * @return functor of zero arguments that is bind to the current tuple. For convenience to reuse
+        *   result type is OP::cyrrying::F to allow use this as unpackable argument
         */ 
-        template <class TCallable, typename ...Ax>
-        constexpr decltype(auto) tdef(TCallable f, Ax ... )&& noexcept
+        template <class TCallable>
+        constexpr decltype(auto) tdef(TCallable f)&& noexcept
         {
             using ftraits_t = OP::utils::function_traits<TCallable>;
-            return 
-                [f = std::move(f), 
+            return of_callable([
+                f = std::move(f), 
                 //move this tuple to lambda owning since don't need this anymore
-                args = CurryingTuple(std::move(this->_arguments))]
-            //declare free (binding) arguments
-            (typename ftraits_t::template arg_i<std::is_placeholder<Ax>::value - 1>&&...ax) mutable -> decltype(auto)
+                args = CurryingTuple(std::move(this->_arguments))
+            ] () mutable -> decltype(auto)
             {
-
                 return args
-                    .typed_invoke(f, std::forward<decltype(ax)>(ax)...);
-            };
+                    .typed_invoke(f);
+            });
         }
 
+        /** Invoke functor `func` with positional substitution from this tuple */
         template <typename TCallable>
         constexpr auto invoke(TCallable& func)
         {
             return do_invoke<true>(func, std::make_index_sequence<sizeof...(Tx)>());
         }
 
+        /** 
+        * Invoke function with type binding with front positional `Ax...` arguments.
+        */
         template <typename TCallable, typename ... Ax>
         auto typed_invoke(TCallable& func, Ax&&...ax)
         {
             using ftraits_t = OP::utils::function_traits<TCallable>;
             return typed_invoke_impl<true>(
-                func, std::make_index_sequence<ftraits_t::arity_c - sizeof...(Ax)>{},
-                std::forward<Ax>(ax)...);
+                func, 
+                std::make_index_sequence<ftraits_t::arity_c - sizeof...(Ax)>{},
+                std::forward<Ax>(ax)...
+                );
         }
 
+        /** Create 0 argument functor by binding stored arguments by type matching to 
+        * functor `f`.
+        * @return functor of zero arguments that is bind to the current tuple. For convenience to reuse
+        *   result type is OP::cyrrying::F to allow use this as unpackable argument
+        */
         template <class TCallable>
         constexpr decltype(auto) typed_bind(TCallable f) const& noexcept
         {
-            return [
-                f = std::move(f),
-                    //copy this tuple to lambda owning 
-                    args = CurryingTuple(this->_arguments)
-            ] () mutable -> decltype(auto)
-            {
-                return args.typed_invoke(f);
-            };
+            return of_callable([
+                    f = std::move(f),
+                        //copy this tuple to lambda owning 
+                        args = CurryingTuple(this->_arguments)
+                ] () mutable -> decltype(auto)
+                {
+                    return args.typed_invoke(f);
+                });
         }
 
         /**
-        * Same as #typed_def collates existing arguments and bind them to the TCallable arguments
-        * using type matching, but keeps N front arguments unbinded to allow specify during call time.
-        * @return function of N arguments where other expected bind to the current tuple
+        * The same way as #typed_def collates existing arguments and bind them to the TCallable 
+        * arguments using type matching, but keeps N front arguments unbinded to allow specify during call time.
+        * @return functor of N arguments where other expected bind to the current tuple.
+        * 
+        * *Example*:\code
+        * float hypot3d(float x, float y, float z)
+        * {
+        *     return std::hypot(x, y, z); //use float function `std::hypot` from <cmath>
+        * }
+        * 
+        * auto free_x_y = arguments(2.f). //this value will pass as 3d argument z
+        *                 typed_bind_free_front<2>(hypot3d) //reserve 2 free front argument
+        * std::cout << "(Should be 7.)hypot = " << free_x_y(
+        *   3.f//x, 
+        *   6.f//y 
+        * ) << "\n";
+        * \endcode
         */
         template <size_t N, class TCallable>
-        constexpr decltype(auto) typed_bind_front(TCallable f) && noexcept
+        constexpr decltype(auto) typed_bind_free_front(TCallable f) && noexcept
         {
             return typed_bind_impl<true>(
                 f, std::move(_arguments), std::make_index_sequence<N>{});
         }
 
+
         template <size_t N, class TCallable>
-        constexpr decltype(auto) typed_bind_front(TCallable f) const& noexcept
+        constexpr decltype(auto) typed_bind_free_front(TCallable f) const& noexcept
         {
             return typed_bind_impl<true>(
                 f, _arguments, std::make_index_sequence<N>{});
@@ -332,7 +373,7 @@ namespace OP::currying
                     inject_argument<typename ftraits_t::template arg_i<I + Pn>>(
                         std::get<I>(_arguments))...
                 );
-            else // bind free args back
+            else // bind free args from back side
                 return func(inject_argument<typename ftraits_t::template arg_i<I>>(
                     std::get<I>(_arguments))...,
                     ax...)
@@ -367,7 +408,7 @@ namespace OP::currying
             using t_t = std::decay_t<arg_t>;
             
             if constexpr (std::is_base_of_v<CurryingArgSpec, t_t>)
-            {
+            {//may be additional extraction required
                 if constexpr (std::is_same_v<t_t, std::decay_t<expected_t> >)
                     return deref(a);
                 else
@@ -386,7 +427,7 @@ namespace OP::currying
                 return type_idx;
             else
             {
-                return index_of_implicit_type<T, I>();
+                return match_type_implicit<T, I>();
             }
         }
 
@@ -413,7 +454,7 @@ namespace OP::currying
 
         /** Find fuzzy (implicit) matching of type `T` in `arguments_t` starting from index `I`*/
         template<typename T, size_t I>
-        static constexpr size_t index_of_implicit_type() noexcept
+        static constexpr size_t match_type_implicit() noexcept
         {
             static_assert(I < sizeof...(Tx),
                 "Cannot find matched type T in arguments tuple");
@@ -425,11 +466,11 @@ namespace OP::currying
                 if constexpr (current_t::template can_handle<t_t>())
                     return I;
                 else
-                    return index_of_implicit_type<T, I + 1>();
+                    return match_type_implicit<T, I + 1>();
             }
             else
             {
-                return index_of_implicit_type<T, I + 1>();
+                return match_type_implicit<T, I + 1>();
             }
         }
 

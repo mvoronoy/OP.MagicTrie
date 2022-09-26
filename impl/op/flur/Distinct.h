@@ -7,6 +7,8 @@
 #include <optional>     
 #include <unordered_set>
 
+#include <op/common/Currying.h>
+
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
 #include <op/flur/Ingredients.h>
@@ -80,11 +82,17 @@ namespace flur
     template <class Policy, class Src>
     struct Distinct : public Sequence<typename Src::element_t>
     {
+        using this_t = Distinct<Policy, Src>;
         using base_t = Sequence<typename Src::element_t>;
         using element_t = typename base_t::element_t;
-        
+
         constexpr Distinct(Src&& src, Policy f) noexcept
-            : _attrs(std::move(src), PipelineAttrs{})
+            : _attrs(
+                std::move(src), 
+                PipelineAttrs{}
+                , OP::currying::of_callable(current_resolver(this))
+                //,init_resolver() 
+            )
             , _policy(std::move(f))
         {
         }
@@ -92,89 +100,78 @@ namespace flur
         /** Ordering is the same as previous sequence in the pipeline */
         OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const
         {
-            return rsrc().is_sequence_ordered();
+            return rsrc<Src>().is_sequence_ordered();
         }
 
-        virtual void start()
+        void start() override
         {
-            auto& rs = rsrc();
+            auto& rs = rsrc<Src>();
             auto& pline = rsrc<PipelineAttrs>();
             rs.start();
             pline._step.start();
-            while(rs.in_range() && !invoke(_policy, _attrs))
-            {
-                rs.next();
-                pline._step.next();
-            } 
+            seek(rs, pline); 
         }
-        virtual bool in_range() const
+
+        bool in_range() const override
         {
-            return rsrc().in_range();
+            return rsrc<Src>().in_range();
         }
-        virtual element_t current() const
+        
+        element_t current() const override
         {
-            return rsrc().current();
+            return rsrc<Src>().current();
         }
-        virtual void next()
+        
+        void next() override
         {
-            auto& rs = rsrc();
+            auto& rs = rsrc<Src>();
             auto& pline = rsrc<PipelineAttrs>();
             rs.next();
             pline._step.next();
-            while(rs.in_range() && !invoke(_policy, _attrs))
+            seek(rs, pline); 
+        }
+
+    private:
+        
+        void seek(Src& rs, PipelineAttrs& pline)
+        {
+            while(rs.in_range() && !distinct_result())
             {
                 rs.next();
                 pline._step.next();
-            } 
+            }
         }
-    private:
-        template <class T = Src>
+
+        template <class T>
         const auto& rsrc() const
         {
-            return details::get_reference(std::get<T>(_attrs));
+            return details::get_reference(_attrs.get<T>());
         }
-        template <class T = Src>
+
+        template <class T>
         auto& rsrc() 
         {
-            return details::get_reference(std::get<T>(_attrs));
-        }
-        template <typename F, typename Attrs>
-        static bool invoke(F& func, Attrs& attrs) 
-        {
-            using traits_t = OP::utils::function_traits<F>;
-            using result_t = typename traits_t::result_t;
-
-            return do_method(func, attrs, std::make_index_sequence<traits_t::arity_c>());
+            return details::get_reference(_attrs.get<T>());
         }
 
-        template <
-            typename F,
-            typename Attrs,
-            size_t... I,
-            typename traits_t = OP::utils::function_traits<F>,
-            typename result_t = typename traits_t::result_t>
-        static result_t do_method(
-                F& func, Attrs& attrs, std::index_sequence<I...>)
+        bool distinct_result()
         {
-            return func(
-                inject_argument<typename traits_t::template arg_i<I>>(attrs)...
-                );
-        }
-        /** Method finds best candidate to argument of invocation some handler method of Context::cmd
-         *
-         * @return reference 
-         */
-        template <typename arg_t, typename Attrs>
-        static constexpr auto inject_argument(Attrs& attrs)
-        {
-            using t_t = std::decay_t<arg_t>;
-            if constexpr(std::is_same_v< std::decay_t<typename Src::element_t>, t_t>)
-                return details::get_reference(std::get<Src>(attrs)).current();
-            else
-                return std::ref(std::get<t_t>(attrs));
+            return _attrs.typed_invoke(_policy);
         }
 
-        std::tuple<Src, PipelineAttrs> _attrs;
+        constexpr static auto current_resolver(base_t* ptr)
+        {
+            return [zhis = ptr]() {
+                return zhis->current(); 
+            };
+        }
+        using later_eval_t = decltype(
+            current_resolver(std::declval<base_t*>()) );
+
+        OP::currying::CurryingTuple<
+            std::decay_t<Src>, 
+            PipelineAttrs, 
+            OP::currying::F<later_eval_t> > _attrs;
         Policy _policy;
     };
 
