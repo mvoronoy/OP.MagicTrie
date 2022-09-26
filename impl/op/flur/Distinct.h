@@ -149,13 +149,13 @@ namespace flur
         template <class T>
         const auto& rsrc() const
         {
-            return details::get_reference(_attrs.get<T>());
+            return details::get_reference(std::get<T>(_attrs));
         }
 
         template <class T>
         auto& rsrc() 
         {
-            return details::get_reference(_attrs.get<T>());
+            return details::get_reference(std::get<T>(_attrs));
         }
 
         bool distinct_result()
