@@ -14,11 +14,11 @@ namespace OP::currying
     struct CurryingArgSpec{};
 
     template <class TCallable>
-    struct F : CurryingArgSpec
+    struct Functor : CurryingArgSpec
     {
         using result_t = decltype(std::declval<TCallable>()());
 
-        constexpr F(TCallable callable) noexcept:
+        constexpr Functor(TCallable callable) noexcept:
             _callable(std::move(callable))
             {}
 
@@ -135,7 +135,7 @@ namespace OP::currying
     template <class T>
     auto of_callable(T t)
     {
-        return F(std::move(t));
+        return Functor(std::move(t));
     }
 
     template <class T>
@@ -484,4 +484,34 @@ namespace OP::currying
 
 
 }//ns:OP::currying
+namespace std
+{
+    // special override to emulate access over std::get
+    template <size_t I, class ... Tx>
+    decltype(auto) get(OP::currying::CurryingTuple<Tx...>& args)
+    {
+        return std::get<I>(args._arguments);
+    }
+
+    // special override to emulate access over std::get
+    template <size_t I, class ... Tx>
+    decltype(auto) get(const OP::currying::CurryingTuple<Tx...>& args)
+    {
+        return std::get<I>(args._arguments);
+    }
+
+    // special override to emulate access over std::get
+    template <class T, class ... Tx>
+    decltype(auto) get(OP::currying::CurryingTuple<Tx...>& args)
+    {
+        return args.template get<T>();
+    }
+
+    // special override to emulate access over std::get
+    template <class T, class ... Tx>
+    decltype(auto) get(const OP::currying::CurryingTuple<Tx...>& args)
+    {
+        return args.template get<T>();
+    }
+}//ns:std
 #endif //_OP_COMMON_CURRYING__H_

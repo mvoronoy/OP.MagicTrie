@@ -29,7 +29,7 @@ namespace flur
         SkipOrdered(KeyEqual cmp = KeyEqual{})
             : _cmp(std::move(cmp)){}
         
-        bool operator()(PipelineAttrs &attrs, const Seq& seq, const typename Seq::element_t& cur) const
+        bool operator()(PipelineAttrs &attrs, const Seq& seq) const
         {
             if( attrs._step.current() == 0)
             {// first entry to sequence
@@ -37,9 +37,18 @@ namespace flur
                 if( !seq.is_sequence_ordered() )
                     throw std::runtime_error("unordered input sequence");
             }
-            if(! _bypass.has_value() || !_cmp(*_bypass, cur))
+            return conditional_emplace(seq.current());
+        }
+    private:
+        /** @return true if element was not a duplicate 
+        * @param element - really needs && since `seq.current()` may return as lref as a value
+        */
+        template <class T>
+        bool conditional_emplace(T&& element) const
+        {
+            if(!_bypass.has_value() || !_cmp(*_bypass, element))
             {
-                _bypass.emplace(cur);
+                _bypass.emplace(element);
                 return true;
             }
             return false;
@@ -64,13 +73,13 @@ namespace flur
         {
         }
 
-        bool operator()(PipelineAttrs &attrs, const typename Seq::element_t& cur) const
+        bool operator()(PipelineAttrs &attrs, const Seq& seq) const
         {
             if( attrs._step.current() == 0)
             {
                 _bypass.clear();    
             }
-            return _bypass.emplace(cur).second;
+            return _bypass.emplace(seq.current()).second;
         }
         using check_set_t = std::unordered_set<std::decay_t<typename Seq::element_t>, Hash, KeyEqual>;
         mutable check_set_t _bypass;
@@ -87,12 +96,7 @@ namespace flur
         using element_t = typename base_t::element_t;
 
         constexpr Distinct(Src&& src, Policy f) noexcept
-            : _attrs(
-                std::move(src), 
-                PipelineAttrs{}
-                , OP::currying::of_callable(current_resolver(this))
-                //,init_resolver() 
-            )
+            : _attrs(std::move(src), PipelineAttrs{})
             , _policy(std::move(f))
         {
         }
@@ -159,19 +163,9 @@ namespace flur
             return _attrs.typed_invoke(_policy);
         }
 
-        constexpr static auto current_resolver(base_t* ptr)
-        {
-            return [zhis = ptr]() {
-                return zhis->current(); 
-            };
-        }
-        using later_eval_t = decltype(
-            current_resolver(std::declval<base_t*>()) );
-
         OP::currying::CurryingTuple<
             std::decay_t<Src>, 
-            PipelineAttrs, 
-            OP::currying::F<later_eval_t> > _attrs;
+            PipelineAttrs> _attrs;
         Policy _policy;
     };
 
