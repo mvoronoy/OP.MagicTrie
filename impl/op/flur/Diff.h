@@ -108,9 +108,10 @@ namespace OP::flur
             using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
             using base_t = Sequence<typename src_conatiner_t::element_t>;
 
+            using compare_t = Comp::template compare_t<src_conatiner_t>;
             using effective_policy_t = OrderedOrderedPolicyFactory<
                 Src, 
-                Comp::compare_t<src_conatiner_t>>;
+                compare_t>;
 
             effective_policy_t policy(
                 std::move(_sub.compound()), 
