@@ -86,6 +86,8 @@ namespace OP::flur
         template <class TSequence>
         using compare_t = plain_less_t<TSequence>;
 
+        constexpr CompareTraits() noexcept = default;
+
         template <class TSequence>
         constexpr auto comparator() const noexcept
         {
