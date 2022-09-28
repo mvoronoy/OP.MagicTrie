@@ -26,7 +26,7 @@ namespace flur
     struct SkipOrdered
     {
         using decay_element_t = std::decay_t<typename Seq::element_t>;
-        SkipOrdered(KeyEqual cmp = KeyEqual{})
+        constexpr SkipOrdered(KeyEqual cmp = KeyEqual{}) noexcept
             : _cmp(std::move(cmp)){}
         
         bool operator()(PipelineAttrs &attrs, const Seq& seq) const
@@ -176,7 +176,7 @@ namespace flur
         using policy_t = SkipOrdered<Seq>;
 
         template <class Seq>
-        auto construct() const
+        constexpr auto construct() const noexcept
         {
             return SkipOrdered<Seq>{};
         }
@@ -189,12 +189,12 @@ namespace flur
         template <class Seq>
         using policy_t = SkipOrdered<Seq, Eq>;
 
-        constexpr OrderedDistinctPolicyWithCustomComparator(Eq eq)
+        constexpr OrderedDistinctPolicyWithCustomComparator(Eq eq) noexcept
             : _eq(std::move(eq))
             {}
         
         template <class Seq>
-        constexpr auto construct() const
+        constexpr auto construct() const noexcept
         {
             return SkipOrdered<Seq, Eq>(_eq);
         }
@@ -205,7 +205,7 @@ namespace flur
     struct UnorderedHashDistinctPolicy
     {
         template <class Seq>
-        constexpr auto construct() const
+        constexpr auto construct() const noexcept
         {
             return SkipUnordered<Seq>{};
         }
@@ -218,7 +218,7 @@ namespace flur
         template <class Seq>
         using policy_t = SkipOrdered<Seq, Eq>;
 
-        constexpr UnorderedDistinctPolicyWithCustomComparator(Eq eq)
+        constexpr UnorderedDistinctPolicyWithCustomComparator(Eq eq) noexcept
             : _eq(std::move(eq))
             {}
         

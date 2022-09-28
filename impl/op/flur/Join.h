@@ -16,7 +16,7 @@ namespace OP::flur
     
     /**
     * Specialization of OrderedSequence that allows improve performance of join operation
-    * by exposing method `next_lower_bound_of`
+    * by exposing method `lower_bound`
     */
     template <class T>
     struct OrderedSequenceOptimizedJoin : OrderedSequence <T>
@@ -25,10 +25,10 @@ namespace OP::flur
 
         using base_t::base_t;
 
-        virtual void next_lower_bound_of(const T& other) = 0;
+        virtual void lower_bound(const T& other) = 0;
     };
     namespace details{
-        OP_DECLARE_CLASS_HAS_MEMBER(next_lower_bound_of);
+        OP_DECLARE_CLASS_HAS_MEMBER(lower_bound);
     } //ns:details
 
     template <class T, class Left, class Right, class Comp, bool implement_exists_c = false>
@@ -88,7 +88,7 @@ namespace OP::flur
     private:
         template <class U>
         constexpr static bool is_join_optimized_c = 
-            details::has_next_lower_bound_of<U>::value;
+            details::has_lower_bound<U>::value;
 
         template <bool direction_c, class U, class V>
         void opt_next(U& src, const V& other_key) const

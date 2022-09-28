@@ -110,18 +110,13 @@ namespace flur
             return it.first;
         }
 
-        void next_lower_bound_of(const element_t& other) override
+        void lower_bound(const element_t& other) override
         {
             base_t::pos() = details::get_reference(
                     base_t::container()).lower_bound( extract_key(other) );
         }
-        //void next_lower_bound_of(const key_t& other)
-        //{
-        //    pos() = details::get_reference(container()).lower_bound( 
-        //        extract_key(other) );    
-        //}
-
     };
+
     namespace details
     {
         template <class Container>

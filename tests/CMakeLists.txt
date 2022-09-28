@@ -72,6 +72,7 @@ add_executable (trie_test
     "flur/Minibatch.cpp"
     "flur/ThenException.cpp" 
     "flur/ThenDistinct.cpp"
+    "flur/ThenDiff.cpp"
     "flur/Polymorphic.cpp" 
     "flur/StringInput.cpp"
     "flur/Join.cpp"

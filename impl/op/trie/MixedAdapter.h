@@ -41,8 +41,8 @@ namespace OP::trie
         OP_DECLARE_CLASS_HAS_MEMBER( _in_range )
         /** Declare SFINAE predicate to test  if class  has member _end */
         OP_DECLARE_CLASS_HAS_MEMBER( _end )
-        /** Declare SFINAE predicate to test if class  has member next_lower_bound_of */
-        OP_DECLARE_CLASS_HAS_MEMBER( _next_lower_bound_of )
+        /** Declare SFINAE predicate to test if class  has member lower_bound */
+        OP_DECLARE_CLASS_HAS_MEMBER( _lower_bound )
     }
     
 
@@ -131,7 +131,7 @@ namespace OP::trie
                 : _prefix(std::move(prefix))
             {
             }
-            void _next_lower_bound_of(const Trie& trie, iterator& i, const atom_string_t& key) const
+            void _lower_bound(const Trie& trie, iterator& i, const atom_string_t& key) const
             {
                 auto kb = std::begin(key);
                 auto ke = std::end(key);
@@ -151,6 +151,7 @@ namespace OP::trie
                         i = trie.end();
                 }
             }
+
         private:
             const atom_string_t _prefix;
         };
@@ -276,9 +277,9 @@ namespace OP::trie
             return trie.lower_bound(key);
         } */
 
-        void _next_lower_bound_of(const Trie& trie, iterator& i, const atom_string_t& k) const
+        void _lower_bound(const Trie& trie, iterator& i, const atom_string_t& k) const
         {
-            trie.next_lower_bound_of(i, k);
+            trie.lower_bound(i, k);
         }
 
     };
@@ -305,9 +306,9 @@ namespace OP::trie
         using base_end_t = typename std::conditional< OP_CHECK_CLASS_HAS_MEMBER(M, _end), M, base_t >::type;
         using base_end_t::_end;
 
-        using base_next_lower_bound_of_t = typename std::conditional< 
-            OP_CHECK_CLASS_HAS_MEMBER(M, _next_lower_bound_of), M, base_t >::type;
-        using base_next_lower_bound_of_t::_next_lower_bound_of;
+        using base_lower_bound_t = typename std::conditional< 
+            OP_CHECK_CLASS_HAS_MEMBER(M, _lower_bound), M, base_t >::type;
+        using base_lower_bound_t::_lower_bound;
     };
     namespace flur = OP::flur;
     /**
@@ -360,9 +361,9 @@ namespace OP::trie
         }
         
         /** Note argument `key` not used as iterator, but key */
-        virtual void next_lower_bound_of(const mixer_iterator_t& key) override
+        virtual void lower_bound(const mixer_iterator_t& key) override
         {
-            return _mixer._next_lower_bound_of(*_parent, _pos, key.key());
+            return _mixer._lower_bound(*_parent, _pos, key.key());
         }
         
         const std::shared_ptr<const trie_t>& get_parent() const

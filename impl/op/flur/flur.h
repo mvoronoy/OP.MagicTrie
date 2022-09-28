@@ -272,6 +272,7 @@ namespace OP::flur
         {
             return PartialJoinFactory<Right>(std::forward<Right>(right));
         }
+
         /** Same as '&' operator for LazyRange, but allows specify comparator of joining keys
         *  \tparam Comp - functor that matches functor `signed f( const Right::element_t& , const Right::element_t)`
         */
@@ -280,6 +281,16 @@ namespace OP::flur
         {
             return PartialJoinFactory<Right, Comp>(
                 std::forward<Right>(right), std::forward<Comp>(comp));
+        }
+
+        /**
+        *   Find difference between set. When sets contains dupplicates behaviour is same as std::set_difference, it will 
+        *   be output std::max(m-n, 0), where m - number of dupplicates from sourcc and n number of dupplicates in Subtrahend.
+        */
+        template <class Subtrahend>
+        constexpr auto diff(Subtrahend&& right) noexcept
+        {
+            return DiffFactory<Subtrahend>(std::forward<Subtrahend>(right));
         }
         /** 
         *   Non-ordered sequence that unions all (place side-by-side)

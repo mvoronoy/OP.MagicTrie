@@ -705,7 +705,7 @@ void test_NativeRangeSupport(OP::utest::TestRuntime& tresult)
         ->range()
         //>> then::filter([](const auto& it) { return it.key().length() > 1/*peek long enough*/; })
         ).compound();
-    flt_src.next_lower_bound_of(g_pos); //pretty sure 'f' not exists so correct answer are 'g' and 'xyz', but filter skips (len > 1)
+    flt_src.lower_bound(g_pos); //pretty sure 'f' not exists so correct answer are 'g' and 'xyz', but filter skips (len > 1)
     tresult.assert_true(flt_src.in_range(), OP_CODE_DETAILS(<< "end of the range is wrong"));
 
     tresult.assert_that<equals>(
