@@ -9,6 +9,7 @@
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
 #include <op/flur/Join.h>
+#include <op/flur/Distinct.h>
 #include <op/flur/Ingredients.h>
 
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */

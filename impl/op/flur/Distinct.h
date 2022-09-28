@@ -12,10 +12,8 @@
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
 #include <op/flur/Ingredients.h>
-namespace OP
-{
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
+namespace OP::flur
 {
 
     /**
@@ -275,7 +273,6 @@ namespace flur
         Policy _policy;
     };
 
-} //ns:flur
-} //ns:OP
+}  //ns:OP::flur
 
 #endif //_OP_FLUR_DISTINCT__H_
