@@ -23,6 +23,7 @@
 #include <op/flur/Mapping.h>
 #include <op/flur/maf.h>
 #include <op/flur/OrDefault.h>
+#include <op/flur/Diff.h>
 #include <op/flur/OnException.h>
 #include <op/flur/Repeater.h>
 #include <op/flur/Minibatch.h>
