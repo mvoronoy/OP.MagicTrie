@@ -105,10 +105,10 @@ namespace OP::flur
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
-            using src_conatiner_t = typename details::sequence_type_t<details::dereference_t<Src>>;
+            using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
             using base_t = Sequence<typename src_conatiner_t::element_t>;
 
-            using compare_t = typename Comp::compare_t<src_conatiner_t>;
+            using compare_t = typename Comp::template compare_t<src_conatiner_t>;
             using effective_policy_t = OrderedOrderedPolicyFactory<
                 Src, 
                 compare_t>;
