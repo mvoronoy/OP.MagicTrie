@@ -99,9 +99,9 @@ namespace OP::flur
     template <class TSubtrahend, class Comp = CompareTraits>
     struct DiffFactory : FactoryBase
     {
-        constexpr DiffFactory(TSubtrahend sub) noexcept
+        constexpr DiffFactory(TSubtrahend sub, Comp cmp = Comp{}) noexcept
             : _sub(std::move(sub))
-            //, _compare_traits(std::move(cmp))
+            , _compare_traits(std::move(cmp))
         {
         }
         
