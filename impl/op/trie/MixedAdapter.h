@@ -279,7 +279,7 @@ namespace OP::trie
 
         void _lower_bound(const Trie& trie, iterator& i, const atom_string_t& k) const
         {
-            trie.lower_bound(i, k);
+            i = trie.lower_bound(i, k);
         }
 
     };
