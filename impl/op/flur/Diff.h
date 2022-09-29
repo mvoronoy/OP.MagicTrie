@@ -99,7 +99,8 @@ namespace OP::flur
     template <class TSubtrahend, class Comp = CompareTraits>
     struct DiffFactory : FactoryBase
     {
-        constexpr DiffFactory(TSubtrahend sub, Comp cmp = Comp{}) noexcept
+        using decayed_sub_t = std::decay_t<TSubtrahend>;
+        constexpr DiffFactory(decayed_sub_t sub, Comp cmp = Comp{}) noexcept
             : _sub(std::move(sub))
             , _compare_traits(std::move(cmp))
         {
@@ -124,7 +125,7 @@ namespace OP::flur
                 std::move(policy));
         }
 
-        TSubtrahend _sub;
+        decayed_sub_t _sub;
         Comp _compare_traits;
     };
 
