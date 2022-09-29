@@ -62,10 +62,17 @@ namespace OP::flur
         {
             return LazyRange < Tx ..., T >(std::tuple_cat(_storage, std::make_tuple(std::forward<T>(t))));
         }
+
         template <class T>
         constexpr auto operator >> (T&& t) && noexcept
         {
             return LazyRange < Tx ..., T >(std::tuple_cat(std::move(_storage), std::make_tuple(std::forward<T>(t))));
+        }
+
+        template <class T>
+        constexpr auto operator >> (const T& t) const noexcept
+        {
+            return LazyRange < Tx ..., T >(std::tuple_cat(std::move(_storage), std::make_tuple(t)));
         }
 
         template <class ... Ux>
