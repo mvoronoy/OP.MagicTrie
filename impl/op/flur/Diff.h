@@ -8,7 +8,7 @@
 
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
-#include <op/flur/Join.h>
+#include <op/flur/Comparison.h>
 #include <op/flur/Distinct.h>
 #include <op/flur/Ingredients.h>
 
@@ -16,7 +16,7 @@
 namespace OP::flur
 {
     
-    template <class TSubtrahend, class Comp = plain_less_t<TSubtrahend> >
+    template <class Src, class TSubtrahend, class Comp = full_compare_t>
     struct OrderedOrderedPolicyFactory
     {
         constexpr OrderedOrderedPolicyFactory(TSubtrahend sub, Comp cmp = Comp{}) noexcept
@@ -27,7 +27,7 @@ namespace OP::flur
             assert(_subtrahend.is_sequence_ordered());
         }
 
-        bool operator()(PipelineAttrs &attrs, const TSubtrahend& seq) const
+        bool operator()(PipelineAttrs &attrs, const Src& seq) const
         {
             if( attrs._step.current() == 0)
             {// first entry to sequence
@@ -74,33 +74,21 @@ namespace OP::flur
             {
                 _subtrahend.next();
             } while (_subtrahend.in_range() 
-                && _cmp(_subtrahend.current(), other_key) < 0);
+                && (_cmp(_subtrahend.current(), other_key) < 0));
         }
 
         mutable TSubtrahend _subtrahend;
         Comp _cmp;
     };
 
-    struct CompareTraits
-    {
-        template <class TSequence>
-        using compare_t = plain_less_t<TSequence>;
-
-        constexpr CompareTraits() noexcept = default;
-        constexpr CompareTraits(CompareTraits&&) noexcept = default;
-
-        template <class TSequence>
-        constexpr auto comparator() const noexcept
-        {
-            return compare_t<TSequence>();
-        }
-    };
-
     template <class TSubtrahend, class Comp = CompareTraits>
     struct DiffFactory : FactoryBase
     {
         using decayed_sub_t = std::decay_t<TSubtrahend>;
-        constexpr DiffFactory(decayed_sub_t sub, Comp cmp = Comp{}) noexcept
+        using sub_sequence_t = details::sequence_type_t<details::dereference_t <decayed_sub_t>>;
+        using comparator_t = std::decay_t <Comp>;
+
+        constexpr DiffFactory(decayed_sub_t sub, comparator_t cmp = comparator_t{}) noexcept
             : _sub(std::move(sub))
             , _compare_traits(std::move(cmp))
         {
@@ -112,21 +100,23 @@ namespace OP::flur
             using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
             using base_t = Sequence<typename src_conatiner_t::element_t>;
 
-            using compare_t = typename Comp::template compare_t<src_conatiner_t>;
+            using three_way_compare_t = typename comparator_t::comparison_t;
             using effective_policy_t = OrderedOrderedPolicyFactory<
-                Src, 
-                compare_t>;
+                Src,
+                sub_sequence_t,
+                three_way_compare_t>;
 
             effective_policy_t policy(
                 std::move(_sub.compound()), 
-                _compare_traits.template comparator<src_conatiner_t>());
-            return Distinct<effective_policy_t, std::decay_t<Src>>(
+                _compare_traits.compare_factory());
+            return Distinct<effective_policy_t, Src>(
                 std::forward<Src>(src), 
-                std::move(policy));
+                std::move(policy)
+                );
         }
 
         decayed_sub_t _sub;
-        Comp _compare_traits;
+        comparator_t _compare_traits;
     };
 
 } //ns: OP::flur

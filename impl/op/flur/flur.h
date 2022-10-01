@@ -288,12 +288,24 @@ namespace OP::flur
         *   Find difference between set. When sets contains dupplicates behaviour is same as std::set_difference, it will 
         *   be output std::max(m-n, 0), where m - number of dupplicates from sourcc and n number of dupplicates in Subtrahend.
         */
-        template <class Subtrahend>
-        constexpr auto diff(Subtrahend&& right) noexcept
+        template <class TSubtrahend>
+        constexpr auto diff(TSubtrahend&& right) noexcept
         {
-            return DiffFactory<Subtrahend>(std::forward<Subtrahend>(right));
+            return DiffFactory<TSubtrahend>(std::forward<TSubtrahend>(right));
         }
+
         /** 
+        * \tparam TComparators - pack of 3 (less, equal, hash). You can use 
+        */
+        template <class Subtrahend, class TComparators>
+        constexpr auto diff(Subtrahend&& right, TComparators&& cmp) noexcept
+        {
+            return DiffFactory<Subtrahend, TComparators>(
+                std::forward<Subtrahend>(right), 
+                std::forward<TComparators>(cmp)
+                );
+        }
+        /**
         *   Non-ordered sequence that unions all (place side-by-side)
         */
         template <class ... Rx>

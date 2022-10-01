@@ -7,6 +7,7 @@
 #include <optional>
 
 #include <op/flur/typedefs.h>
+#include <op/flur/Comparison.h>
 #include <op/flur/Sequence.h>
 #include <op/common/has_member_def.h>
 
@@ -78,30 +79,42 @@ namespace OP::flur
             if (_optimize_right_forward && left.in_range())
             {
                 auto& right = details::get_reference(_right);
-                //opt_next<false>(right, left.current());
-                right.next();
+                opt_next<false>(right, left.current());
             }
             seek();
         }
 
 
     private:
-        template <class U>
-        constexpr static bool is_join_optimized_c = 
-            details::has_lower_bound<U>::value;
-
+        template <class U, class V>
+        static inline constexpr bool is_join_op_f()
+        { //unfortunatelly optimization works with default key-compare only
+            if constexpr(details::has_lower_bound<U>::value)
+            {
+                return std::is_invocable_v<decltype(&U::lower_bound), U&, const V&>;
+            }
+            else
+                return false;
+        
+        }
         template <bool direction_c, class U, class V>
         void opt_next(U& src, const V& other_key) const
         {
-            //if constexpr (is_join_optimized_c<U>)
-            //    src.next_lower_bound_of(other_key);
-            //else
-            {   //emulate lover_bound by sequential iteration
-                do 
-                {
-                    src.next();
-                } while (src.in_range() && compare<direction_c>(src.current(), other_key) < 0);
+            if constexpr (is_join_op_f<U, V>())
+            {
+                if( compare<direction_c>(src.current(), other_key) < 0 )
+                { //allow optimization on strict key mismatch
+                    src.lower_bound(other_key);
+                    return;
+                }
+                //else proceed with default impl
             }
+            //emulate lover_bound by sequential approximation to the target key
+            do 
+            {
+                src.next();
+            } while (src.in_range() && compare<direction_c>(src.current(), other_key) < 0);
+            
         }
         template <bool direction_c, class U, class V>
         int compare(const U& left, const V& right) const
@@ -124,8 +137,7 @@ namespace OP::flur
                 auto diff = _join_key_cmp(left.current(), right.current());
                 if (diff < 0) 
                 {
-                    //opt_next<true>(left, right.current());
-                    left.next();
+                    opt_next<true>(left, right.current());
                     left_succeed = left.in_range();
                 }
                 else 
@@ -136,8 +148,7 @@ namespace OP::flur
                             _optimize_right_forward = true;
                         return;
                     }
-                    //opt_next<false>(right, left.current());
-                    right.next();
+                    opt_next<false>(right, left.current());
                     right_succeed = right.in_range();
                 }
             }
@@ -163,18 +174,8 @@ namespace OP::flur
             std::forward<Comp>(comp));
     }
 
-    template <class Cont>
-    struct plain_less_t
-    {
-        using src_conatiner_t = details::sequence_type_t<details::dereference_t<Cont>>;
-        using element_t = typename src_conatiner_t::element_t;
-        int operator()(const element_t& left, const element_t& right) const
-        {
-            return left < right ? (-1) : (right < left ? 1 : 0);
-        }
-    };
-    
-    template <class Right, class Comp = plain_less_t<Right> >
+   
+    template <class Right, class Comp = full_compare_t >
     struct PartialJoinFactory : FactoryBase
     {
         constexpr PartialJoinFactory(Right&& right, Comp&& comp = Comp()) noexcept
@@ -199,7 +200,7 @@ namespace OP::flur
         Comp _comp; 
     };
 
-    template <class Left, class Right, class Comp = plain_less_t<Left> >
+    template <class Left, class Right, class Comp = full_compare_t >
     struct JoinFactory : FactoryBase
     {
         constexpr JoinFactory(Left&& left, Right&& right, Comp&& comp = Comp()) noexcept

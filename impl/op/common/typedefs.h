@@ -29,6 +29,7 @@
 #define OP_TEMPL_METH(method) template method
 
 #if __cplusplus >= 202002L
+    #define OP_CPP20_FEATURES
     #define OP_VIRTUAL_CONSTEXPR constexpr virtual
     #define OP_CONSTEXPR_CPP20 constexpr 
 #else
