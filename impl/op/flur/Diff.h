@@ -220,7 +220,7 @@ namespace OP::flur
         constexpr auto compound(Src&& src) const noexcept
         {
             using decayed_src_t = std::decay_t<Src>;
-            auto policy = _policy_factory.construct<decayed_src_t>();
+            auto policy = _policy_factory.template construct<decayed_src_t>();
             return Distinct<typename TPolicyFactory::policy_t<decayed_src_t>, decayed_src_t>(
                 std::forward<Src>(src),
                 std::move(policy)
