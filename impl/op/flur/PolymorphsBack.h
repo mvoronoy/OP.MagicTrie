@@ -29,22 +29,22 @@ namespace OP::flur
             return _src->is_sequence_ordered();
         }
 
-        virtual void start()
+        void start() override
         {
             _src->start();
         }
 
-        virtual bool in_range() const
+        bool in_range() const override
         {
             return _src->in_range();
         }
 
-        virtual typename Base::element_t current() const
+        typename Base::element_t current() const override
         {
             return _src->current();
         }
 
-        virtual void next()
+        void next() override
         {
             _src->next();
         }

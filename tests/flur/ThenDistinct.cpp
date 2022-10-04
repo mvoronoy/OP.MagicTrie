@@ -49,7 +49,7 @@ void test_ThenOrderedDistinct(OP::utest::TestRuntime& tresult)
         std::empty(empt_uniq2));
 
     
-    std::multiset<int> single_set{ {1} };
+    std::multiset<int> single_set( {1} );
     auto single_uniq = src::of_container(std::cref(single_set))
         >> then::ordered_distinct()
         ;

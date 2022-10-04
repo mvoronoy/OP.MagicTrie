@@ -162,15 +162,18 @@ namespace {
             //randomly make some entries upper-case
             >> then::mapping([&](auto str/*copy*/) {
                 if (tools::random<std::uint16_t>() & 1)
+                {
                     std::transform(str.begin(), str.end(), str.begin(), 
                         [](auto c) { return std::toupper(c); });
+                }
                 return str;
             });
 
-        tresult.assert_that<eq_sets>(src::of(unord_dif) >>
-            then::unordered_diff(ignore_case_1, custom_less_trait),
+        tresult.assert_that<eq_sets>(
+            src::of(unord_dif) 
+            >> then::unordered_diff(ignore_case_1, custom_less_trait),
             empty,
-            OP_CODE_DETAILS("subtracting empty must not change source sequence"));
+            OP_CODE_DETAILS("subtracting itself must produce empty"));
 
         auto res_ignore_case2 = ignore_case_1 
                 >> then::unordered_diff(

@@ -100,7 +100,7 @@ namespace OP::flur
         }
 
         /** Ordering is the same as previous sequence in the pipeline */
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
         {
             return rsrc<Src>().is_sequence_ordered();
         }

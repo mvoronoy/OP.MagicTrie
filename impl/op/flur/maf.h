@@ -66,7 +66,7 @@ namespace flur
             return _entry;
         }
 
-        virtual void next()
+        void next() override
         {
             details::get_reference(_src).next();
             seek();
