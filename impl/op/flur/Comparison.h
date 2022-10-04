@@ -58,12 +58,13 @@ namespace OP::flur
         private:
             TCompareBase _base;
         };
+        
     }//ns:details
 
     /** Traits that aggregates default factory implementations of 3 operations :
+    *    - three-way
     *    - less
     *    - equals
-    *    - hash
     * 
     */
     struct CompareTraits
@@ -104,11 +105,18 @@ namespace OP::flur
         //}
     };
 
+    /**
+    *  Allows customize CompareTraits by specifying custom three-way comparison function (c++20 operator `<=>`
+    * but applicable for all c++1x versions) 
+    *  \tparam F - functor implementing operator:\code
+    * template <typename T, typename U>
+    * int (T&& t, U&& u)
+    * \endcode
+    * 
+    */
     template <class F>
-    struct LessOverride : CompareTraits
+    struct OverrideComparisonTraits
     {
-        using base_t = CompareTraits;
-        using base_t::base_t;
 
         using comparison_t = F;
 
@@ -116,7 +124,10 @@ namespace OP::flur
         using less_t = details::CompareOnTopOfFullComparison<
             details::CmpOp::less, comparison_t >;
 
-        constexpr LessOverride(F f) noexcept
+        using equals_t = details::CompareOnTopOfFullComparison<
+            details::CmpOp::equals, comparison_t >;
+
+        constexpr OverrideComparisonTraits(F f) noexcept
             : _cmp(std::move(f))
         {
         }
@@ -129,6 +140,11 @@ namespace OP::flur
         constexpr auto less_factory() const noexcept
         {
             return less_t(_cmp);
+        }
+
+        constexpr auto equals_factory() const noexcept
+        {
+            return equals_t(_cmp);
         }
 
         F _cmp;

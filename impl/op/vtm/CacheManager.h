@@ -2,7 +2,6 @@
 #define _OP_TR_CACHEMANAGER__H_
 
 #include <unordered_map>
-#include <atomic>
 #include <future>
 #include <mutex> 
 #include <shared_mutex>

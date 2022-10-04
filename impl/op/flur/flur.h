@@ -289,21 +289,40 @@ namespace OP::flur
         *   be output std::max(m-n, 0), where m - number of dupplicates from sourcc and n number of dupplicates in Subtrahend.
         */
         template <class TSubtrahend>
-        constexpr auto diff(TSubtrahend&& right) noexcept
+        constexpr auto ordered_diff(TSubtrahend&& right) noexcept
         {
-            return DiffFactory<TSubtrahend>(std::forward<TSubtrahend>(right));
+            return DiffFactory(
+                PolicyFactory<true, TSubtrahend>(std::forward<TSubtrahend>(right))
+            );
         }
 
         /** 
         * \tparam TComparators - pack of 3 (less, equal, hash). You can use 
         */
-        template <class Subtrahend, class TComparators>
-        constexpr auto diff(Subtrahend&& right, TComparators&& cmp) noexcept
+        template <class TSubtrahend, class TComparators>
+        constexpr auto ordered_diff(TSubtrahend&& right, TComparators&& cmp) noexcept
         {
-            return DiffFactory<Subtrahend, TComparators>(
-                std::forward<Subtrahend>(right), 
-                std::forward<TComparators>(cmp)
+            return DiffFactory(
+                PolicyFactory<true, TSubtrahend, TComparators>(
+                    std::forward<TSubtrahend>(right),
+                    std::forward<TComparators>(cmp))
                 );
+        }
+
+        template <class TSubtrahend>
+        constexpr auto unordered_diff(TSubtrahend&& right) noexcept
+        {
+            return DiffFactory(
+                PolicyFactory<false, TSubtrahend>(std::forward<TSubtrahend>(right))
+            );
+        }
+        template <class TSubtrahend, class TComparators>
+        constexpr auto unordered_diff(TSubtrahend&& right, TComparators&& cmp) noexcept
+        {
+            return DiffFactory(
+                PolicyFactory<false, TSubtrahend, TComparators>(
+                    std::forward<TSubtrahend>(right), std::forward<TComparators>(cmp))
+            );
         }
         /**
         *   Non-ordered sequence that unions all (place side-by-side)

@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <memory>
+#include <future>
 #include <optional>
 
 #include <op/flur/typedefs.h>
@@ -16,12 +17,14 @@
 namespace OP::flur
 {
     
-    template <class Src, class TSubtrahend, class Comp = full_compare_t>
-    struct OrderedOrderedPolicyFactory
+    template <class Src, class TSubtrahend, class TComp>
+    struct OrderedOrderedPolicy
     {
-        constexpr OrderedOrderedPolicyFactory(TSubtrahend sub, Comp cmp = Comp{}) noexcept
+        using comparison_t = typename TComp::comparison_t;
+
+        constexpr OrderedOrderedPolicy(TSubtrahend&& sub, TComp cmp = TComp{}) noexcept
             : _subtrahend(std::move(sub))
-            , _cmp(std::move(cmp))
+            , _cmp(cmp.compare_factory())
         {
             //only ordered sequences allowed in this policy
             assert(_subtrahend.is_sequence_ordered());
@@ -53,7 +56,8 @@ namespace OP::flur
                 return false;
             return true;
         }
-   private:     
+
+   private:
         constexpr static bool is_join_optimized_c = 
             details::has_lower_bound<TSubtrahend>::value;
 
@@ -67,7 +71,7 @@ namespace OP::flur
                     _subtrahend.lower_bound(other_key);
                     return;
                 }
-                //else just follow regulatr next
+                //else just follow regular next
             } 
             //emulate lover_bound by sequential iteration
             do
@@ -78,47 +82,156 @@ namespace OP::flur
         }
 
         mutable TSubtrahend _subtrahend;
-        Comp _cmp;
+        comparison_t _cmp;
     };
 
-    template <class TSubtrahend, class Comp = CompareTraits>
-    struct DiffFactory : FactoryBase
+    template <class Src, class TSubtrahend, class TComp >
+    struct UnorderedDiffPolicy 
     {
-        using decayed_sub_t = std::decay_t<TSubtrahend>;
-        using sub_sequence_t = details::sequence_type_t<details::dereference_t <decayed_sub_t>>;
-        using comparator_t = std::decay_t <Comp>;
+        static auto create(TSubtrahend&& sub, TComp comp = TComp{})
+        {
+            return UnorderedDiffPolicy(
+                std::async(std::launch::async, 
+                    drain, std::move(sub), std::move(comp)));
+        }
+        
+        bool operator()(PipelineAttrs& attrs, const Src& seq) const
+        {
+            if (attrs._step.current() == 0)
+            {// first entry to sequence
+                if (attrs._generation.current() == 0)
+                {//not used yet at all
+                    _subtrahend = std::move(_subtrahend_future.get());
+                }
+            }
+            auto found = _subtrahend.find(seq.current());
+            if (found == _subtrahend.end())
+                return true;
+            //use generation index to evaliuate if duplication is allowed
+            return found->second.deduction(attrs._generation.current());
+        }
 
-        constexpr DiffFactory(decayed_sub_t sub, comparator_t cmp = comparator_t{}) noexcept
+    private:
+        struct DupCount
+        {
+            size_t _max = 0;
+            size_t _current;
+            /** increase current allowed number of duplicates.
+            * @return true if duplicates is allowed, false to skip
+            */
+            bool deduction(size_t current_gen)
+            {
+                assert(_max > 0);
+                if (_current < (_max * (current_gen + 1)))
+                {
+                    if (_current < _max * current_gen)
+                    {
+                        _current = _max * current_gen;
+                    }
+                    ++_current;
+                    return false;
+                }
+                return true;
+            }
+        };
+        using sub_conatiner_t = details::sequence_type_t<
+            details::dereference_t<TSubtrahend>>;
+        using sub_element_t = std::decay_t<typename sub_conatiner_t::element_t>;
+        using hash_t = std::hash<sub_element_t>;
+        using eq_t = typename TComp::equals_t;
+
+        using presence_map_t = std::unordered_map<sub_element_t, DupCount,
+            hash_t, eq_t>;
+
+        static auto drain(TSubtrahend&& sub, TComp comp)
+        {
+            presence_map_t result(1 << 6,
+                hash_t{}, comp.equals_factory());
+            using pair_t = typename presence_map_t::value_type;
+            auto&& seq = OP::flur::details::get_reference(sub);
+            for (seq.start(); seq.in_range(); seq.next())
+            {
+                auto point = result.emplace(seq.current(), DupCount{}).first;
+                ++point->second._max;
+            }
+            return result;
+        }
+
+        UnorderedDiffPolicy(std::future<presence_map_t> diff_set)
+            : _subtrahend_future(std::move(diff_set))
+        {
+        }
+
+        mutable std::future<presence_map_t> _subtrahend_future;
+        mutable presence_map_t _subtrahend;
+    };
+
+    template <bool is_ordered_c, class TSubtrahend, class TComp = CompareTraits>
+    struct PolicyFactory
+    {
+        using comparator_t = std::decay_t <TComp>;
+
+        using sub_sequence_t = details::sequence_type_t<details::dereference_t<TSubtrahend>>;;
+
+        template <class Src>
+        using policy_t = std::conditional_t<is_ordered_c,
+            OrderedOrderedPolicy<Src, sub_sequence_t, comparator_t>,
+            UnorderedDiffPolicy<Src, sub_sequence_t, comparator_t>
+            >;
+
+        constexpr PolicyFactory(
+            TSubtrahend&& sub, comparator_t cmp = comparator_t{}
+        ) noexcept
             : _sub(std::move(sub))
             , _compare_traits(std::move(cmp))
+        {
+        }
+
+        template <class Src>
+        constexpr auto construct() const noexcept
+        {
+            if constexpr(is_ordered_c)
+            {
+                return policy_t<std::decay_t<Src>>(
+                    _sub.compound(),
+                    _compare_traits);
+            }
+            else
+            {
+                return policy_t<std::decay_t<Src>>
+                    :: create(_sub.compound(), _compare_traits);
+            }
+        }
+
+    private:
+        TSubtrahend _sub;
+        comparator_t _compare_traits;
+    };
+
+    template <class TPolicyFactory>
+    struct DiffFactory : FactoryBase
+    {
+        constexpr DiffFactory(TPolicyFactory policy_factory) noexcept
+            : _policy_factory(std::move(policy_factory))
         {
         }
         
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
-            using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
-            using base_t = Sequence<typename src_conatiner_t::element_t>;
-
-            using three_way_compare_t = typename comparator_t::comparison_t;
-            using effective_policy_t = OrderedOrderedPolicyFactory<
-                Src,
-                sub_sequence_t,
-                three_way_compare_t>;
-
-            effective_policy_t policy(
-                std::move(_sub.compound()), 
-                _compare_traits.compare_factory());
-            return Distinct<effective_policy_t, Src>(
-                std::forward<Src>(src), 
+            using decayed_src_t = std::decay_t<Src>;
+            auto policy = _policy_factory.construct<decayed_src_t>();
+            return Distinct<typename TPolicyFactory::policy_t<decayed_src_t>, decayed_src_t>(
+                std::forward<Src>(src),
                 std::move(policy)
                 );
+                
         }
 
-        decayed_sub_t _sub;
-        comparator_t _compare_traits;
+        TPolicyFactory _policy_factory;
     };
 
+    
 } //ns: OP::flur
 
 #endif //_OP_FLUR_DIFF__H_

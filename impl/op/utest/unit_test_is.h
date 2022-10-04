@@ -149,8 +149,10 @@ namespace OP::utest
             auto drain_all_items = [](auto& hashed, const auto& seq) {
                 for (const auto& sequence_item : seq)
                 {
-                    if (hashed.erase(sequence_item) != 1)
+                    auto found = hashed.find(sequence_item);
+                    if (found == hashed.end() )
                         return false;
+                    hashed.erase(found);
                 }
                 return hashed.empty();
             };

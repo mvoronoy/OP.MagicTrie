@@ -4,9 +4,7 @@
 
 #include <cstdint>
 #include <type_traits>
-#include <atomic>
 #include <memory>
-#include <future>
 #include <fstream>
 #include <op/common/has_member_def.h>
 #include <op/trie/Containers.h>

@@ -1150,9 +1150,15 @@ namespace OP::utest
                 };
                 return alnum[ next_rnd % std::extent<decltype(alnum)>::value];
             }
+            /** Clone existing generator */
+            std::mt19937 generator() const
+            {
+                std::lock_guard lock(_gen_acc);
+                return _gen;
+            }
         private:
             std::mt19937 _gen;
-            std::mutex _gen_acc;
+            mutable std::mutex _gen_acc;
         };
 
 
