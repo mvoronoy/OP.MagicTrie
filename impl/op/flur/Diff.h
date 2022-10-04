@@ -169,7 +169,7 @@ namespace OP::flur
     template <bool is_ordered_c, class TSubtrahend, class TComp = CompareTraits>
     struct PolicyFactory
     {
-        using comparator_t = std::decay_t <TComp>;
+        using comparator_t = std::decay_t<TComp>;
 
         using sub_sequence_t = details::sequence_type_t<details::dereference_t<TSubtrahend>>;;
 
@@ -180,9 +180,8 @@ namespace OP::flur
             >;
 
         constexpr PolicyFactory(
-            TSubtrahend&& sub, comparator_t cmp = comparator_t{}
-        ) noexcept
-            : _sub(std::move(sub))
+            TSubtrahend&& sub, comparator_t cmp = comparator_t{}) noexcept
+            : _sub(std::forward<TSubtrahend>(sub))
             , _compare_traits(std::move(cmp))
         {
         }
