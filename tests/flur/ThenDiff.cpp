@@ -3,7 +3,7 @@
 #include <array>
 #include <map>
 #include <set>
-#include <numeric>
+#include <algorithm>
 #include <op/utest/unit_test.h>
 #include <op/flur/flur.h>
 
@@ -162,7 +162,8 @@ namespace {
             //randomly make some entries upper-case
             >> then::mapping([&](auto str/*copy*/) {
                 if (tools::random<std::uint16_t>() & 1)
-                    std::transform(str.begin(), str.end(), str.begin(), std::toupper);
+                    std::transform(str.begin(), str.end(), str.begin(), 
+                        [](auto c) { return std::toupper(c); });
                 return str;
             });
 
@@ -175,7 +176,8 @@ namespace {
                 >> then::unordered_diff(
                     src::of_container(/*copy*/mul_sub), custom_less_trait) 
                 >> then::mapping([](auto str) {//need extra tolower since `eq_unordered_sets` has no custom comparator
-                    std::transform(str.begin(), str.end(), str.begin(), std::tolower);
+                    std::transform(str.begin(), str.end(), str.begin(), 
+                        [](auto c) { return std::tolower(c); });
                     return str;
                 });
         tresult.assert_that<eq_unordered_sets>(res_ignore_case2, expected);
