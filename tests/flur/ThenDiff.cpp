@@ -110,6 +110,13 @@ namespace {
             );
     }
 
+    size_t cust_hash(const std::string& s)
+    {
+        size_t r = 11;
+        for (auto c : s)
+            r = (r * 101) ^ std::tolower(c);
+        return r;
+    }
     void test_ThenUnorderedDifference(OP::utest::TestRuntime& tresult)
     {
         std::multiset<std::string> test_multi_seq{ "aa", "aa", "bb", "bb", "bb", "c", "xx", "xx", "i", "jjjj", "klm" };
@@ -156,7 +163,9 @@ namespace {
             then::unordered_diff(src::of_container(std::vector<std::string>{"1", "2", "3"})),
             unord_dif);
         tresult.info() << "Custom comparator...\n";
-        OP::flur::OverrideComparisonTraits custom_less_trait(less_ignore_case);
+
+        auto cmprt = OP::flur::custom_compare(less_ignore_case, cust_hash);
+        std::unordered_set<std::string, decltype(cmprt)::hash_t> hm(16, cmprt.hash_factory());
 
         auto ignore_case_1 = src::of(unord_dif)
             //randomly make some entries upper-case
@@ -171,13 +180,13 @@ namespace {
 
         tresult.assert_that<eq_sets>(
             src::of(unord_dif) 
-            >> then::unordered_diff(ignore_case_1, custom_less_trait),
+            >> then::unordered_diff(ignore_case_1, cmprt),
             empty,
             OP_CODE_DETAILS("subtracting itself must produce empty"));
 
         auto res_ignore_case2 = ignore_case_1 
                 >> then::unordered_diff(
-                    src::of_container(/*copy*/mul_sub), custom_less_trait) 
+                    src::of_container(/*copy*/mul_sub), cmprt)
                 >> then::mapping([](auto str) {//need extra tolower since `eq_unordered_sets` has no custom comparator
                     std::transform(str.begin(), str.end(), str.begin(), 
                         [](auto c) { return std::tolower(c); });

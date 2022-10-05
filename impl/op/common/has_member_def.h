@@ -9,6 +9,15 @@
     ~~~~~~~~~~~~~~~~~~~~~~
     has_size<std::string>::value //evaluates true since exists std::string::size()    
     ~~~~~~~~~~~~~~~~~~~~~~
+    Also this member provides additional predicate is_invocable<Ax...> that allows to check
+    if specified member is invocable for checking class with probe arguments `Ax...`. In compare
+    with std::is_invocable_v it doesn't fail when method is not exist. Examples:
+    ~~~~~~~~~~~~~~~~~~~~~~
+    has_size<std::string>::is_invocable() //`true` since exists std::string::size()    
+    has_size<std::string>::is_invocable<double>() //`false` since std::string::size() has no double arg
+    has_some_method<std::string>::is_invocable() //`false` since no std::string::some_method() (in compare 
+                                                 //std::is_invocable_v that even cannot be compiled)
+    ~~~~~~~~~~~~~~~~~~~~~~
 */
 #define OP_DECLARE_CLASS_HAS_MEMBER(Member)  template <typename A>\
     class has_##Member \
@@ -19,6 +28,11 @@
         template <typename C> static NoType& test(...); \
     public: \
         enum { value = sizeof(test<A>(nullptr)) == sizeof(YesType) }; \
+        template <class ... Ax> \
+        static constexpr bool is_invocable() \
+        { if constexpr (value) {return std::is_invocable_v<&A::Member, A&, Ax...>;} \
+        else return false; \
+        }\
     };
 
 /** 

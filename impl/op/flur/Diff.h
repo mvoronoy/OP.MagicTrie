@@ -137,16 +137,25 @@ namespace OP::flur
         using sub_conatiner_t = details::sequence_type_t<
             details::dereference_t<TSubtrahend>>;
         using sub_element_t = std::decay_t<typename sub_conatiner_t::element_t>;
-        using hash_t = std::hash<sub_element_t>;
+        constexpr static auto hash_factory(TComp& comp)
+        {
+            if constexpr (has_hash_factory<TComp>::value)
+                return comp.hash_factory();
+            else
+                return std::hash<sub_element_t>{};
+        }
+
+        using hash_t = std::decay_t<
+            decltype(hash_factory(std::declval<TComp&>())) >;
         using eq_t = typename TComp::equals_t;
 
         using presence_map_t = std::unordered_map<sub_element_t, DupCount,
             hash_t, eq_t>;
-
         static auto drain(TSubtrahend&& sub, TComp comp)
         {
             presence_map_t result(1 << 6,
-                hash_t{}, comp.equals_factory());
+                hash_factory(comp), comp.equals_factory());
+
             using pair_t = typename presence_map_t::value_type;
             auto&& seq = OP::flur::details::get_reference(sub);
             for (seq.start(); seq.in_range(); seq.next())

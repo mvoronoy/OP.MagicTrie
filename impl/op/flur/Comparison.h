@@ -7,6 +7,7 @@
 #include <optional>
 
 #include <op/flur/typedefs.h>
+#include <op/common/has_member_def.h>
 
 namespace OP::flur
 {
@@ -77,9 +78,6 @@ namespace OP::flur
 
         using equals_t = details::CompareOnTopOfFullComparison<details::CmpOp::equals, comparison_t >;
 
-        //template <class TSequence>
-        //using hash_t = std::hash<typename full_compare_t<TSequence>::element_t>;
-
         //constexpr CompareTraits() noexcept = default;
         //constexpr CompareTraits(CompareTraits&&) noexcept = default;
 
@@ -98,11 +96,13 @@ namespace OP::flur
             return equals_t{};
         }
 
-        //template <class TSequence>
-        //constexpr auto hash_factory() const noexcept
-        //{
-        //    return hash_t<TSequence>{};
-        //}
+        /*
+        template <class TElement>
+        constexpr auto hash_factory() const noexcept
+        {
+            return hash_t<TElement>{};
+        }
+        */
     };
 
     /**
@@ -117,7 +117,6 @@ namespace OP::flur
     template <class F>
     struct OverrideComparisonTraits
     {
-
         using comparison_t = F;
 
         /** bool implementation of std::less on top of comparison_t */
@@ -149,6 +148,70 @@ namespace OP::flur
 
         F _cmp;
     };
+    
+    template <class F>
+    constexpr auto custom_compare(F f)
+    {
+        return OverrideComparisonTraits<F>(std::move(f));
+    }
+
+    /**
+    *   customize CompareTraits by providing custom hash and comparison functions.
+    */
+    template <class F, class H>
+    struct OverrideComparisonAndHashTraits
+    {
+        using comparison_t = F;
+        using hash_t = H;
+
+        /** bool implementation of std::less on top of comparison_t */
+        using less_t = details::CompareOnTopOfFullComparison<
+            details::CmpOp::less, comparison_t >;
+
+        using equals_t = details::CompareOnTopOfFullComparison<
+            details::CmpOp::equals, comparison_t >;
+
+        constexpr OverrideComparisonAndHashTraits() = default;
+
+        constexpr OverrideComparisonAndHashTraits(F f, H h) noexcept
+            : _cmp(std::move(f))
+            , _hash(std::move(h))
+        {
+        }
+
+        constexpr auto compare_factory() const noexcept
+        {
+            return _cmp;
+        }
+
+        constexpr auto less_factory() const noexcept
+        {
+            return less_t(_cmp);
+        }
+
+        constexpr auto equals_factory() const noexcept
+        {
+            return equals_t(_cmp);
+        }
+
+        constexpr auto hash_factory() const noexcept
+        {
+            return _hash;
+        }
+
+        F _cmp;
+        H _hash;
+    };
+    
+    /** Define compile-time check `has_hash_factory` if class has `hash_factory` method */
+    OP_DECLARE_CLASS_HAS_MEMBER(hash_factory);
+
+    template <class F, class H>
+    constexpr auto custom_compare(F f, H h)
+    {
+        return OverrideComparisonAndHashTraits<F, H>(std::move(f), std::move(h));
+    }
+
 } //ns:OP
 
 #endif //_OP_FLUR_COMPARISON__H_
