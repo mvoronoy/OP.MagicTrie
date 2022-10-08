@@ -227,13 +227,14 @@ namespace OP::flur
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
+            using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
+            using element_t = typename src_conatiner_t::element_t;
             using decayed_src_t = std::decay_t<Src>;
             auto policy = _policy_factory.template construct<decayed_src_t>();
-            return Distinct<decltype(policy), decayed_src_t>(
+            return Distinct<element_t, decltype(policy), decayed_src_t>(
                 std::forward<Src>(src),
                 std::move(policy)
                 );
-                
         }
 
         TPolicyFactory _policy_factory;

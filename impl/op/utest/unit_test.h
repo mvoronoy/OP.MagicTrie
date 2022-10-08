@@ -160,26 +160,6 @@ namespace OP::utest
 
 
     } //inner namespace
-    struct Identifiable
-    {
-        using id_t = std::string;
-
-        template <class Name>
-        explicit Identifiable(Name name) :
-            _id(std::forward<Name>(name))
-        {}
-
-        Identifiable() = delete;
-        Identifiable(const Identifiable&) = delete;
-
-        virtual ~Identifiable() = default;
-        [[nodiscard]] const id_t& id() const
-        {
-            return _id;
-        }
-    private:
-        id_t _id;
-    };
 
     /**Specialization of exception to distinguish fail from aborted state*/
     struct TestFail : std::logic_error
@@ -245,7 +225,7 @@ namespace OP::utest
         friend struct TestCase;
         friend struct TestRun;
 
-        explicit TestResult(std::string  name)
+        explicit TestResult(std::string name)
             : _name(std::move(name))
             , _status(Status::not_started)
             , _run_number(0)
@@ -511,12 +491,17 @@ namespace OP::utest
         Unpackable<std::any> >;
 
     /**Abstract definition of test */
-    struct TestCase : public Identifiable
+    struct TestCase 
     {
         template <class Name>
         explicit TestCase(Name&& name) :
-            Identifiable(std::forward<Name>(name))
+            _name(std::forward<Name>(name))
         {
+        }
+
+        const std::string& id() const
+        {
+            return _name;
         }
 
         TestCase(const TestCase&) = delete;
@@ -525,7 +510,7 @@ namespace OP::utest
         /** Invoke test once */
         TestResult execute(test_run_shared_args_t& runtime)
         {
-            TestResult retval(id());
+            TestResult retval(_name);
             retval._start_time = std::chrono::steady_clock::now();
             isolate_exception_run(runtime, retval);
             retval._end_time = std::chrono::steady_clock::now();
@@ -549,7 +534,7 @@ namespace OP::utest
                 if (!tr) //warm-up failed
                     return tr;
             }
-            TestResult result(id());
+            TestResult result(_name);
             result._start_time = std::chrono::steady_clock::now();
             for (; run_number; --run_number, ++result._run_number)
             {
@@ -610,11 +595,11 @@ namespace OP::utest
                 retval._status = TestResult::Status::exception;
             }
         }
+        const std::string _name;
     };
 
     /** Represent logical grouping of multiple test cases */
     struct TestSuite :
-        public Identifiable,
         public std::enable_shared_from_this<TestSuite>
     {
         using this_t = TestSuite;
@@ -624,12 +609,16 @@ namespace OP::utest
         template <class Name>
         TestSuite(
             Name&& name, std::ostream& info_stream, std::ostream& error_stream)
-            : Identifiable(std::forward<Name>(name))
+            : _name(std::forward<Name>(name))
             ,_info_stream(info_stream)
             ,_error_stream(error_stream)
         {
         }
 
+        const std::string& id() const
+        {
+            return _name;
+        }
         /**
         * Declare optional startup function that is invoked before each suite start. This
         * method useful
@@ -650,7 +639,7 @@ namespace OP::utest
         {
             using namespace std::string_literals;
             if ((bool)_init_suite)
-                throw std::runtime_error("TestSuite('"s + _name + "') already has defined `before_suite`"s);
+                throw std::runtime_error("TestSuite('"s + _name + "') already has definition `before_suite`"s);
 
             using function_traits_t = OP::utils::function_traits<F>;
             static_assert(
@@ -658,9 +647,31 @@ namespace OP::utest
                 (function_traits_t::arity_c == 1
                     && std::is_same_v<TestSuite&, typename function_traits_t::template arg_i<0>>),
                 "Functor for `before_suite` must accept 0 or 1 argument of `TestSuite&` type");
-            //Create wrapper that accept exactly 1 TestSuite parameter
-            _init_suite = 
-                OP::currying::arguments(std::ref(*this)).def(std::move(init_function));
+            using result_t = typename function_traits_t::result_t;
+            //Create wrapper that has no return and 0 params
+            if constexpr (std::is_same_v<void, result_t>)
+            {//init function returns nothing, so use as is
+                _init_suite =
+                    OP::currying::arguments(
+                        std::ref(*this), of_unpackable(this->_suite_shared_state))
+                    .tdef(std::move(init_function));
+
+            }
+            else 
+            {//init function provides some shared value, store it for others cases
+                _init_suite = [
+                    fwrap = std::move(init_function),
+                    args = OP::currying::arguments(
+                        std::ref(*this), of_unpackable(this->_suite_shared_state)), 
+                    &suite_shared_state = _suite_shared_state
+                ] () mutable {
+                    if constexpr (std::is_same_v<std::any, result_t>)
+                        suite_shared_state = std::move(args.typed_invoke(fwrap));
+                    else //not a std::any, need to assign
+                        suite_shared_state.emplace<result_t>(args.typed_invoke(fwrap));
+                };
+            }
+
             return *this;
         }
 
@@ -771,17 +782,20 @@ namespace OP::utest
         std::deque<TestResult> run_if(Predicate& predicate);
 
     protected:
-        /** Initialization right before suite run */
+        /** Initialization right before suite run 
+        */
         virtual void before_exec()
         {
-            if(_init_suite)
-                _init_suite();    
+            if (_init_suite)
+            {
+                _init_suite();
+            }
         } 
         /** Tear down right after suite run */
         virtual void after_exec()
         {
             if(_shutdown_suite)
-                _shutdown_suite();    
+                _shutdown_suite();
         } 
 
     private:
@@ -802,7 +816,6 @@ namespace OP::utest
                     _owner->after_exec();
             }
 
-            std::any _suite_shared_state;
             this_t* _owner;
             bool _initialized = false;
         };
@@ -813,6 +826,7 @@ namespace OP::utest
         std::ostream& _info_stream;
         std::ostream& _error_stream;
 
+        std::any _suite_shared_state;
         bootstrap_t _init_suite, _shutdown_suite;
 
 
@@ -1004,7 +1018,7 @@ namespace OP::utest
             void(*_prev_handler)(int);
         };
 
-        using suites_t = std::multimap<Identifiable::id_t, std::shared_ptr<TestSuite> >;
+        using suites_t = std::multimap<std::string, std::shared_ptr<TestSuite> >;
         suites_t _suites;
         TestRunOptions _options;
     };
@@ -1286,6 +1300,7 @@ namespace OP::utest
         std::unique_ptr<SuiteInitRAII> initializer; //delayed until real case need to run
         test_run_shared_args_t runtime_vars;
         runtime_vars.assign(of_var(*this));
+        runtime_vars.assign(of_unpackable(this->_suite_shared_state));
             
         std::deque<TestResult> result;
         for (auto& tcase : _tests)
@@ -1296,7 +1311,6 @@ namespace OP::utest
             if (!initializer) //not initialized yet
             {
                 initializer = std::make_unique<SuiteInitRAII>(this);
-                runtime_vars.assign(of_unpackable(initializer->_suite_shared_state));
             }
             TestRuntime runtime(
                     *this, tcase->id(), _options);

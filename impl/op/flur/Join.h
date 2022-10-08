@@ -43,7 +43,7 @@ namespace OP::flur
         constexpr Join(Left&& left, Right&& right, Comp&& join_key_cmp) noexcept
             : _left(std::move(left))
             , _right(std::move(right))
-            , _join_key_cmp(std::forward<Comp>(join_key_cmp))
+            , _join_key_cmp(join_key_cmp)
         {
             //"Join algorithm assumes ordering"
             assert(details::get_reference(_left).is_sequence_ordered() 
@@ -62,16 +62,19 @@ namespace OP::flur
             }
             seek();
         }
+        
         virtual bool in_range() const
         {
             auto& left = details::get_reference(_left);
             auto& right = details::get_reference(_right);
             return left.in_range() && right.in_range();
         }
+        
         virtual element_t current() const
         {
             return details::get_reference(_left).current();
         }
+
         virtual void next()
         {
             auto& left = details::get_reference(_left);
@@ -83,7 +86,6 @@ namespace OP::flur
             }
             seek();
         }
-
 
     private:
         template <class U, class V>
@@ -97,6 +99,7 @@ namespace OP::flur
                 return false;
         
         }
+        
         template <bool direction_c, class U, class V>
         void opt_next(U& src, const V& other_key) const
         {
@@ -116,6 +119,7 @@ namespace OP::flur
             } while (src.in_range() && compare<direction_c>(src.current(), other_key) < 0);
             
         }
+
         template <bool direction_c, class U, class V>
         int compare(const U& left, const V& right) const
         {
@@ -124,6 +128,7 @@ namespace OP::flur
             else
                 return -1* _join_key_cmp(right, left);
         }
+        
         void seek()
         {
             auto& left = details::get_reference(_left);
@@ -160,6 +165,7 @@ namespace OP::flur
         Comp _join_key_cmp;
         bool _optimize_right_forward;
     };
+
     template <class Left, class Right, class Comp>
     auto make_join(Left&& left, Right&& right, Comp&& comp)
     {
@@ -190,12 +196,14 @@ namespace OP::flur
             return make_join(std::forward<Left>(left), 
                 OP::flur::details::get_reference(_right).compound(), _comp);
         }
+
         template <class Left>
         constexpr auto compound(Left&& left) && noexcept
         {
             return make_join(std::forward<Left>(left).compound(), 
                 std::move(_right).compound(), std::move(_comp));
         }
+
         Right _right;
         Comp _comp; 
     };

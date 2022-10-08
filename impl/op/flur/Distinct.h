@@ -86,11 +86,11 @@ namespace OP::flur
     /**
     *   Sequence to implement Distinct stream
     */
-    template <class Policy, class Src>
-    struct Distinct : public Sequence<typename Src::element_t>
+    template <class T, class Policy, class Src>
+    struct Distinct : public Sequence<T>
     {
-        using this_t = Distinct<Policy, Src>;
-        using base_t = Sequence<typename Src::element_t>;
+        using this_t = Distinct<T, Policy, Src>;
+        using base_t = Sequence<T>;
         using element_t = typename base_t::element_t;
 
         constexpr Distinct(Src&& src, Policy f) noexcept
@@ -265,9 +265,10 @@ namespace OP::flur
         constexpr auto compound(Src&& src) const noexcept
         {
             using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
+            using element_t = typename src_conatiner_t::element_t;
             using base_t = Sequence<typename src_conatiner_t::element_t>;
             using effective_policy_t = decltype(_policy.template construct<Src>());
-            return Distinct<effective_policy_t, std::decay_t<Src>>(
+            return Distinct<element_t, effective_policy_t, std::decay_t<Src>>(
                 std::forward<Src>(src), _policy.template construct<Src>());
         }
         Policy _policy;
