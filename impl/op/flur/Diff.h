@@ -51,13 +51,11 @@ namespace OP::flur
                     return true;
                 compare_res = _cmp(sub_ref.current(), outer_item);
             }
-            //else
+            if (!compare_res) //exact equals
             {
-                if (!compare_res)
-                    sub_ref.next();
-            }
-            if( !compare_res )//exact equals
+                sub_ref.next();
                 return false;
+            }
             return true;
         }
 
