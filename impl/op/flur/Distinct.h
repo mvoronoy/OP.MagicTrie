@@ -92,6 +92,7 @@ namespace OP::flur
         using this_t = Distinct<T, Policy, Src>;
         using base_t = Sequence<T>;
         using element_t = typename base_t::element_t;
+        using dereference_sequnce_t = details::dereference_t<std::decay_t<Src>>;
 
         constexpr Distinct(Src&& src, Policy f) noexcept
             : _attrs(std::move(src), PipelineAttrs{})
@@ -135,7 +136,7 @@ namespace OP::flur
 
     private:
         
-        void seek(Src& rs, PipelineAttrs& pline)
+        void seek(dereference_sequnce_t& rs, PipelineAttrs& pline)
         {
             while(rs.in_range() && !distinct_result())
             {

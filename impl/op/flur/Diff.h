@@ -27,31 +27,35 @@ namespace OP::flur
             , _cmp(cmp.compare_factory())
         {
             //only ordered sequences allowed in this policy
-            assert(_subtrahend.is_sequence_ordered());
+            assert(details::get_reference(_subtrahend).is_sequence_ordered());
         }
 
         bool operator()(PipelineAttrs &attrs, const Src& seq) const
         {
+            auto& seq_ref = details::get_reference(seq);
+            auto& sub_ref = details::get_reference(_subtrahend);
             if( attrs._step.current() == 0)
             {// first entry to sequence
-                assert(seq.is_sequence_ordered()) ; //policy applicable for both sorted only
-                _subtrahend.start();    
+                assert(seq_ref.is_sequence_ordered()); //policy applicable for both sorted only
+                sub_ref.start();
             }
-            if( !_subtrahend.in_range() )
+            if( !sub_ref.in_range() )
                 return true; //when subtrahend is empty the rest of Seq is valid
             //no need to check !seq.in_range()
-            decltype(auto) outer_item = seq.current(); //may be a reference
-            int compare_res = _cmp(_subtrahend.current(), outer_item);
+            decltype(auto) outer_item = seq_ref.current(); //may return a reference
+            int compare_res = _cmp(sub_ref.current(), outer_item);
             if(compare_res < 0)
             {//need catch up _subtrahend
                 opt_next(outer_item); 
-                if( !_subtrahend.in_range() )
+                if( !sub_ref.in_range() )
                     return true;
-                compare_res = _cmp(_subtrahend.current(), outer_item);
+                compare_res = _cmp(sub_ref.current(), outer_item);
             }
-            else
-                _subtrahend.next();
-
+            //else
+            {
+                if (!compare_res)
+                    sub_ref.next();
+            }
             if( !compare_res )//exact equals
                 return false;
             return true;
@@ -64,11 +68,12 @@ namespace OP::flur
         template <class V>
         void opt_next(const V& other_key) const
         {
+            auto& sub_ref = details::get_reference(_subtrahend);
             if constexpr (is_join_optimized_c)
             {
-                if( _cmp(_subtrahend.current(), other_key) < 0 )
+                if( _cmp(sub_ref.current(), other_key) < 0 )
                 {
-                    _subtrahend.lower_bound(other_key);
+                    sub_ref.lower_bound(other_key);
                     return;
                 }
                 //else just follow regular next
@@ -76,9 +81,9 @@ namespace OP::flur
             //emulate lover_bound by sequential iteration
             do
             {
-                _subtrahend.next();
-            } while (_subtrahend.in_range() 
-                && (_cmp(_subtrahend.current(), other_key) < 0));
+                sub_ref.next();
+            } while (sub_ref.in_range()
+                && (_cmp(sub_ref.current(), other_key) < 0));
         }
 
         mutable TSubtrahend _subtrahend;
@@ -104,7 +109,7 @@ namespace OP::flur
                     _subtrahend = std::move(_subtrahend_future.get());
                 }
             }
-            auto found = _subtrahend.find(seq.current());
+            auto found = _subtrahend.find(details::get_reference(seq).current());
             if (found == _subtrahend.end())
                 return true;
             //use generation index to evaliuate if duplication is allowed

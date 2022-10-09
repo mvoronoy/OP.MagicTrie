@@ -32,6 +32,25 @@ namespace {
         tresult.assert_that<eq_sets>(
             res1, expected);
 
+        std::set<std::string> ord1_all{ {
+            "gAAAAAAAAAM",
+            "gAAAAAAAAAQ",
+            "gAAAAAAAAAU",
+            "gAAAAAAAAAY",
+            "gAAAAAAAAAc",
+            "gAAAAAAAAAg",
+            "gAAAAAAAAAk",
+            "gAAAAAAAAAo",
+            "gAAAAAAAAAs"} };
+
+        std::set < std::string> sub = { {"gAAAAAAAAAI",
+                "gAAAAAAAAAQ",
+                "gAAAAAAAAAY",
+                "gAAAAAAAAAg",
+                "gAAAAAAAAAo",} };
+        auto res2 = src::of(ord1_all) >> then::ordered_diff(src::of(sub));
+        for (auto&& x : res2)
+            std::cout << x << "\n";
     }
     
     int less_ignore_case(const std::string& left, const std::string& right) 
