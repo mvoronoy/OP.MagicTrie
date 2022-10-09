@@ -145,16 +145,16 @@ namespace OP::flur
             }
         }
 
-        template <class T>
+        template <class U>
         const auto& rsrc() const
         {
-            return details::get_reference(std::get<T>(_attrs));
+            return details::get_reference(std::get<U>(_attrs));
         }
 
-        template <class T>
+        template <class U>
         auto& rsrc() 
         {
-            return details::get_reference(std::get<T>(_attrs));
+            return details::get_reference(std::get<U>(_attrs));
         }
 
         bool distinct_result()
