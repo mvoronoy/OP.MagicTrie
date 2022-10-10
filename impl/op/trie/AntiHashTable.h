@@ -86,7 +86,7 @@ namespace OP::trie::containers
             return dim_nil_c;
         }
         
-        Payload* get(atom_t key) const override
+        Payload* get(atom_t key) override
         {
             if(!_node_info.presence(key))
                 return nullptr;

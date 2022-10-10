@@ -225,18 +225,21 @@ namespace OP::trie::containers
         {
             dim_t result = dim_nil_c;
             persisted_table_t ref_data(_node_info.reindex_table());
-            find_impl(ref_data, key, [&](auto idx, Content& ){
+            auto hash_data = ref_data.cref(_segment_manager, _capacity);
+
+            find_impl(hash_data, key, [&](auto idx){
                 result = idx;
             });
             return result;    
         }
 
-        Payload* get(atom_t key) const override
+        Payload* get(atom_t key)  override
         {
             Payload* ptr = nullptr;
             persisted_table_t ref_data(_node_info.reindex_table());
-            find_impl(ref_data, key, [&](auto idx, Content& data){
-                ptr = &data.payload;
+            auto hash_data = ref_data.ref(_segment_manager, _capacity);
+            find_impl(hash_data, key, [&](auto idx){
+                ptr = &hash_data[idx].payload;
             });
             
             return ptr;
@@ -246,8 +249,9 @@ namespace OP::trie::containers
         {
             std::optional<Payload> result;
             const_persisted_table_t ref_data(_node_info.reindex_table());
-            find_impl(ref_data, key, [&](auto idx, const Content& data){
-                result.emplace(data.payload);
+            auto hash_data = ref_data.cref(_segment_manager, _capacity);
+            find_impl(hash_data, key, [&](auto idx){
+                result.emplace(hash_data[idx].payload);
             });
             return result;
         }
@@ -326,22 +330,21 @@ namespace OP::trie::containers
         }
         
         template <class TableRef, class FCollect >
-        bool find_impl(TableRef& ref_data, atom_t key, FCollect collect) const 
+        bool find_impl(TableRef& hash_data, atom_t key, FCollect collect) const
         {
             using namespace details;
             dim_t hash = details::hash(key, _capacity);
-            auto hash_data = ref_data.ref(_segment_manager, _capacity);
 
             for (unsigned i = 0; i < max_hash_neighbors(_capacity); ++i)
             {
-                auto& v = hash_data[hash];
+                const auto& v = hash_data[hash];
                 if (!v.presence)
                 { //nothing at this pos
                     break;
                 }
                 if (v.key == key)
                 {
-                    collect(hash, v);
+                    collect(hash);
                     return true;
                 }
                 ++hash %= _capacity; //keep in boundary

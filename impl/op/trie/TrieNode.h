@@ -256,7 +256,7 @@ namespace OP
                     return FarAddress{};
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
-                NodeData* node_data = container->get(key);
+                auto node_data = container->cget(key);
                 assert(node_data); //there we have only valid pointers
                 return node_data->_child;
             }

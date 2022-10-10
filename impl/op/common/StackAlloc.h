@@ -130,7 +130,7 @@ namespace OP
         alignas(T) std::byte _data[sizeof(T)];
     };
     
-    /** Reserv some memory that can accomodate all Tx ... types than provide
+    /** Reserve some memory that can accomodate all Tx ... types than provide
     * access to one of the instance by interface specified as TInterface.
     * Note all Tx must support the TInterface interface.
     */
@@ -169,16 +169,32 @@ namespace OP
              return get();
         }
 
+        const TInterface* operator ->() const
+        {
+            return get();
+        }
+
         TInterface* get() 
         {
             if(!_init)
                 throw std::runtime_error("Instance is not initialized");
             return data();
         }
+        const TInterface* get() const
+        {
+            return const_cast<this_t*>(this)->get();
+        }
+
         TInterface& operator *()
         {
             return *get();
         }
+        
+        const TInterface& operator *() const
+        {
+            return *get();
+        }
+
         void destroy()
         {
             if( _init )

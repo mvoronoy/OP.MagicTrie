@@ -86,7 +86,7 @@ namespace OP::trie::containers
         virtual dim_t find(atom_t key) const = 0;
 
         /** Same as #find but return pointer to payload or nullptr */
-        virtual Payload* get(atom_t key) const = 0;
+        virtual Payload* get(atom_t key) = 0;
         
         virtual std::optional<Payload> cget(atom_t key) const = 0;
 

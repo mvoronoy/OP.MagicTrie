@@ -75,11 +75,13 @@ namespace
         return std::hypot(x, y, z);
     }
 
-    void test_Example()
+    //Test for compile-time only check
+    void test_Example(OP::utest::TestRuntime& tresult)
     {
         auto free_x_y = arguments(2.f).//this value will pass as 3d argument z
             typed_bind_free_front<2>(hypot3d);
-        std::cout << "(Should be 7.)hypot = " << free_x_y(3.f, 6.f) << "\n";
+        tresult.debug() << "(Should be 7.)hypot = " << free_x_y(3.f, 6.f) << "\n";
+        tresult.assert_that<equals>(7.f, free_x_y(3.f, 6.f));
     }
     
     struct TstFunctor

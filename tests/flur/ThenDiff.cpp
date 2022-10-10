@@ -43,14 +43,15 @@ namespace {
             "gAAAAAAAAAo",
             "gAAAAAAAAAs"} };
 
-        std::set < std::string> sub = { {"gAAAAAAAAAI",
+        std::set <std::string> sub = { {"gAAAAAAAAAI",
                 "gAAAAAAAAAQ",
                 "gAAAAAAAAAY",
                 "gAAAAAAAAAg",
-                "gAAAAAAAAAo",} };
+                "gAAAAAAAAAo"} };
+        std::set<std::string> expected2{ {"gAAAAAAAAAM", "gAAAAAAAAAU", "gAAAAAAAAAc", "gAAAAAAAAAk", "gAAAAAAAAAs"}};
+
         auto res2 = src::of(ord1_all) >> then::ordered_diff(src::of(sub));
-        for (auto&& x : res2)
-            std::cout << x << "\n";
+        tresult.assert_that<eq_sets>(res1, src::of(expected2));
     }
     
     int less_ignore_case(const std::string& left, const std::string& right) 

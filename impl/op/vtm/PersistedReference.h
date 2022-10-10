@@ -74,10 +74,9 @@ namespace OP
             }
             
             template <class TSegmentManager>
-            const ReadonlyAccess<T> cref(TSegmentManager& manager, segment_pos_t capacity) const
+            ReadonlyAccess<T> cref(TSegmentManager& manager, segment_pos_t capacity) const
             {
                 return array_view<T>(resolve_segment_manager(manager), address, capacity);
-
             }
 
             /** reference single element of array by index, no boundary check is performed*/
@@ -116,8 +115,14 @@ namespace OP
             template <class TSegmentManager>
             ReadonlyAccess<T> ref(TSegmentManager& manager, segment_pos_t capacity) const
             {
-                return array_view<T>(resolve_segment_manager(manager), address, capacity);
+                return cref(manager, capacity);
 
+            }
+
+            template <class TSegmentManager>
+            ReadonlyAccess<T> cref(TSegmentManager& manager, segment_pos_t capacity) const
+            {
+                return array_view<T>(resolve_segment_manager(manager), address, capacity);
             }
 
             /** reference single element of array by index, no boundary check is performed*/
