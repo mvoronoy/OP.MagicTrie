@@ -90,6 +90,34 @@ namespace OP::utest
             }
         }
     };
+    /** Marker specifies equality operation between two numeric with some platform specific precision (see 
+    *   std::numeric_limits::epsilon() for details)
+    */
+    struct almost_eq : details::marker_arity<2>
+    {
+        /** 
+        * \tparam ulp_c units in the last place
+        */ 
+        template <class Left, class Right>
+        auto operator()(Left&& left, Right&& right) const
+        {
+            using namespace OP::has_operators;
+            using wide_num_t = decltype(left - right);
+            wide_num_t abs_diff = std::abs(left - right);
+            constexpr wide_num_t eps = std::numeric_limits<wide_num_t>::epsilon();
+            bool result = abs_diff <= eps
+                || abs_diff <= eps * std::max( wide_num_t{1}, std::max(std::abs(left), std::abs(right) ))
+                //result is subnormal
+                || abs_diff < std::numeric_limits<wide_num_t>::min()
+                ;
+
+            if (result)
+                return std::make_pair( true, OP::utest::Details{} );
+            OP::utest::Details fail;
+            fail << "Assertion of equality check: [" << left << "] vs [" << right << "]\n";
+            return std::make_pair( false, std::move(fail));
+        }
+    };
 
     /**
     * Marker to compare 2 heterogenous container with items supported operator `==`.
