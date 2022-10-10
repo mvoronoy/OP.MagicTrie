@@ -51,7 +51,9 @@ namespace {
         std::set<std::string> expected2{ {"gAAAAAAAAAM", "gAAAAAAAAAU", "gAAAAAAAAAc", "gAAAAAAAAAk", "gAAAAAAAAAs"}};
 
         auto res2 = src::of(ord1_all) >> then::ordered_diff(src::of(sub));
-        tresult.assert_that<eq_sets>(res1, src::of(expected2));
+        for (auto&& k : res2)
+            std::cout << k << "\n";
+        tresult.assert_that<eq_sets>(res2, src::of(expected2));
     }
     
     int less_ignore_case(const std::string& left, const std::string& right) 
