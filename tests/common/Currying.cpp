@@ -81,7 +81,7 @@ namespace
         auto free_x_y = arguments(2.f).//this value will pass as 3d argument z
             typed_bind_free_front<2>(hypot3d);
         tresult.debug() << "(Should be 7.)hypot = " << free_x_y(3.f, 6.f) << "\n";
-        tresult.assert_that<equals>(7.f, free_x_y(3.f, 6.f));
+        tresult.assert_that<almost_eq>(7.f, free_x_y(3.f, 6.f));
     }
     
     struct TstFunctor
