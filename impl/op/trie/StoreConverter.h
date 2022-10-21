@@ -25,9 +25,12 @@ namespace OP::trie::store_converter
      *  \endcode
      * -# define c++ origin type as `using type_t = MyType;`
      * -# define storage type that is complaint with std::is_standard_layout_v: \code
-     *  using storage_type_t = PersistedStateOfMyType; \endcode
+     *  using storage_type_t = PersistedStateOfMyType; //as an example you have plain struct PersistedStateOfMyType
+     * \endcode
      * -# define serialize method (see below for signature)
+     * -# define reassign method (see below for signature) - same as serialize but assume some value already exists (aka update)
      * -# define deserialize method (see below for signature)
+     * -# define destroy method (see below for signature)
      */
     template <class T>
     struct Storage
@@ -35,24 +38,28 @@ namespace OP::trie::store_converter
         using type_t = T;
         using storage_type_t = T;
 
+        /** Default implementation copies c++ plain type to the dedicated storage */
         template <class TTopology>
         static void serialize(TTopology& topology, const type_t& source, storage_type_t& dest)
         {
             dest = source;
         }
 
+        /** Default implementation copies c++ plain type to the dedicated storage */
         template <class TTopology>
         static void reassign(TTopology& topology, const type_t& source, storage_type_t& dest)
         {
             dest = source;
         }
 
+        /** Default implementation copies c++ plain type frome the dedicated storage */
         template <class TTopology>
         static const type_t& deserialize(TTopology& topology, const storage_type_t& storage)
         {
             return storage;
         }
 
+        /** Default implementation just use `std::destroy_at` to clean storage */
         template <class TTopology>
         static void destroy(TTopology& topology, storage_type_t& dest)
         {
@@ -143,7 +150,9 @@ namespace OP::trie::store_converter
             std::destroy_at(&dest);
         }
     };
-
+    /**
+    * Plain (in term of std::is_standard_layout_v == true) structure to persist std::variant<...>
+    */
     template <class ...Tx>
     struct PersistedVariant
     {

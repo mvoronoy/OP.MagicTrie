@@ -77,6 +77,15 @@ namespace OP
                     })
                 ),
                 arg(
+                    key("-b"),
+                    desc("<N> - Run test in bulk mode N times."),
+                    action([&opts](std::uint64_t runs) {
+                        LoadRunOptions opt;
+                        opt._runs = runs;
+                        opts.load_run(opt);
+                        })
+                ),
+                arg(
                     key("-s"),
                     desc("Set seed number for the internal random generator to make tests reproducable. Without this paramater the seed is inititalized with current time."),
                     action([&opts](std::uint64_t seed) {opts.random_seed(seed); })

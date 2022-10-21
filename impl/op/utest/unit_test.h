@@ -87,6 +87,18 @@ namespace OP::utest
         /**Display all messages*/
         debug = 3
     };
+    /** Options for load running */
+    struct LoadRunOptions
+    {
+        /** Number of dummy exercise before real metrics measurement */
+        size_t _warm_up = 10;
+        /** Number of dummy exercise before real metrics measurement */
+        size_t _runs = 1;
+        [[nodiscard]] bool is_load_run() const
+        {
+            return _runs > 1;
+        }
+    };
     /** Encapsulate test suite configurable options */
     struct TestRunOptions
     {
@@ -95,6 +107,7 @@ namespace OP::utest
             _intercept_sig_abort = true;
             _output_width = 40;
         }
+
         /** Modifies permission to intercept 'abort' from test code.
          * Set true if C-style assert shouldn't break test execution
          */
@@ -103,28 +116,46 @@ namespace OP::utest
             _intercept_sig_abort = new_value;
             return *this;
         }
+
         [[nodiscard]] bool intercept_sig_abort() const
         {
             return _intercept_sig_abort;
         }
+
         [[nodiscard]] std::uint16_t output_width() const
         {
             return _output_width;
         }
+
         TestRunOptions& output_width(std::uint16_t output_width)
         {
             _output_width = output_width;
             return *this;
         }
+
         [[nodiscard]] ResultLevel log_level() const
         {
             return _log_level;
         }
+
         TestRunOptions& log_level(ResultLevel level)
         {
             _log_level = level;
             return *this;
         }
+        
+        /** Options for load runs */
+        [[nodiscard]] LoadRunOptions load_run() const
+        {
+            return _load_run;
+        }
+
+        TestRunOptions& load_run(LoadRunOptions lro)
+        {
+            _load_run = std::move(lro);
+            return *this;
+        }
+
         /** Allows configure internal random generator to create reproducible results
          * If needed to get the same random values between several tests run specify
          * some constant for this parameter
@@ -144,6 +175,7 @@ namespace OP::utest
         bool _intercept_sig_abort;
         std::uint16_t _output_width;
         ResultLevel _log_level = ResultLevel::info;
+        LoadRunOptions _load_run;
         std::optional<std::uint64_t> _random_seed;
     };
 
@@ -324,6 +356,7 @@ namespace OP::utest
             , _run_options(std::move(run_options))
         {
         }
+
         TestRuntime(const TestRuntime&) = delete;
 
         [[maybe_unused]] [[nodiscard]] TestSuite& suite() const
@@ -490,7 +523,7 @@ namespace OP::utest
         // Shared state from `before_suite`
         Unpackable<std::any> >;
 
-    /**Abstract definition of test */
+    /** Abstract definition of single test */
     struct TestCase 
     {
         template <class Name>
@@ -507,8 +540,17 @@ namespace OP::utest
         TestCase(const TestCase&) = delete;
         TestCase(TestCase&&) = delete;
 
+        TestResult execute(test_run_shared_args_t& runtime, const TestRunOptions& options)
+        {
+            if (options.load_run().is_load_run())
+                return load_execute(runtime, options.load_run()._runs, options.load_run()._warm_up);
+            else
+                return single_execute(runtime);
+        }
+
+    protected:
         /** Invoke test once */
-        TestResult execute(test_run_shared_args_t& runtime)
+        TestResult single_execute(test_run_shared_args_t& runtime)
         {
             TestResult retval(_name);
             retval._start_time = std::chrono::steady_clock::now();
@@ -530,7 +572,7 @@ namespace OP::utest
         {
             while (warm_up--)
             {
-                auto tr = execute(runtime);
+                auto tr = single_execute(runtime);
                 if (!tr) //warm-up failed
                     return tr;
             }
@@ -544,8 +586,8 @@ namespace OP::utest
             result._status = TestResult::Status::ok;
             return result;
         }
-
-    protected:
+        
+        /** Conduct particular test */
         virtual void run(test_run_shared_args_t& retval) = 0;
 
     private:
@@ -781,6 +823,9 @@ namespace OP::utest
         template <class Predicate>
         std::deque<TestResult> run_if(Predicate& predicate);
 
+        template <class Predicate>
+        std::deque<TestResult> load_run(Predicate& predicate);
+
     protected:
         /** Initialization right before suite run 
         */
@@ -794,8 +839,11 @@ namespace OP::utest
         /** Tear down right after suite run */
         virtual void after_exec()
         {
-            if(_shutdown_suite)
+            if (_shutdown_suite)
+            {
                 _shutdown_suite();
+            }
+            _suite_shared_state.reset();
         } 
 
     private:
@@ -813,7 +861,9 @@ namespace OP::utest
             ~SuiteInitRAII()
             {
                 if (_initialized)
+                {
                     _owner->after_exec();
+                }
             }
 
             this_t* _owner;
@@ -828,34 +878,6 @@ namespace OP::utest
 
         std::any _suite_shared_state;
         bootstrap_t _init_suite, _shutdown_suite;
-
-
-        //template <class TArg>
-        //auto& inject_arg(TestRuntime& result)
-        //{
-        //    using namespace std::string_literals;
-
-        //    if constexpr (std::is_same_v<TestRuntime, TArg>)
-        //        return result;
-        //    else if constexpr (std::is_same_v<TestSuite, TArg>)
-        //        return *this;
-        //    else
-        //    {
-        //        if (!_suite_shared_state.has_value())
-        //            throw std::runtime_error(
-        //                "Test case:'"s + _name + "/"s + result.test_name()
-        //                + "' expected shared value of type '"s
-        //                + typeid(TArg).name()
-        //                + "', but TestSuite::before_suite did not provided");
-        //        if constexpr (std::is_same_v<std::any, TArg>)
-        //            return _suite_shared_state;
-        //        else
-        //        { //treat this case as arbitrary argument, so try extract it from std::any
-        //            return *std::any_cast<TArg>(&_suite_shared_state);
-        //        }
-        //    }
-        //}
-        
 
         template <class F>
         struct FunctionalTestCase : public TestCase
@@ -1289,7 +1311,7 @@ namespace OP::utest
     }
 
     template<class Predicate>
-    std::deque<TestResult> TestSuite::run_if(Predicate &predicate)
+    std::deque<TestResult> TestSuite::run_if(Predicate& predicate)
     {
         //apply random seed if needed
         if(_options.random_seed())
@@ -1318,7 +1340,7 @@ namespace OP::utest
 
             //allow output error right after appear
             info() << "\t[" << tcase->id() << "]...\n";
-            result.emplace_back( tcase->execute(runtime_vars) );
+            result.emplace_back( tcase->execute(runtime_vars, _options) );
 
             info()
                     << "\t[" << tcase->id() << "] done with status:"

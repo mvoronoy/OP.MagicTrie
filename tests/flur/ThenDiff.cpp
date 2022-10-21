@@ -51,8 +51,6 @@ namespace {
         std::set<std::string> expected2{ {"gAAAAAAAAAM", "gAAAAAAAAAU", "gAAAAAAAAAc", "gAAAAAAAAAk", "gAAAAAAAAAs"}};
 
         auto res2 = src::of(ord1_all) >> then::ordered_diff(src::of(sub));
-        for (auto&& k : res2)
-            std::cout << k << "\n";
         tresult.assert_that<eq_sets>(res2, src::of(expected2));
     }
     
