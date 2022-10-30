@@ -85,9 +85,29 @@ namespace OP::has_operators
         std::true_type  has_less_than_test(const T&);
         std::false_type has_less_than_test(...);
 
+        template<class T, class = decltype(std::declval<T>() <= std::declval<T>() )> 
+        std::true_type  has_less_eq_than_test(const T&);
+        std::false_type has_less_eq_than_test(...);
+
+        template<class T, class = decltype(std::declval<T>() > std::declval<T>() )> 
+        std::true_type  has_greater_than_test(const T&);
+        std::false_type has_greater_than_test(...);
+
+        template<class T, class = decltype(std::declval<T>() >= std::declval<T>() )> 
+        std::true_type  has_greater_eq_than_test(const T&);
+        std::false_type has_greater_eq_than_test(...);
+
         template<class T, class = decltype( !std::declval<T>() )> 
         std::true_type  has_logical_not_test(const T&);
         std::false_type has_logical_not_test(...);
+
+        template<class T, class = decltype(std::declval<T>() == std::declval<T>() )> 
+        std::true_type  has_eq_test(const T&);
+        std::false_type has_eq_test(...);
+
+        template<class T, class = decltype(std::declval<T>() != std::declval<T>() )> 
+        std::true_type  has_not_eq_test(const T&);
+        std::false_type has_not_eq_test(...);
 
         template<class T, class = decltype(std::declval<std::ostream&>() << std::declval<T>() )> 
         std::true_type  has_ostream_out(const T&);
@@ -99,9 +119,29 @@ namespace OP::has_operators
     template<class T> using less = decltype(details::has_less_than_test(std::declval<T>()));
     template<class T> inline constexpr bool less_v = less<T>::value;
 
+    /** Compile time check if type T supports operator less-eq `<=` */
+    template<class T> using less_eq = decltype(details::has_less_eq_than_test(std::declval<T>()));
+    template<class T> inline constexpr bool less_eq_v = less_eq<T>::value;
+
+    /** Compile time check if type T supports operator greater `>` */
+    template<class T> using greater = decltype(details::has_greater_than_test(std::declval<T>()));
+    template<class T> inline constexpr bool greater_v = greater<T>::value;
+
+    /** Compile time check if type T supports operator greater-eq `>=` */
+    template<class T> using greater_eq = decltype(details::has_greater_eq_than_test(std::declval<T>()));
+    template<class T> inline constexpr bool greater_eq_v = greater_eq<T>::value;
+
     /** Compile time check if type T supports operator logical-not `!` */
     template<class T> using logical_not = decltype(details::has_logical_not_test(std::declval<T>()));
     template<class T> inline constexpr bool logical_not_v = logical_not<T>::value;
+
+    /** Compile time check if type T supports operator equals `==` */
+    template<class T> using equals = decltype(details::has_eq_test(std::declval<T>()));
+    template<class T> inline constexpr bool equals_v = equals<T>::value;
+
+    /** Compile time check if type T supports operator equals `!=` */
+    template<class T> using not_equals = decltype(details::has_not_eq_test(std::declval<T>()));
+    template<class T> inline constexpr bool not_equals_v = not_equals<T>::value;
 
     /** Compile time check if type T supports operator << for std::ostream */
     template<class T> using ostream_out = decltype(details::has_ostream_out(std::declval<T>()));
