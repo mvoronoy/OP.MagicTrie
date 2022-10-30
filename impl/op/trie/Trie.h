@@ -628,6 +628,7 @@ namespace OP
             *
             *   \tparam TStringLike - string-like type to specify the key (like: atom_string_t, 
             *       std::string, std::string_view, std::u8string, ...)
+            *   \tparam FPayloadFactory - functor with signature `value_t ()` or `const value_t& ()`
             */
             template <class TStringLike, class FPayloadFactory>
             std::enable_if_t<std::is_invocable_v<FPayloadFactory>, insert_result_t>
@@ -705,7 +706,6 @@ namespace OP
             {
                 return upsert(std::begin(key), std::end(key), std::move(value));
             }
-
             /**Update or insert value specified by key that formed as `prefix.key + [begin, end)`. 
             *
             * \param value - payload to be assigned or updated
