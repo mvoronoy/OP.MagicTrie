@@ -222,14 +222,14 @@ namespace OP::flur
         return first( range.compound() );
     }*/
     template <class T >
-    auto first(T flur_obj)
+    auto first(T&& flur_obj)
     {
         auto seq = details::get_reference(flur_obj).compound();
         auto& rseq = details::get_reference(seq);
         rseq.start();
         if (!rseq.in_range())
         {
-            throw std::out_of_range("takin `first` of empty lazy range");
+            throw std::out_of_range("taking `first` of empty lazy range");
         }
         return rseq.current();
 
