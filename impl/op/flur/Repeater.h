@@ -23,7 +23,7 @@ namespace flur
     *
     * \tparam Base - ordered or unordered sequence (discovered automatically depending on source)
     * \tparam Src - source sequnce to store and then repeat
-    * \tparam Container - storage for elements std::vector by default
+    * \tparam Container - storage for elements std::deque by default
     */
     template <class Base, class Src, class Container = std::deque<std::decay_t<typename Base::element_t> >>
     class Repeater : public Base
