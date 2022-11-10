@@ -4,7 +4,6 @@
 #include <numeric>
 #include <op/utest/unit_test.h>
 #include <op/flur/flur.h>
-#include <op/flur/Join.h>
 
 using namespace OP::utest;
 using namespace OP::flur;
@@ -13,7 +12,7 @@ namespace {
 
     //template <class Left, class Right, typename = 
     //    std::enable_if_t<Left::ordered_c && Right::ordered_c> >
-    //decltype(auto) join(Left&& left, Right&& right)
+    //decltype(auto) ordered_join(Left&& left, Right&& right)
     //{
     //    return 0;
     //}
@@ -34,49 +33,49 @@ namespace {
         {"xyz", 1.0} 
         };
 
-        tresult.info() << "join with empty\n";
+        tresult.info() << "ordered_join with empty\n";
         test_container_t empty;
         tresult.assert_that<eq_sets>(
             src::of_container(src1) & src::of_container(empty), empty, "right empty");
         tresult.assert_that<eq_sets>(
             src::of_container(empty) & src::of_container(src1), empty, "left empty");
 
-        tresult.info() << "join with itself\n";
+        tresult.info() << "ordered_join with itself\n";
         auto r1_src1 = src::of_container(src1) & src::of_container(src1);
 
         tresult.assert_that<eq_sets>(r1_src1, src1, "identity");
 
-        tresult.info() << "join without intersection\n";
+        tresult.info() << "ordered_join without intersection\n";
         test_container_t src2 = { {"0", 0}, {"1", 0.1} };
         
         tresult.assert_that<eq_sets>(
             src::of_container(src1) & src::of_container(src2)
-            , empty, "left bias no-join (1)");
+            , empty, "left bias no-ordered_join (1)");
 
         tresult.assert_that<eq_sets>(
             src::of_container(src2) & src::of_container(src1)
-            , empty, "left bias no-join (2)");
+            , empty, "left bias no-ordered_join (2)");
 
         src2 = { {"abc", 0}, {"ge", 0.1} };
 
         tresult.assert_that<eq_sets>(
             src::of_container(src1) & src::of_container(src2)
-            , empty, "mix no-join (1)");
+            , empty, "mix no-ordered_join (1)");
 
         tresult.assert_that<eq_sets>(
             src::of_container(src2) & src::of_container(src1)
-            , empty, "mix no-join (2)");
+            , empty, "mix no-ordered_join (2)");
 
         src2 = { {"x", 0}, {"y", 0.1}, {"z", 0.1} };
         tresult.assert_that<eq_sets>(
             src::of_container(src1) & src::of_container(src2)
-            , empty, "right bias no-join (1)");
+            , empty, "right bias no-ordered_join (1)");
 
         tresult.assert_that<eq_sets>(
             src::of_container(src2) & src::of_container(src1)
-            , empty, "right bias no-join (2)");
+            , empty, "right bias no-ordered_join (2)");
 
-        tresult.info() << "Partial join set\n";
+        tresult.info() << "Partial ordered_join set\n";
         src2 = { {"0", 0}, {"1", 0.1}, {"ab", 0}, {"b", 0}, {"cd", 0}, {"cddddddddddddddddddddd", 0} };
         test_container_t jn_res{ {"ab",1.0}, {"b", 1.0}, {"cd", 1.0} };
         auto key_only_compare =
@@ -85,37 +84,37 @@ namespace {
         };
 
         auto join_res_factory = src::of_container(src1)
-            >> then::join(src::of_container(src2), key_only_compare);
+            >> then::ordered_join(src::of_container(src2), key_only_compare);
         for (const auto& x : join_res_factory.compound())
             tresult.debug() << ">" << x.first << ", " << x.second << "\n";
         tresult.assert_that<eq_sets>(
             src::of_container(src1) 
-                >> then::join(src::of_container(src2), key_only_compare),
-            jn_res, "part intersect join (1)");
+                >> then::ordered_join(src::of_container(src2), key_only_compare),
+            jn_res, "part intersect ordered_join (1)");
         auto take_key_only = [](const auto& pair) {return pair.first; };
         tresult.assert_that<eq_sets>(
             src::of_container(src2) 
-                >> then::join( src::of_container(src1), key_only_compare)
+                >> then::ordered_join( src::of_container(src1), key_only_compare)
                 >> then::mapping(take_key_only), 
             src::of_container(jn_res) >> then::mapping(take_key_only),
-                "part intersect join (2)");
+                "part intersect ordered_join (2)");
 
 
         src2 = { {"defx", 0}, {"g", 0}, {"k", 0}, {"xyz", 0}, {"zzzzzz", 0} };
         jn_res = { {"g",1.0}, {"xyz", 1.0} };
         tresult.assert_that<eq_sets>(
-            src::of_container(src1) >> then::join(src::of_container(src2), key_only_compare),
-            jn_res, "fail on right bias join(1)");
+            src::of_container(src1) >> then::ordered_join(src::of_container(src2), key_only_compare),
+            jn_res, "fail on right bias ordered_join(1)");
 
         tresult.assert_that<eq_sets>(
             src::of_container(src2) 
-            >> then::join(src::of_container(src1), key_only_compare)
+            >> then::ordered_join(src::of_container(src1), key_only_compare)
             >> then::mapping(take_key_only),
             src::of_container(jn_res) >> then::mapping(take_key_only), 
-            "fail on right bias join(2)");
+            "fail on right bias ordered_join(2)");
 
 
-        tresult.info() << "join with dupplicates\n";
+        tresult.info() << "ordered_join with dupplicates\n";
         using test_multimap_container_t = std::multimap<std::string, double>;
         test_multimap_container_t multi_src1{
             {"a", 1.0},
@@ -140,7 +139,7 @@ namespace {
         };
 
         auto res2 = src::of_container(multi_src1) 
-            >> then::join( src::of_container(multi_src2), key_only_compare );
+            >> then::ordered_join( src::of_container(multi_src2), key_only_compare );
         std::for_each(res2, [&](const auto& i) {
             tresult.debug() << "{" << i.first << " = " << i.second << "}\n";
             });
@@ -159,7 +158,7 @@ namespace {
                 }) 
             //>> then::mapping(take_key_only)
             , 
-            "fail on dupplicate join");
+            "fail on dupplicate ordered_join");
 
         //tresult.info() << "if-exists semantic\n";
         //multi_src2 = {{"0", 2}, {"a", 2}, {"a", 2.1}, {"b",2.0}, {"m",2.0},  {"z",2}};
@@ -201,7 +200,7 @@ namespace {
         std::map<std::string, double> expected{ {"def", 1.0} };
         tresult.assert_that<eq_sets>(
             src::of_container(src1) 
-            >> then::join(src::of_value("def"s), 
+            >> then::ordered_join(src::of_value("def"s), 
                 [](const auto& l, const auto& r)->int {
                     return l.first.compare(r);
                 }), 
@@ -210,7 +209,7 @@ namespace {
         );
 
     }
-    static auto& module_suite = OP::utest::default_test_suite("flur.join")
+    static auto& module_suite = OP::utest::default_test_suite("flur.ordered_join")
         .declare("filter", test_Join)
         .declare("with-single", test_JoinSingle)
         ;
