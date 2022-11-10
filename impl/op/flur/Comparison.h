@@ -38,7 +38,8 @@ namespace OP::flur
         enum class CmpOp
         {
             less,
-            equals
+            equals,
+            greater
         };
         /** std::less or std::equal - like bool implementation on top of full comparison_t */
         template <CmpOp operation, class TCompareBase>
@@ -52,7 +53,13 @@ namespace OP::flur
             constexpr bool operator()(T&& left, U&& right) const
             {
                 if constexpr(operation == CmpOp::less)
+                {
                     return _base(std::forward<T>(left), std::forward<U>(right)) < 0;
+                }
+                else if constexpr(operation == CmpOp::greater)
+                {
+                    return _base(std::forward<T>(left), std::forward<U>(right)) > 0;
+                }
                 else
                     return _base(std::forward<T>(left), std::forward<U>(right)) == 0;
             }
@@ -76,6 +83,9 @@ namespace OP::flur
         /** bool implementation of std::less on top of comparison_t, may be used by stl */
         using less_t = details::CompareOnTopOfFullComparison<details::CmpOp::less, comparison_t >;
 
+        /** bool implementation of std::greater on top of comparison_t, may be used by stl */
+        using greater_t = details::CompareOnTopOfFullComparison<details::CmpOp::greater, comparison_t >;
+
         using equals_t = details::CompareOnTopOfFullComparison<details::CmpOp::equals, comparison_t >;
 
         //constexpr CompareTraits() noexcept = default;
@@ -89,6 +99,11 @@ namespace OP::flur
         constexpr auto less_factory() const noexcept
         {
             return less_t{};
+        }
+
+        constexpr auto greater_factory() const noexcept
+        {
+            return greater_t{};
         }
 
         constexpr auto equals_factory() const noexcept
