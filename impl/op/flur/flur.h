@@ -269,7 +269,7 @@ namespace OP::flur
         *
         */
         template <class Right>
-        constexpr auto join(Right&& right) noexcept
+        constexpr auto ordered_join(Right&& right) noexcept
         {
             return PartialJoinFactory<Right>(std::forward<Right>(right));
         }
@@ -278,7 +278,7 @@ namespace OP::flur
         *  \tparam Comp - functor that matches functor `signed f( const Right::element_t& , const Right::element_t)`
         */
         template <class Right, class Comp>
-        constexpr auto join(Right&& right, Comp&& comp) noexcept
+        constexpr auto ordered_join(Right&& right, Comp&& comp) noexcept
         {
             return PartialJoinFactory<Right, Comp>(
                 std::forward<Right>(right), std::forward<Comp>(comp));
@@ -286,7 +286,7 @@ namespace OP::flur
 
         /**
         *   Find difference between set. When sets contains dupplicates behaviour is same as std::set_difference, it will 
-        *   be output std::max(m-n, 0), where m - number of dupplicates from sourcc and n number of dupplicates in Subtrahend.
+        *   be output std::max(m-n, 0), where m - number of dupplicates from source and n number of dupplicates in Subtrahend.
         */
         template <class TSubtrahend>
         constexpr auto ordered_diff(TSubtrahend&& right) noexcept
@@ -297,7 +297,8 @@ namespace OP::flur
         }
 
         /** 
-        * \tparam TComparators - pack of 3 (less, equal, hash). You can use 
+        * \tparam TComparators - pack of 3 (less, equal, hash). You can use OP::OverrideComparisonAndHashTraits
+        *   to simplify implementation
         */
         template <class TSubtrahend, class TComparators>
         constexpr auto ordered_diff(TSubtrahend&& right, TComparators&& cmp) noexcept
@@ -363,18 +364,24 @@ namespace OP::flur
         }
         
         /**
-        *   use `distinct` with `std::equal_to`
+        *   Remove duplicates from sorted source sequence. 
+        *   Internaly uses `std::equal_to`
         */
         constexpr auto ordered_distinct() noexcept
         {
             return DistinctFactory<OrderedDistinctPolicy>();
         }
+
+        /**
+        *   Remove duplicates from sorted source sequence using the custom comparator F. 
+        */
         template <class F>
         constexpr auto ordered_distinct(F f) noexcept
         {
             return DistinctFactory<OrderedDistinctPolicyWithCustomComparator<F>>(
                 OrderedDistinctPolicyWithCustomComparator<F>(std::move(f)));
         }
+
         /**
         *  Produce cartesian multiplication of 2 sources. 
         * \tparam Alien - some other pipeline
