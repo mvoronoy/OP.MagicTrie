@@ -164,11 +164,11 @@ void test_join(
     auto cmp = [](const auto& left, const auto& right)->int {
         return left.first.compare(right.second);
     };
-    auto result1 = r1 >> then::join(r2, cmp);
+    auto result1 = r1 >> then::ordered_join(r2, cmp);
 
     tresult.assert_that<eq_sets>(result1, expected, OP_CODE_DETAILS());
 
-    auto result2 = r2 >> then::join(r1, cmp);
+    auto result2 = r2 >> then::ordered_join(r1, cmp);
     tresult.assert_that<eq_sets>(result2, expected, OP_CODE_DETAILS());
 }
 void test_TrieSubtreeLambdaOperations(OP::utest::TestRuntime& tresult)
@@ -286,13 +286,13 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestRuntime& tresult)
     
     //tresult.assert_that<eq_sets>(
     //    trie->prefixed_range(query4) 
-    //    >> then::join(join_src_range, [](const auto& i, const auto& pr) 
+    //    >> then::ordered_join(join_src_range, [](const auto& i, const auto& pr) 
     //        {return i.key().compare(pr.first); })
     //    >> then::mapping(pair_extractor),
     //    test_values);
     //tresult.assert_that<eq_sets>(
     //    join_src_range 
-    //    >> then::join(trie->prefixed_range(query4), [](const auto& pr, const auto& i) 
+    //    >> then::ordered_join(trie->prefixed_range(query4), [](const auto& pr, const auto& i) 
     //        {return i.key().compare(pr.first); }) 
     //    ,
     //    test_values);
@@ -300,7 +300,7 @@ void test_TrieSubtreeLambdaOperations(OP::utest::TestRuntime& tresult)
     test_values.clear();
     //tresult.assert_that<eq_sets>(
     //    trie->prefixed_range(query5)
-    //    >> then::join(join_src_range, [](const auto& i, const auto& pr)
+    //    >> then::ordered_join(join_src_range, [](const auto& i, const auto& pr)
     //        {return -1; }//!@ {return i.key().compare(pr.first); }
     //    )         
     //    >> then::mapping(pair_extractor),
@@ -721,7 +721,7 @@ template <class Range1, class Range2, class Vector>
 std::int64_t applyJoinRest(Range1 range1, Range2 range2, Vector &result)
 {
 
-    auto join_result = (range1 >> OP::flur::then::join(range2)).compound();
+    auto join_result = (range1 >> OP::flur::then::ordered_join(range2)).compound();
     
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     //materialize
@@ -808,13 +808,13 @@ void test_JoinRangeOverride(TestRuntime& tresult)
     auto t1r2 = trie1->range() >> then::filter([&](const auto& i) {
         return ((int)i.key()[0]) % 3 == 0;
         });
-    // filtered range uses default impl of join
-    //tresult.info() << "Join processed:" << applyJoinRest(
+    // filtered range uses default impl of ordered_join
+    //tresult.info() << "ordered_join processed:" << applyJoinRest(
     //    t1r1,
     //    t1r2,
     //    result1) << "[ms]\n";
     auto inr1 = t1r1
-        >> then::join(t1r2);
+        >> then::ordered_join(t1r2);
     //compare_containers(tresult,
     //    (   inr1
     //        >> then::mapping([](const auto& i) {
@@ -822,19 +822,19 @@ void test_JoinRangeOverride(TestRuntime& tresult)
     //            return pr_t(i.key(), i.value()); 
     //        })),
     //    test_values);
-    //tresult.info() << "Splitted-default join processed:" << applyJoinRest(
+    //tresult.info() << "Splitted-default ordered_join processed:" << applyJoinRest(
     //    trie2->range() >> then::filter([](const auto&){return true;}),
     //    trie3->range() >> then::filter([](const auto&) {return true;}),
     //    result2) << "[ms]\n";
     //result2.clear();
-    //// trie-range uses overriding impl of join
-    //tresult.info() << "Non-default join processed:" << applyJoinRest(
+    //// trie-range uses overriding impl of ordered_join
+    //tresult.info() << "Non-default ordered_join processed:" << applyJoinRest(
     //    trie2->range(),
     //    trie3->range(),
     //    result2) << "[ms]\n";
 
     //tresult.assert_true(result1 == result2);
-    //auto t2r1 = trie2->range() >> then::join(trie3->range());
+    //auto t2r1 = trie2->range() >> then::ordered_join(trie3->range());
     //compare_containers(tresult, t2r1, test_values);
 
 }
