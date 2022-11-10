@@ -33,14 +33,14 @@ namespace OP::flur
     } //ns:details
 
     template <class T, class Left, class Right, class Comp, bool implement_exists_c = false>
-    struct Join : public OrderedSequence<T>
+    struct OrderedJoin : public OrderedSequence<T>
     {
         using base_t = OrderedSequence<T>;
         using left_container_t = details::unpack_t<Left>;
         using right_container_t = details::unpack_t<Right>;
         using element_t = typename base_t::element_t;
 
-        constexpr Join(Left&& left, Right&& right, Comp&& join_key_cmp) noexcept
+        constexpr OrderedJoin(Left&& left, Right&& right, Comp&& join_key_cmp) noexcept
             : _left(std::move(left))
             , _right(std::move(right))
             , _join_key_cmp(join_key_cmp)
@@ -166,19 +166,22 @@ namespace OP::flur
         bool _optimize_right_forward;
     };
 
-    template <class Left, class Right, class Comp>
-    auto make_join(Left&& left, Right&& right, Comp&& comp)
-    {
-        using left_t = std::decay_t<Left>;
-        using right_t = std::decay_t<Right>;
-        using src_conatiner_t = details::sequence_type_t<details::dereference_t<left_t>>;
-        using element_t = typename src_conatiner_t::element_t;
+    namespace details{
 
-        return Join<element_t, left_t, right_t, Comp>(
-            std::forward<Left>(left), 
-            std::forward<Right>(right),
-            std::forward<Comp>(comp));
-    }
+        template <class Left, class Right, class Comp>
+        constexpr auto make_join(Left&& left, Right&& right, Comp&& comp) noexcept
+        {
+            using left_t = std::decay_t<Left>;
+            using right_t = std::decay_t<Right>;
+            using src_conatiner_t = details::sequence_type_t<details::dereference_t<left_t>>;
+            using element_t = typename src_conatiner_t::element_t;
+
+            return OrderedJoin<element_t, left_t, right_t, Comp>(
+                std::forward<Left>(left), 
+                std::forward<Right>(right),
+                std::forward<Comp>(comp));
+        }
+    } //ns:details
 
    
     template <class Right, class Comp = full_compare_t >
@@ -193,14 +196,14 @@ namespace OP::flur
         template <class Left >
         auto compound(Left&& left) const& noexcept
         {
-            return make_join(std::forward<Left>(left), 
+            return details::make_join(std::forward<Left>(left), 
                 OP::flur::details::get_reference(_right).compound(), _comp);
         }
 
         template <class Left>
         constexpr auto compound(Left&& left) && noexcept
         {
-            return make_join(std::forward<Left>(left).compound(), 
+            return details::make_join(std::forward<Left>(left).compound(), 
                 std::move(_right).compound(), std::move(_comp));
         }
 
@@ -217,6 +220,7 @@ namespace OP::flur
             , _comp(std::forward<Comp>(comp))
         {
         }
+
         constexpr JoinFactory(const Left& left, const Right& right, Comp&& comp = Comp()) noexcept
             : _left(left)
             , _right(right)
@@ -226,12 +230,13 @@ namespace OP::flur
 
         constexpr auto compound() const& noexcept
         {
-            return make_join(_left.compound(), _right.compound(), _comp);
+            return details::make_join(_left.compound(), _right.compound(), _comp);
         }
 
         constexpr auto compound() && noexcept
         {
-            return make_join(std::move(_left).compound(), std::move(_right).compound(), std::move(_comp));
+            return details::make_join(
+                std::move(_left).compound(), std::move(_right).compound(), std::move(_comp));
         }
 
         Left _left;
