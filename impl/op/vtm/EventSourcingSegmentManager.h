@@ -12,7 +12,17 @@
 namespace OP
 {
     using namespace vtm;
-    namespace trie{
+    namespace trie
+    {
+        enum class ReadIsolation : std::uint32_t
+        {
+            /** Raise exception on any try to read concurrent. So caller may retry later. */
+            Prevent = 10,
+            /** Concurrent block reads most recent commit */
+            ReadCommitted,
+            /** Concurrent block may read uncommitted data */
+            ReadUncommitted
+        };
 
         class EventSourcingSegmentManager : public SegmentManager
         {
@@ -30,6 +40,14 @@ namespace OP
                     _cv_disposer.notify_one();
                 }
                 _captured_worker.join();
+            }
+
+            /** Change behavior of read, what to do on detection conflict with write blocks of another transaction.
+            \return previous isolation policy
+            */
+            ReadIsolation read_isolation(ReadIsolation new_level)
+            {
+                return _read_isolation.exchange(new_level);
             }
 
             transaction_ptr_t begin_transaction() override
@@ -66,7 +84,10 @@ namespace OP
                 if(blocks_in_touch == _captured.end() //no prev blocks at all
                     && (hint & ReadonlyBlockHint::ro_keep_lock) != ReadonlyBlockHint::ro_keep_lock //block has no retain policy
                     )
+                {
                     return result;
+                }
+                auto current_isolation = _read_isolation.load();
                 for(; blocks_in_touch != _captured.end(); ++blocks_in_touch)
                 {
                     auto& block_profile = blocks_in_touch->second;
@@ -74,12 +95,31 @@ namespace OP
                     {// writable block
                         //combine write & read allowed only in the same tran
                         //check tran is the same
-                        if (!current_transaction || block_profile._used_in_transaction != current_transaction->transaction_id())
-                        {//cannot capture because other WR- tran exists over this block
-                            throw ConcurentLockException("cannot capture RO while it is used as WR in other transaction");
+                        if (current_transaction
+                            && block_profile._used_in_transaction == current_transaction->transaction_id())
+                        {// form event log ordered by history 
+                            transaction_log.insert(blocks_in_touch);
                         }
-                        // form ordered by history event log
-                        transaction_log.insert(blocks_in_touch);
+                        else
+                        {//cannot capture because other WR- tran exists over this block
+                            switch( current_isolation )
+                            {
+                            default:
+                            case ReadIsolation::ReadCommitted:
+                                //do nothing, Ignore this WR block, proceed with origin RO memory. 
+                                break;
+                            case ReadIsolation::Prevent:
+                                //allow caller to retry later
+                                throw ConcurentLockException(
+                                    "cannot capture RO while it is used as WR in other transaction, or no trasnsaction used");
+                            case ReadIsolation::ReadUncommitted:
+                                { //DIRTY-READ logic
+                                    transaction_log.insert(blocks_in_touch);
+                                    break;
+                                }
+                            }
+                        }
+                        
                     }
                 }
                 //apply all event sourced to `new_buffer`
@@ -518,6 +558,7 @@ namespace OP
             std::deque<transaction_impl_ptr_t> _ready_to_dispose;
             /**background worker to release redundant records from _captured*/
             std::thread _captured_worker;
+            std::atomic<ReadIsolation> _read_isolation = ReadIsolation::ReadCommitted;
         };
 
     } //ns::trie

@@ -225,7 +225,7 @@ namespace OP::vtm
             {
                 guard_t l(this->_file_lock);
                 _fbuf.seekp(0, std::ios_base::end);
-                MyFileBuf::pos_type pos = _fbuf.tellp();
+                file_t::pos_type pos = _fbuf.tellp();
                 size_t total_pages = pos / segment_size();
                 
                 while (total_pages <= index )
@@ -239,7 +239,7 @@ namespace OP::vtm
             {
                 guard_t l(this->_file_lock);
                 _fbuf.seekp(0, std::ios_base::end);
-                MyFileBuf::pos_type pos = _fbuf.tellp();
+                file_t::pos_type pos = _fbuf.tellp();
                 return static_cast<segment_idx_t>(pos / segment_size());
             }
             
@@ -312,17 +312,12 @@ namespace OP::vtm
                 //this->_cached_segments._check_integrity();
             }
 
-            OP::utils::ThreadPool& thread_pool()
-            {
-                return _thread_pool;
-            }
         protected:
 
             SegmentManager(const char * file_name, bool create_new, bool is_readonly) 
                 : _file_name(file_name)
                 , _cached_segments(10)
                 , _listener(nullptr)
-                , _thread_pool(1/*1 thread looks enough*/)
             {
                 //file is opened always in RW mode
                 std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary;
@@ -355,7 +350,7 @@ namespace OP::vtm
             inline SegmentManager& do_write(const T* t, size_t n)
             {
                 const auto to_write = OP::utils::memory_requirement<T>::array_size(n);
-                _fbuf.write(reinterpret_cast<const MyFileBuf::char_type*>(t), to_write);
+                _fbuf.write(reinterpret_cast<const file_t::char_type*>(t), to_write);
                 if (_fbuf.bad())
                 {
                     std::stringstream ose;
@@ -370,7 +365,7 @@ namespace OP::vtm
             inline SegmentManager& do_read(T* t, size_t n)
             {
                 const auto to_read = OP::utils::memory_requirement<T>::array_size(n);
-                _fbuf.read(reinterpret_cast<MyFileBuf::char_type*>(t), to_read);
+                _fbuf.read(reinterpret_cast<file_t::char_type*>(t), to_read);
                 if (_fbuf.bad())
                 {
                     std::stringstream ose;
@@ -426,7 +421,7 @@ namespace OP::vtm
 
         private:
 
-            typedef std::fstream MyFileBuf;
+            using file_t = std::fstream;
             /**Per boost documentation file_lock cannot be used between 2 threads (only between process) on POSIX sys, so use named mutex*/
             typedef std::recursive_mutex file_lock_t;
             typedef std::lock_guard<file_lock_t> guard_t;
@@ -434,7 +429,7 @@ namespace OP::vtm
             SegmentEventListener *_listener;
 
             std::string _file_name;
-            MyFileBuf _fbuf;
+            file_t _fbuf;
             file_lock_t _file_lock;
             mutable file_mapping _mapping;
 
@@ -442,7 +437,6 @@ namespace OP::vtm
             typedef Range<const std::uint8_t*, segment_pos_t> slot_address_range_t;
 
             mutable cache_region_t _cached_segments;
-            OP::utils::ThreadPool _thread_pool;
 
             segment_idx_t allocate_segment()
             {

@@ -80,11 +80,25 @@ void test_overlappedException(Sm& tmanager)
 
 /**Check that this transaction sees changed data, but other transaction doesn't*/
 template <class Sm>
-void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t block_size, const std::uint8_t *written)
+void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t block_size, 
+    const std::uint8_t *written,
+    const std::uint8_t* origin
+    )
 {
     auto ro_block = tmanager->readonly_block(FarAddress(pos), block_size);
     //ro must see changes
     OP_UTEST_ASSERT(0 == memcmp(written, ro_block.pos(), block_size));
+    
+    std::future<bool> future_block1_read_cmmitted = std::async(std::launch::async, [&]() {
+        //another tran with ReadCommitted isolation must see previous state
+        auto ro_block2 = tmanager->readonly_block(FarAddress(pos), sizeof(block_size));
+        OP_UTEST_ASSERT(0 == memcmp(origin, ro_block2.pos(), block_size));
+        return true;
+    });
+    OP_UTEST_ASSERT(future_block1_read_cmmitted.get());
+
+    auto prev_isolation = 
+        tmanager->read_isolation(OP::trie::ReadIsolation::Prevent);
     std::future<bool> future_block1_t2 = std::async(std::launch::async, [&](){
         try{
             auto ro_block2 = tmanager->readonly_block(FarAddress(pos), sizeof(block_size));
@@ -108,6 +122,8 @@ void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t bl
         return false;//exception wasn't raised
     });
     OP_UTEST_ASSERT( future_block2_t2.get() );
+
+
 }
 void test_Locking(OP::utest::TestRuntime& tresult)
 {
@@ -226,9 +242,11 @@ void test_EvSrcSegmentManager(OP::utest::TestRuntime &tresult)
     tresult.assert_true( future_t2.get() );
     */
     //test brand new region write
+    auto range1_origin = tmngr1->readonly_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq2));
     auto wr_range1 = tmngr1->writable_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq2));
     memcpy(wr_range1.pos(), write_fill_seq2, sizeof(write_fill_seq2));
-    test_TransactionIsolation(tmngr1, writable_data_fpos, sizeof(write_fill_seq1), write_fill_seq2);
+    test_TransactionIsolation(
+        tmngr1, writable_data_fpos, sizeof(write_fill_seq1), write_fill_seq2, range1_origin.pos());
     tr1->commit();
     //test all threads can see new data
     std::future<bool> future_read_committed_block1_t2 = std::async(std::launch::async, [&](){
