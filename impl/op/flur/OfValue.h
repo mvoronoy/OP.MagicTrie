@@ -15,50 +15,49 @@ namespace OP
 namespace flur
 {
     /**
-    *   Create conatiner of strictly 1 item.
-    * Container is ordred.
+    *   Create sequence to iterate over single value. By default it retrieves strictly 1 item.
+    * Sequence is treated as an ordred. Manipulating by constructor parameter `limit`
+    * you can repeat same value `limit` times.
     */
-    template <class T>
-    struct OfValue : public OrderedSequence<T>
+    template <class T, class R = T>
+    struct OfValue : public OrderedSequence<R>
     {
         template < class U = T >
-        constexpr OfValue(U&& src)
+        constexpr OfValue(U&& src, size_t limit = 1)
             :_src(std::forward<U>(src))
-            , _retrieved(false)
+            , _limit(limit)
+            , _i(0)
         {
         }
 
-        //constexpr OfValue(const T& src)
-        //    :_src(src)
-        //    , _retrieved(false)
-        //{
-        //}
-        virtual void start()
+        virtual void start() override
         {
-            _retrieved = false;
+            _i = 0;
         }
 
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
-            return !_retrieved;
+            return _i < _limit;
         }
 
-        virtual T current() const
+        virtual R current() const override
         {
-            return /*details::get_reference*/(_src);
+            return _src;
         }
 
-        virtual void next()
+        virtual void next() override
         {
-            _retrieved = true;
+            ++_i;
         }
     private:
-        bool _retrieved = false;
+        size_t _i;
+        const size_t _limit;
         T _src;
     };
+
     /**
-    *   Create conatiner of strictly 1 item that evaluates each time when iteration starts.
-    * Container is ordred.
+    *   Create sequence of strictly 1 item that evaluates each time when iteration starts.
+    * Sequence is treated as an ordred. 
     */
     template <class T, class F>
     struct OfLazyValue : public OrderedSequence<T>
@@ -92,6 +91,46 @@ namespace flur
     private:
         bool _retrieved;
         gen_t _gen;
+    };
+
+    /**
+    * Always empty sequence.
+    * Sequence is treated as an ordred. 
+    * \tparam T is fictive but important to specify type of sequence.
+    */
+    template <class T>
+    struct NullSequence : public OrderedSequence<T>
+    {
+        constexpr NullSequence() noexcept = default;
+
+        virtual void start() override
+        {
+            /* do nothing */
+        }
+
+        virtual bool in_range() const override
+        {
+            return false;
+        }
+
+        virtual T current() const override
+        {
+            throw std::out_of_range("resolving item of empty sequence");
+        }
+
+        virtual void next() override
+        {
+            throw std::out_of_range("advance empty sequence");
+        }
+    };
+    template <class T>
+    struct NullSequenceFactory
+    {
+        constexpr NullSequenceFactory() noexcept = default;
+        constexpr NullSequence<T> compound() noexcept
+        {
+            return NullSequence<T>{};
+        }
     };
 
 } //ns:flur

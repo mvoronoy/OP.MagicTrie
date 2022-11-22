@@ -28,18 +28,31 @@ namespace OP
             /** `true` when applicator produces factory (not a sequence) */
             constexpr static bool applicator_makes_factory_c =
                 std::is_base_of_v < FactoryBase, unref_applicator_result_t >;
+            static constexpr bool applicator_makes_sequence_c = details::is_sequence_v<applicator_result_t>;
             
             using applicator_result_sequence_t = 
                 std::decay_t<details::unpack_t<unref_applicator_result_t>>;
 
             /** Holder for the value returned from functor to make it flat */
             using sequence_holder_t = std::conditional_t<
-                    std::disjunction_v<
-                        details::is_shared_ptr<applicator_result_sequence_t >,
-                        details::is_optional<applicator_result_sequence_t > >,
+                    //is factory
+                    applicator_makes_factory_c,
+                    std::conditional_t<
+                        std::disjunction_v<
+                            details::is_shared_ptr<applicator_result_sequence_t >,
+                            details::is_optional<applicator_result_sequence_t > >,
                         applicator_result_sequence_t,
                         std::optional<applicator_result_sequence_t >
-                    >;
+                    >,
+                    //is sequence
+                    std::conditional_t<
+                        std::disjunction_v<
+                            details::is_shared_ptr<applicator_result_t>,
+                            details::is_optional<applicator_result_t> >,
+                        applicator_result_t,
+                        std::optional<applicator_result_t>
+                    >
+                >;
 
             using unref_applicator_result_sequence_t = details::dereference_t< 
                 applicator_result_sequence_t >;

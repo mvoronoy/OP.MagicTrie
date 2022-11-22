@@ -267,10 +267,263 @@ void test_FlatMapShared(OP::utest::TestRuntime& rt)
     rt.assert_that<equals>(16, g_moved);
 }
 
+void test_FlatMapArbitraryArgs(TestRuntime& tresult)
+{
+    //auto shared_seq = make_shared(
+    //    src::of_container(std::vector{ 1, 3, 5, 7 })
+    //    >> then::flat_mapping([](const int& n, const PipelineAttrs& attrs) {
+    //        ExploreVector<int> even{ 2, 4, 6 };
+    //        return make_shared(src::of_container(std::move(even)));
+    //        })
+    //);
+
+}
+
+
+namespace fldet = OP::flur::details;
+
+template <class R, class T>
+auto sh_new(T&& t)
+{
+    return std::shared_ptr<R>(new T(std::move(t)));
+}
+template <class T>
+auto* mv_new(T&& t)
+{
+    return new T(std::move(t));
+}
+
+template <class T, class F1, class F2>
+/*result_t*/constexpr auto ppln_factory(T&& elem, F1 f1, F2& f2)
+{
+    //std::cout << "\n" << std::setw(4 - _lev) << ' ';
+    auto val = src::of_value(elem);
+    auto fl = src::of_value(std::forward<T>(elem))
+        >> then::flat_mapping(std::move(f1))
+        >> then::flat_mapping(std::move(f2))
+        ;
+    return val
+        >> then::union_all(std::move(fl))                   
+        ;
+}
+
+template <class T, class F>
+struct DeepFirstFunctor
+{
+    using this_t = DeepFirstFunctor<T, F>;
+    using raw_applicator_result_t = decltype(std::declval<F>()(std::declval<const T&>()));
+    using applicator_result_t = std::decay_t<raw_applicator_result_t>;
+
+    F _applicator;
+    int _lev;
+    using applicator_element_t = typename fldet::sequence_type_t<applicator_result_t>::element_t;
+    //static_assert(
+    //    std::is_same_v< T, applicator_element_t>,
+    //    "must operate on sequences producing same type elements");
+    using value_seq_t = OfValue<T>;
+
+    using poly_result_t = AbstractPolymorphFactory<const T&>;
+    using result_t = std::shared_ptr<poly_result_t>;
+
+    constexpr DeepFirstFunctor(F f, int lev = 3) noexcept
+        : _applicator(std::move(f))
+        , _lev(lev)
+    {}
+
+    
+    result_t operator ()(const std::string& elem) const
+    {
+        std::cout << "\n" << std::setw(4 - _lev) << ' ';
+        auto val = src::of_value(elem);
+        auto fl = src::of_value(std::move(elem))
+            >> then::flat_mapping(_applicator)
+            >> then::flat_mapping(std::function(this_t(_applicator, _lev - 1)));
+        return OP::flur::make_shared(std::move(val)
+            >> then::union_all(std::move(fl)))
+            ;
+    }
+};
+#include <op/common/ftraits.h>
+
+template <class F>
+struct BroadFirstFactory : FactoryBase
+{
+    using this_t = BroadFirstFactory<F>;
+    using applicator_traits_t = OP::utils::function_traits<F>;
+    using raw_applicator_result_t = typename applicator_traits_t::result_t;
+    using applicator_result_t = std::decay_t<raw_applicator_result_t>;
+    F _applicator;
+    int _lev;
+    using applicator_element_t = typename fldet::sequence_type_t<applicator_result_t>::element_t;
+
+    constexpr BroadFirstFactory(F f, int lev = 3) noexcept
+        : _applicator(std::move(f))
+        , _lev(lev)
+    {}
+
+    template <class Src, class F, 
+        class Base = Sequence< typename OP::flur::details::sequence_type_t<Src>::element_t > >
+    struct ProxySequence : Base
+    {
+        using base_t = Base;
+        using element_t = typename base_t::element_t;
+        using traits_t = FlatMapTraits<F, Src>;
+        Src _origin;
+        
+        using flat_element_t = OP::flur::details::sequence_type_t<
+            typename traits_t::applicator_result_t>;
+        using then_vector_t = std::vector<flat_element_t>;
+
+        then_vector_t _gen1, _gen2;
+        bool _is_gen0 = true;
+        size_t _gen1_idx = 0;
+        F _applicator;
+
+        constexpr ProxySequence(Src&& rref, F applicator) noexcept
+            : _origin(std::move(rref))
+            , _applicator(std::move(applicator))
+        {
+        }
+
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
+        {
+            return false;
+        }
+
+        virtual void start()
+        {
+            _is_gen0 = true;
+            _gen1_idx = 0;
+            _gen1.clear(), _gen2.clear();
+            _origin.start();
+            drain();
+        }
+
+        virtual bool in_range() const override
+        {
+            if (_is_gen0)
+            {
+                return _origin.in_range();
+            }
+            else return (_gen1_idx < _gen1.size());
+        }
+
+        virtual element_t current() const override
+        {
+            if (_is_gen0)
+            {
+                return _origin.current();
+            }
+            else 
+            {
+                return 
+                    _gen1[_gen1_idx].current();
+            }
+        }
+
+        virtual void next() override
+        {
+            if (_is_gen0)
+            {
+                _origin.next();
+            }
+            else
+            {
+                auto& at = _gen1[_gen1_idx];
+                assert(at.in_range());
+                at.next();
+                if( !at.in_range() )
+                {
+                    ++_gen1_idx;
+                    seek_gen1();
+                }
+            }
+            drain();
+        }
+
+    private:
+        void drain()
+        {
+            if (in_range())
+            {
+                _gen2.emplace_back(_applicator(current()).compound());
+                return;
+            }
+            std::swap(_gen1, _gen2);
+            _is_gen0 = false;
+            _gen2.clear();
+            _gen1_idx = 0;
+            seek_gen1();
+        }
+
+        void seek_gen1()
+        {
+            for (; _gen1_idx < _gen1.size(); ++_gen1_idx)
+            { //find first non-empty sequence for generation-1 leftovers
+                auto& at = _gen1[_gen1_idx];
+                at.start();
+                if (at.in_range())
+                {
+                    _gen2.emplace_back(_applicator(at.current()).compound());
+                    return;
+                }
+            }
+            //no entries in gen_1, EOS
+            _gen1.clear();
+        }
+    };//proxy
+
+    template <class Src>
+    constexpr auto compound(Src&& seq) const
+    {
+        static_assert(
+            std::is_same_v< typename OP::flur::details::dereference_t<Src>::element_t, applicator_element_t>,
+            "must operate on sequences producing same type elements");
+        return ProxySequence<Src, F>(std::move(seq), _applicator);
+    }
+};
+
+template <class F>
+constexpr auto broad_first(F f) noexcept
+{
+    using f_t = std::decay_t<F>;
+    return BroadFirstFactory<f_t>(std::move(f));
+}
+
+void test_FlatMapRec(OP::utest::TestRuntime& rt)
+{
+    std::vector<std::string> src{ "a", "b", "c" };
+    size_t n = 3;
+    auto child_str_no_mor3 = [&](const std::string& t) ->decltype(auto)
+    {
+        std::vector<std::string> res;
+        if (t.size() < 13)
+        {
+            for (auto i = 0; i < 3; ++i)
+                res.emplace_back(t + ".(" + std::to_string(i) + ")");
+        }
+        return src::of_container(std::move(res));
+    };
+    using f_t = DeepFirstFunctor<std::string, decltype(child_str_no_mor3)>;
+    auto ll = src::of_container(src)
+        >> then::flat_mapping(f_t(child_str_no_mor3));
+
+    for (auto x : ll)
+        /*rt.debug()*/std::cout << x << ", ";
+    std::cout << "\n";
+    std::cout << "=============\n";
+    n = 3;
+    auto bf = src::of_container(src) >> broad_first(child_str_no_mor3);
+    for (auto x : bf)
+        /*rt.debug()*/std::cout << x << ", ";
+}
+
 static auto& module_suite = OP::utest::default_test_suite("flur.then")
 .declare("flatmap", test_FlatMapFromPipeline)
 .declare("rref-flatmap", test_FlatMapFromContainer)
 .declare("cref-flatmap", test_FlatMapFromCref)
 .declare("flatmap-with-empty", test_FlatMapWithEmpty)
 .declare("flatmap-shared", test_FlatMapShared)
+.declare("flatmap-arb_args", test_FlatMapArbitraryArgs)
+.declare("flatmap-rec", test_FlatMapRec)
  ;

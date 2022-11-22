@@ -23,20 +23,21 @@ And of course, developer can provide own implementation.
 ## Getting started
 Let's start from simple. Let's evaluate square of each integer in some std::vector:
 
-    std::vector<int> int_vector{1, 2, 3, 4, 5};             		// (1)
-    // add lazy avaluation of squared						
-    auto squared = OP::flur::src::of_container(int_vector)  		// (2)
+    std::vector<int> int_vector{1, 2, 3, 4, 5};                     // (1)
+    // add lazy avaluation of squared                       
+    auto squared = OP::flur::src::of_container(int_vector)          // (2)
         >> OP::flur::then::mapping([](auto n){ return n ** n; })    // (3)
     ;
     //let's print result sequnce
     size_t count = 0;
-    for(auto n : squared)                                   		// (4)
-        std::cout << (count++ ? ", " : "") << n << "\n";            // (5)
+    for(auto n : squared)                                           // (4)
+        std::cout << (count++ ? ", " : "") << n;                    // (5)
+    std::cout << "\n";
 
 (2) Most of the flur functions belongs to the namespace `src` or `then`. This line starts 
 new lazy evaluation. `src::of_container` explicitly copies `int_vector` to 
 introduce abstraction of evaluation processor `LazyRange`. To avoid redundant vector copying
-you could use `std::cref` for const-referencing or `std::move` for moving full vector.
+you could use `std::cref` for const-referencing or `std::move` for moving entire vector.
 (3) `operator >>` used to combine multiple evaluation steps into single processor. This example
 adds evaluation of square by `then::mapping` that accepts lambda to evaluate `n*n`. Pay your 
 attention that no real evaluation yet, only declaration.
@@ -50,13 +51,14 @@ existing `squared` and filter-out odd numbers:
     template <typename Lazy>
     auto even_only_range(const Lazy& previous)                      // (6)
     {
-    	return previous >> OP::flur::then::filter(                  // (7)
-    	    [](int n) -> bool { return 0 == (n & 1); });
+        return previous >> OP::flur::then::filter(                  // (7)
+            [](int n) -> bool { return 0 == (n & 1); });
     }
     // ...
     count = 0;
-    for(auto n : even_only_range(squared))                     		// (8)
-        std::cout << (count++ ? ", " : "") << n << "\n";            
+    for(auto n : even_only_range(squared))                          // (8)
+        std::cout << (count++ ? ", " : "") << n;
+    std::cout << "\n";
     
 (6) we can continue with previous arbitrary lazy ranges. Since `operator >>` creates new data type 
 to avoid complex type evaluation `template` argument is used.

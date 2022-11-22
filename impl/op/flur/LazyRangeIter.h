@@ -3,6 +3,7 @@
 #define _OP_FLUR_LAZYRANGEITER__H_
 
 #include <op/flur/typedefs.h>
+#include <op/flur/Sequence.h>
 
 #include <functional>
 #include <variant>

@@ -14,7 +14,6 @@ namespace OP::flur
 {
     /**
     *   Implement sequence to unite compile time defined tuple of input sequences.
-    * (In compare with UnionAllQueueSequence that allows form input set at runtime)
     */
     template <class Elm, class ...Rx>
     struct UnionAllSequence : public Sequence<Elm>
@@ -30,7 +29,7 @@ namespace OP::flur
         template <class Tupl>
         constexpr UnionAllSequence(Tupl&& rx) noexcept
             : _scope( std::forward<Tupl>(rx) )
-            , _index(sizeof...(Rx))
+            , _index(sizeof...(Rx)) //mark EOS status
         {
         }
 
@@ -104,11 +103,11 @@ namespace OP::flur
             = { mk_arr(std::make_index_sequence<sizeof...(Rx)>{}) };
     };
 
-    template <class ... Rx>
+    template <class ... Tx>
     struct UnionAllSequenceFactory : FactoryBase
     {
-        constexpr UnionAllSequenceFactory( Rx&& ... rx ) noexcept
-            :  _right(std::make_tuple(std::forward<Rx>(rx)...))
+        constexpr UnionAllSequenceFactory( Tx&& ... rx ) noexcept
+            : _right(std::make_tuple(std::forward<Tx>(rx)...))
         {
         }
 
@@ -120,20 +119,20 @@ namespace OP::flur
 
             static_assert(
                 std::conjunction_v<
-                    std::is_same< typename left_container_t::element_t, typename details::sequence_type_t<Rx>::element_t >...>,
+                    std::is_convertible< typename left_container_t::element_t, typename details::sequence_type_t<Tx>::element_t >...>,
                 "union-all must operate on sequences producing same type elements");
 
             return
                 std::apply([&](const auto& ... rx) ->decltype(auto){
                     return UnionAllSequence<
                         typename left_container_t::element_t,
-                        left_container_t, details::sequence_type_t<Rx>... >(
+                        left_container_t, details::sequence_type_t<Tx>... >(
                             std::make_tuple(std::move(src),
                                 details::get_reference(rx).compound() ... )
                     );}, _right);
         }
     private:
-        std::tuple< Rx ...> _right;
+        std::tuple<Tx ...> _right;
     };
 
 } //ns:OP

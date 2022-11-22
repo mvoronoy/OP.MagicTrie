@@ -55,6 +55,7 @@ namespace OP::flur
         {
             return of_container(std::forward<T>(t));
         }
+        
         /**
         * Create new LazyRange from std::optional. Result range is ordered and allows 0 to 1 iteration by 
         * the contained value
@@ -65,33 +66,63 @@ namespace OP::flur
             return make_lazy_range(
                 SimpleFactory<std::optional<V>, OfOptional<V>>(std::forward<std::optional<V>>(v)) );
         }
+
         template <class V>
         constexpr auto of_optional(V v) noexcept
         {
             return make_lazy_range(
                 SimpleFactory<std::optional<V>, OfOptional<V>>(std::optional <V>(std::move(v))));
         }
+        
         template <class V>
         constexpr auto of_optional() noexcept
         {
             return make_lazy_range(
                 SimpleFactory<std::optional<V>, OfOptional<V>>(std::optional <V>{}));
         }
+        
         template <class T, std::enable_if_t<std::is_invocable<decltype(of_optional<T>), T>::value, int> = 0>
         constexpr auto of(T t) noexcept
         {
             return of_optional(std::move(t));
         }
 
+        /** Resolve always empty container. */
+        template <class T>
+        constexpr auto null() noexcept
+        {
+            return make_lazy_range(NullSequenceFactory<T>());
+        }
+
         /**
-        * Create LazyRange from single value. Result is ordered range iterable over exact one value
+        * Create LazyRange from single value. Result is ordered range provided iteration over exact one value.
+        * Providing non-default parameter `limit` allows you repeat the same value `limit` times.
+        * During iteration sequence will provide value by copy. In case you need avoid redundant copy 
+        * use `of_cref_value` instead. 
+        *
+        * \tparam V type that must support copy/move semantic. 
+        * \param v value to resolve during sequence iteration.
+        * \param limit number of times to repeat result v during sequence iteration. The default is 1. Value 0 is
+        *   allowed, but from optiomization perspective better to use `OP::flur::src::null()` instead.
+        * \sa of_cref_value
         */
         template <class V>
-        constexpr auto of_value(V&& v) noexcept
+        constexpr auto of_value(V&& v, size_t limit = 1) noexcept
         {
             return make_lazy_range( SimpleFactory<V, OfValue<V>>(std::forward<V>(v)) );
         }
         
+
+        /**
+        * The same as `of_value` but allows use const-reference to the holding value during iteration.
+        * \sa of_value
+        */
+        template <class V>
+        constexpr auto of_cref_value(V&& v, size_t limit = 1) noexcept
+        {
+            return make_lazy_range( SimpleFactory<const V&, OfValue<V, const V&>>(std::forward<V>(v)) );
+        }
+
         /**
         *   Create LazyRange from single value that evaluated each time when start/next loop starts. 
         *   Result is ordered range iterable over exact one value

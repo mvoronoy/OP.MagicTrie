@@ -129,7 +129,7 @@ namespace flur
             );
 
             using target_sequence_base_t = std::conditional_t<keep_order_c,
-                OrderedSequence<result_t>/*Ordered sequenc is no garantee is_sequence_ordered() is true*/,
+                OrderedSequence<result_t>/*Ordered sequenc is no guarantee is_sequence_ordered() is true*/,
                 Sequence<result_t>
             >;
 

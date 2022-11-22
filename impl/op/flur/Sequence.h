@@ -61,7 +61,7 @@ namespace OP::flur
 
     /** Provide definition for ordered iteable sequence */
     template <class T>
-    struct OrderedSequence : Sequence<T>
+    struct OrderedSequence : public Sequence<T>
     {
         /** Compile time constant indicates Sequence over sorted sequence */
         static constexpr bool ordered_c = true;
@@ -73,7 +73,25 @@ namespace OP::flur
             return true;
         }
     };
+    namespace details
+    {
+        template <class T>
+        class sequence_traits
+        {
+            typedef char YesType[1]; 
+            typedef char NoType[2]; 
+            template <typename C> static YesType& is_sequence_test( OP::flur::Sequence<C>* ) ; 
+            static NoType& is_sequence_test(...); 
+            using _clean_t = dereference_t< T >;
 
+        public:
+            enum { is_sequence_v = sizeof(is_sequence_test((_clean_t*)nullptr)) == sizeof(YesType) };
+        };
+
+        template <class T>
+        constexpr inline bool is_sequence_v = sequence_traits<T>::is_sequence_v;
+
+    }//ns:details
 
 }//ns:OP
 
