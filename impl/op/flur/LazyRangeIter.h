@@ -20,9 +20,7 @@ namespace OP::flur
     struct LazyRangeIterator 
     {
         using this_t = LazyRangeIterator<T>;
-        using strip_generic_t = std::decay_t<T>;
-        //resolve target type of T
-        using target_t = strip_generic_t;
+        using target_t = std::decay_t<T>;
 
         using iterator_category [[maybe_unused]] = std::input_iterator_tag;
         using value_type        =
@@ -31,8 +29,8 @@ namespace OP::flur
         using reference         = value_type&;
         using pointer           = void;
 
-        explicit LazyRangeIterator(target_t&& r) noexcept
-            : _target{std::move(r)}
+        explicit LazyRangeIterator(T&& r) noexcept
+            : _target{std::forward<T>(r)}
         {
         }
 
@@ -118,6 +116,7 @@ namespace OP::flur
                 return result_t(std::move(seq_ptr));
             }
         }
+
         template <class Factory>
         auto end_impl(const Factory* = nullptr) noexcept
         {

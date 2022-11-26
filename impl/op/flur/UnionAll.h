@@ -107,7 +107,7 @@ namespace OP::flur
     struct UnionAllSequenceFactory : FactoryBase
     {
         constexpr UnionAllSequenceFactory( Tx&& ... rx ) noexcept
-            : _right(std::make_tuple(std::forward<Tx>(rx)...))
+            : _right(std::make_tuple(std::forward<Tx>(rx)...)) //make_tuple is imprtant to get rid-off any refernces 
         {
         }
 

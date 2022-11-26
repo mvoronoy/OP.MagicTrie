@@ -47,16 +47,6 @@ namespace OP::flur
             using t_t = std::reference_wrapper<this_t> ;
             return LazyRangeIterator<t_t>(nullptr);
         }
-        //auto begin() const
-        //{
-        //    using t_t = std::reference_wrapper<this_t const> ;
-        //    return LazyRangeIterator<t_t>(std::cref(*this));
-        //}
-        //auto end() const
-        //{
-        //    using t_t = std::reference_wrapper<this_t const> ;
-        //    return LazyRangeIterator<t_t>(nullptr);
-        //}
     };
 
     /** Provide definition for ordered iteable sequence */
@@ -73,6 +63,7 @@ namespace OP::flur
             return true;
         }
     };
+
     namespace details
     {
         template <class T>

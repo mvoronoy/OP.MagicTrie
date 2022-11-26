@@ -26,9 +26,9 @@ namespace flur
         using base_t::ordered_c;
 
         template <class U>
-        constexpr Mapping(Src&& src, U f) noexcept
+        constexpr Mapping(Src&& src, U&& f) noexcept
             : _src(std::move(src))
-            , _applicator(std::move(f))
+            , _applicator(std::forward<U>(f))
         {
         }
         

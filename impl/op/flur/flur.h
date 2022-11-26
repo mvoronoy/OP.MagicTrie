@@ -30,6 +30,7 @@
 #include <op/flur/StringInput.h>
 #include <op/flur/Distinct.h>
 #include <op/flur/UnionAll.h>
+#include <op/flur/HierarchyTraversal.h>
 #include <op/flur/PolymorphsBack.h>
 #include <op/flur/Applicator.h>
 #include <op/flur/stl_adapters.h>
@@ -141,10 +142,11 @@ namespace OP::flur
         * \endcode
         */
         template <class V>
-        constexpr auto of_iota(V&& begin, V&& end) noexcept
+        constexpr auto of_iota(V begin, V end) noexcept
         {
             using iota_value_t = std::decay_t<V>;
-            return make_lazy_range( SimpleFactory<std::pair<V, V>, OfIota<iota_value_t>>(std::move(begin), std::move(end)) );
+            return make_lazy_range( SimpleFactory<std::pair<V, V>, 
+                OfIota<iota_value_t>>(std::move(begin), std::move(end)) );
         }
 
         /**
@@ -208,6 +210,7 @@ namespace OP::flur
             return of_string_split(
                     std::move(str), default_separators_c<str_t>);
         }
+
         template <class Poly>
         auto back_to_lazy(Poly &&poly)
         {
@@ -439,9 +442,39 @@ namespace OP::flur
             return MinibatchFactory<N, TThreads>{thread_pool};
         }
 
+        template <class FChildrenResolve>
+        constexpr auto hierarchy_deep_first(FChildrenResolve&& child_resolve) noexcept
+        {
+            return HierarchyTraversalFactory<FChildrenResolve, HierarchyTraversal::deep_first>
+                {std::forward<FChildrenResolve>(child_resolve)};
+        }
+
+        template <class FChildrenResolve>
+        constexpr auto hierarchy_breadth_first(FChildrenResolve&& child_resolve) noexcept
+        {
+            return HierarchyTraversalFactory<FChildrenResolve, HierarchyTraversal::breadth_first>{
+                std::forward<FChildrenResolve>(child_resolve)};
+        }
+
     } //ns:then
     namespace apply
     {
+        /**
+        * ( src::of(...) >> then::filter(...) 
+                >> apply::copy(std::back_inserter(to_vector)) 
+                >> apply::collect(apply::to_stream) 
+                >> apply::cartesian(f3_arg, seq2, seq3)
+                >> apply::zip(f2_arg, seq2) 
+          ).run( thread_pool )
+        template <class OutIter>
+        auto copy(OutIter out)
+        {
+            return MultiConsumer([](const auto& seq_element){
+                    
+            });
+        }
+        */
+
         template <class ... Lx>
         constexpr auto cartesian(Lx&& ... lx)
         {

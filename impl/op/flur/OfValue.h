@@ -124,10 +124,10 @@ namespace flur
         }
     };
     template <class T>
-    struct NullSequenceFactory
+    struct NullSequenceFactory : FactoryBase
     {
         constexpr NullSequenceFactory() noexcept = default;
-        constexpr NullSequence<T> compound() noexcept
+        constexpr NullSequence<T> compound() const noexcept
         {
             return NullSequence<T>{};
         }

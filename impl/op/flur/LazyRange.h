@@ -11,6 +11,7 @@
 #include <op/flur/Polymorphs.h>
 #include <op/flur/Join.h>
 #include <op/flur/FactoryBase.h>
+#include <op/flur/Applicator.h>
 
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace OP::flur
@@ -93,6 +94,13 @@ namespace OP::flur
         {
             using arg_t = LazyRange<Ux ...>;
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
+        }
+
+        template <class TApp, std::enable_if_t<std::is_base_of_v<OP::flur::ApplicatorBase, TApp>, bool> = true>
+        constexpr auto operator >> (TApp&& appl) && noexcept
+        {
+            using consumer_t = Consumer<this_t, std:decay_t<TApp>>;
+            return consumer_t(std::move(*this), std::forward<TApp>(appl));
         }
 
         template <class ... Ux>

@@ -17,11 +17,11 @@ namespace OP
         template <class F, class InputSequence>
         struct FlatMapTraits
         {
-            using applicator_t = F;
+            using applicator_t = std::decay_t<F>;
             using input_sequence_t = InputSequence;
 
             using applicator_result_t = 
-                std::decay_t<decltype(std::declval<F>()(details::get_reference(std::declval<InputSequence>()).current()))>;
+                std::decay_t<decltype(std::declval<applicator_t>()(details::get_reference(std::declval<InputSequence>()).current()))>;
             
             using unref_applicator_result_t = details::dereference_t< applicator_result_t >;
             
@@ -93,8 +93,8 @@ namespace OP
             {
                 return !holder;
             }
-            template <typename D, typename U, class... Args>
-            static auto invoke_compound(D& dest, U&& u, Args&& ...args) {
+            template <typename Dest, typename U, class... Args>
+            static auto invoke_compound(Dest& dest, U&& u, Args&& ...args) {
                 // case when std::optional used, `std::forward<U>(u)` - is important to avoid copy constructor
                 dest.emplace(std::forward<U>(u).compound(std::forward<Args>(args)...));
             }
@@ -161,7 +161,7 @@ namespace OP
                                     std::move(rrc.current())))
                         );
                     }
-                    else //assume inherited from Sequence
+                    else //assume inheritance from Sequence
                     {
                         traits_t::assign_new(
                             std::move(_applicator(std::move(rrc.current()))),
@@ -178,15 +178,19 @@ namespace OP
                     //);
                     defered().start();
                     if (defered().in_range())
+                    { //new sequence is not empty, so we can proceed
                         return;
+                    }
                 }
                 //reach end of source sequence, no data
                 traits_t::reset(_defered);
             }
+
             auto& defered()
             {
                 return details::get_reference(*_defered);
             }
+
             const auto& defered() const
             {
                 return details::get_reference(*_defered);

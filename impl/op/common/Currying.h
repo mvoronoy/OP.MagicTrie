@@ -166,7 +166,6 @@ namespace OP::currying
             : _arguments(std::forward<std::tuple<Tx ...>>(ax))
         {}
 
-
         template <class T>
         auto& assign(T&& t)
         {
@@ -484,32 +483,33 @@ namespace OP::currying
 
 
 }//ns:OP::currying
+
 namespace std
 {
     // special override to emulate access over std::get
     template <size_t I, class ... Tx>
-    decltype(auto) get(OP::currying::CurryingTuple<Tx...>& args)
+    constexpr decltype(auto) get(OP::currying::CurryingTuple<Tx...>& args) noexcept
     {
         return std::get<I>(args._arguments);
     }
 
     // special override to emulate access over std::get
     template <size_t I, class ... Tx>
-    decltype(auto) get(const OP::currying::CurryingTuple<Tx...>& args)
+    constexpr decltype(auto) get(const OP::currying::CurryingTuple<Tx...>& args) noexcept
     {
         return std::get<I>(args._arguments);
     }
 
     // special override to emulate access over std::get
     template <class T, class ... Tx>
-    decltype(auto) get(OP::currying::CurryingTuple<Tx...>& args)
+    constexpr decltype(auto) get(OP::currying::CurryingTuple<Tx...>& args) noexcept
     {
         return args.template get<T>();
     }
 
     // special override to emulate access over std::get
     template <class T, class ... Tx>
-    decltype(auto) get(const OP::currying::CurryingTuple<Tx...>& args)
+    constexpr decltype(auto) get(const OP::currying::CurryingTuple<Tx...>& args) noexcept
     {
         return args.template get<T>();
     }
