@@ -180,12 +180,28 @@ namespace
         
     }
     
-    struct SimpleGraph
+    class SimpleGraph
     {
         using vertices_t = std::unordered_map< std::string, size_t>;
         using edge_set_t = std::unordered_set<size_t>;//std::pair<size_t, size_t>
         using vertices_presence_t = std::unordered_set<size_t>;//std::pair<size_t, size_t>
 
+        /** retrieve nodes adjacent with `pair.first`. Result is filtered from nodes
+        * already presenting in `pair.second` unordered-set
+        */
+        template <class TAdjacencySrc>
+        auto resolve_children_with_loop_prevention(const TAdjacencySrc& pair) const
+        {
+            return
+                src::of_container(_adjacency[pair.first])//take all adjacent node-indexes 
+                >> then::filter([presence = pair.second](size_t ni2)->bool {
+                //prevent dead-loops by adding already passed nodes to unordered_set
+                return presence->insert(ni2).second; })
+                >> then::mapping([presence = pair.second](size_t ni3) {
+                return nidx2presence_t{ ni3, presence };
+                    });
+        }
+    public:
         template <class TAdjacencyRender>
         SimpleGraph(std::initializer_list<std::string> vertices, TAdjacencyRender adjacency)
             : _adjacency{ adjacency.begin(), adjacency.end() }
@@ -217,6 +233,7 @@ namespace
             _adjacency[nto].emplace(nfrom);
             return *this;
         }
+
         SimpleGraph& create_vertices(std::initializer_list<std::string> vertices)
         {
             for (auto& v : vertices)
@@ -313,21 +330,6 @@ namespace
         using presence_ptr = std::shared_ptr<vertices_presence_t>;
         using nidx2presence_t = std::pair<size_t, presence_ptr>;
 
-        /** retrieve nodes adjacent with `pair.first`. Result is filtered from nodes
-        * already presenting in `pair.second` unordered-set
-        */
-        template <class TAdjacencySrc>
-        auto resolve_children_with_loop_prevention(const TAdjacencySrc& pair) const
-        {
-            return
-                src::of_container(_adjacency[pair.first])//take all adjacent node-indexes 
-                >> then::filter([presence = pair.second](size_t ni2)->bool {
-                    //prevent dead-loops by adding already passed nodes to unordered_set
-                    return presence->insert(ni2).second; })
-                >> then::mapping([presence = pair.second](size_t ni3) {
-                    return nidx2presence_t{ ni3, presence };
-                });
-        }
     };
 
     const SimpleGraph K3 = SimpleGraph::full_graph( {"K3.a"s, "K3.b"s, "K3.c"s} );
