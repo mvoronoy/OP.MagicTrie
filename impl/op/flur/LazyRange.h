@@ -96,12 +96,12 @@ namespace OP::flur
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
         }
 
-        template <class TApp, std::enable_if_t<std::is_base_of_v<OP::flur::ApplicatorBase, TApp>, bool> = true>
-        constexpr auto operator >> (TApp&& appl) && noexcept
-        {
-            using consumer_t = Consumer<this_t, std:decay_t<TApp>>;
-            return consumer_t(std::move(*this), std::forward<TApp>(appl));
-        }
+//        template <class TApp, std::enable_if_t<std::is_base_of_v<OP::flur::ApplicatorBase, TApp>, bool> = true>
+//        constexpr auto operator >> (TApp&& appl) && noexcept
+//        {
+//            using consumer_t = Consumer<this_t, std:decay_t<TApp>>;
+//            return consumer_t(std::move(*this), std::forward<TApp>(appl));
+//        }
 
         template <class ... Ux>
         constexpr auto operator & (const LazyRange<Ux ...>& lr) const& noexcept
