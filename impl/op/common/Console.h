@@ -235,7 +235,7 @@ namespace OP::console{
             }
         private:
             HANDLE _h_stdout = INVALID_HANDLE_VALUE;
-            WORD _old_color_attr;
+            WORD _old_color_attr = 0;
             std::ostream* _console_os;
         };
 

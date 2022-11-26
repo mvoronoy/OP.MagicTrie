@@ -40,54 +40,6 @@ namespace OP::flur
         level_t _level;
     };
 
-    /** Implement functor to navigate over hierachy (tree- or graph- like) in deep-first way.
-    *  \tparam T - element of hierarchy.
-    *  \tparam FChildrenResolve - functor to resolve children from hierarchy element. 
-    */
-    template <class T, class FChildrenResolve>
-    struct DeepFirstFunctor
-    {
-        using this_t = DeepFirstFunctor<T, FChildrenResolve>;
-        using applicator_t = std::decay_t<FChildrenResolve>;
-        using raw_applicator_result_t = decltype(std::declval<applicator_t>()(std::declval<const T&>()));
-        using applicator_result_t = std::decay_t<raw_applicator_result_t>;
-        using applicator_element_t = typename details::sequence_type_t<applicator_result_t>::element_t;
-        using poly_result_t = AbstractPolymorphFactory<const T&>;
-        using result_t = std::shared_ptr<poly_result_t>;
-
-        constexpr DeepFirstFunctor(FChildrenResolve f) noexcept
-            : _applicator(std::move(f))
-            , _level(0)
-        {}
-
-        result_t operator ()(const T& elem) const
-        {
-            auto val = src::of_value<>(elem);
-            auto fl = src::of_value(std::move(elem))
-                >> then::flat_mapping(applicator())
-                >> then::flat_mapping(this_t(&applicator(), _level + 1));
-            
-            return OP::flur::make_shared(std::move(val) >> then::union_all(std::move(fl)));
-
-        }
-    private:
-        constexpr DeepFirstFunctor(const applicator_t* f, size_t level) noexcept
-            : _applicator(f)
-            , _level(level)
-        {}
-        
-        const applicator_t& applicator() const
-        {
-            return (std::holds_alternative<const applicator_t*>(_applicator))
-                ? *std::get<const applicator_t*>(_applicator)
-                : std::get<applicator_t>(_applicator)
-                ;
-        }
-
-        std::variant<applicator_t, const applicator_t*> _applicator;
-        size_t _level;
-    };
-    //---
     template <class Src, class FChildrenResolve,
         class Base = Sequence< typename OP::flur::details::dereference_t<Src>::element_t > >
     struct DeepFirstSequence : Base

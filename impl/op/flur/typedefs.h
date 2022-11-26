@@ -128,9 +128,9 @@ namespace OP::flur::details
         }
         else // non-zero level invokes recursively `compound` with previous layer result
         {
-            return 
-                get_reference(std::move(std::get<I - 1>(t))).compound( std::move(
-                    compound_impl<Tuple, I - 1>(std::move(t))) );
+            auto& factory = get_reference(std::move(std::get<I - 1>(t)));
+            return factory.compound( 
+                    std::move(compound_impl<Tuple, I - 1>(std::move(t))) );
         }
     }
     
