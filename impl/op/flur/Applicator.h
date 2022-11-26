@@ -12,80 +12,80 @@ struct ApplicatorBase
 {
 
 };
-
-template <class ... FApplicators>
-struct MultiConsumer : ApplicatorBase
-{
-    using applicator_set_t = std::tuple<std::decay_t<FApplicators>...>;
-
-    template <class TElement>
-    inline static constexpr auto type_matches_c = 
-            std::conjunction<
-            std::is_convertible< 
-                /*From:*/TElement,
-                /*To:*/typename function_traits< std::decay_t<FApplicators> >::template arg_i<0> 
-                >, ...
-            >;
-
-    constexpr MultiConsumer(FApplicators&& ... applicators) noexcept
-        : _lazy_factory(std::forward<TLazy>(lazy_factory))
-        , _applicators(std::make_tuple(applicators...))
-    {
-    }
-    
-    template <class TApplicator>
-    constexpr auto then_apply(TApplicator&& after) && noexcept
-    {
-        using ext_t = BaseApplicator<TLazy, FApplicators ..., TApplicator>; 
-        return std::apply([&](auto& ... applicator){ 
-            return ext_t{std::move(_lazy_factory), std::move(applicator)..., std::forward<TApplicator>(after)};
-            });
-    }
-
-    template <class TLazy>
-    void run(const TLazy& lazy_factory) const
-    {
-        auto seq = _lazy_factory.compound();
-        for(seq.start(); seq.in_range(); seq.next())
-        {
-            std::apply([](const auto& ... applicator){
-                applicator(seq.current());
-            }); 
-        }
-    }
-
-    /*void run(OP::utils::ThreadPool& tpool)
-    {
-    }
-    */
-private:
-    applicator_set_t _applicators;
-};
-
-
-template <class TLazy, class TConsumer>
-struct Consumer
-{
-    static_assert(
-        TConsumer::type_matches_c<typename sequence_type_t<TLazy>::element_t>,
-        "Applicator must be exactly 1 arg functor of type provided by Lazy Sequence"
-    );
-
-    constexpr Consumer(TLazy&& lazy_sequence, TConsumer&& consumer):
-        : _lazy_sequence(std::forward<TLazy>(lazy_sequence))
-        , consumer(std::forward<TConsumer>(consumer))
-        {
-        }
-
-    void operator()() const
-    {
-        _consumer.run(details::get_reference(_lazy_sequence));
-    }
-
-private:
-    TLazy _lazy_sequence;
-    TConsumer  _consumer;
-};
+//
+//template <class ... FApplicators>
+//struct MultiConsumer : ApplicatorBase
+//{
+//    using applicator_set_t = std::tuple<std::decay_t<FApplicators>...>;
+//
+//    template <class TElement>
+//    inline static constexpr auto type_matches_c = 
+//            std::conjunction<
+//            std::is_convertible< 
+//                /*From:*/TElement,
+//                /*To:*/typename function_traits< std::decay_t<FApplicators> >::template arg_i<0> 
+//                >, ...
+//            >;
+//
+//    constexpr MultiConsumer(FApplicators&& ... applicators) noexcept
+//        : _lazy_factory(std::forward<TLazy>(lazy_factory))
+//        , _applicators(std::make_tuple(applicators...))
+//    {
+//    }
+//    
+//    template <class TApplicator>
+//    constexpr auto then_apply(TApplicator&& after) && noexcept
+//    {
+//        using ext_t = BaseApplicator<TLazy, FApplicators ..., TApplicator>; 
+//        return std::apply([&](auto& ... applicator){ 
+//            return ext_t{std::move(_lazy_factory), std::move(applicator)..., std::forward<TApplicator>(after)};
+//            });
+//    }
+//
+//    template <class TLazy>
+//    void run(const TLazy& lazy_factory) const
+//    {
+//        auto seq = _lazy_factory.compound();
+//        for(seq.start(); seq.in_range(); seq.next())
+//        {
+//            std::apply([](const auto& ... applicator){
+//                applicator(seq.current());
+//            }); 
+//        }
+//    }
+//
+//    /*void run(OP::utils::ThreadPool& tpool)
+//    {
+//    }
+//    */
+//private:
+//    applicator_set_t _applicators;
+//};
+//
+//
+//template <class TLazy, class TConsumer>
+//struct Consumer
+//{
+//    static_assert(
+//        TConsumer::type_matches_c<typename sequence_type_t<TLazy>::element_t>,
+//        "Applicator must be exactly 1 arg functor of type provided by Lazy Sequence"
+//    );
+//
+//    constexpr Consumer(TLazy&& lazy_sequence, TConsumer&& consumer):
+//        : _lazy_sequence(std::forward<TLazy>(lazy_sequence))
+//        , consumer(std::forward<TConsumer>(consumer))
+//        {
+//        }
+//
+//    void operator()() const
+//    {
+//        _consumer.run(details::get_reference(_lazy_sequence));
+//    }
+//
+//private:
+//    TLazy _lazy_sequence;
+//    TConsumer  _consumer;
+//};
 
 template <class ... Lx>
 struct CartesianApplicator : ApplicatorBase
