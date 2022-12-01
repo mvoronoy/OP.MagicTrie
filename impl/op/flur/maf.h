@@ -45,7 +45,6 @@ namespace flur
         using from_t = std::decay_t<typename traits_t::template arg_i<0>>;
         using mapped_t = std::decay_t<typename traits_t::template arg_i<1>>;
 
-        using element_t = typename base_t::element_t;//?mapped_t
         static_assert(std::is_same_v<mapped_t, std::decay_t<element_t>>, 
             "compile time de-sync of element types, F must produce compatible type");
 
