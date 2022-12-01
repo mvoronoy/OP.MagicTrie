@@ -42,10 +42,12 @@ namespace flur
         {
             details::get_reference(_src).start();
         }
+
         bool in_range() const override
         {
             return details::get_reference(_src).in_range();
         }
+        
         element_t current() const override
         {
             return _applicator(details::get_reference(_src).current());
@@ -78,19 +80,21 @@ namespace flur
     \endcode
 
     */
-    template <class F>
+
+    template <class F, bool result_by_value_c = false>
     struct ReusableMapBuffer
     {
         using traits_t = OP::utils::function_traits<F>;
         using from_t = std::decay_t<typename traits_t::template arg_i<0>>;
         using to_t = std::decay_t<typename traits_t::template arg_i<1>>;
-        
+        using result_t = std::conditional_t< result_by_value_c, to_t, const to_t&>;
+
         ReusableMapBuffer(F f) 
             : _f(std::move(f)) 
         {
         }
 
-        const to_t& operator()(const from_t& from) const
+        result_t operator()(const from_t& from) const
         {
             _f(from, _entry);
             return _entry;

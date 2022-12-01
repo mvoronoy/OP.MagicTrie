@@ -154,6 +154,6 @@ namespace OP::flur::details
     using sequence_type_t = typename sequence_type<Value>::type;
 
 
-} //ns:OP
+} //ns:OP::flur::details
 
 #endif //_OP_FLUR_TYPEDEFS__H_

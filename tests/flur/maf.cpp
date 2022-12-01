@@ -16,7 +16,7 @@ namespace
         tresult.info() << "Filter empty source\n";
         const std::set<std::string> empty_set;
         auto r_empty = src::of(empty_set)
-            >> then::maf([&](const std::string& a, std::string& r) {
+            >> then::maf_cv([&](const std::string& a, std::string& r) {
             tresult.fail("Empty must not invoke filter");
             return true; })
         ;
@@ -25,7 +25,7 @@ namespace
         const std::set<std::string> single_set = { "a" };
         size_t invocations = 0;
         auto r_empty2 = src::of(single_set)
-            >> then::maf([&](const std::string& a, std::string& ) {
+            >> then::maf_cv([&](const std::string& a, std::string& ) {
             ++invocations;
             return false;
         });
@@ -48,7 +48,7 @@ namespace
 
         const std::vector<std::uint64_t> all_num = {1, 2, 3, 4, 5, 6, 7, 8, 9};
         auto r4 = src::of(all_num)
-            >> then::maf([&](std::uint64_t n, double& r) {
+            >> then::maf_cv([&](std::uint64_t n, double& r) {
             //find 2^(prime-number) only
             for (decltype(n) i = 2; i <= (n / 2); ++i)
             {

@@ -201,6 +201,7 @@ namespace OP::currying
             return const_cast<this_t*>(this)->get<T>();
         }
 
+        /** Create functor of zero-arguments by substitution args from thistuple to argument function */
         template <class TCallable>
         constexpr decltype(auto) def(TCallable f)& noexcept
         {
@@ -209,6 +210,7 @@ namespace OP::currying
             };
         }
 
+        /** Create functor of zero-arguments by substitution args from thistuple to argument function */
         template <class TCallable>
         constexpr decltype(auto) def(TCallable func)&& noexcept
         {

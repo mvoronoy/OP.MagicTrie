@@ -119,11 +119,6 @@ namespace OP::flur
         {
         }
 
-        template <class L>
-        using nth_sequence_t = std::decay_t<decltype(
-            details::get_reference(details::get_reference(std::declval<L&>()).compound())
-        )>;
-        
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
@@ -140,24 +135,26 @@ namespace OP::flur
         }
 
     private:
+        using applicator_t = std::decay_t<F>;
+
         template <class ... Seqx, size_t ... I>
         constexpr auto construct_sequence(std::index_sequence<I...>, Seqx&& ... sx ) const noexcept
         {
             using result_t = decltype(
                 _applicator(
                     details::get_reference(sx).current()...,
-                    std::declval<nth_sequence_t<Lx>&>().current()...)
+                    details::get_reference(std::declval<details::sequence_type_t<Lx>&>()).current()...)
                 );
             using sequence_t = CartesianSequence<
-                result_t, F, std::decay_t<Seqx>..., nth_sequence_t<Lx>...>;
+                result_t, applicator_t, std::decay_t<Seqx>..., details::sequence_type_t<Lx>...>;
             return sequence_t{
                 _applicator,
-                std::move(details::get_reference(sx))...,
+                std::move(sx)...,
                 std::move(details::get_reference(std::get<I>(_alien_factory)).compound())...
             };
         }
         std::tuple<Lx...> _alien_factory;
-        F _applicator;
+        applicator_t _applicator;
     };
 
 } //ns:OP::flur

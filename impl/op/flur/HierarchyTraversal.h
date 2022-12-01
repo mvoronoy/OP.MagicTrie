@@ -80,24 +80,24 @@ namespace OP::flur
                 static_cast<const Sequence<element_t>*>(&_origin) :
                 static_cast<const Sequence<element_t>*>(&_gen1.back());
             return take_from->current();
+            //auto take = [](const auto& sq) { return sq.current(); };
+            //if (_gen1.empty())
+            //    return take(_origin);
+            //else
+            //    return take(_gen1.back());
         }
 
         virtual void next() override
         {
-            bool is_root = _gen1.empty();
-            Sequence<element_t>* take_from =
-                is_root ?
-                static_cast<Sequence<element_t>*>(&_origin) :
-                static_cast<Sequence<element_t>*>(&_gen1.back());
+            if (_gen1.empty())
+                do_next<true>(_origin);
+            else
+                do_next<false>(_gen1.back());
+            //Sequence<element_t>* take_from =
+            //    is_root ?
+            //    static_cast<Sequence<element_t>*>(&_origin) :
+            //    static_cast<Sequence<element_t>*>(&_gen1.back());
 
-            _gen1.emplace_back(_applicator(take_from->current()).compound());
-            take_from->next();
-            if (!is_root && !take_from->in_range())
-            { //for elements from list check validity, don't allow empty items in stack
-                auto erpt = _gen1.end();
-                std::advance(erpt, -2);
-                _gen1.erase(erpt);
-            }
             auto& at = _gen1.back();
             at.start();
             if (!at.in_range())
@@ -105,9 +105,25 @@ namespace OP::flur
         }
 
     private:
-        using then_vector_t = std::list<flat_element_t>;
+        using then_conatiner_t = std::list<flat_element_t>;
 
-        then_vector_t _gen1;
+        template <bool is_root_c, class TakeFrom>
+        void do_next(TakeFrom& take_from)
+        {
+            _gen1.emplace_back(_applicator(take_from.current()).compound());
+            take_from.next();
+            if constexpr (!is_root_c)
+            {
+                if (!take_from.in_range())
+                { //for elements from list check validity, don't allow empty items in stack
+                    auto erpt = _gen1.end();
+                    std::advance(erpt, -2);
+                    _gen1.erase(erpt);
+                }
+            }
+        }
+        
+        then_conatiner_t _gen1;
         FChildrenResolve _applicator;
         Src _origin;
     };//DeepFirstSequence
@@ -261,7 +277,7 @@ namespace OP::flur
         }
 
         template <class Src>
-        constexpr auto compound(Src&& seq) const noexcept
+        constexpr auto compound(Src&& seq) const& noexcept
         {
             static_assert(
                 std::is_convertible_v< typename OP::flur::details::dereference_t<Src>::element_t, applicator_element_t>,
@@ -276,6 +292,25 @@ namespace OP::flur
             else //traversal_alg_c == HierarchyTraversal::breadth_first
             {
                 return BreadthFirstSequence<Src, FChildrenResolve>(std::move(seq), _applicator);
+            }
+        }
+
+        template <class Src>
+        constexpr auto compound(Src&& seq) && noexcept
+        {
+            static_assert(
+                std::is_convertible_v< typename OP::flur::details::dereference_t<Src>::element_t, applicator_element_t>,
+                "must operate on sequences producing same type of elements");
+            if constexpr (traversal_alg_c == HierarchyTraversal::deep_first)
+            {   //just reuse FlatMap sequence for this case
+                //using f_t = DeepFirstFunctor<applicator_element_t, FChildrenResolve>;
+                //return FlatMappingFactory< f_t >(f_t(_applicator)).compound(std::move(seq));
+                return DeepFirstSequence<Src, FChildrenResolve>(std::move(seq), std::move(_applicator));
+                
+            }
+            else //traversal_alg_c == HierarchyTraversal::breadth_first
+            {
+                return BreadthFirstSequence<Src, FChildrenResolve>(std::move(seq), std::move(_applicator));
             }
         }
 

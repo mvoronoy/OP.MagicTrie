@@ -180,28 +180,55 @@ namespace
         
     }
     
+    /** 
+    * Test purpose only implementation of Graph. In the depth it is the list of nodes (represented
+    * as a vector of strings) and adjacency matrix (vector of unordered_set containing index of nodes)
+    */
     class SimpleGraph
     {
         using vertices_t = std::unordered_map< std::string, size_t>;
         using edge_set_t = std::unordered_set<size_t>;//std::pair<size_t, size_t>
         using vertices_presence_t = std::unordered_set<size_t>;//std::pair<size_t, size_t>
+        using presence_ptr = std::shared_ptr<vertices_presence_t>;
+        using nidx2presence_t = std::pair<size_t, presence_ptr>;
 
-        /** retrieve nodes adjacent with `pair.first`. Result is filtered from nodes
+        /** retrieve nodes adjacent with `pair.first`. Result is filtered from nodes that are
         * already presenting in `pair.second` unordered-set
+        * \tparam TAdjacencySrc - std::pair<size_t - as a node-index, presence_ptr - unordered_set of 
+        *       already visited nodes>
         */
         template <class TAdjacencySrc>
         auto resolve_children_with_loop_prevention(const TAdjacencySrc& pair) const
         {
             return
-                src::of_container(_adjacency[pair.first])//take all adjacent node-indexes 
-                >> then::filter([presence = pair.second](size_t ni2)->bool {
-                //prevent dead-loops by adding already passed nodes to unordered_set
-                return presence->insert(ni2).second; })
-                >> then::mapping([presence = pair.second](size_t ni3) {
-                return nidx2presence_t{ ni3, presence };
-                    });
+                src::of_container(std::cref(_adjacency[pair.first]))//take all adjacent node-indexes 
+                // ==> Impl with separate methods for filter & map ::::
+                //>> then::filter([presence = pair.second](size_t ni2)->bool {
+                ////prevent dead-loops by adding already passed nodes to unordered_set
+                //        return presence->insert(ni2).second; })
+                //>> then::mapping([presence = pair.second](size_t ni3) {
+                //        return nidx2presence_t{ ni3, presence };
+                //    })
+                //// <== Impl with separate methods for filter & map
+
+                >> then::maf([presence = pair.second](size_t nidx, nidx2presence_t& result)->bool {
+                    //prevent dead-loops by adding already passed nodes to unordered_set
+                    if (presence->insert(nidx).second)
+                    {
+                        result.first = nidx;
+                        result.second = presence;
+                        return true;
+                    }
+                    return false; //filter-out
+                })
+                ;
         }
     public:
+        /** Construct graph from the list of node names and adjacency between them.
+        * \param vertices, 
+        * \param adjacency - some container that corresponds by index to node from `vertices` 
+        *       and contains unordered_set<size_t> of references to another node
+        */ 
         template <class TAdjacencyRender>
         SimpleGraph(std::initializer_list<std::string> vertices, TAdjacencyRender adjacency)
             : _adjacency{ adjacency.begin(), adjacency.end() }
@@ -210,6 +237,7 @@ namespace
             for (auto& v : vertices)
                 _vertices.emplace(std::move(v), i++);
         }
+    
         /** Create full graph where all vertices connected with all other (without self-loop) */
         static SimpleGraph full_graph(std::initializer_list<std::string> vertices)
         {
@@ -224,7 +252,8 @@ namespace
                     return res;
                 }) };
         }
-
+        
+        /** Add bi-directional edge between 2 vertices */
         SimpleGraph& create_edge(const std::string& from, const std::string& to)
         {
             auto nfrom = _vertices[from];
@@ -234,13 +263,14 @@ namespace
             return *this;
         }
 
+        /** Add multiple named vertices */
         SimpleGraph& create_vertices(std::initializer_list<std::string> vertices)
         {
             for (auto& v : vertices)
             {
                 size_t n = _vertices.size();
                 if (_vertices.emplace(std::move(v), n).second)
-                {
+                { //name is unique, need reserve place in adjacency matrix
                     _adjacency.push_back({});
                 }
             }
@@ -272,6 +302,8 @@ namespace
             }
             return *this;
         }
+
+        /** Provide indexes list for vertices specified by name */
         auto vertice_to_index(std::initializer_list<std::string> vertices)
         {
             return src::of_container(std::vector(std::move(vertices))) 
@@ -279,6 +311,7 @@ namespace
                         return _vertices[name];
                     });
         }
+
         /**
         * Renders flur container that allows iterate all reachable nodes starting from parameter `node`.
         * Implmentation uses deep-first algorithm. Starting node treated as self-reachable, so it 
@@ -287,7 +320,6 @@ namespace
         auto deep_first_adjacent(const std::string& node) const
         {
             using presence_ptr = std::shared_ptr<vertices_presence_t>;
-            using nidx2presence_t = std::pair<size_t, presence_ptr>;
             return
                 src::of_lazy_value([nidx = _vertices.at(node)]() {
                 return nidx2presence_t(
@@ -324,16 +356,14 @@ namespace
                     })
                 ;
         }
+        
         vertices_t _vertices;
         std::vector< edge_set_t > _adjacency;
-    private:
-        using presence_ptr = std::shared_ptr<vertices_presence_t>;
-        using nidx2presence_t = std::pair<size_t, presence_ptr>;
 
     };
 
-    const SimpleGraph K3 = SimpleGraph::full_graph( {"K3.a"s, "K3.b"s, "K3.c"s} );
-    const SimpleGraph K5 = SimpleGraph::full_graph( {"K5.a"s, "K5.b"s, "K5.c"s, "K5.d"s, "K5.e"s} );
+    static const SimpleGraph K3 = SimpleGraph::full_graph( {"K3.a"s, "K3.b"s, "K3.c"s} );
+    static const SimpleGraph K5 = SimpleGraph::full_graph( {"K5.a"s, "K5.b"s, "K5.c"s, "K5.d"s, "K5.e"s} );
 
     void test_HierarchyGraph(OP::utest::TestRuntime& rt)
     {
@@ -342,7 +372,7 @@ namespace
         SimpleGraph g1 = K5;
         //iterate all from single node
         {
-            rt.info() << "Deep first...\n";
+            rt.debug() << "Deep first...\n";
             auto dfaj = g1.deep_first_adjacent("K5.a");
             //for (auto x : dfaj)
             //    rt.debug() << std::hex << x << "\n";
@@ -351,7 +381,7 @@ namespace
             rt.assert_that<eq_unordered_sets>(g1.deep_first_adjacent("K5.c"), std::vector<size_t>{0, 1, 2, 3, 4});
         }
         {
-            rt.info() << "Breadth first...\n";
+            rt.debug() << "Breadth first...\n";
             auto bfaj = g1.breadth_first_adjacent("K5.a");
             //for (auto x : bfaj)
             //    rt.debug() << std::hex << x << "\n";
@@ -371,12 +401,12 @@ namespace
             "K5.a", "K5.b", "K5.c", "K5.d", "K5.e", "K3.a", "K3.b", "K3.c"
             });
 
-        for (auto x : g1.deep_first_adjacent("K5.a"))
-            rt.debug() << std::hex << x << ", ";
-        rt.debug() << "\n";
-        for (auto x : expected_indexes)
-            rt.debug() << std::hex << x << ", ";
-        rt.debug() << "\n";
+        //for (auto x : g1.deep_first_adjacent("K5.a"))
+        //    rt.debug() << std::hex << x << ", ";
+        //rt.debug() << "\n";
+        //for (auto x : expected_indexes)
+        //    rt.debug() << std::hex << x << ", ";
+        //rt.debug() << "\n";
         rt.assert_that<eq_unordered_sets>(g1.deep_first_adjacent("K5.a"), expected_indexes);
         rt.assert_that<eq_unordered_sets>(g1.breadth_first_adjacent("K5.a"), expected_indexes);
     }

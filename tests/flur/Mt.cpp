@@ -106,6 +106,14 @@ void test_Mt(OP::utest::TestRuntime& tresult)
             })/*.share()*/;
             })
         >> then::cartesian(
+            [&tp](std::future<int> outer, int inner)
+            {
+                return tp.async(
+                    [](std::future<int> a, int b) -> std::tuple<int, int, int> {
+                        int v = a.get();
+                        return std::make_tuple(v, b, gcd(v, b));
+                    }, std::move(outer), inner);
+            },
             src::outer(std::ref(tee))  
             >> then::mapping([&](auto i) {
                 
@@ -115,14 +123,7 @@ void test_Mt(OP::utest::TestRuntime& tresult)
                 return i;
             })
             >> then::repeater()
-            , [&tp](std::future<int> outer, int inner)
-            {
-                return tp.async(
-                    [](std::future<int> a, int b) -> std::tuple<int, int, int> {
-                        int v = a.get();
-                        return std::make_tuple(v, b, gcd(v, b));
-                    }, std::move(outer), inner);
-            })
+            )
         >> then::minibatch<16>(tp)
         >> then::mapping([](const auto& future)
             {

@@ -451,9 +451,10 @@ namespace OP
 
             /**
             *   Construct a range that address all string started from string specified by [begin, aend)
-            *   @param begin - first symbol of string to lookup
-            *   @param aend - end of string to lookup
+            *   \param begin - first symbol of string to lookup
+            *   \param aend - end of string to lookup
             *   \tparam IterateAtom iterator of string
+            *   \return OP::flur lazy range that produces TrieSequence (sequence of Trie::iterator)
             */
             template <class IterateAtom>
             auto prefixed_range(IterateAtom begin, IterateAtom aend) const
@@ -489,7 +490,7 @@ namespace OP
                 ));
             }
 
-            /**Return range that allows iterate all immediate childrens of specified prefix*/
+            /**Return range that allows iterate all siblings of specified prefix*/
             auto sibling_range(const atom_string_t& key) const
             {
                 return OP::flur::make_lazy_range(make_mixed_sequence_factory(

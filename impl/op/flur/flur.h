@@ -272,10 +272,17 @@ namespace OP::flur
         *       Note that implementation assumes that <desired-mapped-type> is default constructible
         */
         template <class F>
-        constexpr auto maf(F f) noexcept
+        constexpr auto maf_cv(F f) noexcept
         {
             using f_t = std::decay_t<F>;
             return MapAndFilterFactory<f_t>(std::move(f));
+        }
+
+        template <class F>
+        constexpr auto maf(F f) noexcept
+        {
+            using f_t = std::decay_t<F>;
+            return MapAndFilterFactory<f_t, MaFOptions::result_by_value>(std::move(f));
         }
 
         /** Map and Filter factory with keep ordering that unions both operations to the single code.
@@ -288,7 +295,13 @@ namespace OP::flur
         constexpr auto keep_order_maf(F f) noexcept
         {
             using f_t = std::decay_t<F>;
-            return MapAndFilterFactory<f_t, true>(std::move(f));
+            return MapAndFilterFactory<f_t, MaFOptions::keep_order, MaFOptions::result_by_value>(std::move(f));
+        }
+        template <class F>
+        constexpr auto keep_order_maf_cv(F f) noexcept
+        {
+            using f_t = std::decay_t<F>;
+            return MapAndFilterFactory<f_t, MaFOptions::keep_order>(std::move(f));
         }
 
         /** Same as mapping, but assume function F produces some set instead of single value 
@@ -417,17 +430,17 @@ namespace OP::flur
         }
 
         /**
-        *  Produce cartesian multiplication of 2 sources. 
-        * \tparam Alien - some other pipeline
-        * \tparam F - function that accept 2 arguments (element from source and element from Alien) then produces target 
-        *           result element. As an example of result you may use std::pair
+        *  Produce cartesian product of main flur source with 1...N other sources. 
+        * \tparam F - function that accept N+1 arguments (element from source and element from Alien and Ax...) then 
+        *           produces target result element. As an example of result you may use std::pair
+        * \tparam Alien, Ax... - some other pipeline(s) to make cartesian product with main flur sequence
         */
-        template <class Alien, class F>
-        constexpr auto cartesian(Alien&& alien, F f) noexcept
+        template <class F, class Alien, class ... Ax>
+        constexpr auto cartesian(F f, Alien&& alien, Ax&& ...ax) noexcept
         {
             //const second_src_t<Alien>&
             //auto cros = std::function<R(const Src&, const R&)>(fnc);
-            return CartesianFactory<F, Alien>(std::move(f), std::move(alien));
+            return CartesianFactory<F, Alien, Ax...>(std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...);
         }
 
         /** Produce repeater (for details see OP::flur::Repeater */
