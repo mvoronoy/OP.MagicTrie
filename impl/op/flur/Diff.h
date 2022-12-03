@@ -34,7 +34,7 @@ namespace OP::flur
         {
             auto& seq_ref = details::get_reference(seq);
             auto& sub_ref = details::get_reference(_subtrahend);
-            if( attrs._step.current() == 0)
+            if( attrs.step() == 0)
             {// first entry to sequence
                 assert(seq_ref.is_sequence_ordered()); //policy applicable for both sorted only
                 sub_ref.start();
@@ -100,9 +100,9 @@ namespace OP::flur
         
         bool operator()(PipelineAttrs& attrs, const Src& seq) const
         {
-            if (attrs._step.current() == 0)
+            if (attrs.step() == 0)
             {// first entry to sequence
-                if (attrs._generation.current() == 0)
+                if (attrs.generation() == 0)
                 {//not used yet at all
                     _subtrahend = std::move(_subtrahend_future.get());
                 }
@@ -111,7 +111,7 @@ namespace OP::flur
             if (found == _subtrahend.end())
                 return true;
             //use generation index to evaliuate if duplication is allowed
-            return found->second.deduction(attrs._generation.current());
+            return found->second.deduction(attrs.generation().current());
         }
 
     private:

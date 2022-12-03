@@ -211,7 +211,7 @@ namespace
                 //    })
                 //// <== Impl with separate methods for filter & map
 
-                >> then::maf([presence = pair.second](size_t nidx, nidx2presence_t& result)->bool {
+                >> then::maf_cv([presence = pair.second](size_t nidx, nidx2presence_t& result)->bool {
                     //prevent dead-loops by adding already passed nodes to unordered_set
                     if (presence->insert(nidx).second)
                     {
@@ -311,6 +311,8 @@ namespace
                         return _vertices[name];
                     });
         }
+        template <class T>
+        using array1_t = std::array<T, 1>;
 
         /**
         * Renders flur container that allows iterate all reachable nodes starting from parameter `node`.
@@ -320,11 +322,14 @@ namespace
         auto deep_first_adjacent(const std::string& node) const
         {
             using presence_ptr = std::shared_ptr<vertices_presence_t>;
+
             return
-                src::of_lazy_value([nidx = _vertices.at(node)]() {
-                return nidx2presence_t(
-                    nidx, std::make_shared<vertices_presence_t>(std::initializer_list{ nidx }));
+                src::of_lazy_value(
+                    [nidx = _vertices.at(node)]( ) {
+                        return nidx2presence_t(nidx, presence_ptr{ new vertices_presence_t({ nidx }) });
                     })
+                //use std::array of 1 element as repeater storage to avoid twice presence creation
+                >> then::repeater<array1_t>() 
                 >> then::hierarchy_deep_first([this](const nidx2presence_t& pair) {
                     return resolve_children_with_loop_prevention(pair);
                     })
@@ -343,16 +348,18 @@ namespace
         auto breadth_first_adjacent(const std::string& node) const
         {
             return
-                src::of_lazy_value([nidx = _vertices.at(node)]() {
-                    return nidx2presence_t(
-                        nidx, std::make_shared<vertices_presence_t>(std::initializer_list{ nidx }));
+                src::of_lazy_value(
+                    [nidx = _vertices.at(node)]() {
+                        return nidx2presence_t(nidx, presence_ptr{ new vertices_presence_t({ nidx }) } );
                     })
+                //use std::array of 1 element as repeater storage to avoid twice presence creation
+                >> then::repeater<array1_t>() 
                 >> then::hierarchy_breadth_first([this](const nidx2presence_t& pair) {
                         return resolve_children_with_loop_prevention(pair);
                     })
                 >> then::mapping([](const nidx2presence_t& pair) {
-                // convert pair back to node index
-                return pair.first;
+                        // convert pair back to node index
+                        return pair.first;
                     })
                 ;
         }
@@ -407,8 +414,15 @@ namespace
         //for (auto x : expected_indexes)
         //    rt.debug() << std::hex << x << ", ";
         //rt.debug() << "\n";
-        rt.assert_that<eq_unordered_sets>(g1.deep_first_adjacent("K5.a"), expected_indexes);
-        rt.assert_that<eq_unordered_sets>(g1.breadth_first_adjacent("K5.a"), expected_indexes);
+
+        //need twice check to ensure presence-check restarted each time pipeline starts
+        auto adjacence_df = g1.deep_first_adjacent("K5.a");
+        rt.assert_that<eq_unordered_sets>(adjacence_df, expected_indexes);
+        rt.assert_that<eq_unordered_sets>(adjacence_df, expected_indexes);
+
+        auto adjacence_brf = g1.breadth_first_adjacent("K5.a");
+        rt.assert_that<eq_unordered_sets>(adjacence_brf, expected_indexes);
+        rt.assert_that<eq_unordered_sets>(adjacence_brf, expected_indexes);
     }
     
     static auto& module_suite = OP::utest::default_test_suite("flur.then")

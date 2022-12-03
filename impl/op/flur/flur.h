@@ -125,16 +125,26 @@ namespace OP::flur
         }
 
         /**
-        *   Create LazyRange from single value that evaluated each time when start/next loop starts. 
-        *   Result is ordered range iterable over exact one value
-        *   \tparam F - functor without arguments to return value
+        *   Create LazyRange from functor that produce single value. Functor is evaluated each time when 
+        * Sequence::current() invoked. 
+        * Result is ordered range iterable over exact one value
+        * \param limit number of times to repeat result v during sequence iteration. The default is 1. Value 0 is
+        *   allowed, but from optiomization perspective better to use `OP::flur::src::null()` instead.
+        * \tparam F - functor to return value. It may be declated as: 
+        *   - no argument function;
+        *   - any combination of `const OP::flur::PipelineAttrs&`, `size_t` (copy of limit argument);
         */
         template <class F>
-        constexpr auto of_lazy_value(F f) noexcept
+        constexpr auto of_lazy_value(F f, size_t limit = 1) noexcept
         {
-            using r_t = decltype(f());
-            return make_lazy_range( SimpleFactory<F, OfLazyValue<r_t, F>>(std::move(f)) );
+            using functor_traits_t = OP::utils::function_traits<std::decay_t<F>>;
+            using result_t = typename functor_traits_t::result_t;
+            using sequence_t = OfLazyValue<result_t, F>;
+            using simple_factory_param_t = typename sequence_t::simple_factory_param_t;
+            return make_lazy_range( SimpleFactory<simple_factory_param_t, sequence_t>(
+                simple_factory_param_t{ std::move(f), limit }) );
         }
+
         /**
         * Create LazyRange in a way similar to std::iota - specify range of values that support ++ operator.
         * For example:\code
@@ -447,6 +457,13 @@ namespace OP::flur
         constexpr auto repeater() noexcept
         {
             return RepeaterFactory();
+        }
+
+        /** Produce repeater (for details see OP::flur::Repeater */
+        template <template <typename...> class TContainer = std::deque>
+        constexpr auto repeater() noexcept
+        {
+            return RepeaterFactory<TContainer>();
         }
 
         template <size_t N, class TThreads>

@@ -5,6 +5,9 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <array>
+#include <map>
+#include <set>
 
 #include <op/common/Utils.h>
 #include <op/common/ftraits.h>
@@ -153,6 +156,56 @@ namespace OP::flur::details
     template <class Value>
     using sequence_type_t = typename sequence_type<Value>::type;
 
+    /** Generic check if arbitrary container is ordered. By default it false.
+    * Make specification or overload if you need more specific behavior
+    */
+    template <class TArbitrary>
+    constexpr std::false_type is_ordered(const TArbitrary&) noexcept
+    {
+        return std::false_type{};
+    }
+
+    /** Indicates that generic std::map is ordered */
+    template <class ...Tx>
+    constexpr std::true_type is_ordered(const std::map<Tx...>&) noexcept
+    {
+        return std::true_type{};
+    }
+
+    /** Indicates that generic std::multimap is ordered */
+    template <class ...Tx>
+    constexpr std::true_type is_ordered(const std::multimap<Tx...>&) noexcept
+    {
+        return std::true_type{};
+    }
+    
+    /** Indicates that generic std::set is ordered */
+    template <class ...Tx>
+    constexpr std::true_type is_ordered(const std::set<Tx...>&) noexcept
+    {
+        return std::true_type{};
+    }
+
+    /** Indicates that generic std::multiset is ordered */
+    template <class ...Tx>
+    constexpr std::true_type is_ordered(const std::multiset<Tx...>&) noexcept
+    {
+        return std::true_type{};
+    }
+
+    /** Indicates that 1 element array is always ordered */
+    template <class T>
+    constexpr std::true_type is_ordered(const std::array<T, 1>&) noexcept
+    {
+        return std::true_type{};
+    }
+
+    /** Check if container `TContainer` is ordered. Definition just wraps reference to a 
+    *   custom function `constexpr std::<true/false>_type is_ordered(const TContainer&) noexcept`
+    */
+    template <class TContainer>
+    constexpr inline bool is_ordered_v = decltype(
+        is_ordered(std::declval<const std::decay_t<TContainer>&>()))::value;
 
 } //ns:OP::flur::details
 

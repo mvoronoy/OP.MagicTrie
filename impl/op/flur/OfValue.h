@@ -6,8 +6,11 @@
 #include <memory>
 #include <optional>
 
+#include <op/common/Currying.h>
+
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
+#include <op/flur/Ingredients.h>
 
 namespace OP
 {
@@ -63,34 +66,52 @@ namespace flur
     struct OfLazyValue : public OrderedSequence<T>
     {
         using gen_t = F;
-        constexpr OfLazyValue(gen_t gen) noexcept
-            : _gen(std::move(gen))
-            , _retrieved(false)
+        /**Since this sequence created by SimpleFactory need pack arguments to single value*/
+        using simple_factory_param_t = std::pair<gen_t, size_t>;
+
+        constexpr OfLazyValue(simple_factory_param_t param) noexcept
+            : _attrs(PipelineAttrs{}, param.second)
+            , _gen(std::move(param.first))
         {
         }
 
         virtual void start()
         {
-            _retrieved = false;
+            auto& pline = attr<PipelineAttrs>();
+            pline.start();
         }
 
         virtual bool in_range() const
         {
-            return !_retrieved;
+            return attr<PipelineAttrs>().step().current() < attr<size_t>();
         }
 
         virtual T current() const
         {
-            return _gen();
+            return _attrs.typed_invoke(_gen);
         }
 
         virtual void next()
         {
-            _retrieved = true;
+            attr<PipelineAttrs>().next();
         }
     private:
-        bool _retrieved;
-        gen_t _gen;
+        template <class U>
+        const auto& attr() const
+        {
+            return details::get_reference(std::get<U>(_attrs));
+        }
+
+        template <class U>
+        auto& attr() 
+        {
+            return details::get_reference(std::get<U>(_attrs));
+        }
+        /** Store current progress and total limit for this sequence to use as optional attributes
+        * for applicator functor
+        */
+        mutable OP::currying::CurryingTuple<PipelineAttrs, size_t> _attrs;
+        mutable gen_t _gen;
     };
 
     /**

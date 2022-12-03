@@ -29,7 +29,7 @@ namespace OP::flur
         
         bool operator()(PipelineAttrs &attrs, const Seq& seq) const
         {
-            if( attrs._step.current() == 0)
+            if( attrs.step() == 0)
             {// first entry to sequence
                 _bypass.reset();    
                 if( !seq.is_sequence_ordered() )
@@ -73,7 +73,7 @@ namespace OP::flur
 
         bool operator()(PipelineAttrs &attrs, const Seq& seq) const
         {
-            if( attrs._step.current() == 0)
+            if( attrs.step().current() == 0)
             {
                 _bypass.clear();    
             }
@@ -111,7 +111,7 @@ namespace OP::flur
             auto& rs = rsrc<Src>();
             auto& pline = rsrc<PipelineAttrs>();
             rs.start();
-            pline._step.start();
+            pline.start();
             seek(rs, pline); 
         }
 
@@ -130,7 +130,7 @@ namespace OP::flur
             auto& rs = rsrc<Src>();
             auto& pline = rsrc<PipelineAttrs>();
             rs.next();
-            pline._step.next();
+            pline.next();
             seek(rs, pline); 
         }
 
@@ -141,7 +141,7 @@ namespace OP::flur
             while(rs.in_range() && !distinct_result())
             {
                 rs.next();
-                pline._step.next();
+                pline.next();
             }
         }
 

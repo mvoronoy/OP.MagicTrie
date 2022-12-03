@@ -41,7 +41,7 @@ namespace OP::flur
     };
 
     template <class Src, class FChildrenResolve,
-        class Base = Sequence< typename OP::flur::details::dereference_t<Src>::element_t > >
+        class Base >
     struct DeepFirstSequence : Base
     {
         using base_t = Base;
@@ -130,7 +130,7 @@ namespace OP::flur
 
     //---
     template <class Src, class FChildrenResolve, 
-        class Base = Sequence< typename OP::flur::details::dereference_t<Src>::element_t > >
+        class Base >
     struct BreadthFirstSequence : Base
     {
         using base_t = Base;
@@ -279,6 +279,9 @@ namespace OP::flur
         template <class Src>
         constexpr auto compound(Src&& seq) const& noexcept
         {
+            using element_t = typename OP::flur::details::dereference_t<Src>::element_t;
+            using base_seq_t = Sequence< element_t >;
+
             static_assert(
                 std::is_convertible_v< typename OP::flur::details::dereference_t<Src>::element_t, applicator_element_t>,
                 "must operate on sequences producing same type of elements");
@@ -286,31 +289,37 @@ namespace OP::flur
             {   //just reuse FlatMap sequence for this case
                 //using f_t = DeepFirstFunctor<applicator_element_t, FChildrenResolve>;
                 //return FlatMappingFactory< f_t >(f_t(_applicator)).compound(std::move(seq));
-                return DeepFirstSequence<Src, FChildrenResolve>(std::move(seq), _applicator);
+                return DeepFirstSequence<Src, FChildrenResolve, base_seq_t>(
+                    std::move(seq), _applicator);
                 
             }
             else //traversal_alg_c == HierarchyTraversal::breadth_first
             {
-                return BreadthFirstSequence<Src, FChildrenResolve>(std::move(seq), _applicator);
+                return BreadthFirstSequence<Src, FChildrenResolve, base_seq_t>(
+                    std::move(seq), _applicator);
             }
         }
 
         template <class Src>
         constexpr auto compound(Src&& seq) && noexcept
         {
+            using element_t = typename OP::flur::details::dereference_t<Src>::element_t;
             static_assert(
-                std::is_convertible_v< typename OP::flur::details::dereference_t<Src>::element_t, applicator_element_t>,
+                std::is_convertible_v< element_t, applicator_element_t>,
                 "must operate on sequences producing same type of elements");
+            using base_seq_t = Sequence< element_t >;
             if constexpr (traversal_alg_c == HierarchyTraversal::deep_first)
             {   //just reuse FlatMap sequence for this case
                 //using f_t = DeepFirstFunctor<applicator_element_t, FChildrenResolve>;
                 //return FlatMappingFactory< f_t >(f_t(_applicator)).compound(std::move(seq));
-                return DeepFirstSequence<Src, FChildrenResolve>(std::move(seq), std::move(_applicator));
+                return DeepFirstSequence<Src, FChildrenResolve, base_seq_t>(
+                    std::move(seq), std::move(_applicator));
                 
             }
             else //traversal_alg_c == HierarchyTraversal::breadth_first
             {
-                return BreadthFirstSequence<Src, FChildrenResolve>(std::move(seq), std::move(_applicator));
+                return BreadthFirstSequence<Src, FChildrenResolve, base_seq_t>(
+                    std::move(seq), std::move(_applicator));
             }
         }
 

@@ -15,87 +15,110 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
+    namespace details
+    {
+        template <class R, class TContainer>
+        void post_element(TContainer& container, size_t, R&& r)
+        {
+            container.emplace_back(std::move(r));
+        }
 
+        template <class R, class T, size_t N>
+        void post_element(std::array<T, N>& container, size_t n, R&& r)
+        {
+            container.at(n) = std::move(r);
+        }
+    }
     /**
-    * Repeater is optimization part that may be used for cases when source is slow, but 
+    * Repeater is sequence that uses iteration over source only once, all another iteration 
+    * are taken from internal container.
+    * That may be used for cases when source is slow, but 
     *   multiple runs of `start` are expected. Repeater stores full scope of data on first
     *   run then allows to repeat without involvement of source sequence.
     *
     * \tparam Base - ordered or unordered sequence (discovered automatically depending on source)
     * \tparam Src - source sequnce to store and then repeat
-    * \tparam Container - storage for elements std::deque by default
+    * \tparam Container - storage for elements ( like `std::vector` or `std::deque`)
     */
-    template <class Base, class Src, class Container = std::deque<std::decay_t<typename Base::element_t> >>
+    template <class Base, class Src, class Container >
     class Repeater : public Base
     {
         using base_t = Base;
-        using element_t = typename base_t::element_t;
-        using this_t = Repeater<Base, Container>;
         using iterator_t = typename Container::const_iterator;
         Src _src;
         Container _container;
-        size_t _latch = 0;
+        size_t _generation = 0;
         size_t _current = -1;
         void peek()
         {
-            if (OP::flur::details::get_reference(_src).in_range())
-                _container.emplace_back(
-                    std::move(
-                        OP::flur::details::get_reference(_src).current()
-                    )
+            auto& rsrc = OP::flur::details::get_reference(_src);
+            if (rsrc.in_range())
+               details::post_element( 
+                   _container, _current, std::move(rsrc.current())
                 );
         }
     public:
-        constexpr Repeater(Src&& src)
-            :_src(std::move(src))
+        using element_t = typename base_t::element_t;
+        using this_t = Repeater<Base, Src, Container>;
+
+        constexpr Repeater(Src&& src) noexcept
+            : _src(std::move(src))
         {}
+
+        /** Repeater is ordered on condition if source sequence is ordered */
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const
+        {
+            return _src.is_sequence_ordered();
+        }
+
         virtual void start()
         {
-            if (++_latch == 1)
+            _current = 0;
+            if (++_generation == 1)
             {
                 OP::flur::details::get_reference(_src).start();
                 peek();
             }
-            _current = 0;
         }
 
         virtual bool in_range() const
         {
             return _current < _container.size();
         }
+        
         virtual element_t current() const
         {
             return _container[_current];
         }
+        
         virtual void next()
         {
-            if (_latch == 1)
+            if (_generation == 1)
             {
                 OP::flur::details::get_reference(_src).next();
                 peek();
             }
             ++_current;
         }
-
     };
 
     /**
     * Factory for Repeater class
     */
+    template <template <typename...> class TContainer = std::deque>
     struct RepeaterFactory : FactoryBase
     {
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
-            using target_container_t = std::decay_t<decltype(OP::flur::details::get_reference(src))>;
-            using src_container_t = OP::flur::details::unpack_t<Src>;
-            using element_t = typename target_container_t::element_t;
+            using src_sequence_t = details::dereference_t<Src>;
+            using src_element_t = typename src_sequence_t::element_t;
+            using element_t = std::decay_t<src_element_t>;
             using element_ref = const element_t&;
-            using base_t = std::conditional_t< (target_container_t::ordered_c),
-                OrderedSequence<element_ref>,
-                Sequence<element_ref>
-            >;
-            return Repeater<base_t, Src>(std::move(src));
+            using base_t  = Sequence<element_ref>;
+            using storage_t = TContainer<element_t>;
+
+            return Repeater<base_t, Src, storage_t>(std::move(src));
         }
 
     };

@@ -119,17 +119,15 @@ namespace flur
 
     namespace details
     {
+        
         template <class Container>
         using detect_sequence_t = 
-            std::conditional_t<
-            OP::utils::is_generic<details::dereference_t<Container>, std::map>::value ||
-            OP::utils::is_generic<details::dereference_t<Container>, std::multimap>::value ||
-            OP::utils::is_generic<details::dereference_t<Container>, std::set>::value ||
-            OP::utils::is_generic<details::dereference_t<Container>, std::multiset>::value
+            std::conditional_t< ::OP::flur::details::is_ordered_v<details::dereference_t<Container>> 
             , OfLowerBoundContainer< Container >
             , OfUnorderedContainer< Container >
             >;
     } //ns:details
+
     /**
     * Adapter for STL containers or user defined that support std::begin<V> and std::end<V>
     * Also V may be wrapped with: std::ref / std::cref
@@ -138,7 +136,7 @@ namespace flur
     struct OfContainerFactory : FactoryBase
     {
         using holder_t = std::decay_t < V >;
-        using container_t = details::dereference_t<V>;
+        using container_t = details::dereference_t<holder_t>;
 
         /** Detects if container can support OrderedSequence or Sequence */
         using sequence_t = details::detect_sequence_t<holder_t>;
