@@ -65,7 +65,6 @@ namespace OP::flur
         {
             _gen1.clear();
             _origin.start();
-            //<-- no drain there since need to consume first elem
         }
 
         virtual bool in_range() const override
@@ -212,7 +211,7 @@ namespace OP::flur
             if (!in_range())
             {//need start-over generation 2
                 _gen1.clear();
-                //make gen-2 available over gen-1
+                //make gen-2 available instead of gen-1
                 std::swap(_gen1, _gen2);
                 _is_gen0 = false;
                 _gen1_idx = 0;

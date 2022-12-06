@@ -16,15 +16,20 @@ namespace OP::flur
     struct Filter : public Base
     {
         using base_t = Base;
-        using src_container_t = details::unpack_t<Src>;
         using element_t = typename base_t::element_t;
 
         template <class F>
         constexpr Filter(Src&& src, F f) noexcept
-            :_src(std::move(src))
+            : _src(std::move(src))
             , _predicate(std::move(f))
             , _end (true)
         {
+        }
+
+        
+        bool is_sequence_ordered() const override
+        {
+            return details::get_reference(_src).is_sequence_ordered();
         }
 
         virtual void start()

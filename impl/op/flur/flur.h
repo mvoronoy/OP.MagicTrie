@@ -400,11 +400,13 @@ namespace OP::flur
         {
             return FilterFactory<Fnc>(std::move(f));
         }
+
         template <class Fnc>
         constexpr auto take_awhile(Fnc f) noexcept
         {
             return TakeAwhileFactory<Fnc>(std::move(f));
         }
+        
         /** 
         *   Remove duplicates from source sequence. (Current implementation works only with 
         *   sorted)
@@ -415,6 +417,7 @@ namespace OP::flur
         {
             return DistinctFactory<UnorderedDistinctPolicyWithCustomComparator<Eq>>(std::move(eq));
         }
+        
         constexpr auto unordered_distinct() noexcept
         {
             return DistinctFactory<UnorderedHashDistinctPolicy>();
@@ -475,14 +478,14 @@ namespace OP::flur
         template <class FChildrenResolve>
         constexpr auto hierarchy_deep_first(FChildrenResolve&& child_resolve) noexcept
         {
-            return HierarchyTraversalFactory<FChildrenResolve, HierarchyTraversal::deep_first>
+            return HierarchyTraversalFactory<std::decay_t<FChildrenResolve>, HierarchyTraversal::deep_first>
                 {std::forward<FChildrenResolve>(child_resolve)};
         }
 
         template <class FChildrenResolve>
         constexpr auto hierarchy_breadth_first(FChildrenResolve&& child_resolve) noexcept
         {
-            return HierarchyTraversalFactory<FChildrenResolve, HierarchyTraversal::breadth_first>{
+            return HierarchyTraversalFactory<std::decay_t<FChildrenResolve>, HierarchyTraversal::breadth_first>{
                 std::forward<FChildrenResolve>(child_resolve)};
         }
 

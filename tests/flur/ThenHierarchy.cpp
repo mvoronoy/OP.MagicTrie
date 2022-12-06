@@ -377,6 +377,9 @@ namespace
         using namespace std::string_literals;
         //render simple complete graph K5
         SimpleGraph g1 = K5;
+        const auto n_island1 = "island1"s, n_island2 = "island2"s,
+            n_island3 = "island3"s;
+        g1.create_vertices({ n_island1, n_island2, n_island3 });
         //iterate all from single node
         {
             rt.debug() << "Deep first...\n";
@@ -423,8 +426,17 @@ namespace
         auto adjacence_brf = g1.breadth_first_adjacent("K5.a");
         rt.assert_that<eq_unordered_sets>(adjacence_brf, expected_indexes);
         rt.assert_that<eq_unordered_sets>(adjacence_brf, expected_indexes);
+
+        //test island nodes
+        rt.assert_that<eq_unordered_sets>(g1.deep_first_adjacent(n_island1), 
+            g1.vertice_to_index({ n_island1 }));
+
+        rt.assert_that<eq_unordered_sets>(g1.breadth_first_adjacent(n_island1),
+            g1.vertice_to_index({ n_island1 }));
+
     }
     
+ 
     static auto& module_suite = OP::utest::default_test_suite("flur.then")
         .declare("hierarchy-deep-first-simple", test_HierarchyDeepFirstSimple)
         .declare("hierarchy-deep-first", test_HierarchyDeepFirst)

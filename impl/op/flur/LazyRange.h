@@ -16,7 +16,7 @@
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace OP::flur
 {
-
+    struct M {};
     /** 
     * Represent holder that allows at compile time form pipeline of source transformations 
     *  
@@ -25,7 +25,7 @@ namespace OP::flur
     struct LazyRange : FactoryBase
     {
         template <class A>
-        using target_range_t = std::decay_t<decltype(details::get_reference(std::declval<A&>()))>;
+        using target_range_t = details::dereference_t<A>;
 
         static_assert(
             std::conjunction_v<std::is_base_of<FactoryBase, target_range_t<Tx>>...>,
@@ -43,7 +43,7 @@ namespace OP::flur
         {
         }
 
-        constexpr LazyRange(Tx && ...tx) noexcept
+        constexpr LazyRange(Tx&& ...tx) noexcept
             : _storage{ std::forward<Tx>(tx) ... }
         {
         }
@@ -137,7 +137,13 @@ namespace OP::flur
     {
         return LazyRange<Tx ...>(std::forward<Tx>(tx) ...);
     }
-    
+
+    template <class ... Tx >
+    constexpr auto make_lazy_range(std::piecewise_construct_t, Tx && ... tx) noexcept
+    {
+        return LazyRange<std::decay_t<Tx> ...>(std::forward<Tx>(tx) ...);
+    }
+
     /** Create polymorph LazyRange (with type erasure). 
     *   @return instance of AbstractPolymorphFactory as std::unique_ptr
     */
