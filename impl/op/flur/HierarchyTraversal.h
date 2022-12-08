@@ -33,15 +33,7 @@ namespace OP::flur
         breadth_first
     };
 
-    /** Helper to provide meta-information about trabersal hierarchy. */
-    struct HierarchyAttrs : PipelineAttrs
-    {
-        using level_t = typename PipelineAttrs::Step;
-        level_t _level;
-    };
-
-    template <class Src, class FChildrenResolve,
-        class Base >
+    template <class Src, class FChildrenResolve, class Base>
     struct DeepFirstSequence : Base
     {
         using base_t = Base;
@@ -64,72 +56,87 @@ namespace OP::flur
         virtual void start()
         {
             _gen1.clear();
-            _origin.start();
+            auto& take_from = details::get_reference(_origin); 
+            take_from.start();
+            while(take_from.in_range() && !step_in() )
+            { 
+                take_from.next();//step_out() may be used there, but explicit `next` more optimal
+            }
         }
 
         virtual bool in_range() const override
         {
-            return !_gen1.empty() || _origin.in_range();
+            return details::get_reference(_origin).in_range() 
+                || !details::get_reference(_gen1.empty());
         }
 
         virtual element_t current() const override
         {
-            const Sequence<element_t>* take_from =
-                _gen1.empty() ?
-                static_cast<const Sequence<element_t>*>(&_origin) :
-                static_cast<const Sequence<element_t>*>(&_gen1.back());
-            return take_from->current();
-            //auto take = [](const auto& sq) { return sq.current(); };
-            //if (_gen1.empty())
-            //    return take(_origin);
-            //else
-            //    return take(_gen1.back());
+            return details::get_reference(_gen1.back()).current();
         }
 
         virtual void next() override
         {
-            if (_gen1.empty())
-                do_next<true>(_origin);
-            else
-                do_next<false>(_gen1.back());
-            //Sequence<element_t>* take_from =
-            //    is_root ?
-            //    static_cast<Sequence<element_t>*>(&_origin) :
-            //    static_cast<Sequence<element_t>*>(&_gen1.back());
-
-            auto& at = _gen1.back();
-            at.start();
-            if (!at.in_range())
-                _gen1.pop_back();
+            while (in_range() && !step_in())
+            {
+                if(step_out()) 
+                    return;
+            }
         }
 
     private:
         using then_conatiner_t = std::list<flat_element_t>;
 
-        template <bool is_root_c, class TakeFrom>
-        void do_next(TakeFrom& take_from)
+        bool step_in()
         {
-            _gen1.emplace_back(_applicator(take_from.current()).compound());
-            take_from.next();
-            if constexpr (!is_root_c)
-            {
-                if (!take_from.in_range())
-                { //for elements from list check validity, don't allow empty items in stack
-                    auto erpt = _gen1.end();
-                    std::advance(erpt, -2);
-                    _gen1.erase(erpt);
-                }
-            }
+            return _gen1.empty() ? _step_in(_origin) : _step_in(_gen1.back());
         }
-        
+
+        template <class TakeFrom>
+        bool _step_in(TakeFrom& take_from)
+        {
+            auto& rfrom = details::get_reference(take_from);
+
+            _gen1.emplace_back(_applicator(rfrom.current()).compound());
+            auto& at = details::get_reference(_gen1.back());
+            at.start();
+            if (!at.in_range())
+            {//keep stack clear of non-productive items
+                _gen1.pop_back();
+                return false;
+            }
+            return true;
+        }
+        /** pop item from stack and may be deposit from origin
+        * \return `true` when stack contains correct next item and `false` when step-in 
+        * into deposited from origin
+        */ 
+        bool step_out()
+        {
+            while (!_gen1.empty())
+            {
+                auto& rfrom = details::get_reference(_gen1.back());
+                rfrom.next();
+                if (rfrom.in_range())
+                    return true;
+                _gen1.pop_back();
+            }
+            //stack is over, need deposit item from origin source
+            auto& rorigin = details::get_reference(_origin);
+            if (rorigin.in_range())
+            {
+                rorigin.next();
+            }
+            return false;
+        }
+
         then_conatiner_t _gen1;
         FChildrenResolve _applicator;
         Src _origin;
     };//DeepFirstSequence
 
     //---
-    template <class Src, class FChildrenResolve, 
-        class Base >
+    template <class Src, class FChildrenResolve, class Base >
     struct BreadthFirstSequence : Base
     {
         using base_t = Base;
@@ -152,97 +159,85 @@ namespace OP::flur
         virtual void start()
         {
             _is_gen0 = true;
-            _gen1_idx = 0;
-            _gen1.clear(), _gen2.clear();
-            _origin.start();
-            drain();
+            _gen1.clear();
+            auto& rorigin = details::get_reference(_origin);
+            for (rorigin.start(); rorigin.in_range(); rorigin.next())
+            {//find first non-empty child
+                if (flatten_current<true>(rorigin))
+                    return;
+            }
         }
 
         virtual bool in_range() const override
         {
             if (_is_gen0)
             {
-                return _origin.in_range();
+                return details::get_reference(_origin).in_range();
             }
-            else return (_gen1_idx < _gen1.size());
+            else return (!_gen1.empty());
         }
 
         virtual element_t current() const override
         {
-            if (_is_gen0)
-            {
-                return _origin.current();
-            }
-            else 
-            {
-                return 
-                    _gen1[_gen1_idx].current();
-            }
+            return details::get_reference(_gen1.front()).current();
         }
 
         virtual void next() override
         {
-            if (_is_gen0)
+            assert(!_gen1.empty());
+
+            //drain current element before advance next
+            auto& top = details::get_reference(_gen1.front());
+            flatten_current<false>(top);
+            top.next();
+
+            while(!_gen1.empty())
             {
-                _origin.next();
-            }
-            else
-            {
-                auto& at = _gen1[_gen1_idx];
-                assert(at.in_range());
-                at.next();
-                if( !at.in_range() )
+                auto& at = details::get_reference(_gen1.front());
+                if (at.in_range())
+                    return;
+                _gen1.pop_front();
+                if (_is_gen0)
                 {
-                    ++_gen1_idx;
-                    seek_gen1();
+                    auto& rorigin = details::get_reference(_origin);
+                    for (rorigin.next(); rorigin.in_range(); rorigin.next())
+                    {//find next non-empty child of gen0
+                        if (flatten_current<true>(rorigin))
+                            return;
+                    }
+                    _is_gen0 = false;
                 }
             }
-            drain();
+
         }
 
     private:
-        using then_vector_t = std::vector<flat_element_t>;
-
-        /** Drain children sequence from current element to the generation-2, when nothing
-        * to drain swaps gen-2 with gen-1 to continue iteration
-        */
-        void drain()
+        using then_vector_t = std::list<flat_element_t>;
+        
+        template <bool high_priority, class TakeFrom>
+        bool flatten_current(TakeFrom& take_from)
         {
-            if (!in_range())
-            {//need start-over generation 2
-                _gen1.clear();
-                //make gen-2 available instead of gen-1
-                std::swap(_gen1, _gen2);
-                _is_gen0 = false;
-                _gen1_idx = 0;
-                if(!seek_gen1())
-                    return; //EOS
-            }
-            _gen2.emplace_back(_applicator(current()).compound());
-        }
-
-        /** Search generation-1 for the first non-empty sequence 
-        \return true if current state in_range
-        */
-        bool seek_gen1()
-        {
-            for (; _gen1_idx < _gen1.size(); ++_gen1_idx)
-            { //find first non-empty sequence for generation-1 leftovers
-                auto& at = _gen1[_gen1_idx];
-                at.start();
-                if (at.in_range())
-                {
-                    return true;
-                }
-            }
-            //no entries in gen-1, EOS
-            _gen1.clear();
+            //resolve pair of methods list::emplace_front/pop_front or list::emplace_back/pop_back
+            constexpr auto method_pair = list_method_pair <high_priority>;
+            auto& at = details::get_reference(
+                (_gen1.*method_pair.first)
+                (_applicator(take_from.current()).compound()));
+            at.start();
+            if (at.in_range())
+                return true;
+            (_gen1.*method_pair.second)(); //remove non-productive item
             return false;
         }
+        
+        template <bool high_pritority>
+        constexpr static inline auto list_method_pair =
+            high_pritority 
+                ? std::make_pair(&then_vector_t::emplace_front<flat_element_t&&>, &then_vector_t::pop_front)
+                : std::make_pair(&then_vector_t::emplace_back<flat_element_t&&>, &then_vector_t::pop_back);
 
-        then_vector_t _gen1, _gen2;
+
+        then_vector_t _gen1;
         bool _is_gen0 = true;
-        size_t _gen1_idx = 0;
         FChildrenResolve _applicator;
         Src _origin;
         
@@ -254,12 +249,8 @@ namespace OP::flur
     * functor of children resolution is responsible to prevent dead loops (for example use 
     * std::unorder_set to track visited vertices).
     *
-    * \tparam FChildrenResolve - functor to resolve children. It may use several argument signatures,
-    *   but must return some flur LazyFactory to enumerate children entites. This method can use any
-    *   combination of the following input arguments:
-    *   - `const HierarchyAttrs&` - to control _generation (number times the sequence was started), _step (
-    *       current step from the sequence beginning), _level (current level of processed hierarchy).
-    *   - parent element (type depends on source sequence).
+    * \tparam FChildrenResolve - functor to resolve children. It expects parent element at imput 
+    *   but must return some flur LazyFactory to enumerate children entites. 
     * \tparam HierarchyTraversal traversal_alg_c algorithm how to deal with traversal order. By default 
     *   `HierarchyTraversal::deep_first` is used as fast-most.
     */

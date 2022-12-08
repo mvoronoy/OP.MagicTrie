@@ -38,6 +38,7 @@ namespace OP::utest
 
     } //ns:details
 
+    namespace hop = OP::has_operators;
     //
     //  Markers
     //
@@ -74,9 +75,8 @@ namespace OP::utest
         template <class Left, class Right>
         auto operator()(Left&& left, Right&& right) const
         {
-            using namespace OP::has_operators;
             bool result = left == right;
-            if constexpr (ostream_out_v<Left> && ostream_out_v<Right>)
+            if constexpr (hop::ostream_out_v<Left> && hop::ostream_out_v<Right>)
             {
                 if (result)
                     return std::make_pair( true, OP::utest::Details{} );
@@ -101,7 +101,6 @@ namespace OP::utest
         template <class Left, class Right>
         auto operator()(Left&& left, Right&& right) const
         {
-            using namespace OP::has_operators;
             using wide_num_t = decltype(left - right);
             wide_num_t abs_diff = std::abs(left - right);
             constexpr wide_num_t eps = std::numeric_limits<wide_num_t>::epsilon();
@@ -128,14 +127,46 @@ namespace OP::utest
     {
         constexpr static size_t args_c = 2;
 
+        template <class T>
+        using el_t = decltype(*std::begin(std::declval<T>()));
+
         template <class Left, class Right>
-        constexpr bool operator()(const Left& left, const Right& right) const
+        static bool constexpr can_print_details_c = hop::ostream_out_v<el_t<Left>> && hop::ostream_out_v<el_t<Right>>;
+        /** Implementation finds mismatch in 2 sets of the same order for data types
+        * that has no ostream operator `<<`
+        */ 
+        template <class Left, class Right>
+        constexpr std::enable_if_t<!can_print_details_c<Left, Right>, bool> operator()(const Left& left, const Right& right) const
         {
             auto end_left = std::end(left);
             auto end_right = std::end(right);
 
             auto pr = std::mismatch(std::begin(left), end_left, std::begin(right), end_right);
             return pr.first == end_left && pr.second == end_right;
+        }
+        /** Implementation finds mismatch in 2 sets of the same order for data types
+        * with ostream operator `<<` support.
+        */
+        template <class Left, class Right >
+        constexpr std::enable_if_t<can_print_details_c<Left, Right>,
+            std::pair<bool, OP::utest::Details>> operator()(const Left& left, const Right& right) const
+        {
+            auto end_left = std::end(left);
+            auto end_right = std::end(right);
+
+            auto [left_msm, right_msm] = std::mismatch(std::begin(left), end_left, std::begin(right), end_right);
+            if (left_msm == end_left && right_msm == end_right)
+                return std::make_pair(true, OP::utest::Details{});
+
+            OP::utest::Details fail;
+            fail << "Assertion of set-equality check: Left still contains: [";
+            for (size_t i = 0; left_msm != end_left; ++left_msm, ++i)
+                fail << (i ? ", " : "") << *left_msm;
+            fail << "] vs Right still contains[";
+            for (size_t i = 0; right_msm != end_right; ++right_msm, ++i)
+                fail << (i ? ", " : "") << *right_msm;
+            fail << "]\n";
+            return std::make_pair(false, std::move(fail));
         }
     };
     namespace details

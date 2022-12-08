@@ -43,7 +43,7 @@ namespace
             });
         //for (auto x : simpl_hier_traverse)
         //    rt.debug() << x << ", ";
-        rt.assert_that<eq_sets>(simpl_hier_traverse, std::vector<std::string>{ "0", "a", "a.0", "1" });
+        rt.assert_that<eq_sets>(simpl_hier_traverse, std::vector<std::string>{"a.0"});
     }
 
     void test_HierarchyDeepFirst(OP::utest::TestRuntime& rt)
@@ -53,8 +53,8 @@ namespace
         //for (auto x : ll)
         //    rt.debug() << x << ", ";
         rt.assert_that<eq_sets>(ll, std::vector<std::string>{
-               "0", //no child
-               "a", 
+               //"0", //no child
+               //"a", 
                 "a.0", 
                     "a.0.0", 
                         "a.0.0.0", "a.0.0.1", "a.0.0.2", 
@@ -76,8 +76,8 @@ namespace
                         "a.2.1.0", "a.2.1.1", "a.2.1.2", 
                      "a.2.2", 
                         "a.2.2.0", "a.2.2.1", "a.2.2.2", 
-               "1", //no child
-               "b", 
+               //"1", //no child
+               //"b", 
                 "b.0", 
                     "b.0.0", 
                         "b.0.0.0", "b.0.0.1", "b.0.0.2", 
@@ -99,7 +99,7 @@ namespace
                         "b.2.1.0", "b.2.1.1", "b.2.1.2", 
                     "b.2.2", 
                         "b.2.2.0", "b.2.2.1", "b.2.2.2", 
-               "c", 
+               //"c", 
                 "c.0", 
                     "c.0.0", 
                         "c.0.0.0", "c.0.0.1", "c.0.0.2", 
@@ -130,19 +130,19 @@ namespace
             src::of_container(src)
             >> then::hierarchy_deep_first(
                 [](const std::string& s) {return src::null<const std::string&>(); }),
-            src,
-            OP_CODE_DETAILS("Must coincedence with source set")
+            std::vector<std::string>{},
+            OP_CODE_DETAILS("Must produce empty set")
             );
     }
 
     void test_HierarchyBreadthFirst(OP::utest::TestRuntime& rt)
     {
-        std::vector<std::string> src{ "0", "a", "1", "b", "c" };
+        std::vector<std::string> src{ "0", "a", "1", "b", "c", "2" };
         auto ll = src::of_container(src) >> then::hierarchy_breadth_first(child_str_no_mor3);
         //for (auto x : ll)
         //    rt.debug() << x << ", ";
         rt.assert_that<eq_sets>(ll, std::vector<std::string>{
-            "0", "a", "1", "b", "c", 
+            //"0", "a", "1", "b", "c", 
             "a.0", "a.1", "a.2", 
             "b.0", "b.1", "b.2", 
             "c.0", "c.1", "c.2", 
@@ -174,10 +174,9 @@ namespace
             src::of_container(src)
             >> then::hierarchy_breadth_first(
                 [](const std::string& s) {return src::null<const std::string&>(); }),
-            src,
+            std::vector<std::string>{},
             OP_CODE_DETAILS("Must coincedence with source set")
             );
-        
     }
     
     /** 
@@ -386,18 +385,22 @@ namespace
             auto dfaj = g1.deep_first_adjacent("K5.a");
             //for (auto x : dfaj)
             //    rt.debug() << std::hex << x << "\n";
-            rt.assert_that<eq_unordered_sets>(dfaj, std::vector<size_t>{0, 1, 2, 3, 4});
+            rt.assert_that<eq_unordered_sets>(dfaj, std::vector<size_t>{/*0, */1, 2, 3, 4});
             //try another node as a start position
-            rt.assert_that<eq_unordered_sets>(g1.deep_first_adjacent("K5.c"), std::vector<size_t>{0, 1, 2, 3, 4});
+            rt.assert_that<eq_unordered_sets>(
+                g1.deep_first_adjacent("K5.c"), 
+                std::vector<size_t>{0, 1, /*2, */3, 4});
         }
         {
             rt.debug() << "Breadth first...\n";
             auto bfaj = g1.breadth_first_adjacent("K5.a");
             //for (auto x : bfaj)
             //    rt.debug() << std::hex << x << "\n";
-            rt.assert_that<eq_unordered_sets>(bfaj, std::vector<size_t>{0, 1, 2, 3, 4});
+            rt.assert_that<eq_unordered_sets>(bfaj, std::vector<size_t>{/*0, */1, 2, 3, 4});
             //try another node as a start position
-            rt.assert_that<eq_unordered_sets>(g1.breadth_first_adjacent("K5.c"), std::vector<size_t>{0, 1, 2, 3, 4});
+            rt.assert_that<eq_unordered_sets>(
+                g1.breadth_first_adjacent("K5.c"), 
+                std::vector<size_t>{0, 1, /*2, */3, 4});
         }
         //attach some extras verticies to make graph more ramified
         g1
@@ -408,7 +411,7 @@ namespace
             .create_vertices({"0.a", "0.b"})
             ;
         auto expected_indexes = g1.vertice_to_index({
-            "K5.a", "K5.b", "K5.c", "K5.d", "K5.e", "K3.a", "K3.b", "K3.c"
+            /*"K5.a", */"K5.b", "K5.c", "K5.d", "K5.e", "K3.a", "K3.b", "K3.c"
             });
 
         //for (auto x : g1.deep_first_adjacent("K5.a"))
@@ -429,14 +432,14 @@ namespace
 
         //test island nodes
         rt.assert_that<eq_unordered_sets>(g1.deep_first_adjacent(n_island1), 
-            g1.vertice_to_index({ n_island1 }));
+            std::vector<size_t>{});
 
         rt.assert_that<eq_unordered_sets>(g1.breadth_first_adjacent(n_island1),
-            g1.vertice_to_index({ n_island1 }));
+            std::vector<size_t>{});
 
     }
     
- 
+    
     static auto& module_suite = OP::utest::default_test_suite("flur.then")
         .declare("hierarchy-deep-first-simple", test_HierarchyDeepFirstSimple)
         .declare("hierarchy-deep-first", test_HierarchyDeepFirst)

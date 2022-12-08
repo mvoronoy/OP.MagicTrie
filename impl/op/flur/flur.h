@@ -499,10 +499,10 @@ namespace OP::flur
         * It prints: 10,100,101,11,110,111,20,200,201,21,210,211,
         */
         template <class FChildrenResolve>
-        constexpr auto hierarchy_deep_first(FChildrenResolve child_resolve) noexcept
+        constexpr auto hierarchy_deep_first(FChildrenResolve children_resolve) noexcept
         {
             return HierarchyTraversalFactory<std::decay_t<FChildrenResolve>, HierarchyTraversal::deep_first>
-                {std::forward<FChildrenResolve>(child_resolve)};
+                {std::move(children_resolve)};
         }
 
         /** Treate source sequence as a roots of hierarchy and then iterate over children elements
@@ -529,10 +529,10 @@ namespace OP::flur
         * It prints: 10,11,20,21,100,101,110,111,200,201,210,211,
         */
         template <class FChildrenResolve>
-        constexpr auto hierarchy_breadth_first(FChildrenResolve child_resolve) noexcept
+        constexpr auto hierarchy_breadth_first(FChildrenResolve children_resolve) noexcept
         {
             return HierarchyTraversalFactory<std::decay_t<FChildrenResolve>, HierarchyTraversal::breadth_first>{
-                std::forward<FChildrenResolve>(child_resolve)};
+                std::move(children_resolve)};
         }
 
     } //ns:then
