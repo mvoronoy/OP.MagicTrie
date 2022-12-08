@@ -128,7 +128,7 @@ namespace OP::utest
         constexpr static size_t args_c = 2;
 
         template <class T>
-        using el_t = decltype(*std::begin(std::declval<T>()));
+        using el_t = decltype(*std::begin(std::declval<const T&>()));
 
         template <class Left, class Right>
         static bool constexpr can_print_details_c = hop::ostream_out_v<el_t<Left>> && hop::ostream_out_v<el_t<Right>>;
@@ -136,25 +136,42 @@ namespace OP::utest
         * that has no ostream operator `<<`
         */ 
         template <class Left, class Right>
-        constexpr std::enable_if_t<!can_print_details_c<Left, Right>, bool> operator()(const Left& left, const Right& right) const
+        constexpr auto operator()(const Left& left, const Right& right) const
         {
             auto end_left = std::end(left);
             auto end_right = std::end(right);
+            using left_elt_t = std::decay_t<decltype(*end_left)>;
+            using right_elt_t = std::decay_t<decltype(*end_right)>;
 
-            auto pr = std::mismatch(std::begin(left), end_left, std::begin(right), end_right);
-            return pr.first == end_left && pr.second == end_right;
+            if constexpr (hop::ostream_out_v<left_elt_t> && hop::ostream_out_v<right_elt_t>)
+            { // can improove output by adding Fault explanation
+                return with_details(left, right);
+            }
+            else
+            {
+                auto [left_msm, right_msm] = std::mismatch(
+                    std::begin(left), end_left,
+                    std::begin(right), end_right);
+
+                return left_msm == end_left && right_msm == end_right;
+            }
         }
+
+    private:
         /** Implementation finds mismatch in 2 sets of the same order for data types
         * with ostream operator `<<` support.
         */
         template <class Left, class Right >
-        constexpr std::enable_if_t<can_print_details_c<Left, Right>,
-            std::pair<bool, OP::utest::Details>> operator()(const Left& left, const Right& right) const
+        constexpr 
+            std::pair<bool, OP::utest::Details> with_details(const Left& left, const Right& right) const
         {
             auto end_left = std::end(left);
             auto end_right = std::end(right);
 
-            auto [left_msm, right_msm] = std::mismatch(std::begin(left), end_left, std::begin(right), end_right);
+            auto [left_msm, right_msm] = std::mismatch(
+                std::begin(left), end_left,
+                std::begin(right), end_right);
+
             if (left_msm == end_left && right_msm == end_right)
                 return std::make_pair(true, OP::utest::Details{});
 
