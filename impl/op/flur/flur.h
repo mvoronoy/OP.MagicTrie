@@ -475,15 +475,61 @@ namespace OP::flur
             return MinibatchFactory<N, TThreads>{thread_pool};
         }
 
+        /** Treate source sequence as a roots of hierarchy and then iterate over children elements
+        * using deep-first algorithm. Implementation doesn't use recursion so depth of hierarchy 
+        * restricted only by available memory
+        * \tparam FChildrenResolve functor that resolves children lazy range.
+        * 
+        * Usage example :\code
+        *    using namespace OP::flur;
+        *    for (auto x : src::of(std::vector{ 1, 2 })
+        *        >> then::hierarchy_deep_first([](int i) {
+        *                // children are int numbers bigger than source by 10
+        *                std::vector<int> result{};
+        *                if( i < 100 )
+        *                {
+        *                    result.emplace_back(i * 10);
+        *                    result.emplace_back(i * 10 + 1);
+        *                }
+        *                return src::of(result);
+        *            }))
+        *        std::cout << x << ",";
+        *     std::cout << "\n";
+        * \endcode
+        * It prints: 10,100,101,11,110,111,20,200,201,21,210,211,
+        */
         template <class FChildrenResolve>
-        constexpr auto hierarchy_deep_first(FChildrenResolve&& child_resolve) noexcept
+        constexpr auto hierarchy_deep_first(FChildrenResolve child_resolve) noexcept
         {
             return HierarchyTraversalFactory<std::decay_t<FChildrenResolve>, HierarchyTraversal::deep_first>
                 {std::forward<FChildrenResolve>(child_resolve)};
         }
 
+        /** Treate source sequence as a roots of hierarchy and then iterate over children elements
+        * using breadth-first algorithm. Implementation doesn't use recursion so depth of hierarchy 
+        * restricted only by available memory
+        * \tparam FChildrenResolve functor that resolves children lazy range. 
+        *
+        * Usage example :\code
+        *    using namespace OP::flur;
+        *    for (auto x : src::of(std::vector{ 1, 2 })
+        *        >> then::hierarchy_breadth_first([](int i) {
+        *                // children are int numbers bigger than source by 10
+        *                std::vector<int> result{};
+        *                if( i < 100 )
+        *                {
+        *                    result.emplace_back(i * 10);
+        *                    result.emplace_back(i * 10 + 1);
+        *                }
+        *                return src::of(result);
+        *            }))
+        *        std::cout << x << ",";
+        *     std::cout << "\n";
+        * \endcode
+        * It prints: 10,11,20,21,100,101,110,111,200,201,210,211,
+        */
         template <class FChildrenResolve>
-        constexpr auto hierarchy_breadth_first(FChildrenResolve&& child_resolve) noexcept
+        constexpr auto hierarchy_breadth_first(FChildrenResolve child_resolve) noexcept
         {
             return HierarchyTraversalFactory<std::decay_t<FChildrenResolve>, HierarchyTraversal::breadth_first>{
                 std::forward<FChildrenResolve>(child_resolve)};
