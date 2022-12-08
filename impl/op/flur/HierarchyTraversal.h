@@ -232,8 +232,8 @@ namespace OP::flur
         template <bool high_pritority>
         constexpr static inline auto list_method_pair =
             high_pritority 
-                ? std::make_pair(&then_vector_t::emplace_front<flat_element_t&&>, &then_vector_t::pop_front)
-                : std::make_pair(&then_vector_t::emplace_back<flat_element_t&&>, &then_vector_t::pop_back);
+                ? std::make_pair(&then_vector_t::template emplace_front<flat_element_t&&>, &then_vector_t::pop_front)
+                : std::make_pair(&then_vector_t::template emplace_back<flat_element_t&&>, &then_vector_t::pop_back);
 
 
         then_vector_t _gen1;
