@@ -10,8 +10,7 @@
 namespace OP::flur
 {
     /**
-    *   Create conatiner of strictly 1 item.
-    * Container is ordred.
+    *   Create sequence that is proxy around std::shared_ptr<Sequence....>
     */
     template <class Holder, class Base>
     struct OfReversePolymorph : public Base
@@ -24,6 +23,7 @@ namespace OP::flur
             : _src(std::move(src))
         {
         }
+
         OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
         {
             return _src->is_sequence_ordered();

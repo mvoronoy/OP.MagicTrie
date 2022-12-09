@@ -167,10 +167,11 @@ namespace OP::flur
     template <class ... Tx >
     constexpr auto make_shared(Tx &&... tx) 
     {
-        using lrange_t = LazyRange<Tx ...>;
+        auto lz = make_lazy_range(std::piecewise_construct, std::forward<Tx>(tx)...);
+        using lrange_t = decltype(lz);
         using impl_t = PolymorphFactory<lrange_t>;
-        using interface_t = typename impl_t::polymorph_base_t;
-        return std::shared_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
+        using interface_t = typename impl_t::base_t;
+        return std::shared_ptr<interface_t>( new impl_t{ std::move(lz) });
     }
 
     template <class ... Tx >
@@ -178,7 +179,7 @@ namespace OP::flur
     {
         using lrange_t = LazyRange<Tx ...>;
         using impl_t = PolymorphFactory<lrange_t>;
-        using interface_t = typename impl_t::polymorph_base_t;
+        using interface_t = typename impl_t::base_t;
 
         return std::shared_ptr<interface_t>( new impl_t{ std::move(range) } );
     }

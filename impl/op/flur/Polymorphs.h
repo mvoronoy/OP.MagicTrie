@@ -9,10 +9,10 @@
 
 namespace OP::flur
 {
-    template <class Element>
+    template <class TElement>
     struct AbstractPolymorphFactory: FactoryBase
     {
-        using element_t = Element;
+        using element_t = TElement;
         using sequence_t = Sequence<element_t>;
         using base_sequence_t = sequence_t;
 
@@ -44,44 +44,44 @@ namespace OP::flur
     
     };
     
-
     namespace details
     {
-        template <class Factory>
-        using polymorph_factory_result_t = std::decay_t<decltype(get_reference(get_reference(std::declval<const Factory&>()).compound()) )>;
-        
+        template <class TFactory>
+        using polymorph_src_sequence_t = dereference_t<sequence_type_t<dereference_t<TFactory>> >;
+
     } //ns:details
+
     /** 
-    *   PolymorphFactory is a factory that allows construct other factories on the dynamic memory (heap).
-    *   This can be useful when you need polymorph behaviour (in other words 'type erasure").
+    *   PolymorphFactory is a factory that allows construct other factories on the heap.
+    *   This can be useful when you need polymorph behaviour (with 'type erasure" up to Sequnce<T> ).
     *   For example you can define virtual method (that expects well defined signature instead 
-    *   of template definitions) that 
+    *   of template definitions).
+    *   \tparam TFactory - some FactoryBase descendant to hide behind polymorph behavior.
     */
-    template <class Base>
-    struct PolymorphFactory : Base,
+    template <class TFactory>
+    struct PolymorphFactory : 
         AbstractPolymorphFactory<  
-            typename details::polymorph_factory_result_t<Base>::element_t 
+            typename details::polymorph_src_sequence_t<std::decay_t<TFactory>>::element_t
         >
     {
-        static_assert( std::is_base_of_v<FactoryBase, Base>,
+        using base_factory_t = std::decay_t<TFactory>;
+        static_assert( std::is_base_of_v<FactoryBase, base_factory_t>,
             "Base must be derived from FactoryBase");
-        using base_t = Base;
-        using polymorph_base_t = AbstractPolymorphFactory< 
-            typename details::polymorph_factory_result_t<Base>::element_t 
+        using sequence_t = details::polymorph_src_sequence_t<base_factory_t>;
+        using base_t = AbstractPolymorphFactory<  
+            typename sequence_t::element_t
         >;
 
-        using element_t = typename polymorph_base_t::element_t;
-        using sequence_t = typename polymorph_base_t::sequence_t;
         
-        constexpr PolymorphFactory(base_t&& rref) noexcept
-            : Base(std::move(rref)) {}
+        constexpr PolymorphFactory(base_factory_t&& rref) noexcept
+            : _base_factory(std::move(rref)) {}
 
         virtual ~PolymorphFactory() = default;
 
 
-        std::shared_ptr<typename polymorph_base_t::base_sequence_t> compound_shared() const override
+        std::shared_ptr<typename base_t::sequence_t> compound_shared() const override
         {
-            auto result = base_t::compound();
+            auto result = _base_factory.compound();
             using result_seq_t = std::decay_t<decltype(result)>;
             // underlaying factory may already produce shared ptr, so skip wrapping then
             if constexpr(details::is_shared_ptr<result_seq_t>::value )
@@ -90,15 +90,14 @@ namespace OP::flur
             }
             else
             {
-                return std::shared_ptr<typename polymorph_base_t::base_sequence_t>(
+                return std::shared_ptr<typename base_t::sequence_t>(
                     //uses move constructor
                     new result_seq_t{std::move(result)}
                 );
             }
         }
-        //void compound(
-        //std::unique_ptr<OP::flur::Sequence<const std::basic_string<char,std::char_traits<char>,std::allocator<char>> &>,std::default_delete<OP::flur::Sequence<const std::basic_string<char,std::char_traits<char>,std::allocator<char>> &>>> &) const': is abstract
-        //  wit
+    private:
+        base_factory_t _base_factory;
     };
 
 } //ns: OP::flur

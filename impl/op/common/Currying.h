@@ -244,7 +244,7 @@ namespace OP::currying
 
         /** Invoke functor `func` with positional substitution from this tuple */
         template <typename TCallable>
-        constexpr auto invoke(TCallable& func)
+        constexpr decltype(auto) invoke(TCallable& func)
         {
             return do_invoke<true>(func, std::make_index_sequence<sizeof...(Tx)>());
         }
@@ -253,7 +253,7 @@ namespace OP::currying
         * Invoke function with type binding with front positional `Ax...` arguments.
         */
         template <typename TCallable, typename ... Ax>
-        auto typed_invoke(TCallable& func, Ax&&...ax)
+        decltype(auto) typed_invoke(TCallable& func, Ax&&...ax)
         {
             using ftraits_t = OP::utils::function_traits<TCallable>;
             return typed_invoke_impl<true>(
@@ -318,7 +318,7 @@ namespace OP::currying
     private:
 
         template <bool front_invoke, typename F, size_t... I, typename ... Ax, typename ftraits_t = OP::utils::function_traits<F> >
-        auto typed_invoke_impl(F& func, std::index_sequence<I...>, Ax&& ...ax)
+        decltype(auto) typed_invoke_impl(F& func, std::index_sequence<I...>, Ax&& ...ax)
         {
             if constexpr (front_invoke)
             {

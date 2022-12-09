@@ -2,6 +2,12 @@
 #ifndef _OP_FLUR_OFVALUE__H_
 #define _OP_FLUR_OFVALUE__H_
 
+#ifdef _MSVC_LANG
+// warning C4172: "returning address of local variable or temporary" must be an error
+// when trying to return result from function combination
+#pragma warning( error: 4172)
+#endif //_MSVC_LANG
+
 #include <functional>
 #include <memory>
 #include <optional>
@@ -89,6 +95,7 @@ namespace flur
         virtual T current() const
         {
             return _attrs.typed_invoke(_gen);
+            //return _gen();
         }
 
         virtual void next()

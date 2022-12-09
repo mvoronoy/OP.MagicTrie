@@ -4,7 +4,7 @@
 
 #ifdef _MSVC_LANG
 // warning C4172: "returning address of local variable or temporary" must be an error
-// when trying to return result from function combination
+// when trying to return result from function combinating `const T&` and `T` values
 #pragma warning( error: 4172)
 #endif //_MSVC_LANG
 #include <functional>
