@@ -66,7 +66,7 @@ namespace flur
         {}
 
         /** Repeater is ordered on condition if source sequence is ordered */
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
         {
             return _src.is_sequence_ordered();
         }

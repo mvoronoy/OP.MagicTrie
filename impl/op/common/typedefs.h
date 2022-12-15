@@ -32,9 +32,15 @@
     #define OP_CPP20_FEATURES
     #define OP_VIRTUAL_CONSTEXPR constexpr virtual
     #define OP_CONSTEXPR_CPP20 constexpr 
+    #define OP_CPP20_CONCEPT(inl) inl
+    #define OP_CPP20_CONCEPT_REF(ref) ref
+    #define OP_CPP20_REQUIRES(inl) requires inl
 #else
     #define OP_VIRTUAL_CONSTEXPR virtual
     #define OP_CONSTEXPR_CPP20
+    #define OP_CPP20_CONCEPT(inl)
+    #define OP_CPP20_CONCEPT_REF(ref) typename
+    #define OP_CPP20_REQUIRES(inl)
 #endif //c++20
 
 

@@ -22,7 +22,7 @@ namespace OP::flur
         /** Type of element */
         using element_t = T;
         
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept
         {
             return false;
         }
@@ -58,7 +58,7 @@ namespace OP::flur
         using base_t = Sequence<T>;
         using this_t = OrderedSequence<T>;
         using element_t = typename base_t::element_t;
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
         {
             return true;
         }
@@ -83,6 +83,19 @@ namespace OP::flur
         constexpr inline bool is_sequence_v = sequence_traits<T>::is_sequence_v;
 
     }//ns:details
+
+    /** Sequence hint to modify sequence behaviour */
+    enum class Intrinsic
+    {
+        /** Used as dummy stub */
+        none,
+        /** Keep order feature. Multiple algorithm like Map, FlatMap, MaF allows support ordering
+        *  if source ordered as well. NOTE! keep_order does not mean 'ordered', it just state 
+        *  if source ordered then result just keeps ordering as well.
+        */
+        keep_order
+    };
+
 
 }//ns:OP
 

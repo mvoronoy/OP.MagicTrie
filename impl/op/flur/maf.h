@@ -20,12 +20,7 @@ namespace flur
         /** Modify MaF behavior to declare Sequence::current return result by value instead of
         * const reference
         */
-        result_by_value,
-        /** Modify MaF behavior to keep order on condition if source sequence is ordered.
-        * NOTE! keep_order does not mean 'ordered', it just state if source ordered then 
-        * result just keep order.
-        */
-        keep_order
+        result_by_value
     };
 
     /**
@@ -33,13 +28,18 @@ namespace flur
     * \tparam Src - source sequnce to convert
     * \tparam F functor with the signature `bool(typename Src::element_t, <desired-mapped-type> &result)`
     *       Note that implementation assumes that <desired-mapped-type> is default constructible
+    * \tparam options_c - extra options to customize sequence behavior. Implementation recognizes none or any of:
+    *       - Intrinsic::keep_order - to allow keep source sequence order indicator;
+    *       - MaFOptions::result_by_value - to declare `current()` return result by value instead of
+    *            const reference.
+    *
     */
-    template <class Base, class Src, class F, MaFOptions ... options>
+    template <class Base, class Src, class F, auto ... options_c>
     struct MaF : public Base
     {
         using base_t = Base;
         using element_t = typename base_t::element_t;
-        constexpr static inline bool keep_order_mapping_c = ((MaFOptions::keep_order == options) || ...);
+        constexpr static inline bool keep_order_mapping_c = OP::utils::any_of<options_c...>(Intrinsic::keep_order);
 
         using traits_t = OP::utils::function_traits<F>;
         using from_t = std::decay_t<typename traits_t::template arg_i<0>>;
@@ -55,7 +55,7 @@ namespace flur
         {
         }
         
-        bool is_sequence_ordered() const override
+        bool is_sequence_ordered() const noexcept override
         {
             return keep_order_mapping_c 
                 && details::get_reference(_src).is_sequence_ordered();
@@ -101,9 +101,9 @@ namespace flur
 
     /**
     *
-    * \tparam options - true if function keeps order. 
+    * Factory for the MaF sequence
     */
-    template < class F, MaFOptions ... options_c>
+    template < class F, auto ... options_c>
     struct MapAndFilterFactory : FactoryBase
     {
         using traits_t = OP::utils::function_traits<F>;
@@ -113,10 +113,8 @@ namespace flur
         using from_t = std::decay_t<typename traits_t::template arg_i<0>>;
         using mapped_t = std::decay_t<typename traits_t::template arg_i<1>>;
 
-        constexpr static inline bool is_result_by_value_c = (
-            (MaFOptions::result_by_value == options_c) || ...);
-        constexpr static inline bool keep_order_c = (
-            (MaFOptions::keep_order == options_c) || ...);
+        constexpr static inline bool is_result_by_value_c = OP::utils::any_of<options_c...>(MaFOptions::result_by_value);
+        constexpr static inline bool keep_order_c = OP::utils::any_of<options_c...>(Intrinsic::keep_order);
 
         using sequence_element_t = std::conditional_t<is_result_by_value_c, mapped_t, const mapped_t&>;
         using target_sequence_base_t = std::conditional_t<keep_order_c,
@@ -135,14 +133,6 @@ namespace flur
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
-        /*
-            using input_t = std::decay_t<details::unpack_t<Src>>;
-            using src_container_t = std::decay_t < 
-                details::dereference_t<
-                    decltype(details::get_reference(std::declval< input_t >()))
-                > 
-            >;
-       */
             return result_sequence_t<std::decay_t<Src>>(
                 std::move(src), 
                 _applicator);

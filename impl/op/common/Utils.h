@@ -11,6 +11,37 @@ namespace OP
 {
     namespace utils
     {
+        namespace details
+        {
+            template <class T, class U>
+            constexpr bool any_step(T t, U u)
+            {
+                if constexpr (std::is_same_v<T, U>)
+                    return t == u;
+                else
+                    return false;
+            }
+        }
+        /** Check if function argument of type `T` is containing in the parameter pack `auto ... c`.
+        *   For example may be used with enums (pay attention to mixing of several enums in the same 
+        *       query Enum1, Enum2):
+        *   \code
+        *   enum class Enum1 {e1_1, e1_2};
+        *   enum class Enum2 {e2_1, e2_2};
+        *   ...
+        *   assert( OP::utils::any_of<Enum1::e1_1, Enum2::e2_1>( Enum1::e1_1 ) );
+        *   assert( !OP::utils::any_of<Enum1::e1_1, Enum2::e2_1>( Enum2::e2_2 ) );
+        *   \endcode
+        *   \tparam ... check_c - any type constants supprting operator `==`;
+        *   \tparam T arbitrary type to check against pack of constants
+        *   \return true when at least one constant is matched by type and value to the argument `T t`
+        */
+        template <auto ... check_c, class T>
+        constexpr bool any_of(T t)
+        {
+            return (details::any_step(t, check_c) || ...);
+        }
+
         /**
         *   Allows get index of type in variadic template parameters.
         * Usage: \code

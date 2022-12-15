@@ -18,7 +18,7 @@ namespace flur
     * Mapping converts one sequence to another by applying function to source element.
     * \tparam Src - source sequnce to convert
     */
-    template <class Base, class Src, class F, bool keep_mapping_c>
+    template <class Base, class Src, class F, bool keep_order_c>
     struct Mapping : public Base
     {
         using base_t = Base;
@@ -32,9 +32,9 @@ namespace flur
         {
         }
         
-        bool is_sequence_ordered() const override
+        bool is_sequence_ordered() const noexcept override
         {
-            return keep_mapping_c 
+            return keep_order_c 
                 && details::get_reference(_src).is_sequence_ordered();
         }
 
@@ -80,7 +80,6 @@ namespace flur
     \endcode
 
     */
-
     template <class F, bool result_by_value_c = false>
     struct ReusableMapBuffer
     {
@@ -107,14 +106,15 @@ namespace flur
 
     /**
     *
-    * \tparam keep_order - true if function keeps order. NOTE! keep_order does not mean 'ordered', it just state 
+    * \tparam keep_order - true if function keeps order. NOTE! keep_order does not grant 'ordering', it just state 
     *   if source ordered then result just keep order.
     */
     template < class F, bool keep_order_c = false >
     struct MappingFactory : FactoryBase
     {
-        constexpr MappingFactory(F f) noexcept
-            : _applicator(f)
+        using applicator_t = std::decay_t<F>;
+        constexpr MappingFactory(F&& f) noexcept
+            : _applicator(std::forward<F>(f))
         {
         }
 
@@ -137,11 +137,11 @@ namespace flur
                 Sequence<result_t>
             >;
 
-            return Mapping<target_sequence_base_t, input_t, F, keep_order_c>(
+            return Mapping<target_sequence_base_t, input_t, applicator_t, keep_order_c>(
                 std::move(src), 
                 _applicator);
         }
-        F _applicator;
+        applicator_t _applicator;
     };
 
 } //ns:flur

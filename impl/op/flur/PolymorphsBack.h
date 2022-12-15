@@ -24,7 +24,7 @@ namespace OP::flur
         {
         }
 
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
         {
             return _src->is_sequence_ordered();
         }

@@ -262,14 +262,22 @@ namespace OP::flur
             return OnExceptionFactory<Alt, Ex>(std::forward<Alt>(t));
         }
 
-        /** Produce new source that is result of applying function to each element of origin source */
-        template <class F>
+        /** Produce new source that is result of applying function to each element of origin source.
+        * \tparam options_c - extra options to customize sequence behavior. Implementation recognizes 
+        * none or Intrinsic::keep_order - to allow keep source sequence order indicator.
+        */
+        template <auto ... options_c, class F>
         constexpr auto mapping(F f) noexcept
         {
             using f_t = std::decay_t<F>;
-            return MappingFactory<f_t>(std::move(f));
+            return MappingFactory<f_t, OP::utils::any_of<options_c...>(Intrinsic::keep_order)>(std::move(f));
         }
 
+        /** Equivalent to call of `mapping<Intrinsic::keep_order>(std::move(f))`
+        * Creates mapping factory to produces a sequence that keeps ordering.
+        * Result sequence is not mandatory ordered it just commitment of developer of `F` to keep order  
+        * if source sequenceis ordered as well.
+        */
         template <class F>
         constexpr auto keep_order_mapping(F f) noexcept
         {
@@ -277,25 +285,35 @@ namespace OP::flur
             return MappingFactory<f_t, true>(std::move(f));
         }
 
-        /** Map and Filter factory that unions both operations to the single code.
+        /** Map and Filter factory that execute both operations in the single functor.
+        * \tparam maf_options_c - extra options to customize sequence behavior. Implementation recognizes 
+        * none or any of:
+        *       - Intrinsic::keep_order - to allow keep source sequence order indicator;
+        *       - MaFOptions::result_by_value - to declare `current()` return result by value instead of
+        *            const reference.
         * \tparam F functor with the signature `bool(typename Src::element_t, <desired-mapped-type> &result)`
         *       Note that implementation assumes that <desired-mapped-type> is default constructible
         */
-        template <class F>
+        template <auto ... maf_options_c, class F>
         constexpr auto maf_cv(F f) noexcept
         {
             using f_t = std::decay_t<F>;
-            return MapAndFilterFactory<f_t>(std::move(f));
+            return MapAndFilterFactory<f_t, maf_options_c...>(std::move(f));
         }
 
+        /** Equivalent to call of `maf_cv<MaFOptions::result_by_value>(std::move(f))`. Creates `maf` factory that  
+        *  produces sequence to copy result instead of const-reference.
+        */
         template <class F>
         constexpr auto maf(F f) noexcept
         {
-            using f_t = std::decay_t<F>;
-            return MapAndFilterFactory<f_t, MaFOptions::result_by_value>(std::move(f));
+            return maf_cv<MaFOptions::result_by_value>(std::move(f));
         }
 
-        /** Map and Filter factory with keep ordering that unions both operations to the single code.
+        /** 
+        * Equivalent to call of `maf_cv<Intrinsic::keep_order, MaFOptions::result_by_value>(std::move(f))`
+        * Creates `maf` factory that  
+        *  produces sequence that keeps ordering and copies result instead of const-reference.
         * Result sequence is not mandatory ordered it just commitment of developer of `F` to keep order  
         * if source sequenceis ordered as well.
         * \tparam F functor with the signature `bool(typename Src::element_t, <desired-mapped-type> &result)`
@@ -305,23 +323,33 @@ namespace OP::flur
         constexpr auto keep_order_maf(F f) noexcept
         {
             using f_t = std::decay_t<F>;
-            return MapAndFilterFactory<f_t, MaFOptions::keep_order, MaFOptions::result_by_value>(std::move(f));
+            return MapAndFilterFactory<f_t, Intrinsic::keep_order, MaFOptions::result_by_value>(std::move(f));
         }
+
+        /** Equivalent to call of `maf_cv<Intrinsic::keep_order>(std::move(f))`. Creates `maf` factory that  
+        *  that keeps ordering.
+        */
         template <class F>
         constexpr auto keep_order_maf_cv(F f) noexcept
         {
             using f_t = std::decay_t<F>;
-            return MapAndFilterFactory<f_t, MaFOptions::keep_order>(std::move(f));
+            return MapAndFilterFactory<f_t, Intrinsic::keep_order>(std::move(f));
         }
 
-        /** Same as mapping, but assume function F produces some set instead of single value 
+        /** Same as mapping, but assume function F produces some set instead of single value.
         *
+        * \tparam options_c - extra options to customize result sequence behavior. FlatMap implementation 
+        * recognizes only `Intrinsic::keep_order` - to allow keep source sequence order indicator. All another
+        *   options will be ignored.
+        * \tparam F functor that accept 1 arg result of other `Sequence::current()` and returns Sequence or 
+        *   FactoryBase for 'flat' result.
         */
-        template <class F>
+        template <auto ... options_c, class F>
         constexpr auto flat_mapping(F&& f) noexcept
         {
-            return FlatMappingFactory<F>(std::forward<F>(f));
+            return FlatMappingFactory<F, options_c...>(std::forward<F>(f));
         }
+
         /** Same as '&' operator for LazyRange, but allows use `>>` operator 
         *
         */

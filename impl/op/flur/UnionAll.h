@@ -34,7 +34,7 @@ namespace OP::flur
         }
 
         /** Union all doesn't support ordering */
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
         {
             return false;
         }
@@ -91,7 +91,7 @@ namespace OP::flur
         template <size_t I>
         static base_t& at_i(all_seq_tuple_t& tup)
         {
-            return std::get<I>(tup);
+            return details::get_reference(std::get<I>(tup));
         }
 
         template <size_t ... I>
@@ -131,8 +131,28 @@ namespace OP::flur
                                 details::get_reference(rx).compound() ... )
                     );}, _right);
         }
+
+        /** This factory can be used as root-level lazy range */
+        constexpr auto compound() const noexcept
+        {
+            static_assert(
+                sizeof...(Tx) > 1,
+                "specify 2 or more sources in UnionAllSequenceFactory<Tx...>");
+
+            using all_factories_t = decltype(_right);
+            using zero_sequence_t = details::sequence_type_t< std::tuple_element_t<0, all_factories_t> >;
+            using element_t = typename details::dereference_t<zero_sequence_t>::element_t;
+
+            return
+                std::apply([&](const auto& ... rx) ->decltype(auto){
+                    return UnionAllSequence<
+                        element_t,
+                        details::sequence_type_t<Tx>... >(
+                            std::make_tuple( details::get_reference(rx).compound() ... )
+                    );}, _right);
+        }
     private:
-        std::tuple<Tx ...> _right;
+        std::tuple<std::decay_t<Tx> ...> _right;
     };
 
 } //ns:OP

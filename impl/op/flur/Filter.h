@@ -27,7 +27,7 @@ namespace OP::flur
         }
 
         
-        bool is_sequence_ordered() const override
+        bool is_sequence_ordered() const noexcept override
         {
             return details::get_reference(_src).is_sequence_ordered();
         }

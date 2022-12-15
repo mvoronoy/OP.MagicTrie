@@ -105,7 +105,7 @@ namespace OP
             }
         };
 
-        template <class TFlatMapTraits>
+        template <class TFlatMapTraits, bool keep_order_c>
         struct FlatMapping : public Sequence<typename TFlatMapTraits::element_t>
         {
             using traits_t = TFlatMapTraits;
@@ -114,10 +114,16 @@ namespace OP
             using input_sequence_t = typename traits_t::input_sequence_t;
             using applicator_t = typename traits_t::applicator_t;
 
-            FlatMapping(input_sequence_t&& src, applicator_t f)
+            constexpr FlatMapping(input_sequence_t&& src, applicator_t f) noexcept
                 : _src(std::move(src))
                 , _applicator(std::move(f))
             {
+            }
+
+            bool is_sequence_ordered() const noexcept override
+            {
+                return keep_order_c && 
+                    details::get_reference(_src).is_sequence_ordered();
             }
 
             virtual void start()
@@ -202,29 +208,38 @@ namespace OP
             input_sequence_t _src;
         };
 
-        template < class F >
+        /**
+        *
+        * \tparam options_c - extra options to customize sequence behavior. Implementation recognizes:
+        *       - Intrinsic::keep_order - to allow keep source sequence order indicator;
+        */
+        template < class F, auto ...options_c >
         struct FlatMappingFactory : FactoryBase
         {
+            constexpr static inline bool keep_order_c = OP::utils::any_of<options_c...>(Intrinsic::keep_order);
+            using applicator_t = std::decay_t<F>;
+
             constexpr FlatMappingFactory(F&& f) noexcept
                 : _applicator(std::forward<F>(f))
             {
             }
+
             template <class Src>
             constexpr auto compound(Src&& src) const& noexcept
             {
-                using traits_t = FlatMapTraits<F, Src>;
-                return FlatMapping<traits_t>(
+                using traits_t = FlatMapTraits<applicator_t, Src>;
+                return FlatMapping<traits_t, keep_order_c>(
                     std::move(src), _applicator);
             }
 
             template <class Src>
             constexpr auto compound(Src&& src) && noexcept
             {
-                using traits_t = FlatMapTraits<F, Src>;
-                return FlatMapping<traits_t>(
+                using traits_t = FlatMapTraits<applicator_t, Src>;
+                return FlatMapping<traits_t, keep_order_c>(
                     std::move(src), std::move(_applicator));
             }
-            F _applicator;
+            applicator_t _applicator;
         };
 
 

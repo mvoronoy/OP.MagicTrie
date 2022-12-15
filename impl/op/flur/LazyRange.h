@@ -151,7 +151,7 @@ namespace OP::flur
     constexpr auto make_unique(Tx && ... tx) 
     {
         using impl_t = PolymorphFactory<LazyRange<Tx ...>>;
-        using interface_t = typename impl_t::polymorph_base_t;
+        using interface_t = typename impl_t::base_t;
 
         return std::unique_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
     }
@@ -160,7 +160,7 @@ namespace OP::flur
     {
         using lrange_t = LazyRange<Tx ...>;
         using impl_t = PolymorphFactory<lrange_t>;
-        using interface_t = typename impl_t::polymorph_base_t;
+        using interface_t = typename impl_t::base_t;
 
         return std::unique_ptr<interface_t>( new impl_t{ std::forward<lrange_t>(range) } );
     }
