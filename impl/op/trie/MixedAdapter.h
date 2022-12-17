@@ -131,6 +131,9 @@ namespace OP::trie
                 : _prefix(std::move(prefix))
             {
             }
+            /** 
+            * \param i - [out] result iterator
+            */
             void _lower_bound(const Trie& trie, iterator& i, const atom_string_t& key) const
             {
                 auto kb = std::begin(key);
@@ -311,13 +314,14 @@ namespace OP::trie
         using base_lower_bound_t::_lower_bound;
     };
     namespace flur = OP::flur;
+
     /**
     *   flur library adapter for Trie.
     * Adapter implements ordered sequence (even more OrderedRangeOptimizedJoin) where element of sequence is
     *  Trie::iterator. 
     */
     template <class TTrie, class ... Mx>
-    struct TrieSequence : public flur::OrderedSequenceOptimizedJoin< typename TTrie::iterator >
+    struct TrieSequence : public flur::OrderedSequenceOptimizedJoin< const typename TTrie::iterator& >
     {
         using trie_t = TTrie;
         using mixer_t = Mixer<trie_t, Mx ...>;
@@ -350,7 +354,7 @@ namespace OP::trie
                 return false;
             return _mixer._in_range(*_parent, _pos );
         }
-        virtual mixer_iterator_t current() const override
+        virtual const mixer_iterator_t& current() const override
         {
             return _pos;
         }

@@ -158,7 +158,19 @@ void test_ThenUnorderedDistinct(OP::utest::TestRuntime& tresult)
 
 }
 
+void test_ThenAutoDistinct(OP::utest::TestRuntime& tresult)
+{
+    tresult.assert_that<eq_sets>(
+        src::of_container(std::vector{1, 2, 2, 5, 3, 3, 2}) >> then::auto_distinct(),
+        std::vector{ {1, 2, 5, 3} });
+
+    tresult.assert_that<eq_sets>(
+        src::of_container(std::multiset{ 1, 2, 2, 5, 3, 3, 2 }) >> then::auto_distinct(),
+        std::vector{ {1, 2, 3, 5} });
+}
+
 static auto& module_suite = OP::utest::default_test_suite("flur.then")
     .declare("ordered-distinct", test_ThenOrderedDistinct)
     .declare("unordered-distinct", test_ThenUnorderedDistinct)
+    .declare("auto-distinct", test_ThenAutoDistinct)
 ;

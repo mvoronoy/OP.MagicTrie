@@ -275,6 +275,40 @@ namespace OP::flur
         Policy _policy;
     };
 
+
+    /** Same as DistinctFactory, but allows pick between ordered and unordered algorithms at runtime
+    * depending if source sequence supports ordering
+    */
+    template <class D1, class D2>
+    struct SmartDistinctFactory : FactoryBase
+    {
+
+        constexpr SmartDistinctFactory(D1&& d1, D2&& d2) noexcept
+            : _ordered_distinct_factory(std::forward<D1>(d1))
+            , _unordered_distinct_factory(std::forward<D2>(d2))
+        {
+        }
+        
+        template <class Src>
+        constexpr auto compound(Src&& src) const noexcept
+        {
+            using seq_t = std::decay_t<Src>;
+            using d1_seq_t = std::decay_t<decltype(_ordered_distinct_factory.compound(std::move(src)))>;
+            using d2_seq_t = std::decay_t<decltype(_unordered_distinct_factory.compound(std::move(src)))>;
+            using proxy_sequence_t = SequenceProxy< d1_seq_t, d2_seq_t >;
+            if( src.is_sequence_ordered() )
+            {
+                return proxy_sequence_t( _ordered_distinct_factory.compound(std::move(src)) );
+            }
+            else
+            {
+                return proxy_sequence_t( _unordered_distinct_factory.compound(std::move(src)) );
+            }
+        }
+
+        D1 _ordered_distinct_factory;
+        D2 _unordered_distinct_factory;
+    };
 }  //ns:OP::flur
 
 #endif //_OP_FLUR_DISTINCT__H_

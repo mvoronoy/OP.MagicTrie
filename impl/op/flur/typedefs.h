@@ -156,8 +156,12 @@ namespace OP::flur::details
     template <class Value>
     using sequence_type_t = typename sequence_type<Value>::type;
 
-    /** Generic check if arbitrary container is ordered. By default it false.
-    * Make specification or overload if you need more specific behavior
+    template <class Value>
+    using sequence_element_type_t = typename dereference_t< sequence_type_t<Value> >::element_t;
+
+    /** Generic check if arbitrary container (mostly about from std:: namespce) is ordered. 
+    * By default it false.
+    * Make specification or overload if you need more specific behavior for your purpose
     */
     template <class TArbitrary>
     constexpr std::false_type is_ordered(const TArbitrary&) noexcept

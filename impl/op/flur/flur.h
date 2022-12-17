@@ -470,6 +470,26 @@ namespace OP::flur
                 OrderedDistinctPolicyWithCustomComparator<F>(std::move(f)));
         }
 
+        /** Distinct that depending on support ordering in source sequence automaticlly applies 
+        * either `ordered_distinct` or `unordered_distinct`
+        */
+        constexpr auto auto_distinct() noexcept
+        {
+            auto d1 = ordered_distinct();
+            auto d2 = unordered_distinct();
+            return SmartDistinctFactory(std::move(d1), std::move(d2));
+        }
+        /**
+        *   Remove duplicates using the custom comparator F and automatic detection if source sequence is ordered. 
+        */
+        template <class F>
+        constexpr auto auto_distinct(F f) noexcept
+        {
+            auto d1 = ordered_distinct(f);//copy
+            auto d2 = unordered_distinct(std::move(f));//move
+            return SmartDistinctFactory(std::move(d1), std::move(d2));
+        }
+
         /**
         *  Produce cartesian product of main flur source with 1...N other sources. 
         * \tparam F - function that accept N+1 arguments (element from source and element from Alien and Ax...) then 
