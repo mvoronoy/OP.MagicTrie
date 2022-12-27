@@ -1,4 +1,7 @@
 #pragma once
+#ifndef _OP_TRIE_JOINGENERATOR__H_
+#define _OP_TRIE_JOINGENERATOR__H_
+
 #include <op/flur/Sequence.h>
 #include <op/flur/typedefs.h>
 
@@ -124,4 +127,5 @@ namespace OP::flur::then
         return prefix_join(std::const_pointer_cast<Trie const>(trie));
     }
 
-}
+} //ns: OP::flur::then
+#endif //_OP_TRIE_JOINGENERATOR__H_

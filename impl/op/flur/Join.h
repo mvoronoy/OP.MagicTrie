@@ -59,8 +59,8 @@ namespace OP::flur
             if (left.in_range())
             {
                 right.start();
+                seek();
             }
-            seek();
         }
         
         virtual bool in_range() const

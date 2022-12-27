@@ -68,42 +68,67 @@ namespace OP
             static std::shared_ptr<Trie> create_new(std::shared_ptr<TSegmentManager>& segment_manager)
             {
                 //create new file
-                auto r = std::shared_ptr<this_t>(new this_t(segment_manager));
+                auto new_trie = std::shared_ptr<this_t>(new this_t(segment_manager));
                 //make root for trie
                 OP::vtm::TransactionGuard op_g(segment_manager->begin_transaction()); //invoke begin/end write-op
-                r->_topology->OP_TEMPL_METH(slot) < TrieResidence > ().set_root_addr(r->new_node(0));
+                
+                // never(!) place `->new_node` and `.update([](){})` to single lambda
+                // otherwise creates different version writable_block
+                new_trie->_root = new_trie->new_node(0);
+                
+                new_trie->_topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .update([root_addr = new_trie->_root](auto& header){
+                        header._root = root_addr;
+                    });
 
                 op_g.commit();
-                return r;
+                return new_trie;
             }
+            
             static std::shared_ptr<Trie> open(std::shared_ptr<TSegmentManager>& segment_manager)
             {
-                auto r = std::shared_ptr<this_t>(new this_t(segment_manager));
-                return r;
+                auto existing_trie = std::shared_ptr<this_t>(new this_t(segment_manager));
+                auto header =
+                    existing_trie->_topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .get_header();
+                existing_trie->_version = header._version;
+                existing_trie->_root = header._root;
+                return existing_trie;
             }
+
             TSegmentManager& segment_manager()
             {
-                return static_cast<TSegmentManager&>(OP::trie::resolve_segment_manager(*_topology));
+                return static_cast<TSegmentManager&>(
+                    OP::trie::resolve_segment_manager(*_topology));
             }
+            
             /**Total number of items*/
             std::uint64_t size() const
             {
-                return _topology->OP_TEMPL_METH(slot) < TrieResidence > ().count();
+                auto h = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .get_header();
+                return h._count;
             }
+
             node_version_t version() const
             {
-                return _topology->OP_TEMPL_METH(slot) < TrieResidence > ().current_version();
+                auto h = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .get_header();
+                return this->_version;
             }
+            
             /**Number of allocated nodes*/
             std::uint64_t nodes_count()
             {
-                return _topology->OP_TEMPL_METH(slot) < TrieResidence > ().nodes_allocated();
+                auto h = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .get_header();
+                return h._nodes_allocated;
             }
 
             iterator begin() const
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), false); //place all RO operations to atomic scope
-                auto next_addr = _topology->OP_TEMPL_METH(slot) < TrieResidence > ().get_root_addr();
+                auto next_addr = _root;
                 iterator i(this);
                 bool ok = true;
                 auto locator = [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); };
@@ -490,6 +515,20 @@ namespace OP
                 ));
             }
 
+            /**Return range that allows iterate all immediate childrens of specified prefix
+            * \tparam AtomContainer - any string-like character enumeration
+            */
+            template <class AtomContainer>
+            auto children_range(const AtomContainer& of_key) const
+            {
+                return OP::flur::make_lazy_range(make_mixed_sequence_factory(
+                    std::const_pointer_cast<const this_t>(this->shared_from_this()),
+                    typename Ingredient<this_t>::ChildOfKeyBegin{ of_key },
+                    typename Ingredient<this_t>::ChildInRange{ StartWithPredicate(of_key) },
+                    typename Ingredient<this_t>::SiblingNext{}
+                ));
+            }
+
             /**Return range that allows iterate all siblings of specified prefix*/
             auto sibling_range(const atom_string_t& key) const
             {
@@ -751,7 +790,8 @@ namespace OP
             iterator erase(iterator& pos, size_t* count = nullptr)
             {
                 if (count) { *count = 0; }
-                OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true);
+                OP::vtm::TransactionGuard op_g(_topology->segment_manager()
+                    .begin_transaction(), true);
 
                 if (!sync_iterator(pos) || pos.is_end())
                     return end();
@@ -759,6 +799,7 @@ namespace OP
                 auto result{ pos };
                 ++result;
                 bool erase_child_and_exit = false; //flag mean stop iteration
+
                 for (bool first = true; pos.node_count(); pos.pop(), first = false)
                 {
                     const auto& back = pos.rat();
@@ -780,17 +821,18 @@ namespace OP
                         break;
                     }
                     //remove entire node if it is not a root
-                    const auto root_addr = _topology->OP_TEMPL_METH(slot) < TrieResidence > ().get_root_addr();
-                    if (back.address() != root_addr)
+                    if (back.address() != this->_root)
                     {
                         remove_node(wr_node);
                         erase_child_and_exit = true;
                     }
                 }
+                const std::uint64_t new_ver = ++this->_version;
                 _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
-                    .increase_count(-1) //number of terminals
-                    .increase_version() // version of trie
-                    ;
+                    .update([&](auto& header){
+                        --header._count; //number of terminals
+                        header._version = new_ver; // version of trie
+                    });
                 if (count) { *count = 1; }
                 return result;
             }
@@ -851,11 +893,14 @@ namespace OP
                     assert(counter);//otherwise terminality flag must be altered
                     erased_terminals += counter;
                 }
-                auto& residence = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
-                    .increase_count(effective_decrease_number) //number of terminals
-                    .increase_version() // version of trie
-                    ;
-                prefix._version = residence.current_version();
+
+                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .update([&](auto& header){
+                        header._count += effective_decrease_number; //number of terminals
+                        header._version = ++this->_version; // version of trie
+                        prefix._version = this->_version;
+                    });
+
                 if (!prefix.is_end())
                 {
                     prefix.rat(
@@ -949,6 +994,22 @@ namespace OP
                 HeapManagerSlot/*Memory manager must go last*/>;
             std::unique_ptr<topology_t> _topology;
 
+            /** This varibale is a global version indicator, since 
+            * this is a trie-global resource it cannot rely on 
+            * transaction mechanism. For example what if 2 parallel
+            * transactions increase the version, after one transaction 
+            * rollbacks its. As a result all iterators may "think" referencing
+            * correct version, but in fact they use "rolled back" value.
+            * To avoid this _version is trie-global and always increasing
+            * (never rolled back)
+            */
+            std::atomic<std::uint64_t> _version = 0;
+            
+            /** Cached result of root node to avoid often referencing to 
+            * persisted TrieResidence::TrieHeade::_root
+            */ 
+            FarAddress _root = {};
+
         private:
             Trie(std::shared_ptr<TSegmentManager>& segments) noexcept
                 : _topology{ std::make_unique<topology_t>(segments) }
@@ -957,17 +1018,22 @@ namespace OP
             }
             /** Create new node with default requirements.
             * It is assumed that exists outer transaction scope.
+            * \param level - the hint what level of trie this node belongs. 0 - is 
+            *   for root node, for most cases default (1) is a good hint how many 
+            *   storage entries to allocate
             */
             FarAddress new_node(size_t level = 1)
             {
-                TrieOptions options; //@! temp - just default impl
+                TrieOptions options; //@! temp - just default impl. Need add euristic to allocate mem according to level
                 auto node_addr = _topology->OP_TEMPL_METH(slot) < node_manager_t > ().allocate(
                     options.init_node_size(level)
                 );
                 auto wr_node = accessor<node_t>(*_topology, node_addr);
                 wr_node->create_interior(*_topology);
-                auto& res = _topology->OP_TEMPL_METH(slot) < TrieResidence > ();
-                res.increase_nodes_allocated(+1);
+                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .update([this](auto& header) {
+                        ++header._nodes_allocated;
+                    });
                 return node_addr;
             }
 
@@ -976,8 +1042,10 @@ namespace OP
                 wr_node->destroy_interior(*_topology);
                 _topology->OP_TEMPL_METH(slot) < node_manager_t > ().deallocate(
                     wr_node.address());
-                auto& res = _topology->OP_TEMPL_METH(slot) < TrieResidence > ();
-                res.increase_nodes_allocated(-1);
+                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .update([this](auto& header) {
+                        --header._nodes_allocated;
+                    });
             }
 
             /**
@@ -1000,9 +1068,10 @@ namespace OP
             }
             /**Place string to node without any additional checks
             * \tparam FPayloadFactory functor that has the signature `void (payload_t&)`
+            * \return updated version of trie (matched to current transaction)
             */
             template <class FPayloadFactory>
-            void unconditional_insert(iterator& result, FPayloadFactory fassign)
+            std::uint64_t unconditional_insert(iterator& result, FPayloadFactory fassign)
             {
                 const auto& back = result.rat();
                 assert(back.key() < 256);
@@ -1029,22 +1098,27 @@ namespace OP
                 //    node_addr = new_node(result.deep());
                 //    wr_node->set_child(*_topology, key, node_addr);
                 //}
+                std::uint64_t version = ++this->_version; // version of trie
                 _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
-                    .increase_count(+1) //number of terminals
-                    .increase_version() // version of trie
-                    ;
+                    .update([&](auto& header){
+                        ++header._count; //number of terminals
+                        header._version = version;
+                    });
+                return version;
             }
 
             template <class AtomIterator>
             StemCompareResult mismatch(iterator& iter, AtomIterator& begin, AtomIterator end) const
             {
                 using node_data_t = typename node_t::NodeData;
+                StringMemoryManager string_memory_manager(*_topology);
 
                 StemCompareResult mismatch_result = StemCompareResult::equals;
                 for (FarAddress node_addr = iter.rat().address(); 
                     begin != end 
                     && !node_addr.is_nil()
-                    && any_of(mismatch_result, StemCompareResult::equals, StemCompareResult::stem_end);)
+                    && OP::utils::any_of<StemCompareResult::equals, StemCompareResult::stem_end>(
+                        mismatch_result);)
                 {
                     auto node =
                         view<node_t>(*_topology, node_addr);
@@ -1079,9 +1153,9 @@ namespace OP
                             StemCompareResult stem_matches = StemCompareResult::equals;
                             if (!node_data._stem.is_nil())
                             { //stem exists, append to out iterator
-                                StringMemoryManager smm(*_topology);
+                                
                                 auto result_stem_size = static_cast<dim_t>(
-                                    smm.get(node_data._stem, [&](atom_t c) -> bool {
+                                    string_memory_manager.get(node_data._stem, [&](atom_t c) -> bool {
                                         if (begin == end)
                                         {
                                             stem_matches = StemCompareResult::string_end;
@@ -1113,9 +1187,7 @@ namespace OP
                             return stem_matches;
                         }
                     );
-                    if (//none_of(mismatch_result, 
-                        //StemCompareResult::no_entry, StemCompareResult::string_end, StemCompareResult::equals, StemCompareResult::unequals)
-                        mismatch_result == StemCompareResult::stem_end && has_child)
+                    if (mismatch_result == StemCompareResult::stem_end && has_child)
                     { //next iteration with new node address
                         //mismatch_result == StemCompareResult::stem_end 
                         iter.push(address(node_addr));
@@ -1164,11 +1236,11 @@ namespace OP
                 );
 
                 _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
-                    .increase_count(+1) //number of terminals
-                    .increase_version() // version of trie
-                    ;
+                    .update([new_ver = ++this->_version](auto& header){
+                        ++header._count; //number of terminals
+                        header._version = new_ver; // version of trie
+                    });
             }
-            
             
             size_t update_impl(iterator& pos, value_type value)
             {
@@ -1184,11 +1256,11 @@ namespace OP
                 });
 
                 pos.rat(node_version(wr_node->_version));
-                const auto this_ver = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
-                    .increase_version() // version of trie
-                    .current_version()
-                    ;
-                pos._version = this_ver;
+                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    .update([&](auto& header){
+                        header._version = this->_version;
+                        pos._version = header._version;// version of trie
+                    });
                 return 1;
             }
 
@@ -1209,8 +1281,7 @@ namespace OP
                 if (iter.is_end())
                 { //start from root node
                     iter.push(
-                        address(
-                            _topology->OP_TEMPL_METH(slot) < TrieResidence > ().get_root_addr())
+                        address(_root)
                     );
                 }
                 
@@ -1266,12 +1337,9 @@ namespace OP
                         iter.update_stem(begin, end);
                     }
                 }
-                unconditional_insert(iter, std::move(value_factory));
-                const auto this_ver = this->version();
-                iter._version = this_ver;
+                iter._version = unconditional_insert(iter, std::move(value_factory));
                 return false;//brand new entry
             }
-            
 
             /** Prepares `result_iter` to further navigation deep, if it is empty 
             * method prepares navigation from root node
@@ -1281,8 +1349,7 @@ namespace OP
                 FarAddress next_address;
                 if (result_iter.is_end())
                 { //start from root node
-                    next_address =
-                        _topology->OP_TEMPL_METH(slot) < TrieResidence > ().get_root_addr();
+                    next_address = _root;
                 }
                 else
                 {
@@ -1450,7 +1517,7 @@ namespace OP
             */
             bool sync_iterator(iterator& it, atom_string_t* fallback = nullptr) const
             {
-                const auto this_ver = this->version();
+                const std::uint64_t this_ver = this->version();
 
                 if (this_ver == it.version()) //no sync is needed
                     return true;

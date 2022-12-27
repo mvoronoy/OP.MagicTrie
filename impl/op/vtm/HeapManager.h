@@ -116,37 +116,7 @@ namespace OP::vtm
             */
             void deallocate(FarAddress address)
             {
-                if (!OP::utils::is_aligned(address.offset, SegmentHeader::align_c)
-                    //|| !check_pointer(memblock)
-                    )
-                    throw trie::Exception(trie::er_invalid_block);
-                OP_CONSTEXPR(const) segment_pos_t mbh = 
-                    OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                FarAddress header_far (FreeMemoryBlock::get_header_addr(address));
-                
-                OP::vtm::transaction_ptr_t tr;
-                OP::vtm::TransactionGuard g(tr = _segment_manager->begin_transaction());
-                if (tr.get() != nullptr)
-                {
-                    //obtain RO block of memory header to validate address
-                    auto ro_block =
-                        _segment_manager->readonly_block(header_far, mbh,
-                            ReadonlyBlockHint::ro_keep_lock/*retain this block's header in scope of transaction*/);
-                    const MemoryBlockHeader* header = ro_block.at<MemoryBlockHeader>(0);
-                    if (!header->check_signature() || header->is_free())
-                        throw trie::Exception(trie::er_invalid_block);
-                    //postpone deletion untill transaction end
-                    tr->register_handle(std::make_unique<PostponDeallocToTransactionEnd>(this, std::move(ro_block)));
-                }
-                else //non-transacted 
-                {
-                    auto wr_block = _segment_manager->writable_block(header_far, mbh);
-                    MemoryBlockHeader* header = wr_block.at<MemoryBlockHeader>(0);
-                    if (!header->check_signature() || header->is_free())
-                        throw trie::Exception(trie::er_invalid_block);
-                    do_deallocate(wr_block);
-                }
-                g.commit();
+                forcible_deallocate(address);
             }
             
             void forcible_deallocate(FarAddress address)

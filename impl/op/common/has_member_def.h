@@ -101,6 +101,10 @@ namespace OP::has_operators
         std::true_type  has_logical_not_test(const T&);
         std::false_type has_logical_not_test(...);
 
+        template<class T, class = decltype( ++std::declval<T&>() )> 
+        std::true_type  has_prefixed_plus_plus_test(T&);
+        std::false_type has_prefixed_plus_plus_test(...);
+
         template<class T, class = decltype(std::declval<T>() == std::declval<T>() )> 
         std::true_type  has_eq_test(const T&);
         std::false_type has_eq_test(...);
@@ -112,7 +116,11 @@ namespace OP::has_operators
         template<class T, class = decltype(std::declval<std::ostream&>() << std::declval<T>() )> 
         std::true_type  has_ostream_out(const T&);
         std::false_type has_ostream_out(...);
-    
+
+        template<class T, class U, class = decltype(std::declval<T&>() += std::declval<U>() )> 
+        std::true_type  has_plus_eq(T&, U);
+        std::false_type has_plus_eq(...);
+        
     }//ns:details
 
     /** Compile time check if type T supports operator less `<` */
@@ -135,6 +143,10 @@ namespace OP::has_operators
     template<class T> using logical_not = decltype(details::has_logical_not_test(std::declval<T>()));
     template<class T> inline constexpr bool logical_not_v = logical_not<T>::value;
 
+    /** Compile time check if type T supports operator logical-not `!` */
+    template<class T> using prefixed_plus_plus = decltype(details::has_prefixed_plus_plus_test(std::declval<T&>()));
+    template<class T> inline constexpr bool prefixed_plus_plus_v = prefixed_plus_plus<T>::value;
+    
     /** Compile time check if type T supports operator equals `==` */
     template<class T> using equals = decltype(details::has_eq_test(std::declval<T>()));
     template<class T> inline constexpr bool equals_v = equals<T>::value;
@@ -146,6 +158,10 @@ namespace OP::has_operators
     /** Compile time check if type T supports operator << for std::ostream */
     template<class T> using ostream_out = decltype(details::has_ostream_out(std::declval<T>()));
     template<class T> inline constexpr bool ostream_out_v = ostream_out<T>::value;
-} //ns:OP::operators_check
+
+    /** Compile time check if type T supports operator `+=` with U */
+    template<class T, class U> using plus_eq = decltype(details::has_plus_eq(std::declval<T&>(), std::declval<U>()));
+    template<class T, class U> inline constexpr bool plus_eq_v = plus_eq<T, U>::value;
+} //ns: OP::has_operators
 
 #endif //_OP_COMMON_HAS_MEMBER_DEF__H_

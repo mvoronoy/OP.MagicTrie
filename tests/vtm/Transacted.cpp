@@ -940,8 +940,8 @@ void test_TransactedBlockOverlapOnRead(OP::utest::TestRuntime &tresult)
 //
 //}
 
-//using std::placeholders;
-static auto& module_suite = OP::utest::default_test_suite("TransactedSegmentManager")
+/*static auto& module_suite = OP::utest::default_test_suite("TransactedSegmentManager")
+
 .declare("general", test_TransactedSegmentManager)
 //.declare("far address conversion", test_FarAddress)
 .declare("memoryAlloc", test_TransactedSegmentGenericMemoryAlloc)
@@ -953,3 +953,4 @@ static auto& module_suite = OP::utest::default_test_suite("TransactedSegmentMana
 .declare("test read-block include capability", test_TransactedBlockIncludeOnRead)
 .declare("transaction on overlapped blocks", test_TransactedBlockOverlapOnRead)
 ;
+*/

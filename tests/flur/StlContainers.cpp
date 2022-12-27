@@ -74,7 +74,7 @@ void test_Vector(OP::utest::TestRuntime& tresult)
 void test_Iota(OP::utest::TestRuntime& tresult)
 {
     constexpr auto pipeline = src::of_iota(1, 3);
-    static_assert(pipeline.compound().ordered_c, "iota must produce ordered sequence");
+    tresult.assert_true(pipeline.compound().is_sequence_ordered(), "iota must produce ordered sequence");
 
     auto r = std::reduce(pipeline.begin(), pipeline.end(), 0);
     tresult.assert_that<equals>(3, r, "Wrong reduce");
@@ -122,7 +122,8 @@ void test_Set(OP::utest::TestRuntime& tresult)
 void test_Optional(OP::utest::TestRuntime& tresult)
 {   
     constexpr auto r = src::of_optional(57.f);
-    static_assert(r.compound().ordered_c, "Optional must produce ordered sequence");
+    tresult.assert_true(r.compound().is_sequence_ordered(), 
+        "Optional must produce ordered sequence");
 
     tresult.assert_that<equals>(2*57.f,
         OP::flur::reduce(r, 57.f),
@@ -130,7 +131,8 @@ void test_Optional(OP::utest::TestRuntime& tresult)
         );
 
     constexpr auto r_empty = src::of_optional(std::optional<float>());
-    static_assert(r_empty.compound().ordered_c, "Empty optional must produce ordered sequence");
+    tresult.assert_true(r_empty.compound().is_sequence_ordered(), 
+        "Empty optional must produce ordered sequence");
 
     tresult.assert_that<equals>(57.f,
         OP::flur::reduce(r_empty, 57.f),
@@ -143,7 +145,9 @@ void test_Optional(OP::utest::TestRuntime& tresult)
 void test_Value(OP::utest::TestRuntime& tresult)
 {
     constexpr auto r_bool = src::of_value(false);
-    static_assert(r_bool.compound().ordered_c, "bool-singleton must produce ordered sequence");
+    tresult.assert_true(
+        r_bool.compound().is_sequence_ordered(), 
+        "bool-singleton must produce ordered sequence");
 
     tresult.assert_that<equals>(1, std::distance(r_bool.begin(), r_bool.end()), "Wrong count of single value");
 

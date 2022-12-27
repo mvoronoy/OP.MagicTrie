@@ -185,6 +185,8 @@ namespace OP::vtm
             friend struct SegmentOptions;
             typedef OP::vtm::transaction_ptr_t transaction_ptr_t;
 
+            virtual ~SegmentManager() = default;
+
             template <class Manager>
             static std::shared_ptr<Manager> create_new(const char * file_name,
                 const SegmentOptions& options = SegmentOptions())
@@ -194,6 +196,7 @@ namespace OP::vtm
                 result->_segment_size = options.segment_size();
                 return result;
             }
+
             template <class Manager>
             static std::shared_ptr<Manager> open(const char * file_name)
             {
@@ -307,6 +310,7 @@ namespace OP::vtm
                     f(idx, *this);
                 }
             }
+            
             void _check_integrity()
             {
                 //this->_cached_segments._check_integrity();

@@ -8,6 +8,8 @@
 #include <op/common/SpanContainer.h>
 #include <op/common/Unsigned.h>
 #include <thread>
+#include <shared_mutex>
+#include <queue>
 
 namespace OP
 {
@@ -36,7 +38,7 @@ namespace OP
                 _done_captured_worker.store(true);
                 if (1 == 1) 
                 {
-                    guard_t acc(_dispose_lock);
+                    std::unique_lock acc(_dispose_lock);
                     _cv_disposer.notify_one();
                 }
                 _captured_worker.join();
@@ -49,13 +51,14 @@ namespace OP
             {
                 return _read_isolation.exchange(new_level);
             }
-
-            transaction_ptr_t begin_transaction() override
+            
+            [[nodiscard]] transaction_ptr_t begin_transaction() override
             {
-                guard_t g(_opened_transactions_lock);
+                wr_guard_t g(_opened_transactions_lock);
+                auto thread_id = std::this_thread::get_id();
                 auto insres = _opened_transactions.emplace(
                     std::piecewise_construct,
-                    std::forward_as_tuple(std::this_thread::get_id()),
+                    std::forward_as_tuple(thread_id),
                     std::forward_as_tuple());
                 if (insres.second) //just insert
                 {
@@ -64,7 +67,9 @@ namespace OP
                     return insres.first->second;
                 }
                 //transaction already exists, just create save-point
-                return insres.first->second->recursive();
+                if(auto* impl = dynamic_cast<TransactionImpl*>(insres.first->second.get()))
+                    return impl->recursive();
+                return insres.first->second;
             }
 
             ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
@@ -79,7 +84,7 @@ namespace OP
 
                 // find all previously used block that have any intersection with query
                 // to check if readonly block is allowed
-                const guard_t acc_captured(_captured_lock);
+                const std::unique_lock acc_captured(_captured_lock);
                 auto blocks_in_touch = _captured.intersect_with(search_range);
                 if(blocks_in_touch == _captured.end() //no prev blocks at all
                     && (hint & ReadonlyBlockHint::ro_keep_lock) != ReadonlyBlockHint::ro_keep_lock //block has no retain policy
@@ -98,7 +103,7 @@ namespace OP
                         if (current_transaction
                             && block_profile._used_in_transaction == current_transaction->transaction_id())
                         {// form event log ordered by history 
-                            transaction_log.insert(blocks_in_touch);
+                            transaction_log.emplace(blocks_in_touch);
                         }
                         else
                         {//cannot capture because other WR- tran exists over this block
@@ -114,7 +119,7 @@ namespace OP
                                     "cannot capture RO while it is used as WR in other transaction, or no trasnsaction used");
                             case ReadIsolation::ReadUncommitted:
                                 { //DIRTY-READ logic
-                                    transaction_log.insert(blocks_in_touch);
+                                    transaction_log.emplace(blocks_in_touch);
                                     break;
                                 }
                             }
@@ -125,8 +130,9 @@ namespace OP
                 //apply all event sourced to `new_buffer`
                 shadow_buffer_t new_buffer = shadow_buffer_t{new std::uint8_t[result.count()], [](std::uint8_t *p) {delete[]p; } };
                 memcpy(new_buffer.get(), result.at<std::uint8_t>(0), result.count()); //first copy origin from disk
-                for (auto ev_src : transaction_log)
+                for (; !transaction_log.empty(); transaction_log.pop())
                 {// iterate transaction log from oldest to newest and apply changes on result memory block
+                    auto& ev_src = transaction_log.top();
                     /** there are 4 relative positions of intersection existing block and new one:
                     * 1. existing on left:\code
                     * [--existing--]
@@ -174,6 +180,7 @@ namespace OP
                                 std::move(SegmentManager::get_segment(pos.segment))
                             );
             }
+
             MemoryChunk writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
             {
                 transaction_impl_ptr_t current_transaction = 
@@ -190,7 +197,7 @@ namespace OP
 
                 // find all previously used block that have any intersection with query
                 // to check if readonly block is allowed
-                const guard_t acc_captured(_captured_lock);
+                const std::unique_lock acc_captured(_captured_lock);
                 auto blocks_in_touch = _captured.intersect_with(search_range);
                 for(; blocks_in_touch != _captured.end(); ++blocks_in_touch)
                 {
@@ -205,8 +212,9 @@ namespace OP
                         transaction_log.emplace(blocks_in_touch);
                 }
                 //apply all event sourced to `new_buffer`
-                for (auto ev_src : transaction_log)
+                for (;!transaction_log.empty(); transaction_log.pop())
                 {// iterate transaction log from oldest to newest and apply changes on result memory block
+                    auto& ev_src = transaction_log.top();
                     /** there are 4 relative positions of intersection existing block and new one:
                     * 1. existing on left:\code
                     * [--existing--]
@@ -250,6 +258,7 @@ namespace OP
                                 std::move(SegmentManager::get_segment(pos.segment))
                             );
             }
+
             MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro)  override
             {
                 return this->writable_block(ro.address(), ro.count());
@@ -263,17 +272,19 @@ namespace OP
             {
 
             }
-            virtual std::shared_ptr<Transaction> get_current_transaction()
+            virtual transaction_ptr_t get_current_transaction()
             {
                 //this method can be replaced if compiler supports 'thread_local' keyword
-                const guard_t g(_opened_transactions_lock);
+                const ro_guard_t g(_opened_transactions_lock);
                 auto found = _opened_transactions.find(std::this_thread::get_id());
                 return found == _opened_transactions.end() ? std::shared_ptr<Transaction>() : found->second;
             }
             
         private:
-            using lock_t = std::mutex;
-            using guard_t = std::lock_guard<lock_t>;
+            using shared_lock_t = std::shared_mutex;
+            using wr_guard_t = std::lock_guard<shared_lock_t>;
+            using ro_guard_t = std::shared_lock<shared_lock_t>;
+
             /** Must use 64 * 64 instead of 'segment_pos_t' as a size because merge of 2 segment_pos_t may produce 
             overflow of segment_pos_t */
             using RWR = OP::Range<far_pos_t, far_pos_t>;
@@ -290,18 +301,22 @@ namespace OP
             };
             using block_in_use_t = OP::zones::SpanMap<RWR, BlockProfile>;
 
-            /** impl std::less to order iterators from `block_in_use_t` by second._order */
+            /** impl std::greater to order priority_queue in reverse order
+             from `block_in_use_t` by second._order */
             struct comp_by_order_t 
             {
                 bool operator ()(const typename block_in_use_t::iterator& left, const typename block_in_use_t::iterator& right) const
                 { 
-                    return left->second._order < right->second._order; 
+                    return left->second._order > right->second._order; 
                 }
             };
 
             /** temp history-ordered sequence that is populated and used as a transaction log */
-            using history_ordered_log_t = std::set<typename block_in_use_t::iterator, comp_by_order_t>;
-            /** history naturally ordered sequence of events , since std::map::iterator is stable can store it.*/
+            using history_ordered_log_t = std::priority_queue<
+                typename block_in_use_t::iterator, 
+                std::vector<typename block_in_use_t::iterator>, 
+                comp_by_order_t>;
+            /** history naturally ordered sequence of events, since std::map::iterator is stable can store it.*/
             using linear_log_t = std::vector<block_in_use_t::iterator>;
             
             using transaction_state_t = std::uint8_t;
@@ -376,6 +391,7 @@ namespace OP
                 {
                     return std::make_shared<SavePoint>(this);
                 }
+
                 /**Form transaction log*/
                 void store(typename block_in_use_t::iterator& pos)
                 {
@@ -383,10 +399,12 @@ namespace OP
                         throw Exception(ErrorCode::er_transaction_ghost_state);
                     _transaction_log.emplace_back(pos);
                 }
+                
                 virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
                 {
                     _end_listener.emplace_back(std::move(handler));
                 }
+                
                 void rollback() override
                 {
                     if(_tr_state >= ts_sealed_noop_c)
@@ -454,8 +472,8 @@ namespace OP
                 std::atomic_uint64_t _gen_block_history{0};
 
 
-                typedef std::unordered_map<const std::uint8_t*, far_pos_t> address_lookup_t;
-                using transaction_end_listener_t = std::vector<std::unique_ptr<BeforeTransactionEnd>> ;
+                using address_lookup_t = std::unordered_map<const std::uint8_t*, far_pos_t>;
+                using transaction_end_listener_t = std::vector<std::unique_ptr<BeforeTransactionEnd>>;
                 using shadow_buffer_array_t = std::vector<shadow_buffer_t>;
 
                 transaction_state_t _tr_state = ts_active_c;
@@ -474,11 +492,11 @@ namespace OP
             void dispose_transaction(transaction_impl_ptr_t tran)
             {
                 {
-                    guard_t acc (_dispose_lock);
+                    std::unique_lock acc (_dispose_lock);
                     _ready_to_dispose.emplace_back(tran);
                     _cv_disposer.notify_one();
                 }
-                const guard_t acc_capt(_opened_transactions_lock);
+                const wr_guard_t acc_capt(_opened_transactions_lock);
                 
                 for(auto i = _opened_transactions.begin(); i != _opened_transactions.end(); )
                 {
@@ -500,12 +518,13 @@ namespace OP
             template <class F>
             void apply_transaction_log(typename linear_log_t::iterator from, typename linear_log_t::iterator to, F action )
             {
-                const guard_t acc_captured(_captured_lock);
+                const std::unique_lock acc_captured(_captured_lock);
+                const auto captured_end = _captured.end();
                 for(; from != to; ++from)
                 {
                     auto& map_iter = (*from); //resolve map's iterator
                     //to compare use property of map's iterator stability
-                    if (_captured.end() !=map_iter && action(map_iter))
+                    if (captured_end != map_iter && action(map_iter))
                     { // may be safely wiped
                         _captured.erase(map_iter);
                         // Cannot erase iterator because deque doesn't grant stable position for 
@@ -543,18 +562,18 @@ namespace OP
                 }
             }
 
-            using opened_transactions_t = std::unordered_map<std::thread::id, transaction_impl_ptr_t> ;
+            using opened_transactions_t = std::unordered_map<std::thread::id, transaction_ptr_t> ;
 
             block_in_use_t _captured;
-            mutable lock_t _captured_lock;
-            mutable lock_t _opened_transactions_lock;
+            mutable std::mutex _captured_lock;
+            mutable shared_lock_t _opened_transactions_lock;
             opened_transactions_t _opened_transactions;
             std::atomic<Transaction::transaction_id_t> _transaction_uid_gen;
 
             /**Allows notify background worker to check for some job*/
             std::condition_variable _cv_disposer;
             std::atomic<bool> _done_captured_worker = false;
-            mutable lock_t _dispose_lock;
+            mutable std::mutex _dispose_lock;
             std::deque<transaction_impl_ptr_t> _ready_to_dispose;
             /**background worker to release redundant records from _captured*/
             std::thread _captured_worker;

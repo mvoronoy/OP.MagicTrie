@@ -11,10 +11,12 @@
 
 namespace OP::trie
 {
-    /**Implement functor for subrange method to implement predicate that detects end of range iteration*/
+    /** Implement predicate checking 'start-with' logic
+    */
+    template <class AtomString = atom_string_t >
     struct StartWithPredicate
     {
-        StartWithPredicate(atom_string_t prefix) noexcept
+        StartWithPredicate(AtomString prefix) noexcept
             : _prefix(std::move(prefix))
         {
         }
@@ -28,7 +30,7 @@ namespace OP::trie
             return std::equal(_prefix.begin(), _prefix.end(), str.begin());
         }
     private:
-        const atom_string_t _prefix;
+        const AtomString _prefix;
     };
 
     namespace details
@@ -67,10 +69,11 @@ namespace OP::trie
             mutable iterator _iterator;
         };
         /** Ingredient for MixAlgorithmRangeAdapter - allows range use `find(key | `first_child` method instead of `begin` */
+        template <class AtomContainer = atom_string_t>
         struct ChildOfKeyBegin
         {
             
-            ChildOfKeyBegin(atom_string_t key)
+            ChildOfKeyBegin(AtomContainer key)
                 : _key(std::move(key))
             {
             }
@@ -83,7 +86,7 @@ namespace OP::trie
                 return trie.end();
             }
         private:
-            const atom_string_t _key;
+            const AtomContainer _key;
         };
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range use `next_sibling` method instead of `next` */
@@ -297,20 +300,24 @@ namespace OP::trie
             , base_t(std::forward<Mx>(mx)...)
         {}
         
-        using base_begin_t = std::conditional_t< OP_CHECK_CLASS_HAS_MEMBER(M, _begin), M, base_t >;
+        using base_begin_t = std::conditional_t< 
+                                        OP_CHECK_CLASS_HAS_MEMBER(M, _begin), M, base_t >;
         using base_begin_t::_begin;
 
-        using base_next_t = typename std::conditional< OP_CHECK_CLASS_HAS_MEMBER(M, _next), M, base_t >::type;
+        using base_next_t = typename std::conditional_t< 
+                                        OP_CHECK_CLASS_HAS_MEMBER(M, _next), M, base_t >;
         using base_next_t::_next;
         
-        using base_in_range_t = typename std::conditional< OP_CHECK_CLASS_HAS_MEMBER(M, _in_range), M, base_t >::type;
+        using base_in_range_t = typename std::conditional_t< 
+                                        OP_CHECK_CLASS_HAS_MEMBER(M, _in_range), M, base_t >;
         using base_in_range_t::_in_range;
 
-        using base_end_t = typename std::conditional< OP_CHECK_CLASS_HAS_MEMBER(M, _end), M, base_t >::type;
+        using base_end_t = typename std::conditional_t< 
+                                        OP_CHECK_CLASS_HAS_MEMBER(M, _end), M, base_t >;
         using base_end_t::_end;
 
-        using base_lower_bound_t = typename std::conditional< 
-            OP_CHECK_CLASS_HAS_MEMBER(M, _lower_bound), M, base_t >::type;
+        using base_lower_bound_t = typename std::conditional_t< 
+                                        OP_CHECK_CLASS_HAS_MEMBER(M, _lower_bound), M, base_t >;
         using base_lower_bound_t::_lower_bound;
     };
     namespace flur = OP::flur;
@@ -354,6 +361,7 @@ namespace OP::trie
                 return false;
             return _mixer._in_range(*_parent, _pos );
         }
+
         virtual const mixer_iterator_t& current() const override
         {
             return _pos;

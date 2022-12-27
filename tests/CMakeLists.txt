@@ -69,6 +69,7 @@ add_executable (trie_test
     "flur/Cartesian.cpp"
     "flur/Generator.cpp"
     "flur/ThenFlatMap.cpp"
+    "flur/ThenOrderingFlatMap.cpp"
     "flur/Minibatch.cpp"
     "flur/ThenException.cpp" 
     "flur/ThenDistinct.cpp"

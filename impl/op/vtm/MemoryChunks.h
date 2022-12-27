@@ -221,14 +221,17 @@ namespace OP::vtm
         {
             return MemoryChunk::at<T>(0);
         }
+
         T& operator *()
         {
             return *MemoryChunk::at<T>(0);
         }
+        
         T* operator -> ()
         {
             return MemoryChunk::at<T>(0);
         }
+        
         const T* operator -> () const
         {
             return MemoryChunk::at<T>(0);
@@ -251,6 +254,8 @@ namespace OP::vtm
                 throw std::out_of_range("index is out of range");
             return *MemoryChunk::at<T>(byte_offset);
         }
+        
+        /** Inplace construct type T from constructor arguments `Ts...` */
         template <class ... Ts>
         void make_new(Ts&&... args)
         {
@@ -258,6 +263,7 @@ namespace OP::vtm
                 throw std::out_of_range("too small block to allocate T");
             new (pos()) T(std::forward<Ts>(args)...);
         }
+        
         void make_array(segment_pos_t array_size)
         {
             //items have to be alligned

@@ -13,32 +13,7 @@ namespace OP
         */
         struct TrieResidence : public Slot
         {
-            template <class TSegmentManager, class Payload, std::uint32_t initial_node_count>
-            friend struct Trie;
-            /**Keep address of root node of Trie*/
-            FarAddress get_root_addr() const
-            {
-                return
-                    view<TrieHeader>(*_segment_manager, _segment_address)->_root;
-            }
-            /**Total count of items in Trie*/
-            std::uint64_t count() const
-            {
-                return
-                    view<TrieHeader>(*_segment_manager, _segment_address)->_count;
-            }
-            /**Total number of nodes (pags) allocated in Trie*/
-            std::uint64_t nodes_allocated() const
-            {
-                return 
-                    view<TrieHeader>(*_segment_manager, _segment_address)->_nodes_allocated;
-            }
-            /**Current trie modification number*/
-            node_version_t current_version() const
-            {
-                return view<TrieHeader>(*_segment_manager, _segment_address)->_version;
-            }
-        private:
+            /** Plain data structure to store metainformation of trie */
             struct TrieHeader
             {
                 TrieHeader()
@@ -53,50 +28,37 @@ namespace OP
                 std::uint64_t _count;
                 /**Number of nodes (pages) allocated*/
                 std::uint64_t _nodes_allocated;
-                node_version_t _version;
+                /** Total version of trie */
+                std::uint64_t _version;
             };
+
+            template <class TSegmentManager, class Payload, std::uint32_t initial_node_count>
+            friend struct Trie;
+        
+            /**Snapshot of Trie current state*/
+            TrieHeader get_header() const
+            {
+                return
+                    *view<TrieHeader>(*_segment_manager, _segment_address);
+            }
+
+        private:
             
             FarAddress _segment_address;
             SegmentManager* _segment_manager;
         protected:
             /**
             *   Set new root node for Trie
-            *   @throws TransactionIsNotStarted if method called outside of transaction scope
+            * \throws TransactionIsNotStarted if method called outside of transaction scope
+            * \tparam F - callback in the form `void(TrieHeader&)`
             */
-            TrieResidence& set_root_addr(FarAddress new_root)
+            template <class F>
+            void update(F callback)
             {
-                accessor<TrieHeader>(*_segment_manager, _segment_address)->_root = new_root;
-                return *this;
-            }
-            /**Increase/decrease total count of items in Trie. 
-            *   @param delta positive/negative numeric value to modify counter
-            *   @throws TransactionIsNotStarted if method called outside of transaction scope
-            */
-            TrieResidence& increase_count(std::int64_t delta)
-            {
-                auto header = accessor<TrieHeader>(*_segment_manager, _segment_address);
-                assert(delta >= 0 || header->_count >= static_cast<std::uint64_t>(std::abs(delta)));
-                header->_count += delta;
-                return *this;
+                auto wr = accessor<TrieHeader>(*_segment_manager, _segment_address);
+                callback(*wr);
             }
 
-            /**Increase/decrease total number of nodes in Trie. 
-            *   @param delta positive/negative numeric value to modify counter
-            *   @throws TransactionIsNotStarted if method called outside of transaction scope
-            */
-            TrieResidence& increase_nodes_allocated(std::int64_t delta)
-            {
-                auto header = accessor<TrieHeader>(*_segment_manager, _segment_address);
-                assert(delta >= 0 || header->_nodes_allocated >= static_cast<std::uint64_t>(std::abs(delta)));
-                header->_nodes_allocated += delta;
-                return *this;
-            }
-            /**On any trie modification version is increased*/
-            TrieResidence& increase_version()
-            {
-                OP::trie::uinc(accessor<TrieHeader>(*_segment_manager, _segment_address)->_version);
-                return *this;
-            }
             //
             //  Overrides
             //
@@ -105,12 +67,14 @@ namespace OP
             {
                 return segment_idx == 0; //true only for 0
             }
+
             /**Reserve enough to keep TrieHeader*/
             segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const override
             {
                 assert(segment_address.segment == 0);
                 return memory_requirement<TrieHeader>::requirement;
             }
+            
             void on_new_segment(FarAddress segment_address, SegmentManager& manager) override
             {
                 assert(segment_address.segment == 0);
@@ -129,7 +93,7 @@ namespace OP
             }
             void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
             {
-                
+                /* do nothing */
             }
         };
     }//ns:trie

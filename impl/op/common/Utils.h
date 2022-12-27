@@ -14,7 +14,7 @@ namespace OP
         namespace details
         {
             template <class T, class U>
-            constexpr bool any_step(T t, U u)
+            constexpr bool any_step(T t, U u) noexcept
             {
                 if constexpr (std::is_same_v<T, U>)
                     return t == u;
@@ -37,7 +37,7 @@ namespace OP
         *   \return true when at least one constant is matched by type and value to the argument `T t`
         */
         template <auto ... check_c, class T>
-        constexpr bool any_of(T t)
+        constexpr bool any_of(T t) noexcept
         {
             return (details::any_step(t, check_c) || ...);
         }
@@ -68,8 +68,8 @@ namespace OP
             typedef std::tuple<Ts...> tuple_t;
 
             template <class ...Args>
-            explicit ext_tuple(Args&& ... args):
-                _instance(std::forward<Args>(args)...)
+            explicit ext_tuple(Args&& ... args) noexcept
+                : _instance(std::forward<Args>(args)...)
             {
             }
             template <class T>

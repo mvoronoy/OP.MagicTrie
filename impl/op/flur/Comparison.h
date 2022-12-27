@@ -138,6 +138,9 @@ namespace OP::flur
         using less_t = details::CompareOnTopOfFullComparison<
             details::CmpOp::less, comparison_t >;
 
+        /** bool implementation of std::greater on top of comparison_t, may be used by stl */
+        using greater_t = details::CompareOnTopOfFullComparison<details::CmpOp::greater, comparison_t >;
+
         using equals_t = details::CompareOnTopOfFullComparison<
             details::CmpOp::equals, comparison_t >;
 
@@ -154,6 +157,11 @@ namespace OP::flur
         constexpr auto less_factory() const noexcept
         {
             return less_t(_cmp);
+        }
+
+        constexpr auto greater_factory() const noexcept
+        {
+            return greater_t{ _cmp };
         }
 
         constexpr auto equals_factory() const noexcept

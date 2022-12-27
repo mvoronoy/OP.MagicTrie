@@ -50,11 +50,11 @@ namespace flur
                 }
                 throw std::out_of_range("CyclicBuffer::emplace");
             }
-            const T& peek() const
+            const T& pick() const
             {
                 if(_r_current < _w_current)
                     return _buffer[_r_current % N];
-                throw std::out_of_range("CyclicBuffer::peek");
+                throw std::out_of_range("CyclicBuffer::pick");
             }
             void next()
             {
@@ -112,11 +112,19 @@ namespace flur
 
         Minibatch(const this_t& src) noexcept = delete;
 
-        constexpr Minibatch(this_t&& src) noexcept
+        constexpr Minibatch(this_t&& src) /*noexcept - safe_take may raise*/
             : _src(src.safe_take())
             , _batch(std::move(src._batch))
             , _thread_pool(src._thread_pool)
         {
+        }
+
+        Minibatch& operator = (const this_t& src) = delete;
+        Minibatch& operator = (this_t&& src)
+        {
+            _src = std::move(src.safe_take());
+            _batch = std::move(src._batch);
+            return *this;
         }
 
         virtual void start()
@@ -141,11 +149,13 @@ namespace flur
             }
             return false;
         }
+
         /** Return current item */
-        virtual const element_t& current() const
+        virtual element_t current() const
         {
-            return _batch.peek();
+            return _batch.pick();
         }
+
         /** Position iterable to the next step */
         virtual void next()
         {
@@ -175,13 +185,13 @@ namespace flur
         }
         void async_drain(size_t lim)
         {
-            if (_work.valid())
+            if (_work.valid()) //something already in progress
                 _work = std::move(
                     _thread_pool.async([this](size_t lim2, background_t b) {
                         b.get();
                         drain(lim2);
                     }, lim, std::move(_work)));
-            else
+            else //no previous job
                 _work = std::move(
                     _thread_pool.async([this](size_t lim2) {
                         drain(lim2);

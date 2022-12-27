@@ -22,6 +22,8 @@ namespace OP::flur
         /** Type of element */
         using element_t = T;
         
+        virtual ~Sequence() = default;
+
         OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept
         {
             return false;

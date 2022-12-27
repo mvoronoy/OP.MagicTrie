@@ -19,7 +19,9 @@ void test_OrDefault(OP::utest::TestRuntime& tresult)
         ;
 
     //check or_default keeps order
-    static_assert(r_bool.compound().ordered_c, "bool-singleton must produce ordered sequence");
+    tresult.assert_true(
+        r_bool.compound().is_sequence_ordered(), 
+        "bool-singleton must produce ordered sequence");
     tresult.assert_that<equals>(std::distance(r_bool.begin(), r_bool.end()), 1, "wrong result number");
     for(const auto& i : r_bool) 
     {

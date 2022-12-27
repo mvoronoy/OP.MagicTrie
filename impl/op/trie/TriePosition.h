@@ -61,11 +61,6 @@ namespace OP::trie
     {
         return (value & static_cast<T>(test)) != test;
     }
-    template <class T>
-    inline bool none_of(T check, Terminality test)
-    {
-        return (check & test) == Terminality::term_no;
-    }
 
     /**
     * Describe result of stem compare
@@ -87,18 +82,6 @@ namespace OP::trie
         unequals,
         no_entry
     };
-    /** Check if argument `check` equals to entire list of `tx`. Assuming that Tx is comparable with StemCompareResult */
-    template <class ... Tx>
-    inline bool none_of(StemCompareResult check, Tx ... tx)
-    {
-        return ((check != tx) && ...);
-    }
-
-    template <class ... Tx>
-    inline bool any_of(StemCompareResult check, Tx ... tx)
-    {
-        return ((check == tx) || ...);
-    }
 
     using node_version_t = std::uint32_t;
 

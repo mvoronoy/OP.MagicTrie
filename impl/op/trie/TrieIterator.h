@@ -120,18 +120,7 @@ namespace OP
                 return _container->value_of(_position_stack.back());
             }
         protected:
-            /** Reverse `at` allows assign named values to contained TriePosition
-            *   \param offset negative offset from back (valid value -1, -2 ...)
-            */
-/*            template <class ... Tx>
-            TriePosition& rat(int offset, TriePositionArg<Tx>&& ... tx)
-            {
-                assert(offset < 0);
-                auto& res = *(_position_stack.end() + offset);
-                res.assign(std::move(tx)...);
-                return res;
-            }
-*/
+
             template <class T>
             void _apply_arg_to_this(TriePositionArg<T>& arg)
             {
@@ -141,7 +130,9 @@ namespace OP
                 }    
             }
 
-            /** Same as previous, but assumes offset = -1*/
+            /** Reverse `at` allows assign named values to contained TriePosition
+            *   using negative offset (-1) from back
+            */
             template <class ... Tx>
             const TriePosition& rat(TriePositionArg<Tx>&& ... tx)
             {
@@ -202,22 +193,13 @@ namespace OP
                 }
                 update_back(std::move(position), begin, end);
             }
-            /*
-            TriePosition& back()
-            {
-                return _position_stack.back();
-            }
-            const TriePosition& back() const
-            {
-                return _position_stack.back();
-            }
-            */
+
             template <class ... Tx>
             TriePosition& push(TriePositionArg<Tx>&& ... tx)
             {
                 (_apply_arg_to_this(tx), ...);
                 _position_stack.emplace_back(std::move(tx)...);
-                return  _position_stack.back();
+                return _position_stack.back();
             }
 
             void pop()

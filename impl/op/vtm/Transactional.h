@@ -41,16 +41,18 @@ namespace OP::vtm
             Transaction(Transaction && other) OP_NOEXCEPT :
                 _transaction_id(other._transaction_id)
             {
-
             }
+
             virtual ~Transaction() OP_NOEXCEPT
             {
 
             }
+            
             virtual transaction_id_t transaction_id() const
             {
                 return _transaction_id;
             }
+            
             /**Register handler that is invoked during rollback/commit process*/
             virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) = 0;
             virtual void rollback() = 0;
@@ -66,7 +68,46 @@ namespace OP::vtm
             const transaction_id_t _transaction_id;
         };
         
-        typedef std::shared_ptr<Transaction> transaction_ptr_t;
+        using transaction_ptr_t = std::shared_ptr<Transaction>;
+
+        /** No-op transaction implementation */
+        struct NoOpTransaction : public Transaction
+        {
+
+            NoOpTransaction(transaction_id_t id)
+                : Transaction(id)
+            {
+            }
+
+            virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
+            {
+                _end_listener.emplace_back(std::move(handler));
+            }
+
+            virtual void rollback() override
+            {
+                //invoke events on transaction end
+                for (auto& ev : _end_listener)
+                {
+                    ev->on_rollback();
+                }
+            }
+            
+            virtual void commit() override
+            {
+                //invoke events on transaction end
+                for (auto& ev : _end_listener)
+                {
+                    ev->on_commit();
+                }
+            }
+
+
+        private:
+            using listeners_t = std::vector<std::unique_ptr<BeforeTransactionEnd>>;
+            listeners_t _end_listener;
+        };
+
         /**
         *   Guard wrapper that grants transaction accomplishment.
         *   Destructor is responsible to rollback transaction if user did not commit it explictly before.

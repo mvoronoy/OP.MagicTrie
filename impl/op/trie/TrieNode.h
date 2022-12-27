@@ -198,7 +198,7 @@ namespace OP
             \tparam F has signature `{user-type} (const NodeData&)`
             */
             template <class TSegmentTopology, class F>
-            auto rawc(TSegmentTopology& topology, atom_t key, F callback) const
+            auto rawc(TSegmentTopology& topology, atom_t key, F&& callback) const
             {
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node

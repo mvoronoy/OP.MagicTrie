@@ -486,8 +486,7 @@ void test_EvSrcMemmngrAllocDealloc(OP::utest::TestRuntime &tresult)
     mm.deallocate(block1);
     mm.allocate(50);  //no overlapped exception there
     tran3->commit();
-    //following 16 bytes are consumed by allocation new MemoryHeader, so include this to calc
-    tresult.assert_true((test_avail- aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c)) == mm.available(0));
+    tresult.assert_that<equals>(test_avail, mm.available(0));
     
     tmngr1->_check_integrity();
     tmngr1.reset();

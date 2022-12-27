@@ -20,6 +20,7 @@
 #include <op/flur/Filter.h>
 #include <op/flur/TakeAwhile.h>
 #include <op/flur/FlatMapping.h>
+#include <op/flur/OrderingFlatMapping.h>
 #include <op/flur/Mapping.h>
 #include <op/flur/maf.h>
 #include <op/flur/OrDefault.h>
@@ -110,7 +111,7 @@ namespace OP::flur
         template <class V>
         constexpr auto of_value(V&& v, size_t limit = 1) noexcept
         {
-            return make_lazy_range( SimpleFactory<V, OfValue<V>>(std::forward<V>(v)) );
+            return make_lazy_range( SimpleFactory<std::decay_t<V>, OfValue<std::decay_t<V>>>(std::forward<V>(v)) );
         }
         
 
@@ -155,8 +156,9 @@ namespace OP::flur
         constexpr auto of_iota(V begin, V end) noexcept
         {
             using iota_value_t = std::decay_t<V>;
-            return make_lazy_range( SimpleFactory<std::pair<V, V>, 
-                OfIota<iota_value_t>>(std::move(begin), std::move(end)) );
+            using iota_t = OfIota<iota_value_t> ;
+            using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
+            return make_lazy_range(factory_t(std::move(begin), std::move(end), 1) );
         }
 
         /**
@@ -583,7 +585,29 @@ namespace OP::flur
                 std::move(children_resolve)};
         }
 
+        /**
+        *  Implement flat map logic and produce OrderedSequence from unordered source on condition that 
+        *   functor `F` produces ordered seqeunce as well.
+        *  Note! Implementation allocates extra memory to provide binary-heap for all sequences.
+        *  
+        *  \throws std::runtime_error if `F` creates non-ordered sequence.
+        */
+        template <class F, class TCompareTraits>
+        constexpr auto ordering_flat_mapping(F&& applicator, TCompareTraits&& cmp) noexcept
+        {
+            return OrderingFlatMappingFactory<F, TCompareTraits>(
+                std::forward<F>(applicator), std::forward<TCompareTraits>(cmp));
+        }
+
+        template <class F>
+        constexpr auto ordering_flat_mapping(F&& applicator) noexcept
+        {
+            return OrderingFlatMappingFactory<F, CompareTraits>(
+                std::forward<F>(applicator), CompareTraits{});
+        }
+
     } //ns:then
+
     namespace apply
     {
         /**

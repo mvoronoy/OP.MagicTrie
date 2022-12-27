@@ -275,7 +275,95 @@ void test_PrefixJoin(TestRuntime& tresult)
         >> then::prefix_join(trie)
         >> then::mapping(get_key_only)),
         OP_CODE_DETAILS(<< "failed empty case #2"));
+}
 
+std::string pad_str(int i) {
+    std::string base = std::to_string(i);
+    //add '0' for padding
+    return std::string(4 - base.size(), '0') + base;
+};
+
+template <size_t NRoots, size_t NChildrens, class TSegmentManager>
+void render_children_tree()
+{
+    using namespace OP::flur;
+    using wr_trie_t = Trie<TSegmentManager, PlainValueManager<double>>;
+
+    auto mngr_no_tran = TSegmentManager::create_new<TSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    std::shared_ptr<wr_trie_t> wr_trie = wr_trie_t::create_new(mngr_no_tran);
+
+    //render 500*100 keys
+    auto crtsn = apply::cartesian(
+        src::of_iota<size_t>(0, NRoots)
+        >> then::mapping([&](auto i)
+            {
+                auto insres = wr_trie->insert(pad_str(i), 0);
+                assert(insres.second);
+                return insres.first;
+            })
+        >> then::repeater(),
+        src::of_iota<size_t>(0, NChildrens)
+                >> then::mapping(pad_str));
+
+    crtsn.collect([&](const auto& trie_iter, const auto& n2)
+        {
+            auto prev = trie_iter;
+            wr_trie->prefixed_insert(prev, n2, 57.7564);
+        });
+    wr_trie.reset();
+}
+
+void test_UnorderedOrderFlatMap(TestRuntime& tresult)
+{
+    using namespace OP::flur;
+    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
+    constexpr size_t NRoots = 500;
+    constexpr size_t NChildren = 100;
+    render_children_tree<NRoots, NChildren, SegmentManager>();
+    auto tmngr = OP::trie::SegmentManager::open<EventSourcingSegmentManager>(test_file_name);
+    std::shared_ptr<trie_t> trie = trie_t::open(tmngr);
+    using trie_iter_t = typename trie_t::iterator;
+    OP::utils::ThreadPool tpool;
+    auto g_custom_compare = OP::flur::custom_compare(
+        [](const auto& left, const auto& right) -> int {
+            auto lb = std::begin(left);
+            auto le = std::end(left);
+            auto rb = std::begin(right);
+            auto re = std::end(right);
+            return OP::ranges::str_lexico_comparator(lb, le, rb, re);
+        });
+
+    auto all_prefix = src::of_iota<size_t>(0, 500)
+        >> then::mapping([&](auto i)
+            {
+                return pad_str(i);
+            })
+        //>> then::prefix_join(trie)
+        //>> then::minibatch<32>(tpool)
+        >> then::ordering_flat_mapping([&](const auto& iter) {
+                return trie->children_range(iter) 
+                >> then::keep_order_mapping([prefix_len = iter.size()](const auto& i) {
+                        return OP::trie::atom_string_view_t(i.key()).substr(prefix_len);
+                    });
+            }, g_custom_compare)
+        ;
+    size_t count = 0;
+    typename trie_t::key_t prev;
+    for (auto i : all_prefix)
+    {
+        if (count++ > 0)
+        {
+            tresult.assert_that<less_or_equals>(prev, i, 
+                OP_CODE_DETAILS("Sequence is not ordered"));
+        }
+        prev = i;
+    }
+
+    tresult.assert_that<equals>(
+        50000, OP::flur::consume_all(all_prefix));
+    //trie->prefixed_range("1"_astr);
 }
 
 static auto& module_suite = OP::utest::default_test_suite("MixedAdapter")
@@ -283,4 +371,5 @@ static auto& module_suite = OP::utest::default_test_suite("MixedAdapter")
 .declare("child", testChildConfig)
 .declare("ISSUE_0002", test_ISSUE_0002)
 .declare("prefix-join", test_PrefixJoin)
+.declare("prefix-join-unordered", test_UnorderedOrderFlatMap)
 ;
