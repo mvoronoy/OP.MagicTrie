@@ -32,7 +32,7 @@ namespace OP::flur
             F applicator, TSequence&& seq, TCompareTraits cmp_traits) noexcept
             : _applicator(std::move(applicator))
             , _prefix(std::move(seq))
-            , _cmp_traits(std::move(cmp_traits))
+            , _cmp_traits(cmp_traits)
         {
         }
 

@@ -173,7 +173,7 @@ namespace OP::flur
     };
     
     template <class F>
-    constexpr auto custom_compare(F f)
+    constexpr auto custom_compare(F f) noexcept
     {
         return OverrideComparisonTraits<F>(std::move(f));
     }
@@ -194,7 +194,7 @@ namespace OP::flur
         using equals_t = details::CompareOnTopOfFullComparison<
             details::CmpOp::equals, comparison_t >;
 
-        constexpr OverrideComparisonAndHashTraits() = default;
+        constexpr OverrideComparisonAndHashTraits() noexcept = default;
 
         constexpr OverrideComparisonAndHashTraits(F f, H h) noexcept
             : _cmp(std::move(f))
@@ -230,7 +230,7 @@ namespace OP::flur
     OP_DECLARE_CLASS_HAS_MEMBER(hash_factory);
 
     template <class F, class H>
-    constexpr auto custom_compare(F f, H h)
+    constexpr auto custom_compare(F f, H h) noexcept
     {
         return OverrideComparisonAndHashTraits<F, H>(std::move(f), std::move(h));
     }
