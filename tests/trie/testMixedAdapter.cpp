@@ -289,7 +289,7 @@ void render_children_tree()
     using namespace OP::flur;
     using wr_trie_t = Trie<TSegmentManager, PlainValueManager<double>>;
 
-    auto mngr_no_tran = TSegmentManager::create_new<TSegmentManager>(test_file_name,
+    auto mngr_no_tran = TSegmentManager::template create_new<TSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
     std::shared_ptr<wr_trie_t> wr_trie = wr_trie_t::create_new(mngr_no_tran);
