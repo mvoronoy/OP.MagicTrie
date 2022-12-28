@@ -523,7 +523,7 @@ namespace OP
             {
                 return OP::flur::make_lazy_range(make_mixed_sequence_factory(
                     std::const_pointer_cast<const this_t>(this->shared_from_this()),
-                    typename Ingredient<this_t>::ChildOfKeyBegin<AtomContainer>{ of_key },
+                    typename Ingredient<this_t>::template ChildOfKeyBegin<AtomContainer>{ of_key },
                     typename Ingredient<this_t>::ChildInRange{ StartWithPredicate(of_key) },
                     typename Ingredient<this_t>::SiblingNext{}
                 ));
