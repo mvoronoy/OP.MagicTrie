@@ -12,6 +12,8 @@
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
 #include <op/flur/Ingredients.h>
+#include <op/flur/Proxy.h>
+
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace OP::flur
 {
