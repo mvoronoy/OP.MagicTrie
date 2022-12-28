@@ -184,7 +184,7 @@ void test_ISSUE_0002(OP::utest::TestRuntime& tresult)
 
     auto source_range = OP::trie::make_mixed_sequence_factory(
         std::const_pointer_cast<const trie_t>(trie),
-        typename Ingredient<trie_t>::ChildOfKeyBegin(result_prefix),
+        typename Ingredient<trie_t>::template ChildOfKeyBegin<>(result_prefix),
         typename Ingredient<trie_t>::SiblingNext{}
     ) >> then::mapping([](const auto& i) {
         return p_t(i.key(), *i);
