@@ -22,10 +22,11 @@ namespace OP::flur
     *   Implement functor to apply Distinct for ordered sequences. It has minimal 
     *   complexity and memory footprint (in compare with unordered implementation
     */
-    template <class Seq, class KeyEqual = std::equal_to<typename Seq::element_t>>
+    template <class Seq, class KeyEqual = std::equal_to< details::sequence_element_type_t <Seq> >>
     struct SkipOrdered
     {
-        using decay_element_t = std::decay_t<typename Seq::element_t>;
+        using decay_element_t = std::decay_t<
+            details::sequence_element_type_t <Seq> >;
         constexpr SkipOrdered(KeyEqual cmp = KeyEqual{}) noexcept
             : _cmp(std::move(cmp)){}
         
@@ -34,10 +35,10 @@ namespace OP::flur
             if( attrs.step() == 0)
             {// first entry to sequence
                 _bypass.reset();    
-                if( !seq.is_sequence_ordered() )
+                if( !details::get_reference(seq).is_sequence_ordered() )
                     throw std::runtime_error("unordered input sequence");
             }
-            return conditional_emplace(seq.current());
+            return conditional_emplace(details::get_reference(seq).current());
         }
     private:
         /** @return true if element was not a duplicate 
@@ -63,8 +64,8 @@ namespace OP::flur
     *   It brings memory footprint propertional to sequence length
     */
     template <class Seq, 
-        class Hash = std::hash<std::decay_t<typename Seq::element_t>>,
-        class KeyEqual = std::equal_to<std::decay_t<typename Seq::element_t>>
+        class Hash = std::hash<std::decay_t<details::sequence_element_type_t <Seq>>>,
+        class KeyEqual = std::equal_to<std::decay_t<details::sequence_element_type_t <Seq>>>
         >
     struct SkipUnordered
     {
@@ -79,9 +80,10 @@ namespace OP::flur
             {
                 _bypass.clear();    
             }
-            return _bypass.emplace(seq.current()).second;
+            return _bypass.emplace(details::get_reference(seq).current()).second;
         }
-        using check_set_t = std::unordered_set<std::decay_t<typename Seq::element_t>, Hash, KeyEqual>;
+        using dec_element_t = std::decay_t<details::sequence_element_type_t <Seq>>;
+        using check_set_t = std::unordered_set<dec_element_t, Hash, KeyEqual>;
         mutable check_set_t _bypass;
     };
 
@@ -298,7 +300,7 @@ namespace OP::flur
             using d1_seq_t = std::decay_t<decltype(_ordered_distinct_factory.compound(std::move(src)))>;
             using d2_seq_t = std::decay_t<decltype(_unordered_distinct_factory.compound(std::move(src)))>;
             using proxy_sequence_t = SequenceProxy< d1_seq_t, d2_seq_t >;
-            if( src.is_sequence_ordered() )
+            if(details::get_reference(src).is_sequence_ordered() )
             {
                 return proxy_sequence_t( _ordered_distinct_factory.compound(std::move(src)) );
             }
