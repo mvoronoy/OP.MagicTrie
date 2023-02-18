@@ -13,6 +13,7 @@ namespace OP::currying
     */
     struct CurryingArgSpec{};
 
+    /** Functor is invoked each time to evaluate correct argument value for some method invocation */
     template <class TCallable>
     struct Functor : CurryingArgSpec
     {
@@ -43,6 +44,7 @@ namespace OP::currying
         TCallable _callable;
     };
     
+    /** Var allows bind external vriable to a function argument */ 
     template <class T>
     struct Var : CurryingArgSpec
     {
@@ -92,6 +94,9 @@ namespace OP::currying
         T* _val;
     };
 
+    /** Similar to Var but deals with types that packed to some wrapper (like std::variant or std::any).
+    * Allows to extract expected argument type
+    */
     template <class T>
     struct Unpackable : Var<T>
     {
@@ -201,7 +206,7 @@ namespace OP::currying
             return const_cast<this_t*>(this)->get<T>();
         }
 
-        /** Create functor of zero-arguments by substitution args from thistuple to argument function */
+        /** Create functor of zero-arguments by substitution args from this tuple to argument function */
         template <class TCallable>
         constexpr decltype(auto) def(TCallable f)& noexcept
         {
@@ -210,7 +215,7 @@ namespace OP::currying
             };
         }
 
-        /** Create functor of zero-arguments by substitution args from thistuple to argument function */
+        /** Create functor of zero-arguments by substitution args from this tuple to argument function */
         template <class TCallable>
         constexpr decltype(auto) def(TCallable func)&& noexcept
         {
@@ -263,6 +268,17 @@ namespace OP::currying
                 );
         }
 
+        template <typename TCallable, typename ... Ax>
+        decltype(auto) typed_invoke_back(TCallable& func, Ax&&...ax)
+        {
+            using ftraits_t = OP::utils::function_traits<TCallable>;
+            return typed_invoke_impl<false>(
+                func,
+                std::make_index_sequence<ftraits_t::arity_c - sizeof...(Ax)>{},
+                std::forward<Ax>(ax)...
+                );
+        }
+
         /** Create 0 argument functor by binding stored arguments by type matching to 
         * functor `f`.
         * @return functor of zero arguments that is bind to the current tuple. For convenience to reuse
@@ -283,7 +299,7 @@ namespace OP::currying
 
         /**
         * The same way as #typed_def collates existing arguments and bind them to the TCallable 
-        * arguments using type matching, but keeps N front arguments unbinded to allow specify during call time.
+        * arguments using type matching, but keeps N front arguments unbinded to allow specify during a call time.
         * @return functor of N arguments where other expected bind to the current tuple.
         * 
         * *Example*:\code
@@ -295,8 +311,8 @@ namespace OP::currying
         * auto free_x_y = arguments(2.f). //this value will pass as 3d argument z
         *                 typed_bind_free_front<2>(hypot3d) //reserve 2 free front argument
         * std::cout << "(Should be 7.)hypot = " << free_x_y(
-        *   3.f//x, 
-        *   6.f//y 
+        *   3.f,  //x
+        *   6.f   //y 
         * ) << "\n";
         * \endcode
         */
@@ -478,11 +494,33 @@ namespace OP::currying
     };
 
     template <class ...Tx>
-    auto arguments(Tx&& ...tx)
+    constexpr auto arguments(Tx&& ...tx)
     {
         return CurryingTuple(std::make_tuple(std::forward<Tx>(tx)...));
     }
 
+
+    /** 
+    * Create callable wrapper around member of arbitrary class that can be used
+    * together with CurryingTuple in role of `TCallable` template parameter.
+    * Result is lambda with `const TClass&` as a first argument.
+    */ 
+    template <class M, class TClass, class ... Args>
+    constexpr auto callable_of_member(M(TClass::* method)(Args...) const)
+    {
+        return [method](const TClass& inst, Args... args) {return (inst.*method)(args...); };
+    }
+
+    /**
+    * Create callable wrapper around member of arbitrary class that can be used 
+    * together with CurryingTuple in role of `TCallable` template parameter.
+    * Result is lambda with `TClass&` as a first argument.
+    */
+    template <class M, class TClass, class ... Args>
+    constexpr auto callable_of_member(M(TClass::* method)(Args...))
+    {
+        return [method](TClass& inst, Args... args) {return (inst.*method)(args...); };
+    }
 
 }//ns:OP::currying
 

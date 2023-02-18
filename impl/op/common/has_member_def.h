@@ -16,8 +16,10 @@
     has_size<std::string>::is_invocable() //`true` since exists std::string::size()    
     has_size<std::string>::is_invocable<double>() //`false` since std::string::size() has no double arg
     has_some_method<std::string>::is_invocable() //`false` since no std::string::some_method() (in compare 
-                                                 //std::is_invocable_v that even cannot be compiled)
+                                                 // with std::is_invocable_v that even cannot be compiled)
     ~~~~~~~~~~~~~~~~~~~~~~
+    When method exists you can get constexpr reference on it using static method has_XXXXX::ref_method_c().
+    In case of unsupported this function returns nullptr (aka nullptr_t) instead of method reference. 
 */
 #define OP_DECLARE_CLASS_HAS_MEMBER(Member)  template <typename A>\
     class has_##Member \
@@ -31,8 +33,10 @@
         template <class ... Ax> \
         static constexpr bool is_invocable() \
         { if constexpr (value) {return std::is_invocable_v<&A::Member, A&, Ax...>;} \
-        else return false; \
+          else return false; \
         }\
+        static inline constexpr auto ref_method_c() \
+        { if constexpr(value){return &A::Member;} else{return nullptr; } }\
     };
 
 /** 

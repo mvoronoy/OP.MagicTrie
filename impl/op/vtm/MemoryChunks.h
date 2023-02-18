@@ -263,20 +263,7 @@ namespace OP::vtm
                 throw std::out_of_range("too small block to allocate T");
             new (pos()) T(std::forward<Ts>(args)...);
         }
-        
-        void make_array(segment_pos_t array_size)
-        {
-            //items have to be alligned
-            OP_CONSTEXPR(static const) auto inc = 
-                OP::utils::memory_requirement<T>::requirement;
-            if (this->count() < (inc*array_size) )
-                throw std::out_of_range("too small block to allocate T[N]");
-            for (auto p = pos(); array_size; p += inc, --array_size)
-            {
-                new (p) T{};
-            }
-                
-        }
+
     };
     /**Hint allows specify how writable block will be used*/
     enum class WritableBlockHint : std::uint8_t

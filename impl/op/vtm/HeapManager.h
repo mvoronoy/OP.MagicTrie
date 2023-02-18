@@ -153,23 +153,7 @@ namespace OP::vtm
                 g.commit();
                 return result;
             }
-            /**Combines together allocate+construct for array*/
-            template<class T, class... Types>
-            FarAddress make_array(segment_pos_t items_count, Types&&... args)
-            {
-                OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
-                const auto mem_req = memory_requirement<T>::array_size( items_count );
-                auto result = allocate(mem_req);
-                auto mem_block = this->_segment_manager->writable_block(result, 
-                    mem_req, WritableBlockHint::new_c);
-                //use placement constructor for each item
-                for (auto p = mem_block.OP_TEMPL_METH(at)<T>(0); 
-                    items_count; 
-                    --items_count, ++p)
-                    new (p) T(std::forward<Types>(args)...);
-                g.commit();
-                return result;
-            }
+
             void _check_integrity(FarAddress segment_addr, SegmentManager& manager) override
             {
                 FarAddress first_block_pos = segment_addr;
