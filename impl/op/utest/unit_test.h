@@ -532,6 +532,8 @@ namespace OP::utest
         {
         }
 
+        ~virtual TestCase() = default;
+
         const std::string& id() const
         {
             return _name;
@@ -684,10 +686,7 @@ namespace OP::utest
                 throw std::runtime_error("TestSuite('"s + _name + "') already has definition `before_suite`"s);
 
             using function_traits_t = OP::utils::function_traits<F>;
-            static_assert(
-                function_traits_t::arity_c == 0 ||
-                (function_traits_t::arity_c == 1
-                    && std::is_same_v<TestSuite&, typename function_traits_t::template arg_i<0>>),
+            static_assert(std::is_invocable_v<F> || std::is_invocable_v<F, TestSuite&>,
                 "Functor for `before_suite` must accept 0 or 1 argument of `TestSuite&` type");
             using result_t = typename function_traits_t::result_t;
             //Create wrapper that has no return and 0 params
