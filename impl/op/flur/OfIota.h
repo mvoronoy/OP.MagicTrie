@@ -37,7 +37,7 @@ namespace flur
             , _current(std::get<1>(_bounds)) //end
         {}
 
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const override noexcept
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
         {
             if constexpr(OP::has_operators::less_v<T>)
             {
