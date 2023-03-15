@@ -32,7 +32,7 @@ namespace OP::flur
             return details::get_reference(_src).is_sequence_ordered();
         }
 
-        virtual void start()
+        virtual void start() override
         {
             auto& source = details::get_reference(_src);
             source.start();
@@ -40,17 +40,17 @@ namespace OP::flur
             seek();
         }
 
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
             return !_end;
         }
 
-        virtual element_t current() const
+        virtual element_t current() const override
         {
             return details::get_reference(_src).current();
         }
 
-        virtual void next()
+        virtual void next() override
         {
             details::get_reference(_src).next();
             seek();
