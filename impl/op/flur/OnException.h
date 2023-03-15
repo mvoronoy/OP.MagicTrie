@@ -70,9 +70,9 @@ namespace flur
             , _alt(std::move(alt))
             , _use_alt(false)
         {
-            
         }
-        virtual void start()
+
+        virtual void start() override
         {
             //if already consuming from alt - just reset back to origin src
             _use_alt = false;
@@ -84,7 +84,8 @@ namespace flur
                 handle_exception();
             }
         }
-        virtual bool in_range() const
+
+        virtual bool in_range() const override
         {
             if (!_use_alt)
             {
@@ -99,7 +100,8 @@ namespace flur
             }
             return _alt.in_range();
         }
-        virtual element_t current() const
+
+        virtual element_t current() const override
         {
             if (!_use_alt)
             {
@@ -114,7 +116,8 @@ namespace flur
             }
             return _alt.current();
         }
-        virtual void next()
+
+        virtual void next() override
         {
             if (_use_alt)
             {

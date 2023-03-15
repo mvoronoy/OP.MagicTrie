@@ -71,7 +71,7 @@ namespace flur
             return _src.is_sequence_ordered();
         }
 
-        virtual void start()
+        virtual void start() override
         {
             _current = 0;
             if (++_generation == 1)
@@ -81,17 +81,17 @@ namespace flur
             }
         }
 
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
             return _current < _container.size();
         }
         
-        virtual element_t current() const
+        virtual element_t current() const override
         {
             return _container[_current];
         }
         
-        virtual void next()
+        virtual void next() override
         {
             if (_generation == 1)
             {

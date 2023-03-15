@@ -33,22 +33,22 @@ namespace flur
         {
         }
 
-        virtual void start()
+        virtual void start() override
         {
             _retrieved = false;
         }
 
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
             return !_retrieved && _src.has_value();
         }
 
-        virtual const T& current() const
+        virtual const T& current() const override
         {
             return *_src;
         }
 
-        virtual void next()
+        virtual void next() override
         {
             _retrieved = true;
         }

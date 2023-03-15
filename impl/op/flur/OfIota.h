@@ -49,12 +49,12 @@ namespace flur
                 return false;
         }
 
-        virtual void start()
+        virtual void start() override
         {
             _current = std::get<0>(_bounds);
         }
 
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
             if constexpr(OP::has_operators::less_v<T>)
             {
@@ -64,12 +64,12 @@ namespace flur
                 return _current != _bounds.second;
         }
 
-        virtual T current() const
+        virtual T current() const override
         {
             return _current;
         }
 
-        virtual void next()
+        virtual void next() override
         {
             static_assert(
                 OP::has_operators::plus_eq_v<T, distance_t> ||
@@ -87,7 +87,7 @@ namespace flur
                     ++_current;
             }
         }
-
+    private:
         bounds_t _bounds;
         T _current;
     };

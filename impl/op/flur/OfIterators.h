@@ -34,26 +34,26 @@ namespace flur
             : this_t(std::move(pair.first), std::move(pair.second))
         {}
 
-        virtual void start()
+        virtual void start() override
         {
             _current = _begin;
         }
 
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
             return _current != _end;
         }
 
-        virtual element_t current() const
+        virtual element_t current() const override
         {
             return *_current;
         }
 
-        virtual void next()
+        virtual void next() override
         {
             ++_current;
         }
-
+    private:
         T _begin, _end, _current;
     };
 

@@ -127,7 +127,7 @@ namespace flur
             return *this;
         }
 
-        virtual void start()
+        virtual void start() override
         {
             _src.start();
             drain(1);
@@ -137,7 +137,7 @@ namespace flur
             }
         }
         /** Check if Sequence is in valid position and may call `next` safely */
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
             if (_batch.has_elements())
                 return true;
@@ -151,13 +151,13 @@ namespace flur
         }
 
         /** Return current item */
-        virtual element_t current() const
+        virtual element_t current() const override
         {
             return _batch.pick();
         }
 
         /** Position iterable to the next step */
-        virtual void next()
+        virtual void next() override
         {
             if (_batch.has_elements())
             {

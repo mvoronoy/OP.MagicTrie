@@ -26,24 +26,27 @@ namespace OP::flur
             , _predicate(std::move(f))
             , _end (true)
         {
-            
         }
-        virtual void start()
+
+        virtual void start() override
         {
             auto& source = details::get_reference(_src);
             source.start();
             _end = false;
             seek();
         }
-        virtual bool in_range() const
+
+        virtual bool in_range() const override
         {
             return !_end;
         }
-        virtual element_t current() const
+
+        virtual element_t current() const override
         {
             return details::get_reference(_src).current();
         }
-        virtual void next()
+
+        virtual void next() override
         {
             if(!_end)
             {
@@ -51,6 +54,7 @@ namespace OP::flur
                 seek();
             }
         }
+
     private:
         void seek()
         {

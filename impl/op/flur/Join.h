@@ -50,7 +50,7 @@ namespace OP::flur
                 && details::get_reference(_right).is_sequence_ordered());
         }
 
-        virtual void start()
+        virtual void start() override
         {
             auto& left = details::get_reference(_left);
             auto& right = details::get_reference(_right);
@@ -63,19 +63,19 @@ namespace OP::flur
             }
         }
         
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
             auto& left = details::get_reference(_left);
             auto& right = details::get_reference(_right);
             return left.in_range() && right.in_range();
         }
         
-        virtual element_t current() const
+        virtual element_t current() const override
         {
             return details::get_reference(_left).current();
         }
 
-        virtual void next()
+        virtual void next() override
         {
             auto& left = details::get_reference(_left);
             left.next();

@@ -21,25 +21,28 @@ namespace OP::flur
             , _endp( std::string::npos )
             {}
 
-        virtual void start()
+        virtual void start() override
         {
             auto& s = details::get_reference(_hold);
             _start = s.find_first_not_of(_separators);
             _endp = s.find_first_of(
                 details::get_reference(_separators), _start);
         }
-        virtual bool in_range() const
+        
+        virtual bool in_range() const override
         {
             return (_start < _hold.size())
                 ;
         }
-        virtual element_t current() const
+        
+        virtual element_t current() const override
         {
             auto& s = details::get_reference(_hold);
             return element_t(s.data() + _start, 
                 (_endp == std::string::npos ? s.size() : _endp ) - _start);
         }
-        virtual void next()
+
+        virtual void next() override
         {
             auto& s = details::get_reference(_hold);
 

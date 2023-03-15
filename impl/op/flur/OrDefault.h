@@ -38,7 +38,7 @@ namespace flur
         {
         }
 
-        virtual void start()
+        virtual void start() override
         {
             _use_alt = false;
             auto& deref_src = details::get_reference(_src);
@@ -50,23 +50,23 @@ namespace flur
             }
         }
 
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
             return _use_alt ? details::get_reference(_alt).in_range() : details::get_reference(_src).in_range();
         }
 
-        virtual element_t current() const
+        virtual element_t current() const override
         {
             if (_use_alt)
                 return details::get_reference(_alt).current();
             return details::get_reference(_src).current();
         }
 
-        virtual void next()
+        virtual void next() override
         {
             _use_alt ? details::get_reference(_alt).next() : details::get_reference(_src).next();
         }
-
+    private:
         bool _use_alt;
         Src _src;
         Alt _alt;

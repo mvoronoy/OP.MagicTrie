@@ -36,7 +36,7 @@ namespace OP::flur
         {
         }
 
-        void start() 
+        void start() override 
         {
             _seq_of_seq.clear();
             _reorder_index.clear();
@@ -63,17 +63,17 @@ namespace OP::flur
             grant_smallest();
         }
 
-        virtual element_t current() const
+        virtual element_t current() const override
         {                                           
             return smallest().current();
         }
         
-        bool in_range() const
+        bool in_range() const override
         {
             return !_reorder_index.empty();
         }
 
-        void next()
+        void next() override
         {
             smallest().next();
             //place element to heap/queue again
