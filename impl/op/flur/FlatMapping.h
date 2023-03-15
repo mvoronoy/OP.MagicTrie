@@ -126,23 +126,23 @@ namespace OP
                     details::get_reference(_src).is_sequence_ordered();
             }
 
-            virtual void start()
+            virtual void start() override
             {
                 details::get_reference(_src).start();
                 seek();
             }
             
-            virtual bool in_range() const
+            virtual bool in_range() const override
             {
                 return !traits_t::is_empty(_defered) && defered().in_range();
             }
             
-            virtual element_t current() const
+            virtual element_t current() const override
             {
                 return defered().current();
             }
             
-            virtual void next()
+            virtual void next() override
             {
                 defered().next();
                 if (!defered().in_range() && details::get_reference(_src).in_range())
@@ -151,6 +151,7 @@ namespace OP
                     seek();
                 }
             }
+
         private:
             using sequence_holder_t = typename traits_t::sequence_holder_t;
 
