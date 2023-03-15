@@ -217,24 +217,40 @@ namespace OP::flur
         template <bool high_priority, class TakeFrom>
         bool flatten_current(TakeFrom& take_from)
         {
-            //resolve pair of methods list::emplace_front/pop_front or list::emplace_back/pop_back
-            constexpr auto method_pair = list_method_pair <high_priority>;
             auto& at = details::get_reference(
-                (_gen1.*method_pair.first)
-                (_applicator(take_from.current()).compound()));
+                put_item<high_priority>(_applicator(take_from.current()).compound()));
             at.start();
             if (at.in_range())
                 return true;
-            (_gen1.*method_pair.second)(); //remove non-productive item
+            pop_item<high_priority>(); //remove non-productive item
             return false;
         }
         
         template <bool high_pritority>
-        constexpr static inline auto list_method_pair =
-            high_pritority 
-                ? std::make_pair(&then_vector_t::template emplace_front<flat_element_t&&>, &then_vector_t::pop_front)
-                : std::make_pair(&then_vector_t::template emplace_back<flat_element_t&&>, &then_vector_t::pop_back);
+        inline auto& put_item(flat_element_t&& el)
+        {
+            if constexpr(high_pritority)
+            {
+                return _gen1.emplace_front(std::move(el));
+            }
+            else
+            {
+                return _gen1.emplace_back(std::move(el));
+            }
+        }
 
+        template <bool high_pritority>
+        inline void pop_item()
+        {
+            if constexpr(high_pritority)
+            {
+                _gen1.pop_front();
+            }
+            else
+            {
+                _gen1.pop_back();
+            }
+        }
 
         then_vector_t _gen1;
         bool _is_gen0 = true;
