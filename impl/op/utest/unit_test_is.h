@@ -162,8 +162,7 @@ namespace OP::utest
         * with ostream operator `<<` support.
         */
         template <class Left, class Right >
-        constexpr 
-            std::pair<bool, OP::utest::Details> with_details(const Left& left, const Right& right) const
+        std::pair<bool, OP::utest::Details> with_details(const Left& left, const Right& right) const
         {
             auto end_left = std::end(left);
             auto end_right = std::end(right);
