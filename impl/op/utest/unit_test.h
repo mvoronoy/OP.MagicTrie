@@ -532,7 +532,7 @@ namespace OP::utest
         {
         }
 
-        ~virtual TestCase() = default;
+        virtual ~TestCase() = default;
 
         const std::string& id() const
         {
