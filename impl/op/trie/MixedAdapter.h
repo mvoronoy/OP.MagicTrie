@@ -72,7 +72,6 @@ namespace OP::trie
         template <class AtomContainer = atom_string_t>
         struct ChildOfKeyBegin
         {
-            
             ChildOfKeyBegin(AtomContainer key)
                 : _key(std::move(key))
             {
@@ -88,6 +87,7 @@ namespace OP::trie
         private:
             const AtomContainer _key;
         };
+        template <class AtomContainer> ChildOfKeyBegin(AtomContainer) -> ChildOfKeyBegin<AtomContainer>;
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range use `next_sibling` method instead of `next` */
         struct SiblingNext
@@ -424,22 +424,7 @@ namespace OP::trie
                 std::move(factory)
         );
     }
-/*        
-    template <class TTrie, class ... Mx>
-    std::shared_ptr< MixAlgorithmRangeAdapter<TTrie, Mx...> const>
-    make_mixed_range(std::shared_ptr<const TTrie> trie, Mx&& ...args)
-    {
-        using mixed_t = MixAlgorithmRangeAdapter<TTrie, Mx...>;
-        return std::make_shared<mixed_t>(std::piecewise_construct, std::move(trie), std::forward<Mx>(args)...);
-    }
-    template <class TTrie, class ... Mx>
-    std::shared_ptr< MixAlgorithmRangeAdapter<TTrie, Mx...> const>
-    make_mixed_range(std::shared_ptr<TTrie> trie, Mx&& ...args)
-    {
-        return make_mixed_range(std::const_pointer_cast<TTrie const>(trie), std::forward<Mx>(args)...);
-    }
 
-*/
 } //ns:OP::trie
 
 #endif //_OP_TRIE_MIXEDADAPTER__H_
