@@ -3,6 +3,7 @@
 
 #include <string>
 #include <typeinfo>
+#include <iterator>
 #include <functional>
 #include <map>
 #include <set>
@@ -66,6 +67,7 @@ namespace OP::utest
             }
         }
     };
+
     template <class Marker>
     using logical_not = negate<Marker>;
 

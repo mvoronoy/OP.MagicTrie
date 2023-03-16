@@ -29,7 +29,7 @@ namespace OP::flur
         using reference         = value_type&;
         using pointer           = void;
 
-        explicit LazyRangeIterator(T&& r) noexcept
+        constexpr explicit LazyRangeIterator(T&& r) noexcept
             : _target{std::forward<T>(r)}
         {
         }
@@ -45,6 +45,7 @@ namespace OP::flur
             details::get_reference(get()).next();
             return *this;
         }
+
         /** Note! not all targets supports copy operation so postfix ++ may fail at compile time*/
         LazyRangeIterator operator ++(int) &
         {
@@ -52,16 +53,19 @@ namespace OP::flur
             details::get_reference(get()).next();
             return result;
         }
+
         value_type operator *() const
         {         
             return details::get_reference(cget()).current();
         }
+
         bool operator == (const this_t& right) const
         {
             if( out_of_range() )
                 return right.out_of_range();
             return false; //if this has some value no chance this is the same as `right`
         }
+
         bool operator != (const this_t& right) const
         {
             return !operator==(right);
@@ -80,10 +84,12 @@ namespace OP::flur
         {
             return std::get<target_t>(_target);
         }
+        
         const target_t& cget() const
         {
             return std::get<target_t>(_target);
         }
+        
         using holder_t = std::variant< std::monostate, target_t>;
         holder_t _target;
     };
@@ -118,14 +124,9 @@ namespace OP::flur
         }
 
         template <class Factory>
-        auto end_impl(const Factory* = nullptr) noexcept
+        constexpr auto end_impl(const Factory* = nullptr) noexcept
         {
             using result_t = OP::flur::details::lazy_iterator_deduction_t < Factory >;
-            //using t_t = std::decay_t<decltype(inst.compound())>;
-            //if constexpr (OP::flur::details::is_shared_ptr<t_t>::value)
-            //    return LazyRangeIterator< t_t >(nullptr);
-            //else
-            //    return LazyRangeIterator< std::shared_ptr<t_t> >(nullptr);
             return result_t{nullptr};
         }
     }//ns:details

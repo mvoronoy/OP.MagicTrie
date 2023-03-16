@@ -96,13 +96,6 @@ namespace OP::flur
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
         }
 
-//        template <class TApp, std::enable_if_t<std::is_base_of_v<OP::flur::ApplicatorBase, TApp>, bool> = true>
-//        constexpr auto operator >> (TApp&& appl) && noexcept
-//        {
-//            using consumer_t = Consumer<this_t, std:decay_t<TApp>>;
-//            return consumer_t(std::move(*this), std::forward<TApp>(appl));
-//        }
-
         template <class ... Ux>
         constexpr auto operator & (const LazyRange<Ux ...>& lr) const& noexcept
         {
@@ -125,12 +118,14 @@ namespace OP::flur
         {
             return details::begin_impl(*this);
         }
+
         auto end() const
         {
             return details::end_impl<this_t>();
         }
 
     };
+
     /** Simplifies creation of LazyRange */
     template <class ... Tx >
     constexpr LazyRange<Tx ...> make_lazy_range(Tx && ... tx) noexcept 
@@ -255,13 +250,14 @@ namespace OP::flur
 namespace std
 {
     template <class T>
-    constexpr std::enable_if_t < //
+    constexpr std::enable_if_t <
         std::is_base_of_v<OP::flur::FactoryBase, T> && !OP::utils::is_generic<T, OP::flur::LazyRange>::value, 
         OP::flur::details::lazy_iterator_deduction_t < T >
     > begin(const T& inst)
     {
         return OP::flur::details::begin_impl(inst);
     }
+
     template <class T>
     constexpr std::enable_if_t <
         std::is_base_of_v<OP::flur::FactoryBase, T> && !OP::utils::is_generic<T, OP::flur::LazyRange>::value,
