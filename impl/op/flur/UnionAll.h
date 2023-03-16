@@ -155,6 +155,8 @@ namespace OP::flur
         std::tuple<std::decay_t<Tx> ...> _right;
     };
 
+    template<class... Tx> UnionAllSequenceFactory(Tx...) -> UnionAllSequenceFactory<Tx...>;
+
 } //ns:OP
 
 #endif //_OP_FLUR_UNIONALL__H_
