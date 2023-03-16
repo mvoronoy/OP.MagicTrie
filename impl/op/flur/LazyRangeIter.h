@@ -93,6 +93,7 @@ namespace OP::flur
         using holder_t = std::variant< std::monostate, target_t>;
         holder_t _target;
     };
+    template<class T> LazyRangeIterator (T) -> LazyRangeIterator<T>;
 
     namespace details
     {
