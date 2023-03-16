@@ -38,18 +38,18 @@ namespace OP::utest
         }
 
         template <class T>
-        friend inline Details& operator << (Details& d, T&& t)
+        friend inline Details& operator << (Details& d, const T& t)
         {
-            d._result << std::forward<T>(t);
+            d._result << t;
             return d;
         }
 
         template <class T>
-        friend inline Details operator << (Details&& d, T&& t)
+        friend inline Details operator << (Details&& d, const T& t)
         {
             Details inl(std::move(d));
-            inl._result << std::forward<T>(t);
-            return std::move(inl);
+            inl._result << t;
+            return inl;
         }
 
         template <class Os>
