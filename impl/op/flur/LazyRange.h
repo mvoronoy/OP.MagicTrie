@@ -249,6 +249,7 @@ namespace OP::flur
 
 namespace std
 {
+    /*
     template <class T>
     constexpr std::enable_if_t <
         std::is_base_of_v<OP::flur::FactoryBase, T> && !OP::utils::is_generic<T, OP::flur::LazyRange>::value, 
@@ -265,6 +266,6 @@ namespace std
     {
         return OP::flur::details::end_impl(&inst);
     }
-
+      */
 }//ns:std
 #endif //_OP_FLUR_LAZYRANGE__H_
