@@ -267,6 +267,15 @@ namespace OP::currying
                 std::forward<Ax>(ax)...
                 );
         }
+        
+        template <typename TCallable, typename ... Ax>
+        decltype(auto) typed_invoke(TCallable&& func, Ax&&...ax)
+        {
+            using temp_type_t = std::add_lvalue_reference_t<decltype(func)>;
+
+            return typed_invoke(
+                (temp_type_t)func, std::forward<Ax>(ax)...);
+        }
 
         template <typename TCallable, typename ... Ax>
         decltype(auto) typed_invoke_back(TCallable& func, Ax&&...ax)
