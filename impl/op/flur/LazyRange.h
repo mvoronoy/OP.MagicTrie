@@ -180,7 +180,7 @@ namespace OP::flur
     }
 
     template <class ... Tx >
-    size_t consume_all(LazyRange<Tx ...>& range) 
+    size_t consume_all(const LazyRange<Tx ...>& range) 
     {
         size_t count = 0;
         auto seq = range.compound();
@@ -192,7 +192,7 @@ namespace OP::flur
         return count;
     }
     template <class G>
-    std::enable_if_t<std::is_base_of_v<FactoryBase, G>, size_t> consume_all(G& range) 
+    std::enable_if_t<std::is_base_of_v<FactoryBase, G>, size_t> consume_all(const G& range) 
     {
         size_t count = 0;
         auto seq = range.compound();
