@@ -45,29 +45,35 @@ namespace flur
         {
             _i = details::get_reference(_v).end();
         }
+
         constexpr OfContainer(const V& v) noexcept
             :_v(v)
         {
             _i = details::get_reference(_v).end();
         }
+        
         constexpr OfContainer(OfContainer&&) noexcept = default;
 
-        virtual void start()
+        virtual void start() override
         {
             _i = details::get_reference(_v).begin();
         }
-        virtual bool in_range() const
+        
+        virtual bool in_range() const override
         {
             return _i != details::get_reference(_v).end();
         }
-        virtual element_t current() const
+        
+        virtual element_t current() const override
         {
             return *_i;
         }
-        virtual void next()
+
+        virtual void next() override
         {
             ++_i;
         }
+
     protected:
         V& container()
         {
@@ -84,10 +90,12 @@ namespace flur
 
     template <class Container>
     using OfUnorderedContainer = OfContainer<Container, 
-                                Sequence< details::element_of_container_t<Container> > >;    
+                                Sequence< details::element_of_container_t<Container> > >; 
+
     template <class Container>
     using OfOrderedContainer = OfContainer<Container, 
-                                OrderedSequence< details::element_of_container_t<Container> > >;    
+                                OrderedSequence< details::element_of_container_t<Container> > >;
+
     //for all STL that supports lower_bound
     template <class Container>
     struct OfLowerBoundContainer : 
@@ -156,41 +164,7 @@ namespace flur
         }
         holder_t _v;
     };
-    /** The way of create OfContainer without factory and moving owning to OfContainer. 
-    * Useful when need create some intermedia step with fixed items set.
-    * For example as result of flat_mapping:\code
-    * src::of_iota(1, 5)
-    *   >>  then::flat_mapping([](auto i) {
-    *           return rref_container( std::vector<std::string>{
-    *               "a" + std::to_string(i),
-    *               "b" + std::to_string(i),
-    *               "c" + std::to_string(i)});
-    *       })
-    *   ;
-    * \endcode
-    * Create sequence of strings:[ "a1", "b1", "c1", "a2", "b2", "c2", "a3", "b3", "c3", "a4", "b4", "c4"]
-    */
-    //template <class V>
-    //auto rref_container(V &&v)
-    //{
-    //    using container_t = details::dereference_t<V>;
-    //    using base_t = 
-    //        details::detect_sequence_t<container_t>;
-    //        
-    //    using result_t = OfContainer<V, base_t>;
-    //    return result_t(std::move(v));
-    //}
 
-    //template <class V>
-    //auto cref_container(const V &v)
-    //{
-    //    using container_t = details::dereference_t<V>;
-    //    using base_t = 
-    //        details::detect_sequence_base_t<container_t>;
-    //        
-    //    using result_t = OfContainer<decltype(std::cref(v)), base_t>;
-    //    return result_t(std::cref(v));
-    //}
 } //ns:flur
 } //ns:OP
 
