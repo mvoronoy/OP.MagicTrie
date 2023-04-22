@@ -1296,7 +1296,7 @@ void test_10k(OP::utest::TestRuntime& tresult)
 
     if (1 == 1)
     {
-        auto exec_single_thr = [&](const atom_string_t& start_from, std::uint64_t* result){
+        auto exec_single_thr = [&](atom_string_t start_from, std::uint64_t* result){
             auto range = trie->prefixed_range(start_from); //not an error instead of children_range, because "a"=0
             std::uint64_t target = 0;
             for (auto iter : range)
