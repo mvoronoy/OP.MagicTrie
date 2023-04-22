@@ -63,15 +63,17 @@ namespace OP::utils
             using arguments_t = std::tuple<std::decay_t<Args> ...>;
 
             Functor(F&& f, Args&&... args)
-                : _f(std::move(f)),
-                _args(std::forward<Args>(args)...)
+                : _f(std::move(f))
+                , _args(std::make_tuple(std::forward<Args>(args)...))
             {}
+
             Functor(const Functor&) = delete;
 
             std::future<result_t> get_future()
             {
                 return _promise.get_future();
             }
+
             void run() override
             {
                 try
@@ -90,7 +92,9 @@ namespace OP::utils
                     pack_exception();
                 }
             }
+
         private:
+            
             void pack_exception()
             {
                 try
@@ -104,6 +108,7 @@ namespace OP::utils
                     log.print("Unhandled thread exception hide it"s);
                 }
             }
+            
             std::promise<result_t> _promise;
             F _f;
             arguments_t _args;
