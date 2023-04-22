@@ -1280,6 +1280,7 @@ void test_10k(OP::utest::TestRuntime& tresult)
         to_hext(i, instr);
         trie->prefixed_insert(top, instr, i);
     }
+
     std::uint64_t sum = 0;
     auto plain = [&]() {
         auto range = trie->children_range("a"_astr);
@@ -1322,8 +1323,8 @@ void test_10k(OP::utest::TestRuntime& tresult)
         sum = 0;
         std::cout << "mt=" << measure(mt) << "\tsum=" << sum << "\n";
         tresult.assert_that<equals>(expecting_sum_c, sum);
-
     }
+
     if (1 == 1)
     {
         using namespace OP::flur;

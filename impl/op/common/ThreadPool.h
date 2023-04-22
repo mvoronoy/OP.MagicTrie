@@ -186,7 +186,7 @@ namespace OP::utils
         *  Start function in background and expose std::future to control completion.
         */
         template< class F, class... Args>
-        std::future<function_res_t<F, Args...> > async( F&& f, Args&&... args )
+        std::future<function_res_t<F, Args...> > async( F f, Args&&... args )
         {
             ensure_workers();
             using result_t = function_res_t<F, Args...> ;
