@@ -87,7 +87,6 @@ namespace OP::trie
         private:
             const AtomContainer _key;
         };
-        template <class AtomContainer> ChildOfKeyBegin(AtomContainer) -> ChildOfKeyBegin<AtomContainer>;
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range use `next_sibling` method instead of `next` */
         struct SiblingNext
@@ -161,7 +160,6 @@ namespace OP::trie
         private:
             const atom_string_t _prefix;
         };
-
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range customize `in_range` in a way to check that 
         * range iterates over items with specific prefix */
