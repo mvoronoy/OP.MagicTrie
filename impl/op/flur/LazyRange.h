@@ -97,13 +97,6 @@ namespace OP::flur
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
         }
 
-        template <class TApplicator>
-        const this_t& operator >>= (TApplicator& apply) const
-        {
-            apply(*this);
-            return *this;
-        }
-
         template <class ... Ux>
         constexpr auto operator & (const LazyRange<Ux ...>& lr) const& noexcept
         {
@@ -132,6 +125,17 @@ namespace OP::flur
         }
 
     };
+
+    /** Allow multiple applicators like: \code
+    *  src::of(...) >>= Sum(...) >>= Sum(...)
+    * \endcode
+    */
+    template <class ...Tx, class TApplicator>
+    const auto& operator >>= (const LazyRange<Tx...>& range, TApplicator& apply)
+    {
+        apply(range);
+        return range; //allow multiple applicators
+    }
 
     /** Simplifies creation of LazyRange */
     template <class ... Tx >
