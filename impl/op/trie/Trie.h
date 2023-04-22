@@ -488,8 +488,8 @@ namespace OP
                 return prefixed_range(prefix);
             }
             /**
-            *   Construct a range that address all string started with specified prefix
-            * @param prefix any string of bytes that supports std::begin / std::end iteration
+            *   Construct a range that contains all strings started with specified prefix
+            * @param prefix is any string of bytes that supports std::begin / std::end iteration
             */
             template <class AtomContainer>
             auto prefixed_range(const AtomContainer& prefix) const
@@ -504,7 +504,7 @@ namespace OP
                 );
             }
 
-            /**Return range that allows iterate all immediate childrens of specified prefix*/
+            /**Return range that allows iterate all immediate children of specified prefix*/
             auto children_range(const iterator& of_this) const
             {
                 return OP::flur::make_lazy_range(make_mixed_sequence_factory(
@@ -911,8 +911,8 @@ namespace OP
             }
 
             /**
-            *   Remove all that starts with string specified by `prefix`. The dramatic
-            * difference in compare with #prefixed_erase that this method removes any entries
+            *   Remove all that starts with string specified by `prefix`. The fundamental
+            * difference with #prefixed_erase that this method removes any entries
             * satisfied prefix condition.
             */
             template <class StringLike>

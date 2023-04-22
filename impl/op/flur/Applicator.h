@@ -12,6 +12,75 @@ struct ApplicatorBase
 {
 
 };
+
+template <class OutputIterator>
+struct Drain : ApplicatorBase
+{
+    Drain(OutputIterator out_iter)
+        : _out_iter(std::move(out_iter))
+    {
+    }
+
+    template <class Lr>
+    void operator()(const Lr& lr)
+    {
+        auto seq = lr.compound();
+        for(details::get_reference(seq).start();
+            details::get_reference(seq).in_range();
+            details::get_reference(seq).next())
+            *_out_iter++ = details::get_reference(seq).current();
+    }
+
+private:
+    OutputIterator _out_iter;
+};
+
+template <class T>
+struct Sum : ApplicatorBase
+{
+    Sum(T& dest)
+        : _dest(dest)
+    {
+    }
+
+    template <class Lr>
+    void operator()(const Lr& lr)
+    {
+        auto seq = lr.compound();
+        for(details::get_reference(seq).start();
+            details::get_reference(seq).in_range();
+            details::get_reference(seq).next())
+            _dest += details::get_reference(seq).current();
+    }
+
+private:
+    T& _dest;
+};
+
+template <class T, class F>
+struct SumF : ApplicatorBase
+{
+    F _f;
+    SumF(T& dest, F f)
+        : _dest(dest)
+        , _f(std::move(f))
+    {
+    }
+
+    template <class Lr>
+    void operator()(const Lr& lr)
+    {
+        auto seq = lr.compound();
+        for(details::get_reference(seq).start();
+            details::get_reference(seq).in_range();
+            details::get_reference(seq).next())
+            _dest += _f(details::get_reference(seq).current());
+    }
+
+private:
+    T& _dest;
+};
+
 //
 //template <class ... FApplicators>
 //struct MultiConsumer : ApplicatorBase

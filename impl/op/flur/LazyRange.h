@@ -82,6 +82,7 @@ namespace OP::flur
             using arg_t = LazyRange<Ux ...>;
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(std::move(_storage), lr._storage));
         }
+
         template <class ... Ux>
         constexpr auto operator >> (std::tuple<Ux ...> && lr) && noexcept
         {
@@ -94,6 +95,13 @@ namespace OP::flur
         {
             using arg_t = LazyRange<Ux ...>;
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
+        }
+
+        template <class TApplicator>
+        const this_t& operator >>= (TApplicator& apply) const
+        {
+            apply(*this);
+            return *this;
         }
 
         template <class ... Ux>
@@ -113,7 +121,6 @@ namespace OP::flur
             return LazyRange < join_factory_t >(
                 join_factory_t(std::move(*this), std::move(lr)));
         }
-
         auto begin() const
         {
             return details::begin_impl(*this);

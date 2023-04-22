@@ -555,9 +555,7 @@ namespace OP::utest
         TestResult single_execute(test_run_shared_args_t& runtime)
         {
             TestResult retval(_name);
-            retval._start_time = std::chrono::steady_clock::now();
             isolate_exception_run(runtime, retval);
-            retval._end_time = std::chrono::steady_clock::now();
             retval._run_number = 1;
             return retval;
         }
@@ -602,29 +600,39 @@ namespace OP::utest
                 tr.error() << e.what();
             }
         }
-
+        // apply RAII to set end test time
+        struct SetEndTime
+        {
+            explicit SetEndTime(TestResult& result): _result(result)
+            {
+                _result._start_time = std::chrono::steady_clock::now();
+            }
+            ~SetEndTime()
+            {
+                _result._end_time = std::chrono::steady_clock::now();
+            }
+            TestResult& _result;
+        };
         void isolate_exception_run(test_run_shared_args_t& runtime, TestResult& retval)
         {
             try
             {
+                SetEndTime end_time_setup(retval); //grant assign of _end
                 this->run(runtime);
                 retval._status = TestResult::Status::ok;
             }
             catch (TestAbort const& e)
             {
-                retval._end_time = std::chrono::steady_clock::now();
                 retval._status = TestResult::Status::aborted;
                 render_exception_status(runtime, e);
             }
             catch (TestFail const& e)
             {
-                retval._end_time = std::chrono::steady_clock::now();
                 retval._status = TestResult::Status::failed;
                 render_exception_status(runtime, e);
             }
             catch (std::exception const& e)
             {
-                retval._end_time = std::chrono::steady_clock::now();
                 retval._status = TestResult::Status::exception;
 
                 runtime.get<TestRuntime>().error()
@@ -634,8 +642,7 @@ namespace OP::utest
                     << ")\n";
             }
             catch (...)
-            { //hide any other exception
-                retval._end_time = std::chrono::steady_clock::now();
+            { //stop propagation of any other exception
                 retval._status = TestResult::Status::exception;
             }
         }

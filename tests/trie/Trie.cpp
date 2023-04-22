@@ -1588,6 +1588,86 @@ namespace
             //>> OP::flur::then::mapping([](const auto&))
             );
     }
+    void test_insert_10k(OP::utest::TestRuntime& tresult)
+    {
+        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(
+            "10k.trie",
+            OP::trie::SegmentOptions()
+            .segment_size(0x110000));
+        using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
+        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+        constexpr std::uint32_t N = 0x3FFF;
+        auto measure = [&](auto f)->double {
+            //warm-up
+            f(N/3);
+            //measure
+            auto start = std::chrono::steady_clock::now();
+            f(N*2/3);
+            auto end = std::chrono::steady_clock::now();
+            return std::chrono::duration<double, std::milli>(end - start).count();
+        };
+        constexpr static atom_t hex[] = {
+            '0', '1', '2', '3', '4', '5', '6', '7',
+            '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+
+        //produce exact 3 char size string from uint32 in hex format
+        auto to_hext = [&](std::uint32_t from, atom_string_t& dest) {
+            dest += hex[(from >> 16) & 0xFu];
+            dest += hex[(from >> 12) & 0xFu];
+            dest += hex[(from >> 8) & 0xFu];
+            dest += hex[(from >> 4) & 0xFu];
+            dest += hex[from & 0xFu];
+        };
+        auto bulk_insert = [&](trie_t::iterator top, std::uint32_t from, std::uint32_t to){
+            atom_string_t instr;
+            for (std::uint32_t i = from; i < to; ++i)
+            {
+                instr.clear();
+                to_hext(i, instr);
+                trie->prefixed_upsert(top, instr, i);
+            }
+        };
+        auto plain = [&](std::uint32_t limit) {
+            trie->prefixed_key_erase_all("a"_astr);
+            auto [pos, _] = trie->upsert("a"_astr, 0.0);
+            bulk_insert(pos, 0, limit);
+        };
+        std::cout << "plain=" << measure(plain) << "\n";
+
+        if (1 == 1)
+        {
+            std::mutex mutex;
+            std::condition_variable condition;
+            std::atomic<bool> control_count = true;
+
+            auto exec_single_thr = [&](trie_t::iterator top, std::uint32_t to) {
+                //@!std::unique_lock<std::mutex> lock(mutex);
+                //while (control_count) // Handle synchro-start.
+                //    condition.wait(lock);
+                //lock.unlock();
+                bulk_insert(top, 0, to);
+            };
+            auto mt = [&](std::uint32_t limit) {
+                //@!control_count = true;
+                trie->prefixed_key_erase_all("a"_astr);
+                auto [pos, _] = trie->upsert("a"_astr, -1.0);
+                std::array<std::thread, 3> pool{
+                    std::thread(exec_single_thr, 
+                        trie->prefixed_insert(pos, "0"_astr, -1.1).first, 0xFFF & limit),
+                    std::thread(exec_single_thr, 
+                        trie->prefixed_insert(pos, "1"_astr, -1.1).first, 0xFFF & limit),
+                    std::thread(exec_single_thr, 
+                        trie->prefixed_insert(pos, "2"_astr, -1.1).first, 0xFFF & limit)
+                };
+                //@!control_count = false;
+                //@!condition.notify_all();
+                for (auto& th : pool)
+                    th.join();
+            };
+            std::cout << "mt=" << measure(mt) << "\n";
+        }
+
+    }
 
     static auto& module_suite = OP::utest::default_test_suite("Trie.core")
         .declare("creation", test_TrieCreation)
@@ -1614,5 +1694,6 @@ namespace
         .declare("next_lower_bound", test_NextLowerBound)
         .declare("issue_erase_seq_of_4", issue_erase_seq_of_4)
         .declare("issue_next_sibling", issue_next_sibling)
+        .declare_disabled("insert-10k", test_insert_10k)
         ;
 }//ns:""

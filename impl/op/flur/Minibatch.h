@@ -22,14 +22,7 @@ namespace flur
         {
             using this_t = CyclicBuffer<T, N>;
 
-            std::array<T, N> _buffer;
-            std::atomic_size_t _r_current, _w_current;
-            
-            constexpr CyclicBuffer() noexcept
-                : _r_current(0)
-                , _w_current(0)
-            {
-            }
+            constexpr CyclicBuffer() noexcept = default;
             
             CyclicBuffer(this_t&& other) noexcept
                 : this_t()
@@ -37,10 +30,12 @@ namespace flur
                 while ( other._r_current < other._w_current)
                     _buffer[_w_current++] = std::move(other._buffer[other._r_current++ % N]);
             }
+
             bool has_elements() const
             {
                 return _r_current < _w_current;
             }
+
             void emplace(T&& t)
             {
                 if ((_w_current - _r_current) < N) //prevent outrun by 1 cycle
@@ -50,12 +45,14 @@ namespace flur
                 }
                 throw std::out_of_range("CyclicBuffer::emplace");
             }
+
             const T& pick() const
             {
                 if(_r_current < _w_current)
                     return _buffer[_r_current % N];
                 throw std::out_of_range("CyclicBuffer::pick");
             }
+
             void next()
             {
                 if (_r_current < _w_current)
@@ -65,8 +62,11 @@ namespace flur
                 }
                 throw std::out_of_range("CyclicBuffer::next");
             }
-        };
 
+        private:
+            std::atomic_size_t _r_current = 0, _w_current = 0;
+            std::array<T, N> _buffer = {};
+        };
 
     }//ns:details
 

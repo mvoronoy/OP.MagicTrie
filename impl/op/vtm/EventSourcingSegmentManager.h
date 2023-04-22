@@ -204,7 +204,7 @@ namespace OP
                     auto& block_profile = blocks_in_touch->second;
                     // for WR any block from another transaction is a point to reject
                     if (block_profile._used_in_transaction != current_transaction->transaction_id())
-                    {//cannot capture because other tran exists
+                    {//cannot capture because other transaction exists
                         throw ConcurentLockException("cannot capture WR-block while it is used in another transaction");
                     }
                     // form ordered by history event log

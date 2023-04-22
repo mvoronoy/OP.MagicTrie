@@ -176,10 +176,11 @@ namespace OP::vtm
             }
             throw OP::vtm::ConcurentLockException("10");
         }
-        template <auto N, typename F, typename  ... Args>
+        template <size_t N, typename F, typename  ... Args>
         inline typename std::result_of<F(Args ...)>::type transactional_yield_retry_n(F f, Args ... ax)
         {
-            for (auto i = 0; i < N; ++i)
+            constexpr size_t limit = N - 1;
+            for (auto i = 0; i < limit; ++i)
             {
                 try
                 {
@@ -188,10 +189,15 @@ namespace OP::vtm
                 catch (const OP::vtm::ConcurentLockException &)
                 {
                     /*ignore exception for a while*/
-                    std::this_thread::yield();
+                    if ((i+1) < limit)
+                    {
+                        std::this_thread::yield();
+                        continue;
+                    }
+                    throw;
                 }
             }
-            throw OP::vtm::ConcurentLockException("10");
+            return f(ax...);
         }
 
 } //end of namespace OP::vtm

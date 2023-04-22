@@ -52,7 +52,7 @@ namespace OP::vtm
             OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
             auto avail_segments = _segment_manager->available_segments();
             //capture ZeroHeader for write during 10 tries
-            ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<10>([this]()
+            ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<60>([this]()
                 {
                     return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
                 });

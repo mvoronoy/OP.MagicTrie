@@ -973,7 +973,8 @@ void test_JoinRangeOverride(TestRuntime& tresult)
 //        test_values, OP_CODE_DETAILS());
 //}
 
-void test_ISSUE_0001(OP::utest::TestRuntime& tresult) {
+void test_ISSUE_0001(OP::utest::TestRuntime& tresult) 
+{
     OP::trie::atom_string_t source_seq[] = {
         { 0x13,0x04,0x10,0x50,0x12,0xc1,0x5b,0xa1,0x0e,0x9e,0x16,0xdc,0xef,0x4c,0x6e,0x34,0x9b,0x96 },
         { 0x14,0x44,0xa2,0xfa,0xdb,0x41,0xa1,0xd8,0x45,0xe0,0x12,0xfe,0x98,0x10,0x4d,0x55,0x87,0x04,0xf5,0x02,0x87,0x52,0x41,0xa1,0xd8,0x45,0xc0,0x12,0xfe,0x98,0x9c,0xbf,0x89,0xaa },
@@ -1238,11 +1239,121 @@ void test_ISSUE_0001(OP::utest::TestRuntime& tresult) {
 
     compare_containers(tresult, *trie, test_values);
 }
-//
-////*************************************************
-//
-//
-//
+
+void test_10k(OP::utest::TestRuntime& tresult)
+{
+    using segment_manager_t = EventSourcingSegmentManager;//SegmentManager;//
+    auto tmngr = OP::trie::SegmentManager::create_new<segment_manager_t>(
+        "10k.trie",
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    using trie_t = Trie<segment_manager_t, PlainValueManager<std::uint64_t>>;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+    constexpr std::uint32_t N = 0x3000;
+    constexpr std::uint32_t expecting_sum_c = (N * (N - 1)) / 2;
+    std::cout << "Expecting \tsum=" << expecting_sum_c << "\n";
+    auto measure = [&](auto f)->double {
+        //warm-up
+        f();
+        //measure
+        auto start = std::chrono::steady_clock::now();
+        f();
+        auto end = std::chrono::steady_clock::now();
+        return std::chrono::duration<double, std::milli>(end - start).count();
+    };
+
+    //produce exact 3 char size string from uint32 in hex format
+    auto to_hext = [](std::uint32_t from, atom_string_t& dest, size_t n = 4) {
+        constexpr static atom_t hex[] = {
+            '0', '1', '2', '3', '4', '5', '6', '7',
+            '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+        while (n)
+        {
+            dest += hex[(from >> (--n * 4)) & 0xFu];
+        }
+    };
+    trie_t::iterator top = trie->insert("a"_astr, 0).first;
+    atom_string_t instr;
+    for (std::uint32_t i = 0; i < N; ++i)
+    {
+        instr.clear();
+        to_hext(i, instr);
+        trie->prefixed_insert(top, instr, i);
+    }
+    std::uint64_t sum = 0;
+    auto plain = [&]() {
+        auto range = trie->children_range("a"_astr);
+        sum = 0.0;
+        for (auto iter : range)
+        {
+            sum += iter.value();
+        }
+    };
+    std::cout << "plain=" << measure(plain) << "\tsum=" << sum << "\n";
+    tresult.assert_that<equals>(expecting_sum_c, sum);
+
+    OP::utils::ThreadPool tp;
+
+    if (1 == 1)
+    {
+        auto exec_single_thr = [&](const atom_string_t& start_from, std::uint64_t* result){
+            auto range = trie->prefixed_range(start_from); //not an error instead of children_range, because "a"=0
+            std::uint64_t target = 0;
+            for (auto iter : range)
+            {   
+                target += iter.value();
+            }
+            *result = target;
+            return target;
+        };
+        auto mt = [&]() {
+            sum = 0;
+            std::uint64_t branch0 = 0, branch1 = 0, branch2 = 0;
+            std::array pool{
+                tp.async(exec_single_thr, "a0"_astr, &branch0),
+                tp.async(exec_single_thr, "a1"_astr, &branch1),
+                tp.async(exec_single_thr, "a2"_astr, &branch2)
+            };
+
+            for (auto& v : pool)
+                v.wait();
+            sum = branch0 + branch1 + branch2;
+        };
+        sum = 0;
+        std::cout << "mt=" << measure(mt) << "\tsum=" << sum << "\n";
+        tresult.assert_that<equals>(expecting_sum_c, sum);
+
+    }
+    if (1 == 1)
+    {
+        using namespace OP::flur;
+        sum = 0;
+        auto minibatch = [&]() {
+            std::uint64_t sum2 = 0;
+            src::of_iota(0, 3)
+                >> then::mapping([&](auto i) {
+                        atom_string_t buffer = "a"_astr;
+                        to_hext(i, buffer, 1);
+                        auto range = trie->prefixed_range(buffer);
+                        auto prange = std::make_shared<decltype(range)>(std::move(range));
+                        
+                        return std::move(prange);
+                    })
+                >> then::minibatch<8>(tp)
+                >> then::mapping([&](auto range) {
+                        return tp.async([f = std::move(range)]() {
+                            std::uint64_t local_sum = 0;
+                            for (auto& iter : *f)
+                                local_sum += iter.value();
+                            return local_sum; });
+                    })
+                >>= SumF(sum2, [](auto& future){return future.get();});
+                sum = sum2;
+        };
+        std::cout << "minibatch=" << measure(minibatch) << "\tsum=" << sum << "\n";
+        tresult.assert_that<equals>(expecting_sum_c, sum);
+    }
+}
 
 static auto& module_suite = OP::utest::default_test_suite("Trie.range")
 
@@ -1256,6 +1367,7 @@ static auto& module_suite = OP::utest::default_test_suite("Trie.range")
 .declare("test native ranges of Trie", test_NativeRangeSupport)
 .declare("override_join_range", test_JoinRangeOverride)
 .declare("ISSUE_0001", test_ISSUE_0001)
+.declare("10k", test_10k)
 //
 ;
 }//ns:""
