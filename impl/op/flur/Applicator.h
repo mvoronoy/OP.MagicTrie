@@ -44,7 +44,7 @@ struct Sum : ApplicatorBase
     }
 
     template <class Lr>
-    void operator()(const Lr& lr)
+    void operator()(const Lr& lr) const
     {
         auto seq = lr.compound();
         for(details::get_reference(seq).start();
@@ -67,7 +67,7 @@ struct Collect : ApplicatorBase
     }
 
     template <class Lr>
-    void operator()(const Lr& lr)
+    void operator()(const Lr& lr) const
     {
         auto seq = lr.compound();
         for(details::get_reference(seq).start();
