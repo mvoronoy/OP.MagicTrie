@@ -58,6 +58,12 @@ namespace OP::flur
             return details::compound_impl(std::move(_storage));
         }
 
+        template <class TAction>
+        void apply(TAction action) const
+        {
+            action(*this);
+        }
+
         template <class T>
         constexpr auto operator >> (T&& t) const& noexcept
         {
@@ -131,9 +137,9 @@ namespace OP::flur
     * \endcode
     */
     template <class ...Tx, class TApplicator>
-    const auto& operator >>= (const LazyRange<Tx...>& range, TApplicator& apply)
+    const auto& operator >>= (const LazyRange<Tx...>& range, TApplicator& applicator)
     {
-        apply(range);
+        range.apply(applicator);
         return range; //allow multiple applicators
     }
 
