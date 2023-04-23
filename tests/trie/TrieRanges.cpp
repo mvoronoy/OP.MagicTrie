@@ -1331,7 +1331,7 @@ void test_10k(OP::utest::TestRuntime& tresult)
         sum = 0;
         auto minibatch = [&]() {
             std::future<std::uint64_t> future_sum{};
-            src::of_iota(0, 3)
+            (src::of_iota(0, 3)
                 >> then::mapping([&](auto i) {
                         atom_string_t buffer = "a"_astr;
                         to_hext(i, buffer, 1);
@@ -1339,7 +1339,7 @@ void test_10k(OP::utest::TestRuntime& tresult)
                         return std::make_shared<decltype(range)>(std::move(range));
                     })
                 >> then::minibatch<2>(tp)
-                >>= Collect(
+                ).apply(Collect(
                     future_sum, 
                     [&](std::future<std::uint64_t>& previous, auto&& range) -> void
                     {
@@ -1354,7 +1354,7 @@ void test_10k(OP::utest::TestRuntime& tresult)
                                     //first entry
                                     : local_sum;
                             }));
-                    });
+                    }));
                 sum = future_sum.get();
         };
         std::cout << "minibatch=" << measure(minibatch) << "\tsum=" << sum << "\n";
