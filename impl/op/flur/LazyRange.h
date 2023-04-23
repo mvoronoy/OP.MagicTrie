@@ -132,9 +132,24 @@ namespace OP::flur
 
     };
 
-    /** Allow multiple applicators like: \code
+    /** 
+    * Allow multiple applicators like: \code
     *  src::of(...) >>= Sum(...) >>= Sum(...)
-    * \endcode
+    * \endcode.
+    *
+    */
+    template <class ...Tx, class TApplicator>
+    const auto& operator >>= (const LazyRange<Tx...>& range, const TApplicator& applicator)
+    {
+        range.apply(applicator);
+        return range; //allow multiple applicators
+    }
+
+    /** 
+    * Allow multiple applicators like: \code
+    *  src::of(...) >>= Sum(...) >>= Sum(...)
+    * \endcode.
+    *
     */
     template <class ...Tx, class TApplicator>
     const auto& operator >>= (const LazyRange<Tx...>& range, TApplicator& applicator)
