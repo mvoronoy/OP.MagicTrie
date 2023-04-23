@@ -1336,11 +1336,9 @@ void test_10k(OP::utest::TestRuntime& tresult)
                         atom_string_t buffer = "a"_astr;
                         to_hext(i, buffer, 1);
                         auto range = trie->prefixed_range(buffer);
-                        auto prange = std::make_shared<decltype(range)>(std::move(range));
-                        
-                        return std::move(prange);
+                        return std::make_shared<decltype(range)>(std::move(range));
                     })
-                >> then::minibatch<8>(tp)
+                >> then::minibatch<2>(tp)
                 >> then::mapping([&](auto range) {
                         return tp.async([f = std::move(range)]() {
                             std::uint64_t local_sum = 0;
@@ -1348,7 +1346,7 @@ void test_10k(OP::utest::TestRuntime& tresult)
                                 local_sum += iter.value();
                             return local_sum; });
                     })
-                ).apply(SumF(sum2, [](auto& future){return future.get();}));
+                ).apply(SumF(sum2, [](auto&& future){return future.get();}));
                 sum = sum2;
         };
         std::cout << "minibatch=" << measure(minibatch) << "\tsum=" << sum << "\n";
