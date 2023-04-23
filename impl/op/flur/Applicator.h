@@ -57,11 +57,10 @@ private:
     T& _dest;
 };
 
-template <class T, class F>
-struct SumF : ApplicatorBase
+template <class T, class TBinaryFunction>
+struct Collect : ApplicatorBase
 {
-    F _f;
-    SumF(T& dest, F f)
+    Collect(T& dest, TBinaryFunction f)
         : _dest(dest)
         , _f(std::move(f))
     {
@@ -74,11 +73,14 @@ struct SumF : ApplicatorBase
         for(details::get_reference(seq).start();
             details::get_reference(seq).in_range();
             details::get_reference(seq).next())
-            _dest += _f(details::get_reference(seq).current());
+        {
+            _f(_dest, details::get_reference(seq).current());
+        }
     }
 
 private:
     T& _dest;
+    TBinaryFunction _f;
 };
 
 //

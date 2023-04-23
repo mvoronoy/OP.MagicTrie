@@ -1330,8 +1330,8 @@ void test_10k(OP::utest::TestRuntime& tresult)
         using namespace OP::flur;
         sum = 0;
         auto minibatch = [&]() {
-            std::uint64_t sum2 = 0;
-            (src::of_iota(0, 3)
+            std::future<std::uint64_t> future_sum{};
+            src::of_iota(0, 3)
                 >> then::mapping([&](auto i) {
                         atom_string_t buffer = "a"_astr;
                         to_hext(i, buffer, 1);
@@ -1339,15 +1339,23 @@ void test_10k(OP::utest::TestRuntime& tresult)
                         return std::make_shared<decltype(range)>(std::move(range));
                     })
                 >> then::minibatch<2>(tp)
-                >> then::mapping([&](auto range) {
-                        return tp.async([f = std::move(range)]() {
-                            std::uint64_t local_sum = 0;
-                            for (auto& iter : *f)
-                                local_sum += iter.value();
-                            return local_sum; });
-                    })
-                ).apply(SumF(sum2, [](auto&& future){return future.get();}));
-                sum = sum2;
+                >>= Collect(
+                    future_sum, 
+                    [&](std::future<std::uint64_t>& previous, auto&& range) -> void
+                    {
+                        previous = std::move(
+                            tp.async([fut = std::move(previous), r2 = range]() mutable
+                            {
+                                std::uint64_t local_sum = 0;
+                                for (auto& iter : *r2)
+                                    local_sum += iter.value();
+                                return fut.valid()
+                                    ? fut.get() + local_sum
+                                    //first entry
+                                    : local_sum;
+                            }));
+                    });
+                sum = future_sum.get();
         };
         std::cout << "minibatch=" << measure(minibatch) << "\tsum=" << sum << "\n";
         tresult.assert_that<equals>(expecting_sum_c, sum);
