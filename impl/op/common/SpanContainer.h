@@ -305,23 +305,7 @@ namespace OP
 
             ~SpanContainer()
             {
-                std::vector<std::unique_ptr<Index>> postponed;
-                postponed.emplace_back(std::move(_index));
-                while(!postponed.empty()){
-                    auto current = std::move(postponed.back());
-                    postponed.pop_back();
-                    for(auto& node : current->_interrior)
-                    {
-                        if(!node)
-                            break;
-                        else if(!node->is_terminal())
-                        {
-                            postponed.emplace_back(static_cast<Index*>(node.release()));
-                        }
-                        else
-                            node.reset();
-                    }
-                }
+                _clear(false);
             }
             /** add new entry */
             template <class... Args>
@@ -396,10 +380,39 @@ namespace OP
                 }
                 return 0;
             }
+            void clear()
+            {
+                _clear(true);
+            }
         private:
             static void default_next(storage_iter_t& iter)
             {
                 ++iter;
+            }
+
+            void _clear(bool restart)
+            {
+                std::vector<std::unique_ptr<Index>> postponed;
+                postponed.emplace_back(std::move(_index));
+                while(!postponed.empty())
+                {
+                    auto current = std::move(postponed.back());
+                    postponed.pop_back();
+                    for(auto& node : current->_interrior)
+                    {
+                        if(!node)
+                            break;
+                        else if(!node->is_terminal())
+                        {
+                            postponed.emplace_back(static_cast<Index*>(node.release()));
+                        }
+                        else
+                            node.reset();
+                    }
+                }
+                _store.clear();
+                if(restart)
+                    _index.reset(new Index);
             }
             /**Add one more data iterator position to 'target' index */
             //void _append_data_ref(Terminal& target, Nav& to_update)

@@ -9,16 +9,20 @@ namespace OP
     namespace trie
     {
 
-        /**
-        *   Origin from http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
-        */
-        inline std::uint32_t log2_32(std::uint32_t v)
+        namespace details
         {
-            static const std::uint8_t MultiplyDeBruijnBitPosition[32] =
+            constexpr static inline std::uint8_t MultiplyDeBruijnBitPosition[32] =
             {
                 0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
                 8, 12, 20, 28, 15, 17, 24, 7, 19, 27, 23, 6, 26, 5, 4, 31
             };
+
+        }
+        /**
+        *   Origin from http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
+        */
+        constexpr inline std::uint32_t log2_32(std::uint32_t v) noexcept
+        {
 
             v |= v >> 1; // first round down to one less than a power of 2 
             v |= v >> 2;
@@ -26,34 +30,72 @@ namespace OP
             v |= v >> 8;
             v |= v >> 16;
 
-            return MultiplyDeBruijnBitPosition[static_cast<std::uint32_t>(v * 0x07C4ACDDU) >> 27];
+            return details::MultiplyDeBruijnBitPosition[static_cast<std::uint32_t>(v * 0x07C4ACDDU) >> 27];
         }
-        inline std::uint32_t log2_64(std::uint64_t v)
+
+        constexpr inline std::uint32_t log2_64(std::uint64_t v) noexcept
         {
             return v > 0x00000000FFFFFFFFul
                 ? log2_32(static_cast<std::uint32_t>(v >> 32)) + 32
                 : log2_32(static_cast<std::uint32_t>(v))
                 ;
         }
+
+        template <class T>
+        constexpr inline std::uint32_t log2(T v) noexcept
+        {
+            static_assert(std::is_same_v<std::uint64_t, T> 
+                || std::is_same_v<std::uint32_t, T>
+                || std::is_same_v<std::uint16_t, T>
+                || std::is_same_v<std::uint8_t, T>
+                , 
+                "Only unsigned scalar types are implemented"); 
+            if constexpr(std::is_same_v<std::uint64_t, T>)
+                return log2_64(v);
+            else 
+                return log2_32(v);
+        }
+
         /**
         *   Origin from http://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightMultLookup
         */
-        inline std::uint32_t count_trailing_zero_32(std::uint32_t v)
+        constexpr inline std::uint32_t count_trailing_zero_32(std::uint32_t v) noexcept
         {
-            static const std::uint8_t MultiplyDeBruijnBitPosition[32] =
+            constexpr const std::uint8_t MultiplyDeBruijnBitPosition[32] =
             {
                 0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
                 31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
             };
             return MultiplyDeBruijnBitPosition[static_cast<std::uint32_t>(((v & (~v+1)) * 0x077CB531U)) >> 27];
         }
-        inline std::uint32_t count_trailing_zero_64(std::uint64_t v)
+
+        constexpr inline std::uint32_t count_trailing_zero_64(std::uint64_t v) noexcept
         {
             return (v & 0x00000000FFFFFFFFul)
                 ? count_trailing_zero_32(static_cast<std::uint32_t>(v))
                 : count_trailing_zero_32(static_cast<std::uint32_t>(v >> 32)) + 32
                 ;
         }
+        
+        /** Estimate power of 2 that in compare with log2 ceil result up */
+        template <class TUInt>
+        constexpr inline TUInt ceil_power(TUInt v) noexcept
+        {
+            --v;
+            /* Like :
+            v |= v >> 1;
+            v |= v >> 2;
+            v |= v >> 4;
+            v |= v >> 8;
+            v |= v >> 16; 
+            */
+            for (TUInt i = 1; i <= (sizeof(v)<<2); i <<= 1)
+            {
+                v |= v >> i;
+            }
+            return ++v;
+        }
+
         template <size_t N, class Int>
         struct BitsetIterator 
         {
@@ -68,26 +110,33 @@ namespace OP
             using difference_type = ptrdiff_t;
             using this_t = BitsetIterator<N, Int>;
 
-            BitsetIterator() : _ptr(nullptr), _offset{} {}
+            BitsetIterator() noexcept 
+                : _ptr(nullptr)
+                , _offset{} 
+            {}
 
-            BitsetIterator(const Int* rhs, size_t offset)
+            BitsetIterator(const Int* rhs, size_t offset) noexcept
                 : _ptr(rhs)
-                , _offset(offset) {}
+                , _offset(offset) 
+            {}
 
-            inline this_t& operator+=(difference_type rhs)
+            inline this_t& operator += (difference_type rhs) noexcept
             {
                 _offset += rhs;
                 return *this;
             }
-            inline this_t& operator-=(difference_type rhs)
+            
+            inline this_t& operator-=(difference_type rhs) noexcept
             {
                 _offset -= rhs;
                 return *this;
             }
+
             inline bool operator*() const
             {
                 return operator[](_offset);
             }
+
             inline bool operator[](size_t index) const
             {
                 assert(index < bit_length_c);
@@ -95,80 +144,87 @@ namespace OP
                 return (_ptr[(N - 1) - index / bits_c] & (1ULL << (index % bits_c))) != 0;
             }
 
-            inline this_t& operator++()
+            inline this_t& operator++() noexcept
             {
                 ++_offset;
                 return *this;
             }
-            inline this_t& operator--()
+
+            inline this_t& operator--() noexcept
             {
                 --_offset;
                 return *this;
             }
-            inline this_t operator++(int)
+            
+            inline this_t operator++(int) noexcept
             {
                 this_t tmp(*this);
                 --_offset;
                 return tmp;
             }
-            inline this_t operator--(int)
+
+            inline this_t operator--(int) noexcept
             {
                 this_t tmp(*this);
                 --_ptr;
                 return tmp;
             }
+            
             /* inline Iterator operator+(const Iterator& rhs) {return Iterator(_ptr+rhs.ptr);} */
-            inline difference_type operator-(const this_t& rhs) const
+            inline difference_type operator-(const this_t& rhs) const noexcept
             {
                 assert(_ptr == rhs._ptr);
                 return difference_type(_offset - rhs.offset);
             }
-            inline this_t operator+(difference_type rhs) const
+            
+            inline this_t operator+(difference_type rhs) const noexcept
             {
                 this_t result(*this);
                 result._offset += rhs;
                 return result;
             }
-            inline this_t operator-(difference_type rhs) const
+            
+            inline this_t operator-(difference_type rhs) const noexcept
             {
                 this_t result(*this);
                 result._offset -= rhs;
                 return result;
             }
-            friend inline this_t operator+(difference_type lhs, const this_t& rhs)
+            
+            friend inline this_t operator+(difference_type lhs, const this_t& rhs) noexcept
             {
                 this_t result(rhs);
                 result._offset += lhs;
                 return result;
             }
-            friend inline this_t operator-(difference_type lhs, const this_t& rhs)
+            friend inline this_t operator-(difference_type lhs, const this_t& rhs) noexcept
             {
                 this_t result(rhs);
                 result._offset = lhs - result._offset;
                 return result;
             }
 
-            inline bool operator==(const this_t& rhs) const
+            inline bool operator==(const this_t& rhs) const noexcept
             {
                 return  _offset == rhs._offset;
             }
-            inline bool operator!=(const this_t& rhs) const
+            inline bool operator!=(const this_t& rhs) const noexcept
             {
                 return _offset != rhs._offset;
             }
-            inline bool operator>(const this_t& rhs) const
+            inline bool operator>(const this_t& rhs) const noexcept
             {
                 return _offset > rhs._offset;
             }
-            inline bool operator<(const this_t& rhs) const
+            inline bool operator<(const this_t& rhs) const noexcept
             {
                 return _offset < rhs._offset;
             }
-            inline bool operator>=(const this_t& rhs) const
+            inline bool operator>=(const this_t& rhs) const noexcept
             {
                 return _offset >= rhs._offset;
             }
-            inline bool operator<=(const this_t& rhs) const
+            inline bool operator<=(const this_t& rhs) const noexcept
             {
                 return _offset <= rhs._offset;
             }
@@ -243,6 +299,7 @@ namespace OP
             typename TBitset::dim_t _pos;
             const TBitset *_owner;
         };
+
         /**Represent bit-set.*/
         template <size_t N = 1, typename Int = std::uint64_t>
         struct Bitset
@@ -256,6 +313,7 @@ namespace OP
             typedef std::uint16_t dim_t;
             typedef std::uint8_t atom_t;
             constexpr static const dim_t nil_c = dim_t(~0u);
+            
             enum
             {
                 /**bits count in single entry*/
@@ -263,37 +321,46 @@ namespace OP
                 /**Total bit count managed by this container*/
                 bit_length_c = const_iterator::bit_length_c
             };
-            explicit Bitset(Int def = {0})
+            
+            constexpr explicit Bitset(Int def = {0}) noexcept
             {
-                std::fill_n(_presence, N, def);
+                for(size_t i = 0; i < N; ++i)
+                    _presence[i] = def;
             }
-            const_iterator begin() const
+
+            const_iterator begin() const noexcept
             {
                 return const_iterator(_presence, 0);
             }
-            const_iterator end() const
+
+            const_iterator end() const noexcept
             {
                 return const_iterator(_presence, bit_length_c);
             }
-            const_presence_iterator presence_begin() const
+
+            const_presence_iterator presence_begin() const noexcept
             {
                 return const_presence_iterator(this);
             }
-            const_presence_iterator presence_end() const
+
+            const_presence_iterator presence_end() const noexcept
             {
                 return const_presence_iterator();
             }
+
             /**@return index of first bit that is set, or `nil_c` if no bits*/
-            inline dim_t first_set() const
+            constexpr inline dim_t first_set() const noexcept
             {
                 return presence_index(_presence);
             }
-            inline dim_t last_set() const
+
+            constexpr inline dim_t last_set() const noexcept
             {
                 return revert_presence_index(_presence);
             }
+
             /**Return index of bit that is set after 'prev' one. May return `nil_c` if no bits are set.*/
-            inline dim_t next_set(dim_t prev) const
+            constexpr inline dim_t next_set(dim_t prev) const noexcept
             {
                 Int mask = (1ULL << (prev % bits_c));
                 mask |= mask - 1;
@@ -308,8 +375,9 @@ namespace OP
                 }
                 return nil_c;
             }
+            
             /**Return index of set bit that is equal or follow after 'prev'. May return `nil_c` if no bits are set.*/
-            inline dim_t next_set_or_this(dim_t prev) const
+            constexpr inline dim_t next_set_or_this(dim_t prev) const noexcept
             {
                 Int mask = (1ULL << (prev % bits_c)) - 1;
                 for (auto i = prev / bits_c; i < N; ++i)
@@ -323,8 +391,9 @@ namespace OP
                 }
                 return nil_c;
             }
+            
             /**Return index of bit that is set prior 'index' one. May return `nil_c` if no bits are set prior index.*/
-            inline dim_t prev_set(dim_t index) const
+            constexpr inline dim_t prev_set(dim_t index) const noexcept
             {
                 Int mask = (1ULL << (index % bits_c)) - 1;
                 for (int i = index / bits_c; i >=0; --i)
@@ -340,12 +409,12 @@ namespace OP
             }
             
             /**Return index of first bit that is not set*/
-            inline dim_t first_clear() const
+            inline dim_t first_clear() const noexcept
             {
                 return clearence_index(_presence);
             }
             
-            inline bool get(dim_t index)const
+            constexpr inline bool get(dim_t index) const noexcept
             {
                 assert(index < bit_length_c);
                 return 0 != (_presence[index / bits_c] & ( 1ULL << (index % bits_c) ));
@@ -368,21 +437,27 @@ namespace OP
                 val ? set(index):clear(index);
             }
 
-            inline void toggle(dim_t index)
+            /** Invert bit at specified pos. 
+            * @return previous state
+            */
+            inline bool toggle(dim_t index)
             {
                 assert(index < bit_length_c);
-                _presence[index / bits_c] ^= (1ULL << (index % bits_c));
+                Int mask = (1ULL << (index % bits_c));
+                return !((_presence[index / bits_c] ^= mask) & mask);
             }
 
-            size_t capacity() const
+            constexpr size_t capacity() const
             {
                 return bit_length_c;
             }
+
         private:
-            static inline dim_t ln2(std::uint_fast64_t value)
+            constexpr static inline dim_t ln2(std::uint_fast64_t value) noexcept
             {
                 return log2_64(value);
             }
+
             static inline dim_t presence_index(const std::uint64_t presence[N])
             {
                 for (auto i = 0; i < N; ++i)
@@ -394,6 +469,7 @@ namespace OP
                 }
                 return nil_c;
             }
+
             /**Find position of lowest bit-set*/
             static inline dim_t revert_presence_index(const std::uint64_t presence[N])
             {
@@ -407,6 +483,7 @@ namespace OP
                 }
                 return nil_c;
             }
+
             /**detect first un-set bit*/
             static inline dim_t clearence_index(const std::uint64_t presence[N])
             {   

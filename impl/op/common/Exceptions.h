@@ -44,8 +44,10 @@ namespace OP
             er_transaction_concurent_lock = 41,
             /** Using already closed transaction (transaction in ghost-state)*/
             er_transaction_ghost_state = 42,
-            /**Transactional memory blocks cannot be overlapped. Blocks may be nested, adjasted or separated. */
-            er_overlapping_block = 43
+            /** Transactional memory blocks cannot be overlapped. Blocks may be nested, adjasted or separated. */
+            er_overlapping_block = 43,
+            /** readonly transaction in progress */
+            er_ro_transaction_started = 44
         };
         struct Exception : public std::logic_error
         {

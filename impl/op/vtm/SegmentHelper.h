@@ -57,17 +57,20 @@ namespace OP::vtm
         constexpr FarAddress(segment_idx_t a_segment, segment_pos_t a_offset) noexcept :
             segment(a_segment),
             offset(a_offset) {}
-        constexpr operator far_pos_t() const
+
+        constexpr operator far_pos_t() const noexcept
         {
             return address;
         }
-        constexpr FarAddress operator + (segment_pos_t pos) const
+
+        constexpr FarAddress operator + (segment_pos_t pos) const noexcept
         {
             assert(offset <= (~segment_pos_t(0) - pos)); //test overflow
             return FarAddress(segment, offset + pos);
         }
+
         /**Signed operation*/
-        constexpr FarAddress operator + (segment_off_t a_offset) const
+        constexpr FarAddress operator + (segment_off_t a_offset) const 
         {
             assert(
                 ((a_offset < 0) && (static_cast<segment_pos_t>(-a_offset) < offset))
@@ -76,6 +79,7 @@ namespace OP::vtm
 
             return FarAddress(segment, offset + a_offset);
         }
+
         FarAddress& operator += (segment_pos_t pos)
         {
             assert(offset <= (~0u - pos)); //test overflow
@@ -89,28 +93,29 @@ namespace OP::vtm
             return offset - other.offset;
         }
         
-        constexpr bool is_nil() const
+        constexpr bool is_nil() const noexcept
         {
             return address == SegmentDef::far_null_c;
         }
 
-        friend constexpr bool operator == (const FarAddress& left, const FarAddress& right)
+        friend constexpr bool operator == (const FarAddress& left, const FarAddress& right) noexcept
         {
             return left.address == right.address;
         }
 
-        friend constexpr bool operator != (const FarAddress& left, const FarAddress& right)
+        friend constexpr bool operator != (const FarAddress& left, const FarAddress& right) noexcept
         {
             return left.address != right.address;
         }
     };
     /**get segment part from far address*/
-    inline segment_idx_t segment_of_far(far_pos_t pos)
+    constexpr inline segment_idx_t segment_of_far(far_pos_t pos) noexcept
     {
         return static_cast<segment_idx_t>(pos >> 32);
     }
+
     /**get offset part from far address*/
-    inline segment_pos_t pos_of_far(far_pos_t pos)
+    constexpr inline segment_pos_t pos_of_far(far_pos_t pos) noexcept
     {
         return static_cast<segment_pos_t>(pos);
     }

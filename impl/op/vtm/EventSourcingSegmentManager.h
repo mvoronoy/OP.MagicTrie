@@ -26,9 +26,13 @@ namespace OP
             ReadUncommitted
         };
 
+        class ROTransaction;
+
         class EventSourcingSegmentManager : public SegmentManager
         {
             friend SegmentManager;
+            friend ROTransaction;
+
         public:
 
             EventSourcingSegmentManager() = delete;
@@ -183,6 +187,10 @@ namespace OP
 
             MemoryChunk writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
             {
+                if( _ro_tran > 0)
+                {
+                    throw Exception(er_ro_transaction_started);
+                }
                 transaction_impl_ptr_t current_transaction = 
                     std::static_pointer_cast<TransactionImpl>(get_current_transaction());
                 if( !current_transaction ) //write is permitted in transaction scope only
@@ -573,13 +581,35 @@ namespace OP
             /**Allows notify background worker to check for some job*/
             std::condition_variable _cv_disposer;
             std::atomic<bool> _done_captured_worker = false;
+            std::atomic<size_t> _ro_tran = 0;
             mutable std::mutex _dispose_lock;
             std::deque<transaction_impl_ptr_t> _ready_to_dispose;
             /**background worker to release redundant records from _captured*/
             std::thread _captured_worker;
             std::atomic<ReadIsolation> _read_isolation = ReadIsolation::ReadCommitted;
         };
+        
 
+        class ROTransaction
+        {
+            void* operator new  ( std::size_t count ) = delete;
+            void* operator new [] ( std::size_t count ) = delete;
+
+        public:
+            ROTransaction(EventSourcingSegmentManager& owner)
+                : _owner(owner)
+            {
+                ++_owner._ro_tran;
+            } 
+
+            ~ROTransaction()
+            {
+                --_owner._ro_tran;
+            }
+
+        private:
+            EventSourcingSegmentManager& _owner;
+        };
     } //ns::trie
 }//ns::OP
 

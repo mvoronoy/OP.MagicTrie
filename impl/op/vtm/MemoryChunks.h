@@ -279,15 +279,15 @@ namespace OP::vtm
         /**Block is used only for write purpose and doesn't contain usefull information yet*/
         new_c = block_for_write_c
     };
-    constexpr inline WritableBlockHint operator & (WritableBlockHint left, WritableBlockHint right)
+    constexpr inline WritableBlockHint operator & (WritableBlockHint left, WritableBlockHint right) noexcept
     {
         return static_cast<WritableBlockHint>(static_cast<std::uint8_t>(left) & static_cast<std::uint8_t>(right));
     }
-    constexpr inline WritableBlockHint operator | (WritableBlockHint left, WritableBlockHint right)
+    constexpr inline WritableBlockHint operator | (WritableBlockHint left, WritableBlockHint right) noexcept
     {
         return static_cast<WritableBlockHint>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
     }
-    constexpr inline WritableBlockHint operator ~ (WritableBlockHint hint)
+    constexpr inline WritableBlockHint operator ~ (WritableBlockHint hint) noexcept
     {
         return static_cast<WritableBlockHint>( ~static_cast<std::uint8_t>(hint) );
     }
