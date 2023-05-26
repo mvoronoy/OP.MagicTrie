@@ -38,17 +38,17 @@ namespace OP::vtm
             Transaction& operator = (const Transaction&) = delete;
             Transaction& operator = (Transaction&& other) = delete;
 
-            Transaction(Transaction && other) OP_NOEXCEPT :
+            Transaction(Transaction && other) noexcept :
                 _transaction_id(other._transaction_id)
             {
             }
 
-            virtual ~Transaction() OP_NOEXCEPT
+            virtual ~Transaction() noexcept
             {
 
             }
             
-            virtual transaction_id_t transaction_id() const
+            virtual transaction_id_t transaction_id() const noexcept
             {
                 return _transaction_id;
             }

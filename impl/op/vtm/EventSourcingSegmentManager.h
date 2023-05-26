@@ -26,13 +26,9 @@ namespace OP
             ReadUncommitted
         };
 
-        class ROTransaction;
-
         class EventSourcingSegmentManager : public SegmentManager
         {
             friend SegmentManager;
-            friend ROTransaction;
-
         public:
 
             EventSourcingSegmentManager() = delete;
@@ -56,9 +52,24 @@ namespace OP
                 return _read_isolation.exchange(new_level);
             }
             
+            [[nodiscard]] transaction_ptr_t begin_ro_transaction() 
+            {
+                const ro_guard_t g(_opened_transactions_lock);
+                if (!_opened_transactions.empty())
+                {
+                    throw Exception(er_cannot_start_ro_transaction);
+                }
+                return transaction_ptr_t(
+                    new ReadOnlyTransaction(_transaction_uid_gen.fetch_add(1), *this));
+            }
+
             [[nodiscard]] transaction_ptr_t begin_transaction() override
             {
                 wr_guard_t g(_opened_transactions_lock);
+                if (_ro_tran > 0)
+                {//there are already RO-tran in the scope
+                    throw Exception(er_ro_transaction_started);
+                }
                 auto thread_id = std::this_thread::get_id();
                 auto insres = _opened_transactions.emplace(
                     std::piecewise_construct,
@@ -67,7 +78,7 @@ namespace OP
                 if (insres.second) //just insert
                 {
                     insres.first->second = transaction_impl_ptr_t(
-                        new TransactionImpl(_transaction_uid_gen.fetch_add(1), this));
+                        new TransactionImpl(_transaction_uid_gen.fetch_add(1), *this));
                     return insres.first->second;
                 }
                 //transaction already exists, just create save-point
@@ -82,7 +93,8 @@ namespace OP
                     std::static_pointer_cast<TransactionImpl>(get_current_transaction());
 
                 auto result = SegmentManager::readonly_block(pos, size, hint);
-
+                if (_ro_tran)
+                    return result;
                 RWR search_range(pos, size);
                 history_ordered_log_t transaction_log;
 
@@ -195,10 +207,15 @@ namespace OP
                     std::static_pointer_cast<TransactionImpl>(get_current_transaction());
                 if( !current_transaction ) //write is permitted in transaction scope only
                     throw Exception(er_transaction_not_started);
-
-                auto result = SegmentManager::readonly_block(pos, size, ReadonlyBlockHint::ro_no_hint_c); //it is not a mistake to use readonly(!)
-                shadow_buffer_t new_buffer = shadow_buffer_t{new std::uint8_t[result.count()], [](std::uint8_t *p) {delete[]p; } };
-                memcpy(new_buffer.get(), result.at<std::uint8_t>(0), result.count()); //first copy origin from disk
+                
+                auto result = SegmentManager::readonly_block(
+                    pos, size, ReadonlyBlockHint::ro_no_hint_c); //it is not a mistake to use readonly(!)
+                shadow_buffer_t new_buffer = shadow_buffer_t{
+                    new std::uint8_t[result.count()], 
+                    [](std::uint8_t *p) {delete[]p; } };
+                //first copy origin from disk
+                memcpy(
+                    new_buffer.get(), result.at<std::uint8_t>(0), result.count()); 
                 RWR search_range(pos, size);
                 //temp ordered sequence that is populated and used as a transaction log
                 history_ordered_log_t transaction_log;
@@ -352,7 +369,7 @@ namespace OP
                         throw Exception(ErrorCode::er_transaction_ghost_state);
                     // No real commit for WR, since save point have to wait untill entire transaction complete
                     // but we can remove all read locks unless ReadonlyBlockHint::ro_keep_lock used
-                    _framed_tran->_owner->apply_transaction_log(
+                    _framed_tran->_owner.apply_transaction_log(
                         begin(), _framed_tran->_transaction_log.end(),
                         [](const auto& map_iter){
                             return map_iter->second._is_ro //block for read
@@ -364,7 +381,7 @@ namespace OP
                 {
                     if(_tr_state >= ts_sealed_noop_c)
                         throw Exception(ErrorCode::er_transaction_ghost_state);
-                    _framed_tran->_owner->apply_transaction_log(begin(), _framed_tran->_transaction_log.end(),
+                    _framed_tran->_owner.apply_transaction_log(begin(), _framed_tran->_transaction_log.end(),
                         [](const auto& ){return true;/* on rollback remove all used blocks*/});
                     ++_tr_state;
                 }
@@ -387,7 +404,7 @@ namespace OP
             /**Implement Transaction interface*/
             struct TransactionImpl : public Transaction, std::enable_shared_from_this<TransactionImpl>
             {
-                TransactionImpl(transaction_id_t id, EventSourcingSegmentManager* owner)
+                TransactionImpl(transaction_id_t id, EventSourcingSegmentManager& owner) noexcept
                     : Transaction(id)
                     , _owner(owner)
                 {
@@ -424,7 +441,7 @@ namespace OP
                     }
                     _garbage_collect.reserve(_garbage_collect.size() + _transaction_log.size());
 
-                    _owner->apply_transaction_log(_transaction_log.begin(), _transaction_log.end(), 
+                    _owner.apply_transaction_log(_transaction_log.begin(), _transaction_log.end(), 
                             [this](const auto& map_iter){
                                 //let's postpone real memory dealloc for background worker
                                 _garbage_collect.emplace_back(map_iter->second._shadow);
@@ -432,8 +449,9 @@ namespace OP
                     });
                     
                     //notify background worker to dispose this tran
-                    _owner->dispose_transaction(shared_from_this());
+                    _owner.dispose_transaction(shared_from_this());
                 }
+
                 void commit() override
                 {
                     if(_tr_state >= ts_sealed_rollback_only_c)
@@ -445,14 +463,14 @@ namespace OP
                     }
                     _garbage_collect.reserve(_garbage_collect.size() + _transaction_log.size());
                     //iterate all save-points in direct order and apply commit
-                    _owner->apply_transaction_log(_transaction_log.begin(), _transaction_log.end(), 
+                    _owner.apply_transaction_log(_transaction_log.begin(), _transaction_log.end(), 
                             [&, this](const auto&map_iter){
                                 if( !map_iter->second._is_ro )
                                 {//copy shadow buffer to disk
                                     //block must not exceed segment size
                                     assert(map_iter->first.count() < std::numeric_limits<segment_pos_t>::max());
                                     segment_pos_t byte_size = static_cast<segment_pos_t>(map_iter->first.count());
-                                    auto mb = _owner->raw_writable_block(
+                                    auto mb = _owner.raw_writable_block(
                                             FarAddress(map_iter->first.pos()), 
                                             byte_size,
                                             (WritableBlockHint)map_iter->second._flag );
@@ -463,7 +481,7 @@ namespace OP
                             });
                     
                     //notify background worker to dispose this tran
-                    _owner->dispose_transaction(shared_from_this());
+                    _owner.dispose_transaction(shared_from_this());
                 }
                 
                 /**Allows discover state if transaction still exists (not in ghost state) */
@@ -476,7 +494,8 @@ namespace OP
                 {
                     return _gen_block_history.fetch_add(1, std::memory_order_relaxed);
                 }
-                EventSourcingSegmentManager *_owner;
+
+                EventSourcingSegmentManager& _owner;
                 std::atomic_uint64_t _gen_block_history{0};
 
 
@@ -486,10 +505,54 @@ namespace OP
 
                 transaction_state_t _tr_state = ts_active_c;
                 linear_log_t _transaction_log;
-                size_t _max_save_point_size = 0; //just for euristic
+                size_t _max_save_point_size = 0; //just for heuristic
                 transaction_end_listener_t _end_listener;
                 shadow_buffer_array_t _garbage_collect;
             };
+
+            struct ReadOnlyTransaction : public Transaction
+            {
+            
+                ReadOnlyTransaction(transaction_id_t id, EventSourcingSegmentManager& owner)
+                    : Transaction(id)
+                    , _owner(owner)
+                {
+                    ++_owner._ro_tran;
+                }
+
+                ~ReadOnlyTransaction()
+                {
+                }
+
+                virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
+                {
+                    _end_handlers.emplace_back(std::move(handler));
+                }
+
+                /** RO transaction has nothing to rollback, so just notify subscribers about rollback */
+                virtual void rollback()
+                    override
+                {
+                    --_owner._ro_tran;
+                    for(auto& h: _end_handlers)
+                        h->on_rollback();
+                }
+
+                /** RO transaction has nothing to commit, so just notify subscribers about rollback */
+                virtual void commit()
+                    override
+                {
+                    --_owner._ro_tran;
+                    for (auto& h: _end_handlers)
+                        h->on_commit();
+                }
+
+            private:
+                
+                std::vector< std::unique_ptr<BeforeTransactionEnd>> _end_handlers;
+                EventSourcingSegmentManager& _owner;
+            };
+
             using transaction_impl_ptr_t = std::shared_ptr<TransactionImpl>;
 
             /*just provide access to parent's writable-block*/
@@ -590,26 +653,6 @@ namespace OP
         };
         
 
-        class ROTransaction
-        {
-            void* operator new  ( std::size_t count ) = delete;
-            void* operator new [] ( std::size_t count ) = delete;
-
-        public:
-            ROTransaction(EventSourcingSegmentManager& owner)
-                : _owner(owner)
-            {
-                ++_owner._ro_tran;
-            } 
-
-            ~ROTransaction()
-            {
-                --_owner._ro_tran;
-            }
-
-        private:
-            EventSourcingSegmentManager& _owner;
-        };
     } //ns::trie
 }//ns::OP
 

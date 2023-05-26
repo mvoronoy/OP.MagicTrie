@@ -19,219 +19,8 @@ using namespace OP::vtm;
 using namespace OP::trie;
 using namespace OP::utest;
 
-
-//convert (x,y) to d
-template <class TUint, size_t N = (1ull << (sizeof(TUint) << 3)) >
-struct HilbertCurve
-{
-    TUint _d;
-    constexpr HilbertCurve(TUint x, TUint y) noexcept
-        : _d(0)
-    {
-        for (TUint s = N >> 1; s; s >>= 1)
-        {
-            TUint rx = (x & s) > 0 ? 1 : 0;
-            TUint ry = (y & s) > 0 ? 1 : 0;
-            _d += s * s * ((3 * rx) ^ ry);
-            rot(N, x, y, rx, ry);
-        }
-    }
-
-    constexpr explicit HilbertCurve(TUint d) noexcept
-        :_d(d)
-    {
-    }
-
-    constexpr bool operator < (const HilbertCurve& other) const noexcept
-    {
-        return _d < other._d;
-    }
-
-    constexpr bool operator == (const HilbertCurve& other) const noexcept
-    {
-        return _d == other._d;
-    }
-    
-    constexpr auto operator - (const HilbertCurve& other) const noexcept
-    {
-        return HilbertCurve(_d - other._d);
-    }
-
-    //convert d to (x,y)
-    constexpr std::pair<TUint, TUint> xy() const noexcept
-    {
-        std::pair<TUint, TUint> result{ 0, 0 };
-        for (TUint s = 1, t = _d; /*s < N*/s; s <<= 1)
-        {
-            TUint rx = 1 & (t >> 1);
-            TUint ry = 1 & (t ^ rx);
-            rot(s, result.first, result.second, rx, ry);
-            result.first += s * rx;
-            result.second += s * ry;
-            t >>= 2; // eg (/= 4)
-        }
-        return result;
-    }
-
-    constexpr Range<TUint, TUint> range() const noexcept
-    {
-        auto [x, y] = xy();
-        return Range<TUint, TUint>{Abs{}, x, y};
-    }
-
-    friend inline std::ostream& operator << (std::ostream& os, const HilbertCurve& curv)
-    {
-        auto [x, y] = curv.xy();
-        IoFlagGuard<> g(os);
-        return (os << "h:0x" << std::hex << curv._d << "=(" << x << ", " << y << ")");
-    }
-
-private:
-    //rotate/flip a quadrant appropriately
-    constexpr static void rot(TUint n, TUint& x, TUint& y, TUint rx, TUint ry) noexcept
-    {
-        if (ry == 0)
-        {
-            if (rx == 1)
-            {
-                x = n - 1 - x;
-                y = n - 1 - y;
-            }
-            //Swap x and y
-            x ^= y;
-            y ^= x;
-            x ^= y;
-        }
-    }
-};
-
-template <class TUint = std::uint32_t>
-struct MortonNumber
-{
-    TUint _morton_number; 
-    constexpr static inline TUint N = sizeof(TUint) << 3;
-    constexpr MortonNumber(TUint x, TUint y) noexcept
-        : _morton_number(0)
-    {
-        for (size_t i = 0; i < (N>>1); ++i)
-        {
-            _morton_number |= (x & 1U << i) << i | (y & 1U << i) << (i + 1);
-        }
-    }
-    MortonNumber(TUint n) : _morton_number(n) {}
-
-    constexpr TUint get() const noexcept
-    {
-        return _morton_number;
-    }
-
-    constexpr std::pair<TUint, TUint> xy() const noexcept
-    {
-        std::pair<TUint, TUint> result{ 0, 0 };
-
-        for (TUint i = 0; i < (N>>1); ++i)
-        {
-            result.first |= (_morton_number & (1u << i*2)) >> i;
-            result.second |= (_morton_number & (2u << i*2)) >> (i+1);
-        }
-        return result;
-    }
-
-    constexpr Range<TUint, TUint> range() const noexcept
-    {
-        auto [x, y] = xy();
-        return Range<TUint, TUint>{Abs{}, x, y};
-    }
-
-    constexpr bool operator < (const MortonNumber& other) const noexcept
-    {
-        return _morton_number < other._morton_number;
-    }
-
-    constexpr bool operator == (const MortonNumber& other) const noexcept
-    {
-        return _morton_number == other._morton_number;
-    }
-
-    friend inline std::ostream& operator << (std::ostream& os, const MortonNumber& curv)
-    {
-        auto [x, y] = curv.xy();
-        IoFlagGuard<> g(os);
-        return (os << "m:0x" << std::hex << curv._morton_number << "=(" << x << ", " << y << ")");
-    }
-    /*
-    constexpr auto operator + (const HilbertCurve& other) const noexcept
-    {
-        return MortonNumber(
-            x[i + j] = ((_morton_number | 0b10101010) + other._morton_number) & 0b01010101
-        );
-    }
-    */
-};
-
-/*
-template <class TRange, class TPayload>
-struct LinearRangeContainer
-{
-    using ord_t = typename std::uint64_t;
-
-    constexpr static auto hash_range(const TRange& range) noexcept
-    {
-        return std::make_pair(
-            log2_64(range.pos()),
-            mask(ceil_power64(range.count())));
-    }
-    using number_t = MortonNumber<typename TRange::pos_t>;
-
-    using container_t = std::multimap<number_t, TPayload>;
-    container_t _store;
-    LinearRangeContainer()
-    {
-    }
-    /// add new entry
-    void insert(const TRange& r)
-    {
-        _store.emplace(number_t(r.pos(), r.right()), TPayload{});
-    }
-
-    void clear()
-    {
-        _store.clear();
-    }
-
-    template <class TCallback>
-    size_t intersect_with(const TRange& query, TCallback callback)
-    {
-        auto lb = _store.lower_bound(number_t(query.pos(), query.right()));
-        if (lb == _store.end())
-        {
-            return 0;
-        }
-        auto lowest = lb;
-        size_t count = 0;
-        if (lowest != _store.begin())
-        {
-            --lowest;
-            for (auto low_r = lowest->first.range(); low_r.is_overlapped(query); low_r = (--lowest)->first.range())
-            {
-                callback(low_r, lowest->second);
-                ++count;
-            }
-        }
-        for (auto up_r = lb->first.range(); 
-            lb != _store.end() && up_r.is_overlapped(query); 
-            up_r = (++lb)->first.range())
-        {
-            callback(up_r, lb->second);
-            ++count;
-        }
-        return count;
-    }
-};
-*/
-
 template <class TContainer, size_t NumberOfRanges = 10000>
-void run_ZoneContainer(TestRuntime& tresult)
+void run_ZoneContainerTest(TestRuntime& tresult)
 {
     using test_range_t = typename TContainer::key_t;
     /*   -->address-->
@@ -354,7 +143,6 @@ struct SpanAdapter //test purpose only to expose the same
         for (auto i = _container.intersect_with(query);
             i != _container.end(); ++i)
         {
-
             ++n;
             callback(i->first, i->second);
         }
@@ -421,10 +209,11 @@ void test_ZoneContainer(TestRuntime& tresult)
     std::cout << "-->";
     tresult.assert_that<equals>(0, cor.intersect_with(range_t{ 0x11, 0x100 }, simple_callback));
 
-    run_ZoneContainer< OP::zones::BitboxRangeContainer<range_t, int>>(tresult);
+    tresult.info() << "measure time of 100000 ranges on BitboxRangeContainer\n";
+    run_ZoneContainerTest< OP::zones::BitboxRangeContainer<range_t, int>>(tresult);
     using span_container_t = OP::zones::SpanMap<range_t, int>;
-    
-    run_ZoneContainer< SpanAdapter< span_container_t>>(tresult);
+    tresult.info() << "measure time of 100000 ranges on SpanContainer\n";
+    run_ZoneContainerTest< SpanAdapter< span_container_t>>(tresult);
 }
 
 void test_Zones(TestRuntime& tresult)

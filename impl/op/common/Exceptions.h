@@ -47,8 +47,10 @@ namespace OP
             /** Transactional memory blocks cannot be overlapped. Blocks may be nested, adjasted or separated. */
             er_overlapping_block = 43,
             /** readonly transaction in progress */
-            er_ro_transaction_started = 44
+            er_ro_transaction_started = 44,
+            er_cannot_start_ro_transaction = 45
         };
+
         struct Exception : public std::logic_error
         {
             explicit Exception(ErrorCode code):

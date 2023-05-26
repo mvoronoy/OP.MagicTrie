@@ -24,7 +24,7 @@ namespace OP::vtm
     struct MemoryChunkBase 
     {
 
-        MemoryChunkBase() = default;
+        MemoryChunkBase() noexcept = default;
         MemoryChunkBase(
             far_pos_t pos_offset,
             std::shared_ptr<std::uint8_t> pos, 
@@ -86,12 +86,12 @@ namespace OP::vtm
                 _disposer->on_leave_scope(*this);
         }
 
-        FarAddress address() const
+        FarAddress address() const noexcept
         {
             return _address;
         }
             
-        details::segment_helper_p segment() const
+        details::segment_helper_p segment() const noexcept
         {
             return _segment;
         }
@@ -122,12 +122,12 @@ namespace OP::vtm
         }
             
     private:
-        std::shared_ptr<std::uint8_t> _pos;
-        segment_pos_t _count;
+        std::shared_ptr<std::uint8_t> _pos = {};
+        segment_pos_t _count = 0;
         far_pos_t _pos_offset = 0;
-        disposable_ptr_t _disposer;
-        FarAddress _address;
-        details::segment_helper_p _segment;
+        disposable_ptr_t _disposer = {};
+        FarAddress _address = {};
+        details::segment_helper_p _segment = {};
     };
     /**
     *   Pointer in virtual memory and it size
