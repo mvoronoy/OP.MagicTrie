@@ -68,7 +68,8 @@ namespace OP
                 wr_guard_t g(_opened_transactions_lock);
                 if (_ro_tran > 0)
                 {//there are already RO-tran in the scope
-                    throw Exception(er_ro_transaction_started);
+                    return transaction_ptr_t(
+                        new ReadOnlyTransaction(_transaction_uid_gen.fetch_add(1), *this));
                 }
                 auto thread_id = std::this_thread::get_id();
                 auto insres = _opened_transactions.emplace(

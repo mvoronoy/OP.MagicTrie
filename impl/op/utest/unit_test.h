@@ -342,6 +342,7 @@ namespace OP::utest
         const std::string _name;
     };
 
+
     /** Expose operations to support unit tests */
     struct TestRuntime
     {
@@ -479,6 +480,7 @@ namespace OP::utest
             fail(std::forward<Xetails>(details)...);
             throw 1; //fake line to avoid warning about return value. `fail` will unconditionally raise the exception
         }
+
         /** Unconditional fail */
         template<typename ...Xetails>
         void fail(Xetails&& ...details)
@@ -498,6 +500,26 @@ namespace OP::utest
         static void fail()
         {
             throw TestFail();
+        }
+
+        /** Run callback with time measurement by std::.
+            @return average time in milliseconds of all runs (excluding warm-up).
+        */
+        template <class F>
+        double measure_run(F f, size_t repeat = 10, size_t warm_up = 2)
+        {
+            while(warm_up--)
+                f();
+
+            double sum = 0.;
+            for(size_t i = 0; i < repeat; ++i)
+            {
+                std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+                f();
+                std::chrono::steady_clock::time_point finish = std::chrono::steady_clock::now();
+                sum += std::chrono::duration<double, std::milli>(finish - start).count();
+            }
+            return sum / repeat;
         }
 
     private:

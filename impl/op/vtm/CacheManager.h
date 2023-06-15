@@ -379,7 +379,7 @@ namespace OP{
                 if(pos < _capacity)
                     return;
                 //ceil for nearest bigger of 'pos'
-                auto new_capacity = (1+(pos - 1 ) / capacity_step_c)*capacity_step_c;
+                auto new_capacity = (1+ pos / capacity_step_c)*capacity_step_c;
                 container_t new_data = container_t(new ptr_t[new_capacity]);
                 for (size_t i = 0; i < _capacity; ++i)
                 {
