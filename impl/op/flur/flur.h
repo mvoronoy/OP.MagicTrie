@@ -606,6 +606,13 @@ namespace OP::flur
                 std::forward<F>(applicator), CompareTraits{});
         }
 
+        template <class TFactory>
+        auto make_polymorph(TFactory &&poly)
+        {
+            using impl_t = PolymorphFactory<TFactory>;
+            using base_t = typename impl_t::base_t;
+            return std::shared_ptr< base_t>{new PolymorphFactory( std::forward<TFactory>(poly) )};
+        }
     } //ns:then
 
     namespace apply

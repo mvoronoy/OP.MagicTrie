@@ -16,7 +16,7 @@ struct ApplicatorBase
 template <class OutputIterator>
 struct Drain : ApplicatorBase
 {
-    Drain(OutputIterator out_iter)
+    Drain(OutputIterator out_iter) noexcept
         : _out_iter(std::move(out_iter))
     {
     }
@@ -25,16 +25,24 @@ struct Drain : ApplicatorBase
     void operator()(const Lr& lr)
     {
         auto seq = lr.compound();
-        for(details::get_reference(seq).start();
-            details::get_reference(seq).in_range();
-            details::get_reference(seq).next())
-            *_out_iter++ = details::get_reference(seq).current();
+        auto& rseq = details::get_reference(seq);
+        for(rseq.start(); rseq.in_range(); rseq.next())
+            *_out_iter++ = rseq.current();
     }
 
 private:
     OutputIterator _out_iter;
 };
 
+namespace apply
+{
+    template <class OutputIterator>
+    constexpr auto drain(OutputIterator&& out_iter) noexcept
+    {
+        return Drain<OutputIterator>(std::forward<OutputIterator>(out_iter));
+    }
+
+}// ns:apply
 template <class T>
 struct Sum : ApplicatorBase
 {
@@ -47,10 +55,9 @@ struct Sum : ApplicatorBase
     void operator()(const Lr& lr) const
     {
         auto seq = lr.compound();
-        for(details::get_reference(seq).start();
-            details::get_reference(seq).in_range();
-            details::get_reference(seq).next())
-            _dest += details::get_reference(seq).current();
+        auto& rseq = details::get_reference(seq);
+        for(rseq.start(); rseq.in_range(); rseq.next())
+            _dest += rseq.current();
     }
 
 private:
@@ -70,11 +77,10 @@ struct Collect : ApplicatorBase
     void operator()(const Lr& lr) const
     {
         auto seq = lr.compound();
-        for(details::get_reference(seq).start();
-            details::get_reference(seq).in_range();
-            details::get_reference(seq).next())
+        auto& rseq = details::get_reference(seq);
+        for(rseq.start(); rseq.in_range(); rseq.next())
         {
-            _f(_dest, details::get_reference(seq).current());
+            _f(_dest, rseq.current());
         }
     }
 

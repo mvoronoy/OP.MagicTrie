@@ -112,6 +112,7 @@ namespace OP::flur
             return LazyRange < join_factory_t >(
                 join_factory_t(*this, lr));
         }
+        
         template <class ... Ux>
         constexpr auto operator & (LazyRange<Ux ...>&& lr) && noexcept
         {
@@ -120,6 +121,26 @@ namespace OP::flur
             return LazyRange < join_factory_t >(
                 join_factory_t(std::move(*this), std::move(lr)));
         }
+
+        template <class ... Ux>
+        constexpr auto operator | (const LazyRange<Ux ...>& lr) const& noexcept
+        {
+            using arg_t = LazyRange<Ux ...>;
+            using union_all_factory_t = UnionAllSequenceFactory<this_t, arg_t>;
+
+            return LazyRange < union_all_factory_t >(
+                union_all_factory_t(*this, lr));
+        }
+        
+        template <class ... Ux>
+        constexpr auto operator | (LazyRange<Ux ...>&& lr) && noexcept
+        {
+            using arg_t = LazyRange<Ux ...>;
+            using union_all_factory_t = UnionAllSequenceFactory<this_t, arg_t>;
+            return LazyRange < union_all_factory_t >(
+                union_all_factory_t(std::move(*this), std::move(lr)));
+        }
+
         auto begin() const
         {
             return details::begin_impl(*this);

@@ -47,12 +47,12 @@ namespace OP::flur
         }
 
         /** Note! not all targets supports copy operation so postfix ++ may fail at compile time*/
-        LazyRangeIterator operator ++(int) &
-        {
-            LazyRangeIterator result(*this);
-            details::get_reference(get()).next();
-            return result;
-        }
+        //LazyRangeIterator operator ++(int) &
+        //{
+        //    LazyRangeIterator result(*this);
+        //    details::get_reference(get()).next();
+        //    return result;
+        //}
 
         value_type operator *() const
         {         

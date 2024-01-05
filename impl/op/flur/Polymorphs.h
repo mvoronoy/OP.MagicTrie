@@ -99,6 +99,7 @@ namespace OP::flur
     private:
         base_factory_t _base_factory;
     };
+    template<class TFactory> PolymorphFactory(TFactory) -> PolymorphFactory<TFactory>;
 
 } //ns: OP::flur
 

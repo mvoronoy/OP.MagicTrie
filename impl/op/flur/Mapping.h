@@ -16,7 +16,7 @@ namespace flur
 {
     /**
     * Mapping converts one sequence to another by applying function to source element.
-    * \tparam Src - source sequnce to convert
+    * \tparam Src - source sequence to convert
     */
     template <class Base, class Src, class F, bool keep_order_c>
     struct Mapping : public Base
@@ -133,7 +133,7 @@ namespace flur
             );
 
             using target_sequence_base_t = std::conditional_t<keep_order_c,
-                OrderedSequence<result_t>/*Ordered sequenc is no guarantee is_sequence_ordered() is true*/,
+                OrderedSequence<result_t>/*Ordered sequence is no guarantee is_sequence_ordered() is true*/,
                 Sequence<result_t>
             >;
 
