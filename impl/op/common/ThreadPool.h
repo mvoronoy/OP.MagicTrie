@@ -10,6 +10,7 @@
 #include <functional>
 #include <future>
 #include <op/common/SysLog.h>
+#include <op/common/StackAlloc.h>
 
 namespace OP::utils
 {
@@ -21,51 +22,36 @@ namespace OP::utils
     *  In compare with std::async thread pool (tp) allows reuse already allocated threads. Be accurate 
     *  with use of thread-local variables.
     * There are 2 ways to involve job to tp:
-    * \li ThreadPool::async  - that is similar how std::async works and the caller have to care about returned
-    *       std::future value. Because without managing return value code: \code
+    * \li ThreadPool::async  - that is similar how std::async works and the caller have to care 
+    *   about returned std::future value. Because without managing return value code: 
+    *   \code
     *       thread_pool.async([](){ ... some long proc ... });
-    *       \endcode
-    *       will wait until "some long proc" complete.
-    * \li ThreadPool::one_way - allows create background job without waiting acomplishment of result value
+    *   \endcode
+    *   will wait until "some long proc" complete.
+    * \li ThreadPool::one_way - allows create background job without waiting accomplishment of 
+    *   result value.
     */
     class ThreadPool
     {
-        using thread_t = std::thread;
-        using tstore_t = std::vector<thread_t>;
-        
+        template< class F, class... Args>
+        using function_res_t = std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
+
         struct Task
         {
             virtual ~Task() = default;
             virtual void run() = 0;
         };
-        using task_t = std::unique_ptr< Task >;
-        
-        using task_list_t = std::deque< task_t >;
-        
-        using guard_t = std::lock_guard<std::mutex>;
-        using uniq_guard_t = std::unique_lock<std::mutex>;
-        
-        tstore_t _thread_depo;
-        task_list_t _task_list;
-        std::mutex _acc_thread_depo, _acc_tasks;
-        const unsigned _grow_factor;
-        std::condition_variable _cv_task;
-        std::atomic< size_t > _busy, _allocated, _task_count;
-        std::atomic<bool> _end = false;
-        template< class F, class... Args>
-        using function_res_t = std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
-        
-        template< class F, class... Args>
+
+        template< class F>
         struct Functor : public Task
         {
-            using result_t = function_res_t<F, Args...>;
-            using this_t = Functor<F, Args ...>;
-            using arguments_t = std::tuple<std::decay_t<Args> ...>;
+            using result_t = function_res_t<F>;
+            using this_t = Functor<F>;
 
-            Functor(F&& f, Args&&... args)
+            Functor(F&& f)
                 : _f(std::move(f))
-                , _args(std::make_tuple(std::forward<Args>(args)...))
-            {}
+            {
+            }
 
             Functor(const Functor&) = delete;
 
@@ -78,14 +64,22 @@ namespace OP::utils
             {
                 try
                 {
-                    apply_impl(std::make_index_sequence< sizeof...(Args)>{});
+                    if constexpr (std::is_void_v< result_t >)
+                    {
+                        std::invoke(_f);
+                        _promise.set_value();
+                    }
+                    else // result is non-void
+                    {
+                        _promise.set_value(std::invoke(_f));
+                    }
                 }
                 catch (const std::exception& ex)
                 {
                     using namespace std::string_literals;
                     pack_exception();
                     OP::utils::SysLog log;
-                    log.print("Unhandled thread exception hide that:"s + ex.what());
+                    log.print("Unhandled thread exception hides that:"s + ex.what());
                 }
                 catch (...)
                 {
@@ -94,7 +88,7 @@ namespace OP::utils
             }
 
         private:
-            
+
             void pack_exception()
             {
                 try
@@ -105,44 +99,50 @@ namespace OP::utils
                 catch (...)
                 { // set_exception() may throw too
                     OP::utils::SysLog log;
-                    log.print("Unhandled thread exception hide it"s);
+                    log.print("Unhandled thread exception has been hiden"s);
                 }
             }
-            
+
             std::promise<result_t> _promise;
             F _f;
-            arguments_t _args;
-
-            template <std::size_t... I>
-            void apply_impl(std::index_sequence<I...>)
-            {
-                if constexpr (std::is_void_v< result_t >)
-                {
-                    std::invoke(_f, std::forward<Args>(std::get<I>(_args))...);
-                    _promise.set_value();
-                }
-                else // result is non-void
-                {
-                    auto dest = std::move(std::invoke(_f, std::forward<Args>(std::get<I>(_args))...));
-                    _promise.set_value(std::move(dest));
-                }
-            }
         };
 
         template <class F>
         struct Action : Task
         {
-            F _f;
             Action(F&& f)
-               : _f(std::move(f))
-            {}
+                : _f(std::move(f))
+            {
+            }
+
             void run() override
             {
                 _f();
             }
+            F _f;
         };
-        
+
+        using task_t = std::unique_ptr<Task>;
+
+        using thread_t = std::thread;
+        using tstore_t = std::vector<thread_t>;
+        using task_list_t = std::deque< task_t >;
+        using guard_t = std::lock_guard<std::mutex>;
+        using uniq_guard_t = std::unique_lock<std::mutex>;
+
+        tstore_t _thread_depo;
+        std::mutex _acc_thread_depo;
+
+        task_list_t _task_list;
+        std::mutex _acc_tasks;
+        std::condition_variable _cv_task;
+
+        const unsigned _grow_factor;
+        std::atomic< size_t > _busy, _allocated, _task_count;
+        std::atomic<bool> _end = false;
+
     public:
+
         /** Allocate thread pool
         *   \param initial - number of threads to allocate at constructor time;
         *   \param grow_by - number of threads to allocate after exhausting available threads. 
@@ -156,11 +156,16 @@ namespace OP::utils
         {
             allocate_thread(initial);
         }
+
+        /** Construct thread pool with initial number of threads equal to 
+        * `std::thread::hardware_concurrency()` number, grow factor set to 0.
+        */ 
         ThreadPool()
             : ThreadPool(std::thread::hardware_concurrency(), 0)
-            {}
+        {
+        }
 
-        /** not copiable */
+        /** not copy able */
         ThreadPool(const ThreadPool&) = delete;
 
         /** At exit pool will join without queued task completion */
@@ -169,8 +174,7 @@ namespace OP::utils
             join(); 
         }
         
-        
-        /** Place job to thread pool without waiting acomplishment 
+        /** Place job to thread pool without waiting accomplishment 
         * \tparam F - function to execute in thread pool. If return value is needed use `async` method instead.
         * \tparam Args - variadic optional args for function F
         */
@@ -178,26 +182,36 @@ namespace OP::utils
         void one_way(F&& f, Args&&... args)
         {
             ensure_workers();
-            auto lbind = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-            task_t impl (new Action<decltype(lbind)>( std::move(lbind) ) );
-            put_task(std::move(impl));
+            auto action_bind = make_bind(std::forward<F>(f), std::forward<Args>(args)...);
+            put_task(
+                task_t{ new Action<decltype(action_bind)>(std::move(action_bind)) }
+            );
         }
+
         /**
-        *  Start function in background and expose std::future to control completion.
+        *  Start function in background on the pool of available threads.
+        * \return std::future to control completion and get result or exception.
         */
-        template< class F, class... Args>
-        std::future<function_res_t<F, Args...> > async( F f, Args&&... args )
+        template< class F, class... TArgs>
+        [[nodiscard]] std::future<function_res_t<F, TArgs...> > async( F&& f, TArgs&&... args )
         {
             ensure_workers();
-            using result_t = function_res_t<F, Args...> ;
-            using task_impl_t = Functor<F, Args ...>;
-            std::unique_ptr<task_impl_t> impl (new task_impl_t(std::forward<F>(f), std::forward<Args>(args)...));
+            using bind_t = decltype(make_bind(std::forward<F>(f), std::forward<TArgs>(args)...));
+            using task_impl_t = Functor<bind_t>;
+            auto impl = std::unique_ptr<task_impl_t>{
+                new task_impl_t(
+                    make_bind(std::forward<F>(f), std::forward<TArgs>(args)...)
+                )
+            };
 
-            std::future<result_t> result = impl->get_future();
+            auto result = impl->get_future();
             put_task( std::move(impl) );
             return result;
         }
-        /** Join all allocated threads. If some tasks has been queued before then they are not completed */
+        
+        /** Join all allocated threads. If some task was queued but not started, 
+        * it will remain non started.
+        */
         void join()
         {
            _end = true;
@@ -207,7 +221,23 @@ namespace OP::utils
                t.join();
            _thread_depo.clear();
         }
+
     private: 
+        
+        template <class F, class ...TArgs>
+        static auto make_bind(F&& f, TArgs&&... args)
+        {
+            return 
+            [f = std::forward<F>(f), ax = std::make_tuple(std::forward<TArgs>(args) ...)]
+            () mutable -> auto
+                {
+                    return std::apply([&](auto& ... x) {
+                        //this function can be called only once, so use std::move instead forward
+                        return f(std::move(x)...);
+                        }, ax);
+                };
+        }
+
         template <class TaskPtr>
         void put_task(TaskPtr&& t)
         {
@@ -217,6 +247,7 @@ namespace OP::utils
             _cv_task.notify_one();
             ++_task_count;
         }
+        
         static void thread_routine(ThreadPool *owner)
         {
             while(!owner->_end)
@@ -249,12 +280,12 @@ namespace OP::utils
             }
         }
        
-        
         void ensure_workers()
         {
             if(_grow_factor && ((_allocated -_busy) < _task_count ) )
                 allocate_thread(_grow_factor);
         }
+        
         void allocate_thread(size_t n)
         {
             guard_t g(_acc_thread_depo);

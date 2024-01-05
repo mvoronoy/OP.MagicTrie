@@ -234,17 +234,9 @@ namespace OP::utest
             Apply additional check 'f' to exception ex
             \param f predicate bool(const Exception& ) for additional exception check. Just return false to raise assert
         */
-        template <class Predicate, typename ...Xetails>
-        this_t& then(Predicate f, Xetails&& ...details);
-        /**
-            Apply additional check 'f' to exception ex by invoking regular test methods from TestRuntime
-        */
-        using assert_handler_t = void(const Exception&);
-        this_t& then(assert_handler_t f)
-        {
-            f(_ex);
-            return *this;
-        }
+        template <typename F, typename ...Xetails>
+        this_t& then(F f, Xetails&& ...details);
+        
     private:
         TestRuntime& _owner;
         Exception _ex;
@@ -460,7 +452,18 @@ namespace OP::utest
         }
 
         /**
-        *   Assert that functor `f` raises exception of expected type `Exception`
+        *   Assert that functor `f` raises exception of expected type `Exception`. The method only checks
+        * that exception was raised, for extra detailed analyzes you can leverage `then` method of 
+        * AssertExceptionWrapper, for example:
+        * \code
+        * tresult.assert_exception<std::logic_error>(
+        *       [](){ throw std::logical_error("paradox"); }), "Exception must be raised there")
+        *       .then([&](const auto& ex){tresult.assert_that<equals>(ex.what(), std::string("paradox"));}
+        * \endcode
+        * \tparam Exception type that is expected during function execution. Test case is succeeded 
+        * if this type (or inherited) is raised.
+        * \tparam Xetails allows specify printable details of failed case (why the exception has not been raised).
+        * \param f function that should raise the exception of type `Exception`
         */
         template <class Exception, class F, typename ...Xetails>
         AssertExceptionWrapper<Exception> assert_exception(F f, Xetails&& ...details)
@@ -481,7 +484,10 @@ namespace OP::utest
             throw 1; //fake line to avoid warning about return value. `fail` will unconditionally raise the exception
         }
 
-        /** Unconditional fail */
+        /** Unconditional fail.
+        * \tparam Xetails allows specify printable details of failed case (why the exception has not been raised).
+        * \throws TestFail exception
+        */
         template<typename ...Xetails>
         void fail(Xetails&& ...details)
         {
@@ -502,11 +508,16 @@ namespace OP::utest
             throw TestFail();
         }
 
-        /** Run callback with time measurement by std::.
-            @return average time in milliseconds of all runs (excluding warm-up).
+        /** Run callback functor `f` several times and measure median time. To reduce 
+        * influence of statistical outlier method can run `f` several times to warm-up.
+        * \param f callback to measure;
+        * \param repeat number of controlled runs of `f`;
+        * \param warm_up number of runs before measurement to warm-up runtime environment (0 is 
+        *   allowed as well);
+        * \return average time in milliseconds of all runs (excluding warm-up).
         */
         template <class F>
-        double measure_run(F f, size_t repeat = 10, size_t warm_up = 2)
+        double measured_run(F f, size_t repeat = 10, size_t warm_up = 2)
         {
             while(warm_up--)
                 f();
@@ -1316,10 +1327,19 @@ namespace OP::utest
 
 
     template<class Exception>
-    template<class Predicate, typename... Xetails>
-    AssertExceptionWrapper<Exception> &AssertExceptionWrapper<Exception>::then(Predicate f, Xetails &&... details)
+    template<typename F, typename... Xetails>
+    AssertExceptionWrapper<Exception> &AssertExceptionWrapper<Exception>::then(
+        F f, Xetails &&... details)
     {
-        _owner.assert_true(f(_ex), std::forward<Xetails>(details) ...);
+        if constexpr (std::is_invocable_r_v<bool, F, const Exception&>)
+        {
+            _owner.assert_true(f(_ex), std::forward<Xetails>(details) ...);
+        }
+        else
+        {
+            //on case of error there, use `F` either as `bool(const Exception&)` or `void(const Exception&)`
+            f(_ex);
+        }
         return *this;
     }
 

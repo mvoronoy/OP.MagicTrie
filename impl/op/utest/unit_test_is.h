@@ -92,6 +92,7 @@ namespace OP::utest
             }
         }
     };
+
     /** Marker specifies equality operation between two numeric with some platform specific precision (see 
     *   std::numeric_limits::epsilon() for details)
     */
@@ -146,7 +147,7 @@ namespace OP::utest
             using right_elt_t = std::decay_t<decltype(*end_right)>;
 
             if constexpr (hop::ostream_out_v<left_elt_t> && hop::ostream_out_v<right_elt_t>)
-            { // can improove output by adding Fault explanation
+            { // can improve output by adding Fault explanation
                 return with_details(left, right);
             }
             else
@@ -158,7 +159,6 @@ namespace OP::utest
                 return left_msm == end_left && right_msm == end_right;
             }
         }
-
     private:
         /** Implementation finds mismatch in 2 sets of the same order for data types
         * with ostream operator `<<` support.
@@ -272,6 +272,7 @@ namespace OP::utest
             return right < left;
         }
     };
+
     /** Alias for negate<greater> */
     using less_or_equals = negate<greater>;
 
@@ -287,9 +288,60 @@ namespace OP::utest
     /** Alias for negate<is_null> */
     using is_not_null = negate<is_null>;
 
+    /** 
+    * Marker specifies matching (in sense of `std::regex_match`) string to the regular 
+    * expression, to use it one of the `assert_that` must be std::regex
+    */
+    struct regex_match : details::marker_arity<2>
+    {
+        template <class Left, class Right>
+        auto operator()(Left&& left, Right&& right) const
+        {
+            static_assert(
+                std::is_same_v<std::regex, std::decay_t<Left>>
+                || std::is_same_v<std::regex, std::decay_t<Right>>,
+                "one of the `assert_that<regex_match>` must be std::regex");
+
+            if constexpr (std::is_same_v<std::regex, std::decay_t<Left>>)
+            {
+                return std::regex_match(right, left);
+            }
+            else //if constexpr (std::is_same_v<std::regex, std::decay_t<Left>>)
+            {
+                return std::regex_match(left, right);
+            }
+            
+        }
+    };
+    /**
+    * Marker specifies matching (in sense of `std::regex_search`) string to the regular
+    * expression, to use it one of the `assert_that` must be std::regex
+    */
+    struct regex_search : details::marker_arity<2>
+    {
+        template <class Left, class Right>
+        auto operator()(Left&& left, Right&& right) const
+        {
+            static_assert(
+                std::is_same_v<std::regex, std::decay_t<Left>>
+                || std::is_same_v<std::regex, std::decay_t<Right>>,
+                "one of the `assert_that<regex_match>` must be std::regex");
+
+            if constexpr (std::is_same_v<std::regex, std::decay_t<Left>>)
+            {
+                return std::regex_search(right, left);
+            }
+            else //if constexpr (std::is_same_v<std::regex, std::decay_t<Left>>)
+            {
+                return std::regex_search(left, right);
+            }
+
+        }
+    };
+
     /**
     *  Marker allows intercept exception of specified type. Result assert_that will fail if
-    * exception is not raised
+    * exception is not raised. It is simplified approach similar to TestResul::assert_exception
     *
     * \tparam ToCatch - type of exception to catch
     */
