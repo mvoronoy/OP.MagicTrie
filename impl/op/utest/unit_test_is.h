@@ -122,9 +122,24 @@ namespace OP::utest
     };
 
     /**
-    * Marker to compare 2 heterogenous container with items supported operator `==`.
-    * Method assumes strict order checking of both sequences.
-    * Complexity is about O(min(N, M))
+    * \brief Marker compares two heterogeneous containers and fails the test on the first mismatch.
+    *
+    * The implementation assumes checking of strict order and equality of items for both sequences. If 
+    * this is not the case, please use `eq_unordered_sets` instead.
+    * Containers are compared by applying `std::mismatch`, so they both need to support `std::begin` 
+    * and `std::end` semantics.
+    * Contained type must support equality comparison like `operator ==`.
+    * Optionally, if the contained type supports the streaming `operator <<`, then implementation 
+    * will provide a verbatim explanation of the mismatched items.
+    * 
+    * Implementation complexity is about O(min(N, M)).
+    *
+    *  Example:
+    *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    *   std::vector left{1, 2, 3, 5}, right{1, 2};
+    *   //assume definition of OP::utest::TestRuntime& rt
+    *   rt.assert_that<eq_sets>(left, right, "Items aren't the same"s); //will fail at [3, 5]
+    *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
     struct eq_sets
     {
@@ -135,8 +150,12 @@ namespace OP::utest
 
         template <class Left, class Right>
         static bool constexpr can_print_details_c = hop::ostream_out_v<el_t<Left>> && hop::ostream_out_v<el_t<Right>>;
-        /** Implementation finds mismatch in 2 sets of the same order for data types
-        * that has no ostream operator `<<`
+
+        /** 
+        *   \brief Implementation finds mismatch in 2 containers.
+        *
+        *   \tparam Left container type that supports `std::begin`/`std::end` for forward iterators.
+        *   \tparam Right container type that supports `std::begin`/`std::end` for forward iterators.
         */ 
         template <class Left, class Right>
         constexpr auto operator()(const Left& left, const Right& right) const
@@ -148,7 +167,7 @@ namespace OP::utest
 
             if constexpr (hop::ostream_out_v<left_elt_t> && hop::ostream_out_v<right_elt_t>)
             { // can improve output by adding Fault explanation
-                return with_details(left, right);
+                return with_details(std::begin(left), std::end(left), std::begin(right), std::end(right));
             }
             else
             {
@@ -159,34 +178,65 @@ namespace OP::utest
                 return left_msm == end_left && right_msm == end_right;
             }
         }
+
+        /** 
+        *   \brief Implementation finds mismatch in 2 ranges specified by pair of begin/end iterators.
+        *
+        *   \tparam LeftIter forward iterator to specify begin/end pair for the first comparing range.
+        *   \tparam RightIter forward iterator to specify begin/end pair for the second comparing range.
+        */ 
+        template <class LeftIter, class RightIter>
+        constexpr auto operator()(
+            LeftIter left_begin, LeftIter left_end, 
+            RightIter right_begin, RightIter right_end) const
+        {
+            using left_elt_t = std::decay_t<decltype(*left_end)>;
+            using right_elt_t = std::decay_t<decltype(*right_end)>;
+
+            if constexpr (hop::ostream_out_v<left_elt_t> && hop::ostream_out_v<right_elt_t>)
+            { // can improve output by adding Fault explanation
+                return with_details(left_begin, left_end, right_begin, right_end);
+            }
+            else
+            {
+                auto [left_msm, right_msm] = std::mismatch(
+                    left_begin, left_end,
+                    right_begin, right_end);
+
+                return left_msm == left_end && right_msm == right_end;
+            }
+        }
+
     private:
+
         /** Implementation finds mismatch in 2 sets of the same order for data types
         * with ostream operator `<<` support.
         */
-        template <class Left, class Right >
-        std::pair<bool, OP::utest::Details> with_details(const Left& left, const Right& right) const
+        template <class LeftIter, class RightIter >
+        static std::pair<bool, OP::utest::Details> with_details(
+            LeftIter left_begin, LeftIter left_end, 
+            RightIter right_begin, RightIter right_end
+        ) 
         {
-            auto end_left = std::end(left);
-            auto end_right = std::end(right);
-
             auto [left_msm, right_msm] = std::mismatch(
-                std::begin(left), end_left,
-                std::begin(right), end_right);
+                left_begin, left_end,
+                right_end, right_end);
 
-            if (left_msm == end_left && right_msm == end_right)
+            if (left_msm == left_end && right_msm == right_end )
                 return std::make_pair(true, OP::utest::Details{});
 
             OP::utest::Details fail;
             fail << "Assertion of set-equality check: Left still contains: [";
-            for (size_t i = 0; left_msm != end_left; ++left_msm, ++i)
+            for (size_t i = 0; left_msm != left_end; ++left_msm, ++i)
                 fail << (i ? ", " : "") << *left_msm;
             fail << "] vs Right still contains[";
-            for (size_t i = 0; right_msm != end_right; ++right_msm, ++i)
+            for (size_t i = 0; right_msm != right_end; ++right_msm, ++i)
                 fail << (i ? ", " : "") << *right_msm;
             fail << "]\n";
             return std::make_pair(false, std::move(fail));
         }
     };
+
     namespace details
     {
         //from https://stackoverflow.com/questions/12753997/check-if-type-is-hashable
@@ -201,10 +251,22 @@ namespace OP::utest
 
     }
     /**
-    * Marker to compare 2 heterogeneous container with items supported operator `==` and
-    * at least one must support std::hash.
-    * Strict order checking is not needed
-    * Complexity is about O(N) + O(M)
+    * \brief Marker compares two heterogeneous containers with ignorance of order and fails on the first nonexistent item.
+    *
+    * The implementation assumes creation of at least 1 internal multi-hash-set so contained items must support
+    *   `std::hash` semantic. 
+    * Also contained type must support equality comparison like `operator ==`.
+    * Optionally, if the contained type supports the streaming `operator <<`, then implementation 
+    * will provide a verbatim explanation of the mismatched items.
+    * 
+    * Implementation complexity is about O(N) + O(M).
+    *
+    *  Example:
+    *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    *   std::vector left{1, 2, 3}, right{3, 1, 2};
+    *   //assume definition of OP::utest::TestRuntime& rt
+    *   rt.assert_that<eq_unordered_sets>(left, right, "Items aren't the same"s); //will succeed
+    *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
     struct eq_unordered_sets
     {

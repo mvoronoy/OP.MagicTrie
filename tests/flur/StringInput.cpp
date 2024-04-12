@@ -45,6 +45,7 @@ namespace {
             src::of_string_split("aaa  bb c"s), 
             std::vector<std::string> {"aaa"s, "bb"s, "c"s}, "tripplet items failed");
     }
+
     void test_SplitSep(OP::utest::TestRuntime& tresult)
     {
         tresult.assert_that<eq_sets>(

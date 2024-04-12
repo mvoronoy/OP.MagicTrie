@@ -1264,11 +1264,6 @@ namespace OP::utest
         }
 
 
-        /*inline std::string random_value_string()
-        {
-            std::string r;
-            return randomize(r, 256);
-        }*/
         template <class Container1, class Container2, class ErrorHandler>
         inline bool compare(const Container1& co1, const Container2& co2, ErrorHandler& on_error = [](const typename Container2::value_type& v) {})
         {
@@ -1323,7 +1318,7 @@ namespace OP::utest
         {
             return (unsigned char)left == right;
         }
-    }
+    } //ns: tools
 
 
     template<class Exception>

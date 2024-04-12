@@ -52,6 +52,7 @@ namespace flur
         {
             return _applicator(details::get_reference(_src).current());
         }
+
         void next() override
         {
             details::get_reference(_src).next();
@@ -61,7 +62,7 @@ namespace flur
         F _applicator;
     };
     
-    /** Helper class allows to reduce allocattions number when mapping result
+    /** Helper class allows to reduce allocations number when mapping result
     * is a heap consuming entity. For example, following code allocates memory for 
     `std::string` several times:
      \code
@@ -122,14 +123,17 @@ namespace flur
         constexpr auto compound(Src&& src) const noexcept
         {
             using input_t = std::decay_t<details::unpack_t<Src>>;
-            using src_container_t = std::decay_t < 
-                details::dereference_t<
-                    decltype(details::get_reference(std::declval< input_t >()))
-                > 
-            >;
+            //using src_container_t = std::decay_t < 
+            //    details::dereference_t<
+            //        decltype(details::get_reference(std::declval< input_t >()))
+            //    > 
+            //>;
+            using src_container_t = details::sequence_type_t< details::dereference_t<Src> >;
 
             using result_t = decltype( 
-                _applicator(std::declval< src_container_t >().current()) 
+                std::declval<applicator_t>()(
+                    std::declval< src_container_t& >().current()
+                )
             );
 
             using target_sequence_base_t = std::conditional_t<keep_order_c,

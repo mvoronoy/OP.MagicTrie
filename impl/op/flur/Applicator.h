@@ -43,6 +43,7 @@ namespace apply
     }
 
 }// ns:apply
+
 template <class T>
 struct Sum : ApplicatorBase
 {
@@ -88,6 +89,39 @@ private:
     T& _dest;
     TBinaryFunction _f;
 };
+
+template <class TUnaryFunction>
+struct ForEach : ApplicatorBase
+{
+    ForEach(TUnaryFunction f)
+        : _f(std::move(f))
+    {
+    }
+
+    template <class Lr>
+    void operator()(const Lr& lr) const
+    {
+        auto seq = lr.compound();
+        auto& rseq = details::get_reference(seq);
+        for(rseq.start(); rseq.in_range(); rseq.next())
+        {
+            _f(rseq.current());
+        }
+    }
+
+private:
+    TUnaryFunction _f;
+};
+
+namespace apply
+{
+    template <class TUnaryFunction>
+    constexpr auto for_each(TUnaryFunction terminator) noexcept
+    {
+        return ForEach<TUnaryFunction>(std::move(terminator));
+    }
+
+}// ns:apply
 
 //
 //template <class ... FApplicators>

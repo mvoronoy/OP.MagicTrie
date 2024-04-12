@@ -28,7 +28,7 @@ namespace flur
     * \tparam Src - source sequnce to convert
     * \tparam F functor with the signature `bool(typename Src::element_t, <desired-mapped-type> &result)`
     *       Note that implementation assumes that <desired-mapped-type> is default constructible
-    * \tparam options_c - extra options to customize sequence behavior. Implementation recognizes none or any of:
+    * \tparam options_c - extra options to customize sequence behavior. Implementation recognizes one or any of:
     *       - Intrinsic::keep_order - to allow keep source sequence order indicator;
     *       - MaFOptions::result_by_value - to declare `current()` return result by value instead of
     *            const reference.

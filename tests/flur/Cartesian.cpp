@@ -24,7 +24,7 @@ void test_ThenCartesian(OP::utest::TestRuntime& tresult)
             >> then::filter([](bool i) {return i; }) //always empty
         ) 
         ;
-    //check or_default keeps order
+    //check  keeps order
     tresult.assert_false(r_bool.compound().is_sequence_ordered(), 
         "bool x bool cartesian is not ordered sequence");
     tresult.assert_true(std::empty(r_bool), "wrong result number");

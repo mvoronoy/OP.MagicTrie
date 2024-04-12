@@ -188,11 +188,22 @@ namespace OP::flur
             ||  OP::utils::is_generic<details::dereference_t<T>, std::basic_string_view>::value> >
         using String = T;
         /**
-        * Create LazyRange to iterate over elements of string splitted by separator. Iteration 
+        * Create LazyRange to iterate over elements of string split by separator. Iteration 
         * has minimal memory overhead since to access uses std::string_view
         * For example:\code
-        * 
+        * std::for_each(src::of_string_split("a:b:c"s, ":"s), 
+        *   [](const std::string_view& word) { std::cout << word << "\n";})
         * \endcode
+        * Produces: \code
+        * a
+        * b
+        * c
+        * \endcode
+        * 
+        * \param str string-like object to split.
+        * \param separators string-like object of possible separators. When multiple characters are specified any of them
+        *   treated as separator. For example `of_string_split("a:b;c,d", ",:")` generates sequence of
+        *   {"a", "b;c", "d"}. Note that empty string is allowed, then result just entire input `str`.
         */
         template <class Str1, class Str2>
         constexpr auto of_string_split(String<Str1>&& str, String<Str2>&& separators) noexcept
@@ -208,8 +219,9 @@ namespace OP::flur
                     splitter_t(std::move(str), std::forward<String<Str2>>(separators))));
         }
         template <class Str>
-        OP_CONSTEXPR_CPP20 const static inline std::basic_string< typename Str::value_type > default_separators_c(" ");
+        OP_CONSTEXPR_CPP20 const static inline std::basic_string< typename Str::value_type > default_separators_c{ " " };
 
+        /** \brief same as `of_string_split(str, separators) but use (" ") space as single separator */
         template <class Str>
         constexpr auto of_string_split(String<Str>&& str) noexcept
         {
