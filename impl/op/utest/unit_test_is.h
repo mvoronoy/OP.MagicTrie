@@ -121,63 +121,15 @@ namespace OP::utest
         }
     };
 
-    /**
-    * \brief Marker compares two heterogeneous containers and fails the test on the first mismatch.
-    *
-    * The implementation assumes checking of strict order and equality of items for both sequences. If 
-    * this is not the case, please use `eq_unordered_sets` instead.
-    * Containers are compared by applying `std::mismatch`, so they both need to support `std::begin` 
-    * and `std::end` semantics.
-    * Contained type must support equality comparison like `operator ==`.
-    * Optionally, if the contained type supports the streaming `operator <<`, then implementation 
-    * will provide a verbatim explanation of the mismatched items.
-    * 
-    * Implementation complexity is about O(min(N, M)).
-    *
-    *  Example:
-    *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    *   std::vector left{1, 2, 3, 5}, right{1, 2};
-    *   //assume definition of OP::utest::TestRuntime& rt
-    *   rt.assert_that<eq_sets>(left, right, "Items aren't the same"s); //will fail at [3, 5]
-    *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    */
-    struct eq_sets
+    struct eq_ranges
     {
-        constexpr static size_t args_c = 2;
+        constexpr static size_t args_c = 4;
 
         template <class T>
         using el_t = decltype(*std::begin(std::declval<const T&>()));
 
         template <class Left, class Right>
         static bool constexpr can_print_details_c = hop::ostream_out_v<el_t<Left>> && hop::ostream_out_v<el_t<Right>>;
-
-        /** 
-        *   \brief Implementation finds mismatch in 2 containers.
-        *
-        *   \tparam Left container type that supports `std::begin`/`std::end` for forward iterators.
-        *   \tparam Right container type that supports `std::begin`/`std::end` for forward iterators.
-        */ 
-        template <class Left, class Right>
-        constexpr auto operator()(const Left& left, const Right& right) const
-        {
-            auto end_left = std::end(left);
-            auto end_right = std::end(right);
-            using left_elt_t = std::decay_t<decltype(*end_left)>;
-            using right_elt_t = std::decay_t<decltype(*end_right)>;
-
-            if constexpr (hop::ostream_out_v<left_elt_t> && hop::ostream_out_v<right_elt_t>)
-            { // can improve output by adding Fault explanation
-                return with_details(std::begin(left), std::end(left), std::begin(right), std::end(right));
-            }
-            else
-            {
-                auto [left_msm, right_msm] = std::mismatch(
-                    std::begin(left), end_left,
-                    std::begin(right), end_right);
-
-                return left_msm == end_left && right_msm == end_right;
-            }
-        }
 
         /** 
         *   \brief Implementation finds mismatch in 2 ranges specified by pair of begin/end iterators.
@@ -235,6 +187,45 @@ namespace OP::utest
             fail << "]\n";
             return std::make_pair(false, std::move(fail));
         }
+    };
+
+    /**
+    * \brief Marker compares two heterogeneous containers and fails the test on the first mismatch.
+    *
+    * The implementation assumes checking of strict order and equality of items for both sequences. If 
+    * this is not the case, please use `eq_unordered_sets` instead.
+    * Containers are compared by applying `std::mismatch`, so they both need to support `std::begin` 
+    * and `std::end` semantics.
+    * Contained type must support equality comparison like `operator ==`.
+    * Optionally, if the contained type supports the streaming `operator <<`, then implementation 
+    * will provide a verbatim explanation of the mismatched items.
+    * 
+    * Implementation complexity is about O(min(N, M)).
+    *
+    *  Example:
+    *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    *   std::vector left{1, 2, 3, 5};
+    *   std::set right{2, 3}; /assume sort reordering 
+    *   //assume definition of OP::utest::TestRuntime& rt
+    *   rt.assert_that<eq_sets>(left, right, "Items aren't the same"s); //will fail at [3, 5]
+    *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    struct eq_sets : private eq_ranges
+    {
+        constexpr static size_t args_c = 2;
+
+        /** 
+        *   \brief Implementation finds mismatch in 2 containers.
+        *
+        *   \tparam Left container type that supports `std::begin`/`std::end` for forward iterators.
+        *   \tparam Right container type that supports `std::begin`/`std::end` for forward iterators.
+        */ 
+        template <class Left, class Right>
+        constexpr auto operator()(const Left& left, const Right& right) const
+        {
+            return eq_ranges::operator()(std::begin(left), std::end(left), std::begin(right), std::end(right));
+        }
+
     };
 
     namespace details

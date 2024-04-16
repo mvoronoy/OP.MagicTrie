@@ -412,8 +412,11 @@ namespace OP::utest
         *   then applied multiple Args to it. Marker can be one of standard existing in
          *   namespace OP::utest :
         * \li equals - to assert equality of 2 comparable arguments (including STL containers);
+        * \li almost_eq - for floating types allows compare equality with negleting precision specified by `std::numeric_limits::epsilon()`
         * \li eq_sets - to assert equality of 2 arbitrary containers but with items that can be
         *               automatically compared (by `==` comparator). Both containers are also checked against same items order.
+        * \li eq_ranges - to assert equality of 2 arbitrary containers specified by pair of iterators.
+        *                    Both ranges are also checked against same items order.
         * \li less - to assert strict less between 2 args
         * \li greater - to assert strict greater between 2 args
         * \li negate or logical_not to invert other Markers. For example `assert_that< negate<less> >(3, 2)` - evaluates
