@@ -172,7 +172,7 @@ namespace OP::utest
         {
             auto [left_msm, right_msm] = std::mismatch(
                 left_begin, left_end,
-                right_end, right_end);
+                right_begin, right_end);
 
             if (left_msm == left_end && right_msm == right_end )
                 return std::make_pair(true, OP::utest::Details{});
