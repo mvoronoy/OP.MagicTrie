@@ -4,6 +4,7 @@
 
 #include <type_traits>
 #include <tuple>
+#include <op/common/Utils.h>
 
 namespace OP
 {
@@ -61,14 +62,6 @@ namespace OP
                 struct or_<Cond, Conds...> : std::conditional<Cond::value, std::true_type, or_<Conds...>>::type
                 {};
             }
-
-            template <typename T, typename Tuple>
-            struct tuple_has_type;
-
-            template <typename T, typename... Us>
-            struct tuple_has_type<T, std::tuple<Us...>> : impl::or_<std::is_same<T, Us>...>
-            { };
-
 
         } //ns:details
         /** Store named values. In compare with hash-map this class:

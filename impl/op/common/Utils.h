@@ -124,6 +124,19 @@ namespace OP
         { 
             enum { value = 0 };
         };
+
+        template <typename T, typename Tuple>
+        struct tuple_has_type
+        {};
+
+        template <typename T, typename... Us>
+        struct tuple_has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...>
+        { };
+
+        template <typename T, typename Tuple>
+        inline constexpr bool tuple_has_type_v = tuple_has_type<T, Tuple>::value;
+
+
         /** Simple accessor to the tuple entry by type. Usage:\code
         *   void my_function(std::tuple<int, double, std::string>& values)
         *   {

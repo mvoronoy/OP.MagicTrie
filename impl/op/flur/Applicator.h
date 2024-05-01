@@ -65,6 +65,27 @@ private:
     T& _dest;
 };
 
+template <class T>
+struct Count : ApplicatorBase
+{
+    
+    Count(T& counter)
+        : _counter(counter)
+    {}
+
+    template <class Lr>
+    void operator()(const Lr& lr) const
+    {
+        auto seq = lr.compound();
+        auto& rseq = details::get_reference(seq);
+        for(rseq.start(); rseq.in_range(); rseq.next())
+            ++_counter;
+    }
+
+private:
+    T& _counter;
+};
+
 template <class T, class TBinaryFunction>
 struct Collect : ApplicatorBase
 {
@@ -121,6 +142,12 @@ namespace apply
         return ForEach<TUnaryFunction>(std::move(terminator));
     }
 
+    /** consume all from connected range and each time apply ++ operator to `counter` variable */
+    template <class T>
+    constexpr auto count(T& counter) noexcept
+    {
+        return Count<T>(counter);
+    }
 }// ns:apply
 
 //

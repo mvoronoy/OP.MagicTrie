@@ -179,6 +179,16 @@ namespace OP::flur
         return range; //allow multiple applicators
     }
 
+    template <class TFactoryBase, class TApplicator, 
+        std::enable_if_t<
+            std::is_base_of_v<FactoryBase, TFactoryBase> &&
+            std::is_base_of_v<ApplicatorBase, TApplicator>, int > = 0>
+    const auto& operator >>= (TFactoryBase& range, TApplicator applicator)
+    {
+        applicator(range);
+        return range; //allow multiple applicators
+    }
+
     /** Simplifies creation of LazyRange */
     template <class ... Tx >
     constexpr LazyRange<Tx ...> make_lazy_range(Tx && ... tx) noexcept 

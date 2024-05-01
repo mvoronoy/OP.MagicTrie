@@ -130,10 +130,12 @@ namespace OP::flur
         * Sequence::current() invoked. 
         * Result is ordered range iterable over exact one value
         * \param limit number of times to repeat result v during sequence iteration. The default is 1. Value 0 is
-        *   allowed, but from optiomization perspective better to use `OP::flur::src::null()` instead.
-        * \tparam F - functor to return value. It may be declated as: 
+        *   allowed, but from optimization perspective better to use `OP::flur::src::null()` instead.
+        * \tparam F - functor to return value. It may be declared as: 
         *   - no argument function;
-        *   - any combination of `const OP::flur::PipelineAttrs&`, `size_t` (copy of limit argument);
+        *   - any combination of:
+        *   -- `const OP::flur::PipelineAttrs&`, 
+        *   -- `size_t` (copy of limit argument).
         */
         template <class F>
         constexpr auto of_lazy_value(F f, size_t limit = 1) noexcept
