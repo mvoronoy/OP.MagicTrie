@@ -103,44 +103,6 @@ namespace OP::flur
             return LazyRange < Tx ..., Ux ... >(std::tuple_cat(_storage, lr._storage));
         }
 
-        template <class ... Ux>
-        constexpr auto operator & (const LazyRange<Ux ...>& lr) const& noexcept
-        {
-            using arg_t = LazyRange<Ux ...>;
-            using join_factory_t = JoinFactory<this_t, arg_t>;
-
-            return LazyRange < join_factory_t >(
-                join_factory_t(*this, lr));
-        }
-        
-        template <class ... Ux>
-        constexpr auto operator & (LazyRange<Ux ...>&& lr) && noexcept
-        {
-            using arg_t = LazyRange<Ux ...>;
-            using join_factory_t = JoinFactory<this_t, arg_t>;
-            return LazyRange < join_factory_t >(
-                join_factory_t(std::move(*this), std::move(lr)));
-        }
-
-        template <class ... Ux>
-        constexpr auto operator | (const LazyRange<Ux ...>& lr) const& noexcept
-        {
-            using arg_t = LazyRange<Ux ...>;
-            using union_all_factory_t = UnionAllSequenceFactory<this_t, arg_t>;
-
-            return LazyRange < union_all_factory_t >(
-                union_all_factory_t(*this, lr));
-        }
-        
-        template <class ... Ux>
-        constexpr auto operator | (LazyRange<Ux ...>&& lr) && noexcept
-        {
-            using arg_t = LazyRange<Ux ...>;
-            using union_all_factory_t = UnionAllSequenceFactory<this_t, arg_t>;
-            return LazyRange < union_all_factory_t >(
-                union_all_factory_t(std::move(*this), std::move(lr)));
-        }
-
         auto begin() const
         {
             return details::begin_impl(*this);
@@ -152,6 +114,79 @@ namespace OP::flur
         }
 
     };
+
+
+    template <class TLeft, class TRight,
+        std::enable_if_t<
+            std::is_base_of_v<FactoryBase, TLeft> &&
+            std::is_base_of_v<FactoryBase, TRight>, int > = 0
+    >
+    inline constexpr auto operator | (TLeft&& l, TRight&& r) noexcept
+    {
+        using union_all_factory_t = UnionAllSequenceFactory<TLeft, TRight>;
+
+        return LazyRange < union_all_factory_t >(
+            union_all_factory_t(std::forward<TLeft>(l), std::forward<TRight>(r) ));
+    }
+
+    template <class TLeft, class TRight, 
+        std::enable_if_t<
+                std::is_base_of_v<FactoryBase, TLeft> &&
+                std::is_base_of_v<FactoryBase, TRight>, int > = 0
+    >
+    inline constexpr auto operator | (std::shared_ptr<TLeft> l, std::shared_ptr<TRight> r)
+    {
+        using effective_left_t = std::shared_ptr<TLeft>;
+        using effective_right_t = std::shared_ptr<TRight>;
+        using union_all_factory_t = UnionAllSequenceFactory<effective_left_t, effective_right_t>;
+        using impl_t = PolymorphFactory<union_all_factory_t>;
+        using interface_t = typename impl_t::base_t;
+
+        return std::shared_ptr<interface_t>( new impl_t{ union_all_factory_t{std::move(l), std::move(r)} } );
+    }
+
+    template <class TLeft, class TRight,
+        std::enable_if_t<
+        std::is_base_of_v<FactoryBase, TLeft>&&
+        std::is_base_of_v<FactoryBase, TRight>, int > = 0
+    >
+    inline constexpr auto operator& (TLeft&& l, TRight&& r) noexcept
+    {
+        using join_factory_t = JoinFactory<TLeft, TRight>;
+
+        return LazyRange < join_factory_t >(
+            join_factory_t(std::forward<TLeft>(l), std::forward<TRight>(r)));
+
+    }
+
+    template <class TLeft, class TRight,
+        std::enable_if_t<
+        std::is_base_of_v<FactoryBase, TLeft>&&
+        std::is_base_of_v<FactoryBase, TRight>, int > = 0
+    >
+    inline constexpr auto operator& (const TLeft& l, const TRight& r) noexcept
+    {
+        using join_factory_t = JoinFactory<TLeft, TRight>;
+
+        return LazyRange < join_factory_t >(
+            join_factory_t(l, r));
+    }
+
+    template <class TLeft, class TRight,
+        std::enable_if_t<
+        std::is_base_of_v<FactoryBase, TLeft>&&
+        std::is_base_of_v<FactoryBase, TRight>, int > = 0
+    >
+    inline constexpr auto operator& (std::shared_ptr<TLeft> l, std::shared_ptr<TRight> r)
+    {
+        using effective_left_t = std::shared_ptr<TLeft>;
+        using effective_right_t = std::shared_ptr<TRight>;
+        using join_factory_t = JoinFactory<effective_left_t, effective_right_t>;
+        using impl_t = PolymorphFactory<join_factory_t>;
+        using interface_t = typename impl_t::base_t;
+
+        return std::shared_ptr<interface_t>(new impl_t{ join_factory_t{std::move(l), std::move(r)} });
+    }
 
     /** 
     * Allow multiple applicators like: \code

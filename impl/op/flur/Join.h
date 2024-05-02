@@ -230,13 +230,18 @@ namespace OP::flur
 
         constexpr auto compound() const& noexcept
         {
-            return details::make_join(_left.compound(), _right.compound(), _comp);
+            return details::make_join(
+                details::get_reference(_left).compound(), 
+                details::get_reference(_right).compound(), 
+                _comp);
         }
 
         constexpr auto compound() && noexcept
         {
             return details::make_join(
-                std::move(_left).compound(), std::move(_right).compound(), std::move(_comp));
+                details::get_reference(_left).compound(), 
+                details::get_reference(_right).compound(), 
+                std::move(_comp));
         }
 
         Left _left;

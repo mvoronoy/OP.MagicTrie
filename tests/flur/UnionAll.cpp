@@ -32,7 +32,7 @@ namespace {
             >> then::union_all(src::of_container(empty)),
             std::vector{ 1, 2, 3 }, "right empty");
 
-        tresult.info() << "join multitypes...\n";
+        tresult.info() << "union multitypes...\n";
         std::vector dat1{ 1, 2, 3 };
         auto r1_dat1 = 
             src::of_container(dat1)
@@ -43,9 +43,28 @@ namespace {
         tresult.assert_that<eq_sets>(r1_dat1,
             std::vector{ 1, 2, 3, 10, 100, 101, 102 }
             );
-        
     }
+
+    void test_shared(TestRuntime& tresult)
+    {
+
+        tresult.info() << "union Polymorphs ...\n";
+        ;
+        auto r1_dat1 =
+            make_shared(
+                src::of_container(std::vector{ 1, 2, 3 }) 
+                >> then::mapping([](const int& i)->int {return i; })) |
+            make_shared(src::of_value(10)) |
+            make_shared(src::of_iota(100, 103))
+            ;
+        
+        tresult.assert_that<eq_sets>(*r1_dat1,
+            std::vector{ 1, 2, 3, 10, 100, 101, 102 }
+            );
+    }
+
     static auto& module_suite = OP::utest::default_test_suite("flur.union_all")
         .declare("basic", test_union_all)
+        .declare("shared", test_shared)
         ;
 }//ns: empty

@@ -209,8 +209,36 @@ namespace {
         );
 
     }
+
+    void test_shared(TestRuntime& tresult)
+    {
+
+        tresult.info() << "union Polymorphs ...\n";
+        ;
+        auto r1_dat1 =
+            make_shared(
+                src::of_container(std::set{ 1, 2, 3 })
+                ) &
+            make_shared(src::of_value(2)) &
+            make_shared(src::of_iota(100, 103))
+            ;
+
+        tresult.assert_that<eq_sets>(*r1_dat1, std::vector<int>{  }
+        );
+
+        auto r2 =
+            make_shared(
+                src::of_container(std::set{ 1, 2, 3 })
+                ) &
+            make_shared(src::of_value(3)) 
+            ;
+
+        tresult.assert_that<eq_sets>(*r2, std::vector{ 3 });
+    }
+
     static auto& module_suite = OP::utest::default_test_suite("flur.ordered_join")
         .declare("filter", test_Join)
         .declare("with-single", test_JoinSingle)
+        .declare("shared", test_shared)
         ;
 }//ns: empty
