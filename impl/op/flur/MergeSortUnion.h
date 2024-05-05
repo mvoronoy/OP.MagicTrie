@@ -13,26 +13,22 @@
 namespace OP::flur
 {
     /**
-    *   Implement sequence to unite compile time defined tuple of ordered input sequences.
+    *   Implement sequence to union-merge  of ordered input sequences.
     */
-    template <class Elm, class ...Rx>
+    template <class Comp, class Elm, class ...Rx>
     struct MergeSortUnionSequence : public OrderedSequence<Elm>
     {
         using base_t = Sequence<Elm>;
         using element_t = typename base_t::element_t;
 
         using all_seq_tuple_t = std::tuple< Rx... >;
-        using getter_t = base_t&(*)(all_seq_tuple_t&);
-        //allows convert compile-time indexing to runtime at(i)
-        using ptr_holder_t = std::array<getter_t, sizeof ... (Rx)>;
 
         template <class Tupl>
-        constexpr MergeSortUnionSequence(Tupl&& rx) noexcept
+        constexpr MergeSortUnionSequence(Comp comp, Tupl&& rx) noexcept
             : _scope( std::forward<Tupl>(rx) )
             , _retain_size(0)
+            , _comparator(std::move(comp))
         {
-            
-
         }
 
         void start() override
@@ -46,7 +42,7 @@ namespace OP::flur
                         std::push_heap(
                             _retain_heap.begin(),
                             _retain_heap.begin() + ++_retain_size,
-                            greater_cmp);
+                            _comparator);
                     }
                 };
             std::apply([&](auto& ...seqx) {
@@ -72,33 +68,39 @@ namespace OP::flur
             std::pop_heap(
                 _retain_heap.begin(), 
                 _retain_heap.begin() + _retain_size,
-                greater_cmp);
+                _comparator);
             if( !current->in_range() )
                 --_retain_size;
             if( _retain_size ) // move to [0] sequence with minimal `current`
                 std::push_heap(
-                _retain_heap.begin(), 
-                _retain_heap.begin() + _retain_size,
-                greater_cmp);
-        }
-
-    protected:
-        constexpr size_t union_size() const noexcept
-        {
-            return sizeof ... (Rx);
+                    _retain_heap.begin(), 
+                    _retain_heap.begin() + _retain_size,
+                    _comparator);
         }
 
     private:
         all_seq_tuple_t _scope;
         //contains pointers to _scope instances
-        std::array<base_t*, sizeof...(Rx)> _retain_heap;
+        std::array<base_t*, sizeof...(Rx)> _retain_heap{};
         unsigned _retain_size;
-
-        /** since heap supports revert order need implement greater compare */
-        static bool greater_cmp(const base_t* left, const base_t* right)
+        
+        /** heap queue uses reverse order, so this structure 
+        * implements std::greater semantic
+        */
+        struct GreatComparator
         {
-            return left->current() > right->current();
-        }
+            constexpr GreatComparator(Comp&& comp) noexcept
+                : _comp(std::move(comp))
+            {}
+            
+            bool operator()(const base_t* left, const base_t* right)
+            {
+                return _comp(left->current(), right->current()) > 0;
+            }
+
+            Comp _comp;
+        } _comparator;
+
     };
 
     template <class Comp, class ... Tx>
@@ -117,14 +119,18 @@ namespace OP::flur
             using containers_t = details::sequence_type_t<Src>;
             static_assert(
                 std::conjunction_v<
-                std::is_convertible< typename containers_t::element_t, typename details::sequence_type_t<Tx>::element_t >...>,
+                    std::is_convertible< 
+                        typename containers_t::element_t, 
+                        typename details::sequence_type_t<Tx>::element_t >...>,
                 "merge-sort-union must use sequences producing same type elements");
 
             return
                 std::apply([&](const auto& ... rx) ->decltype(auto){
                     return MergeSortUnionSequence<
+                        Comp, 
                         typename containers_t::element_t,
                         containers_t, details::sequence_type_t<Tx>... >(
+                            _comp,
                             std::make_tuple(std::move(src),
                                 details::get_reference(rx).compound() ... )
                         );}, _right);
@@ -142,8 +148,10 @@ namespace OP::flur
             return
                 std::apply([&](auto&& ... rx) ->decltype(auto) {
                 return MergeSortUnionSequence<
+                    Comp,
                     typename containers_t::element_t,
                     containers_t, details::sequence_type_t<Tx>... >(
+                            std::move(_comp),
                             std::make_tuple(std::move(src),
                             details::get_reference(rx).compound() ...)
                     ); }, std::move(_right));
@@ -166,6 +174,7 @@ namespace OP::flur
             return
                 std::apply([&](const auto& ... rx) ->decltype(auto){
                     return MergeSortUnionSequence<
+                        Comp,
                         element_t,
                         details::sequence_type_t<Tx>... >(
                             std::make_tuple( details::get_reference(rx).compound() ... )

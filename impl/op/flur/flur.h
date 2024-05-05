@@ -181,14 +181,23 @@ namespace OP::flur
             return make_lazy_range(factory_t(std::move(begin), std::move(end), std::move(step)));
         }
 
-        /** \brief Same as of_iota, but result sequence produces `const T&` */ 
+        template <class T>
+        constexpr auto of_cref_iota(T begin, T end, T step) noexcept
+        {
+            using iota_value_t = std::decay_t<T>;
+            using iota_t = OfIota<iota_value_t, const iota_value_t&>;
+            using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
+            return make_lazy_range(factory_t(std::move(begin), std::move(end), std::move(step)));
+        }
+
+        /** \brief Same as of_iota, but result sequence produces `const T&` */
         template <class T>
         constexpr auto of_cref_iota(T begin, T end) noexcept
         {
             using iota_value_t = std::decay_t<T>;
             using iota_t = OfIota<iota_value_t, const iota_value_t&>;
             using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
-            return make_lazy_range(factory_t(std::move(begin), std::move(end), 1) );
+            return make_lazy_range(factory_t(std::move(begin), std::move(end), T{ 1 }));
         }
 
         /**
@@ -465,7 +474,8 @@ namespace OP::flur
         }
 
         /**
-        *   Ordered sequence that applies union-merge (place side-by-side)
+        *   Ordered sequence that applies union-merge (placed side-by-side). It is undefined behaviour
+        * when sequence doesn't support ordering.
         */
         template <class T>
         constexpr auto union_merge(T&& right) noexcept
