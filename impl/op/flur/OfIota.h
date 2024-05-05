@@ -19,10 +19,10 @@ namespace flur
     * Container is ordred on condition if for the boundary 
     * [begin, end) condition `(begin <= end)` is true. 
     */
-    template <class T>
-    struct OfIota : public Sequence<T>
+    template <class T, class R = T>
+    struct OfIota : public Sequence<R>
     {
-        using this_t = OfIota<T>;
+        using this_t = OfIota<T, R>;
         using distance_t = std::ptrdiff_t;
         using bounds_t = std::tuple<T, T, distance_t>;
         constexpr OfIota(T&& begin, T&& end, distance_t step = 1) noexcept
@@ -64,7 +64,7 @@ namespace flur
                 return _current != _bounds.second;
         }
 
-        virtual T current() const override
+        virtual R current() const override
         {
             return _current;
         }

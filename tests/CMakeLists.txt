@@ -79,6 +79,7 @@ add_executable (trie_test
     "flur/StringInput.cpp"
     "flur/Join.cpp"
     "flur/UnionAll.cpp"
+    "flur/MergeSortUnion.cpp"
     "flur/Iterators.cpp"
     "flur/ThenHierarchy.cpp"
     "flur/OfLazyValue.cpp"

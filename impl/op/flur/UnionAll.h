@@ -61,22 +61,27 @@ namespace OP::flur
         }
 
     protected:
-        constexpr size_t union_size() const
+
+        constexpr size_t union_size() const noexcept
         {
             return sizeof ... (Rx);
         }
-        base_t& at(size_t i)
+
+        base_t& at(size_t i) noexcept
         {
             return details::get_reference((sequence_resolver[i])(_scope));
         }
-        const base_t& at(size_t i) const
+
+        const base_t& at(size_t i) const noexcept
         {
             auto& ref = const_cast<all_seq_tuple_t&>(_scope);
             return details::get_reference((sequence_resolver[i])(ref));
         }
+
     private:
         all_seq_tuple_t _scope;
         size_t _index;
+        
         void seek()
         {
             while( (_index < union_size())
@@ -89,16 +94,17 @@ namespace OP::flur
         }
 
         template <size_t I>
-        static base_t& at_i(all_seq_tuple_t& tup)
+        static base_t& at_i(all_seq_tuple_t& tup) noexcept
         {
             return details::get_reference(std::get<I>(tup));
         }
 
         template <size_t ... I>
-        constexpr static ptr_holder_t mk_arr(std::index_sequence<I...>)
+        constexpr static ptr_holder_t mk_arr(std::index_sequence<I...>) noexcept
         {
             return ptr_holder_t{ at_i<I> ... };
         }
+
         constexpr static ptr_holder_t sequence_resolver
             = { mk_arr(std::make_index_sequence<sizeof...(Rx)>{}) };
     };

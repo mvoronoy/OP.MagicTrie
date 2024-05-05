@@ -31,6 +31,7 @@
 #include <op/flur/StringInput.h>
 #include <op/flur/Distinct.h>
 #include <op/flur/UnionAll.h>
+#include <op/flur/MergeSortUnion.h>
 #include <op/flur/HierarchyTraversal.h>
 #include <op/flur/PolymorphsBack.h>
 #include <op/flur/Applicator.h>
@@ -149,16 +150,43 @@ namespace OP::flur
         }
 
         /**
-        * Create LazyRange in a way similar to std::iota - specify range of values that support ++ operator.
+        * Create a LazyRange similar to std::iota, which is a generates a sequence of values by repeatedly incrementing 
+        * a starting value. Result sequence produces `T` as value (if you need `const T&` use `of_cref_iota`).
+        *
+        *  \tparam T type must support prefixed ++ operator. Optionally if for this type there is a definition std::less
+        *       then result sequence is ordered (eg. is_sequence_ordered() == true).
+
         * For example:\code
-        * 
+        *   for(auto i: src::of_iota(1, 3))
+        *       std::cout << i;
         * \endcode
+        * Prints `12`.
+        *
         */
-        template <class V>
-        constexpr auto of_iota(V begin, V end) noexcept
+        template <class T>
+        constexpr auto of_iota(T begin, T end) noexcept
         {
-            using iota_value_t = std::decay_t<V>;
+            using iota_value_t = std::decay_t<T>;
             using iota_t = OfIota<iota_value_t> ;
+            using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
+            return make_lazy_range(factory_t(std::move(begin), std::move(end), T{ 1 }));
+        }
+        
+        template <class T>
+        constexpr auto of_iota(T begin, T end, T step) noexcept
+        {
+            using iota_value_t = std::decay_t<T>;
+            using iota_t = OfIota<iota_value_t>;
+            using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
+            return make_lazy_range(factory_t(std::move(begin), std::move(end), std::move(step)));
+        }
+
+        /** \brief Same as of_iota, but result sequence produces `const T&` */ 
+        template <class T>
+        constexpr auto of_cref_iota(T begin, T end) noexcept
+        {
+            using iota_value_t = std::decay_t<T>;
+            using iota_t = OfIota<iota_value_t, const iota_value_t&>;
             using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
             return make_lazy_range(factory_t(std::move(begin), std::move(end), 1) );
         }
@@ -426,6 +454,7 @@ namespace OP::flur
                     std::forward<TSubtrahend>(right), std::forward<TComparators>(cmp))
             );
         }
+
         /**
         *   Non-ordered sequence that unions all (place side-by-side)
         */
@@ -433,6 +462,23 @@ namespace OP::flur
         constexpr auto union_all(Rx&& ...right) noexcept
         {
             return UnionAllSequenceFactory<Rx...>(std::forward<Rx>(right) ...);
+        }
+
+        /**
+        *   Ordered sequence that applies union-merge (place side-by-side)
+        */
+        template <class T>
+        constexpr auto union_merge(T&& right) noexcept
+        {
+            return MergeSortUnionFactory<full_compare_t, T>(
+                full_compare_t{}, std::forward<T>(right) );
+        }
+
+        template <class T, class Cmp>
+        constexpr auto union_merge(T&& right, Cmp cmp) noexcept
+        {
+            return MergeSortUnionFactory<full_compare_t, T>(
+                std::move(cmp), std::forward<T>(right) );
         }
 
         /** Convert source by filtering out some ellements according to predicate 
@@ -452,8 +498,8 @@ namespace OP::flur
         }
         
         /** 
-        *   Remove duplicates from source sequence. (Current implementation works only with 
-        *   sorted)
+        *   Remove duplicates from unordered source sequence. 
+        *
         * \tparam EqCmp - binary comparator to return true if 2 items are equal
         */
         template <class Eq>

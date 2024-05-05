@@ -39,10 +39,12 @@ namespace flur
         {
             return SourceImpl(_v);
         }
+
         constexpr decltype(auto) compound() && noexcept
         {
             return SourceImpl(std::move(_v));
         }
+
     private:
         V _v;
     };
