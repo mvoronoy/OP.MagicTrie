@@ -248,6 +248,7 @@ namespace OP::flur
 
         return std::unique_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
     }
+    
     template <class ... Tx >
     constexpr auto make_unique(LazyRange<Tx ...> && range) 
     {
@@ -257,25 +258,29 @@ namespace OP::flur
 
         return std::unique_ptr<interface_t>( new impl_t{ std::forward<lrange_t>(range) } );
     }
-    template <class ... Tx >
-    constexpr auto make_shared(Tx &&... tx) 
+
+    /**
+    *   Wraps specific `TFactoryBase` to polymorph std::share_ptr<AbstractPolymorphFactory<U>> (with type erasure) 
+    *   where `U` is element produced by sequence of `TFactoryBase`.
+    */ 
+    template <class TFactoryBase, 
+        std::enable_if_t<std::is_base_of_v<FactoryBase, TFactoryBase>, int> = 0>
+    constexpr auto make_shared(TFactoryBase&& tx)
     {
-        auto lz = make_lazy_range(std::piecewise_construct, std::forward<Tx>(tx)...);
-        using lrange_t = decltype(lz);
-        using impl_t = PolymorphFactory<lrange_t>;
+        using impl_t = PolymorphFactory<TFactoryBase>;
         using interface_t = typename impl_t::base_t;
-        return std::shared_ptr<interface_t>( new impl_t{ std::move(lz) });
+        return std::shared_ptr<interface_t>( new impl_t{ std::move(tx) });
     }
 
-    template <class ... Tx >
-    constexpr auto make_shared(LazyRange<Tx ...> range) 
-    {
-        using lrange_t = LazyRange<Tx ...>;
-        using impl_t = PolymorphFactory<lrange_t>;
-        using interface_t = typename impl_t::base_t;
+    //template <class ... Tx >
+    //constexpr auto make_shared(LazyRange<Tx ...> range) 
+    //{
+    //    using lrange_t = LazyRange<Tx ...>;
+    //    using impl_t = PolymorphFactory<lrange_t>;
+    //    using interface_t = typename impl_t::base_t;
 
-        return std::shared_ptr<interface_t>( new impl_t{ std::move(range) } );
-    }
+    //    return std::shared_ptr<interface_t>( new impl_t{ std::move(range) } );
+    //}
 
     template <class ... Tx >
     size_t consume_all(const LazyRange<Tx ...>& range) 
@@ -289,6 +294,7 @@ namespace OP::flur
         }
         return count;
     }
+
     template <class G>
     std::enable_if_t<std::is_base_of_v<FactoryBase, G>, size_t> consume_all(const G& range) 
     {

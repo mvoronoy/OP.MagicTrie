@@ -38,7 +38,7 @@ namespace flur
         using container_t = details::dereference_t<V>;
         using base_t = Base;
         using element_t = typename base_t::element_t;
-        using iterator = decltype(std::declval<const container_t&>().begin());//typename container_t::const_iterator;
+        using iterator = decltype(std::begin(std::declval<container_t>()));//typename container_t::const_iterator;
 
         constexpr OfContainer(V&& v) noexcept
             :_v(std::move(v))

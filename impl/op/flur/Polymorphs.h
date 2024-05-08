@@ -44,12 +44,6 @@ namespace OP::flur
     
     };
     
-    namespace details
-    {
-        template <class TFactory>
-        using polymorph_src_sequence_t = dereference_t<sequence_type_t<dereference_t<TFactory>> >;
-
-    } //ns:details
 
     /** 
     *   PolymorphFactory is a factory that allows construct other factories on the heap.
@@ -60,19 +54,16 @@ namespace OP::flur
     */
     template <class TFactory>
     struct PolymorphFactory : 
-        AbstractPolymorphFactory<  
-            typename details::polymorph_src_sequence_t<std::decay_t<TFactory>>::element_t
-        >
+        AbstractPolymorphFactory<details::sequence_element_type_t<TFactory>>
     {
         using base_factory_t = std::decay_t<TFactory>;
         static_assert( std::is_base_of_v<FactoryBase, base_factory_t>,
             "Base must be derived from FactoryBase");
-        using sequence_t = details::polymorph_src_sequence_t<base_factory_t>;
+        using sequence_t = details::sequence_type_t<base_factory_t>;
         using base_t = AbstractPolymorphFactory<  
-            typename sequence_t::element_t
+            details::sequence_element_type_t<TFactory>
         >;
 
-        
         constexpr PolymorphFactory(base_factory_t&& rref) noexcept
             : _base_factory(std::move(rref)) {}
 
