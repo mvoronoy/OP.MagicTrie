@@ -24,7 +24,7 @@ namespace flur
     {
         template <class Container>
         using element_of_container_t = decltype(*std::begin(
-            std::declval<const details::dereference_t<Container>&>()));
+            std::declval<details::dereference_t<Container>>()));
     }
     /**
     *   Create conatiner from any stl based container 
