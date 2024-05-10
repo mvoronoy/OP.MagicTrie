@@ -309,6 +309,16 @@ namespace OP::flur
         return count;
     }
 
+    struct consume_all_stub {};
+    constexpr static inline consume_all_stub consume_all_c;
+
+    template <class ...Tx>
+    auto operator >>= (const LazyRange<Tx...>& range, consume_all_stub)
+    {
+        return consume_all(range); 
+    }
+
+
     /*template <class T >
     auto first( Sequence<T>& seq) 
     {

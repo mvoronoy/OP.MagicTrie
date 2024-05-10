@@ -93,6 +93,51 @@ namespace OP::flur
         possible_sequence_impl_t _instance;
     };
 
+    template <class ...TFactory>
+    struct ProxyFactory : FactoryBase
+    {
+        using target_sequence_t = SequenceProxy<
+            details::sequence_type_t<TFactory>... >;
+
+        template <class TInstance>
+        constexpr ProxyFactory(TInstance instance) noexcept
+            : _factory_instance(std::move(instance))
+        {
+        }
+
+        constexpr auto compound() const& noexcept
+        {
+            return std::visit([](const auto& factory){
+                return target_sequence_t{ details::get_reference(factory).compound() };
+                }, _factory_instance);
+        }
+
+        constexpr auto compound() && noexcept
+        {
+            return std::visit([](auto&& factory){
+                return target_sequence_t{ details::get_reference(factory).compound() };
+                }, std::move(_factory_instance));
+        }
+
+        template <class Src>
+        constexpr auto compound(Src&& src) const& noexcept
+        {
+            return std::visit([&](const auto& factory){
+                return target_sequence_t{ details::get_reference(factory).compound(std::move(src)) };
+                }, _factory_instance);
+        }
+
+        template <class Src>
+        constexpr auto compound(Src&& src) && noexcept
+        {
+            return std::visit([&](const auto& factory){
+                return target_sequence_t{ details::get_reference(factory).compound(std::move(src)) };
+                }, std::move(_factory_instance));
+        }
+    private:
+        std::variant<TFactory...> _factory_instance;
+    };
+
 }//ns:OP::flur
 
 #endif //_OP_FLUR__PROXY_H_

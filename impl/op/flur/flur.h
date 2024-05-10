@@ -17,6 +17,7 @@
 #include <op/flur/SimpleFactory.h>
 
 #include <op/flur/Cartesian.h>
+#include <op/flur/Conditional.h>
 #include <op/flur/Filter.h>
 #include <op/flur/TakeAwhile.h>
 #include <op/flur/FlatMapping.h>
@@ -149,6 +150,25 @@ namespace OP::flur
                 simple_factory_param_t{ std::move(f), limit }) );
         }
 
+        template <class TOnTrue, class TOnFalse>
+        constexpr auto conditional(bool condition, TOnTrue on_true, TOnFalse on_false) noexcept
+        {
+            auto eval_arg = [](auto& arg){
+                if constexpr( std::is_invocable_v<decltype(arg)> )
+                    return arg();
+                else
+                    return arg;
+            };
+            using on_true_t = decltype( eval_arg(on_true) );
+            using on_false_t = decltype( eval_arg(on_false) );
+            using proxy_factory_t = ProxyFactory<on_true_t, on_false_t>;
+
+            if( condition )
+                return make_lazy_range(proxy_factory_t{eval_arg(on_true)});
+            else
+                return make_lazy_range(proxy_factory_t{eval_arg(on_false)});
+        }
+
         /**
         * Create a LazyRange similar to std::iota, which is a generates a sequence of values by repeatedly incrementing 
         * a starting value. Result sequence produces `T` as value (if you need `const T&` use `of_cref_iota`).
@@ -160,7 +180,7 @@ namespace OP::flur
         *   for(auto i: src::of_iota(1, 3))
         *       std::cout << i;
         * \endcode
-        * Prints `12`.
+        * Prints `12` (sequential 1 and 2).
         *
         */
         template <class T>
