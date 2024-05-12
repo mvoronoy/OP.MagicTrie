@@ -148,6 +148,13 @@ namespace apply
     {
         return Count<T>(counter);
     }
+
+    template <class T>
+    constexpr auto sum(T& result) noexcept
+    {
+        return Sum<T>(result);
+    }
+
 }// ns:apply
 
 //
