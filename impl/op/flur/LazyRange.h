@@ -361,25 +361,4 @@ namespace OP::flur
 
 } //ns:OP::flur
 
-namespace std
-{
-    /*
-    template <class T>
-    constexpr std::enable_if_t <
-        std::is_base_of_v<OP::flur::FactoryBase, T> && !OP::utils::is_generic<T, OP::flur::LazyRange>::value, 
-        OP::flur::details::lazy_iterator_deduction_t < T >
-    > begin(const T& inst)
-    {
-        return OP::flur::details::begin_impl(inst);
-    }
-
-    template <class T>
-    constexpr std::enable_if_t <
-        std::is_base_of_v<OP::flur::FactoryBase, T> && !OP::utils::is_generic<T, OP::flur::LazyRange>::value,
-        OP::flur::details::lazy_iterator_deduction_t < T > > end(const T& inst) noexcept
-    {
-        return OP::flur::details::end_impl(&inst);
-    }
-      */
-}//ns:std
 #endif //_OP_FLUR_LAZYRANGE__H_

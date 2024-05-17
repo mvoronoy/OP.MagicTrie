@@ -44,7 +44,7 @@ namespace apply
 
 }// ns:apply
 
-template <class T>
+template <class T, class Op = std::plus<T> >
 struct Sum : ApplicatorBase
 {
     Sum(T& dest)
@@ -56,9 +56,10 @@ struct Sum : ApplicatorBase
     void operator()(const Lr& lr) const
     {
         auto seq = lr.compound();
+        Op action;
         auto& rseq = details::get_reference(seq);
         for(rseq.start(); rseq.in_range(); rseq.next())
-            _dest += rseq.current();
+            _dest = action(_dest, rseq.current());
     }
 
 private:

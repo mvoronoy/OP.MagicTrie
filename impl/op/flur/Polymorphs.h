@@ -94,4 +94,21 @@ namespace OP::flur
 
 } //ns: OP::flur
 
+namespace std
+{
+    
+    template <class T>
+    auto begin(std::shared_ptr<OP::flur::AbstractPolymorphFactory<T>> inst)
+    {
+        return inst->begin();
+    }
+
+    template <class T>
+    auto end(std::shared_ptr<OP::flur::AbstractPolymorphFactory<T>> inst) noexcept
+    {
+        return inst->end();
+    }
+      
+}//ns:std
+
 #endif //_OP_FLUR_POLYMORPHS__H_

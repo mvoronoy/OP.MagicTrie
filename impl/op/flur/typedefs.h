@@ -106,7 +106,7 @@ namespace OP::flur::details
     template <class SomeContainer>
     using unpack_t = decltype(unpack(std::declval< SomeContainer>()));
     
-    //Compound togethere all factories to single construction
+    //Compound together all factories to single construction
     template <class Tuple, std::size_t I = std::tuple_size<Tuple>::value >
     constexpr decltype(auto) compound_impl(const Tuple& t) noexcept
     {   //scan tuple in reverse order
