@@ -45,7 +45,7 @@ namespace {
         //test correctnes of function argument-attributes
         size_t expected_generation = 0, step = 0;
         auto pipeline = OP::flur::src::of_lazy_value(
-            [&](const OP::flur::PipelineAttrs& current, const size_t limit) {
+            [&](const OP::flur::SequenceState& current, const size_t limit) {
                 ++invocked;
                 tresult.assert_that<equals>(3, limit);
                 tresult.assert_that<equals>(step++, current.step().current());

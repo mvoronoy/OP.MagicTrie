@@ -45,9 +45,9 @@ namespace {
     void test_boolarg_gen(OP::utest::TestRuntime& tresult)
     {
         size_t invocked = 0;
-        for (auto r : OP::flur::src::generator([&](bool first) {
-            tresult.assert_true((first && (invocked == 0))
-                || (!first && (invocked > 0)),
+        for (auto r : OP::flur::src::generator([&](const SequenceState& at) {
+            tresult.assert_true((at.step() == 0 && (invocked == 0))
+                || (at.step() > 0 && (invocked > 0)),
                 "bool parameter wrong semantic");
             ++invocked;
             return std::optional<int>{};
@@ -59,9 +59,10 @@ namespace {
 
         invocked = 0;
         size_t control_seq = 1;
-        for (const auto& r : OP::flur::src::generator([&](bool first) {
-            tresult.assert_true((first && (invocked == 0))
-                || (!first && (invocked > 0)),
+        for (const auto& r : OP::flur::src::generator([&](const SequenceState at) {
+            tresult.assert_true(
+                (at.step() == 0 && (invocked == 0))
+                || (at.step() > 0 && (invocked > 0)),
                 "bool parameter wrong semantic");
 
             ++invocked;
@@ -101,8 +102,8 @@ namespace {
         using cstr_ptr = const std::string*;
         size_t invocked = 0;
         typename set_t::iterator current;
-        for (const auto& r : OP::flur::src::generator([&](bool first) -> cstr_ptr {
-            current = first ? subset.begin() : std::next(current);
+        for (const auto& r : OP::flur::src::generator([&](const SequenceState& attrs) -> cstr_ptr {
+            current = attrs.step() == 0 ? subset.begin() : std::next(current);
             return current == subset.end() ? nullptr : &*current;
             }))
         {

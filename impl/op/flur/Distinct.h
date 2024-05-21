@@ -30,7 +30,7 @@ namespace OP::flur
         constexpr SkipOrdered(KeyEqual cmp = KeyEqual{}) noexcept
             : _cmp(std::move(cmp)){}
         
-        bool operator()(PipelineAttrs &attrs, const Seq& seq) const
+        bool operator()(SequenceState &attrs, const Seq& seq) const
         {
             if( attrs.step() == 0)
             {// first entry to sequence
@@ -74,7 +74,7 @@ namespace OP::flur
         {
         }
 
-        bool operator()(PipelineAttrs &attrs, const Seq& seq) const
+        bool operator()(SequenceState &attrs, const Seq& seq) const
         {
             if( attrs.step().current() == 0)
             {
@@ -99,7 +99,7 @@ namespace OP::flur
         using dereference_sequnce_t = details::dereference_t<std::decay_t<Src>>;
 
         constexpr Distinct(Src&& src, Policy f) noexcept
-            : _attrs(std::move(src), PipelineAttrs{})
+            : _attrs(std::move(src), SequenceState{})
             , _policy(std::move(f))
         {
         }
@@ -113,7 +113,7 @@ namespace OP::flur
         void start() override
         {
             auto& rs = rsrc<Src>();
-            auto& pline = rsrc<PipelineAttrs>();
+            auto& pline = rsrc<SequenceState>();
             rs.start();
             pline.start();
             seek(rs, pline); 
@@ -132,7 +132,7 @@ namespace OP::flur
         void next() override
         {
             auto& rs = rsrc<Src>();
-            auto& pline = rsrc<PipelineAttrs>();
+            auto& pline = rsrc<SequenceState>();
             rs.next();
             pline.next();
             seek(rs, pline); 
@@ -140,7 +140,7 @@ namespace OP::flur
 
     private:
         
-        void seek(dereference_sequnce_t& rs, PipelineAttrs& pline)
+        void seek(dereference_sequnce_t& rs, SequenceState& pline)
         {
             while(rs.in_range() && !distinct_result())
             {
@@ -168,7 +168,7 @@ namespace OP::flur
 
         OP::currying::CurryingTuple<
             std::decay_t<Src>, 
-            PipelineAttrs> _attrs;
+            SequenceState> _attrs;
         Policy _policy;
     };
 
@@ -253,7 +253,7 @@ namespace OP::flur
     *   }
     * \endcode
     *  Functor is allowed to recive following arguments in any combination or order:
-    *   - PipelineAttrs &attrs - to control current step number;
+    *   - SequenceState &attrs - to control current step number;
     *   - const Seq& - previous sequence in pipeline;
     *   - const typename Seq::element_t&  - current processed element
     */

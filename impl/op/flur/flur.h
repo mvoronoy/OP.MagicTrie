@@ -136,7 +136,7 @@ namespace OP::flur
         * \tparam F - functor to return value. It may be declared as: 
         *   - no argument function;
         *   - any combination of:
-        *   -- `const OP::flur::PipelineAttrs&`, 
+        *   -- `const OP::flur::SequenceState&`, 
         *   -- `size_t` (copy of limit argument).
         */
         template <class F>

@@ -76,20 +76,20 @@ namespace flur
         using simple_factory_param_t = std::pair<gen_t, size_t>;
 
         constexpr OfLazyValue(simple_factory_param_t param) noexcept
-            : _attrs(PipelineAttrs{}, param.second)
+            : _attrs(SequenceState{}, param.second)
             , _gen(std::move(param.first))
         {
         }
 
         virtual void start()
         {
-            auto& pline = attr<PipelineAttrs>();
+            auto& pline = attr<SequenceState>();
             pline.start();
         }
 
         virtual bool in_range() const
         {
-            return attr<PipelineAttrs>().step().current() < attr<size_t>();
+            return attr<SequenceState>().step().current() < attr<size_t>();
         }
 
         virtual T current() const
@@ -100,7 +100,7 @@ namespace flur
 
         virtual void next()
         {
-            attr<PipelineAttrs>().next();
+            attr<SequenceState>().next();
         }
     private:
         template <class U>
@@ -117,7 +117,7 @@ namespace flur
         /** Store current progress and total limit for this sequence to use as optional attributes
         * for applicator functor
         */
-        mutable OP::currying::CurryingTuple<PipelineAttrs, size_t> _attrs;
+        mutable OP::currying::CurryingTuple<SequenceState, size_t> _attrs;
         mutable gen_t _gen;
     };
 

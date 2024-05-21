@@ -30,7 +30,7 @@ namespace OP::flur
             assert(details::get_reference(_subtrahend).is_sequence_ordered());
         }
 
-        bool operator()(PipelineAttrs &attrs, const Src& seq) const
+        bool operator()(SequenceState &attrs, const Src& seq) const
         {
             auto& seq_ref = details::get_reference(seq);
             auto& sub_ref = details::get_reference(_subtrahend);
@@ -98,7 +98,7 @@ namespace OP::flur
                     drain, std::move(sub), std::move(comp)));
         }
         
-        bool operator()(PipelineAttrs& attrs, const Src& seq) const
+        bool operator()(SequenceState& attrs, const Src& seq) const
         {
             if (attrs.step() == 0)
             {// first entry to sequence

@@ -6,9 +6,12 @@
 #include <memory>
 #include <optional>
 
+#include <op/common/Currying.h>
+#include <op/common/ftraits.h>
+
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
-#include <op/common/ftraits.h>
+#include <op/flur/Ingredients.h>
 
 namespace OP
 {
@@ -46,66 +49,39 @@ namespace OP
             /** Start iteration from the beginning. If iteration was already in progress it resets.  */
             virtual void start() override
             {
-                adaptive_start();
+                std::get< SequenceState>(_attrs).start();
+                _current = _attrs.typed_invoke(_generator);
             }
+            
             /** Check if Sequence is in valid position and may call `next` safely */
             virtual bool in_range() const override
             {
                 return !(!_current);
             }
+            
             /** Return current item */
             virtual element_t current() const override
             {
                 return *_current;
             }
+
             /** Position iterable to the next step */
             virtual void next() override
             {
-                adaptive_next();
+                std::get<SequenceState>(_attrs).next();
+                _current = _attrs.typed_invoke(_generator);
             }
+
         private:
-            F _generator;
-            size_t _index = 0;
             using ftraits_t = OP::utils::function_traits<F>;
             using current_holder_t = typename ftraits_t::result_t;
-            current_holder_t _current;
+            
+            current_holder_t _current{};
 
-            void adaptive_start()
-            {
-                _index = 0;
-                if constexpr (ftraits_t::arity_c == 1)
-                {
-                    constexpr bool is_arg_bool_c =
-                            std::is_same_v<bool, typename ftraits_t::template arg_i <0>>;
-                    static_assert(is_arg_bool_c/*clang compatibility*/, "Unsupported generator signature neither: f() nor f(bool)");
-                    _current = std::move(_generator(true));
-                }
-                else
-                {
-                    constexpr bool is_zero_arity_c = ftraits_t::arity_c == 0;
-                    static_assert(is_zero_arity_c, "Unsupported generator signature neither: f() nor f(bool)");
-                    _current = std::move(_generator());
-                }
-            }
-
-            void adaptive_next()
-            {
-                ++_index;
-                if constexpr (ftraits_t::arity_c == 1)
-                {
-                    static_assert(
-                        std::is_same_v<bool, typename ftraits_t::template arg_i<0>>,
-                        "Unsupported generator signature neither: f() nor f(bool)");
-                    _current = std::move(_generator(false));
-                }
-                else
-                {
-                    static_assert((ftraits_t::arity_c == 0), "Unsupported generator signature neither: f() nor f(bool)");
-                    _current = std::move(_generator());
-                }
-            }
-
+            F _generator;
+            OP::currying::CurryingTuple<SequenceState> _attrs;
         };
+
         namespace details
         {
         template <typename A>
