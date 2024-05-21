@@ -18,22 +18,22 @@ namespace OP
     /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
     namespace flur
     {
-        /** Sequence formed by generator functor
+        /** Define sequence formed by generator functor
         *  \tparam Base - generator may support ordered or unordered sequence. Class doesn't provide 
         *       additional sorting instead it relies on generator function and developer responsibility
-         * \tparam F - generator functor. F must return some value that supports contextually convertible 
-         *              to bool (. casoperator `bool` or (not)) and 
-         *              dereferencing `*`. So generator class will work out of box for raw-pointers, 
-         *              std::optional, std::unique_ptr, std::shared_ptr and so on. Note, according to
-         *          this https://stackoverflow.com/a/26895581/149818 std::optional cannot own reference
-         *          so if need reference semantic use smart-pointers .
-         *  F may have following signaures:
-         *  \li no arg `f()`. 
-         *  \li 1 input bool arg `f(bool)`, true mean start of generation and false for 
-         *          consequnt calls. 
-         *  \li 1 input size_t arg `f(size_t)`, index started from 0 used to 
-         *          track order of invocation.
-         */
+        * \tparam F - generator functor. F must return some value that supports contextually convertible 
+        *              to bool (operator `bool` or (not)) and 
+        *              dereferencing `*`. So generator class will work out of box for raw-pointers, 
+        *              std::optional, std::unique_ptr, std::shared_ptr and so on. Note, according to
+        *          this https://stackoverflow.com/a/26895581/149818 std::optional cannot own reference
+        *          so if need reference semantic use smart-pointers.
+        *
+        *  F may have following input arguments:
+        *  - no arg `f()`. 
+        *  - `const SequenceState&` to expose current state of sequence. For example:
+        *      -- use `state.step() == 0` to check current step or beggining of sequence;
+        *      -- use `state.generation() == 0` to check how many times sequence was restarted.
+        */
         template <class Base, class F>
         struct Generator : Base
         {
@@ -49,7 +49,7 @@ namespace OP
             /** Start iteration from the beginning. If iteration was already in progress it resets.  */
             virtual void start() override
             {
-                std::get< SequenceState>(_attrs).start();
+                std::get<SequenceState>(_attrs).start();
                 _current = _attrs.typed_invoke(_generator);
             }
             
