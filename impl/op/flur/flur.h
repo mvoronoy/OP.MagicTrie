@@ -233,7 +233,18 @@ namespace OP::flur
         }
 
         /**
-        *  create LazyRange from function. For details see OP::flur::Generator
+        *  @brief create LazyRange from generator functor. 
+        *
+        *  @tparam F the generator functor. The functor must return a value that is contextually convertible to 
+        *           bool (i.e., supports `operator bool` or an equivalent operator). Additionally, it must 
+        *           support dereferencing via `*`. Therefore, the generator class will work out-of-the-box for 
+        *           raw pointers.
+        * 
+        *           F may have the following input arguments:
+        *           - No arguments (`f()`).
+        *           - `const SequenceState&` to expose the current state of the sequence. For example:
+        *               - Use `state.step() == 0` to check the current step or the beginning of the sequence.
+        *
         */
         template <class F>
         constexpr auto generator(F&& f) noexcept
@@ -247,23 +258,27 @@ namespace OP::flur
             ||  OP::utils::is_generic<details::dereference_t<T>, std::basic_string_view>::value> >
         using String = T;
         /**
-        * Create LazyRange to iterate over elements of string split by separator. Iteration 
-        * has minimal memory overhead since to access uses std::string_view
-        * For example:\code
-        * std::for_each(src::of_string_split("a:b:c"s, ":"s), 
-        *   [](const std::string_view& word) { std::cout << word << "\n";})
-        * \endcode
-        * Produces: \code
-        * a
-        * b
-        * c
-        * \endcode
-        * 
-        * \param str string-like object to split.
-        * \param separators string-like object of possible separators. When multiple characters are specified any of them
-        *   treated as separator. For example `of_string_split("a:b;c,d", ",:")` generates sequence of
-        *   {"a", "b;c", "d"}. Note that empty string is allowed, then result just entire input `str`.
-        */
+         *   @brief Create LazyRange to iterate over elements of a string split by a separator.
+         * 
+         * Iteration has minimal memory overhead since it uses `std::string_view` for access.
+         * 
+         * For example:
+         * @code
+         * std::for_each(src::of_string_split("a:b:c"s, ":"s), 
+         *   [](const std::string_view& word) { std::cout << word << "\n"; });
+         * @endcode
+         * Produces:
+         * @code
+         * a
+         * b
+         * c
+         * @endcode
+         * 
+         * @param str A string-like object to split.
+         * @param separators A string-like object of possible separators. When multiple characters are specified, any of them
+         *                   are treated as separators. For example, `of_string_split("a:b;c,d", ",:")` generates a sequence of
+         *                   {"a", "b;c", "d"}. Note that an empty string is allowed; in this case, the result is the entire input `str`.
+         */
         template <class Str1, class Str2>
         constexpr auto of_string_split(String<Str1>&& str, String<Str2>&& separators) noexcept
         {
@@ -277,6 +292,7 @@ namespace OP::flur
                 SimpleFactory<splitter_t, splitter_t>(
                     splitter_t(std::move(str), std::forward<String<Str2>>(separators))));
         }
+
         template <class Str>
         OP_CONSTEXPR_CPP20 const static inline std::basic_string< typename Str::value_type > default_separators_c{ " " };
 
@@ -302,6 +318,7 @@ namespace OP::flur
         }
 
     } //ns:src
+
     /** namespace for functions that creates elements of pipeline following after elements from `srs` namespace */
     namespace then
     {

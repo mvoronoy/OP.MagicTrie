@@ -18,21 +18,22 @@ namespace OP
     /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
     namespace flur
     {
-        /** Define sequence formed by generator functor
-        *  \tparam Base - generator may support ordered or unordered sequence. Class doesn't provide 
-        *       additional sorting instead it relies on generator function and developer responsibility
-        * \tparam F - generator functor. F must return some value that supports contextually convertible 
-        *              to bool (operator `bool` or (not)) and 
-        *              dereferencing `*`. So generator class will work out of box for raw-pointers, 
-        *              std::optional, std::unique_ptr, std::shared_ptr and so on. Note, according to
-        *          this https://stackoverflow.com/a/26895581/149818 std::optional cannot own reference
-        *          so if need reference semantic use smart-pointers.
+        /** @brief Define a sequence formed by a generator functor.
         *
-        *  F may have following input arguments:
-        *  - no arg `f()`. 
-        *  - `const SequenceState&` to expose current state of sequence. For example:
-        *      -- use `state.step() == 0` to check current step or beggining of sequence;
-        *      -- use `state.generation() == 0` to check how many times sequence was restarted.
+        * @tparam Base The base type for the sequence. The generator may support ordered or unordered sequences.
+        *              This class does not provide additional sorting; it relies on the generator function and 
+        *              the developer's responsibility.
+        * @tparam F The generator functor. The functor must return a value that is contextually convertible to 
+        *           bool (i.e., supports `operator bool` or an equivalent operator). Additionally, it must 
+        *           support dereferencing via `*`. Therefore, the generator class will work out-of-the-box for 
+        *           raw pointers, std::optional, std::unique_ptr, std::shared_ptr and so on. Note, according to
+        *           this https://stackoverflow.com/a/26895581/149818 std::optional cannot own reference
+        *           so if need reference semantic use smart-pointers.
+        *           F may have the following input arguments:
+        *           - No arguments (`f()`).
+        *           - `const SequenceState&` to expose the current state of the sequence. For example:
+        *               - Use `state.step() == 0` to check the current step or the beginning of the sequence.
+        *               - Use `state.generation() == 0` to check how many times the sequence has been restarted.
         */
         template <class Base, class F>
         struct Generator : Base
