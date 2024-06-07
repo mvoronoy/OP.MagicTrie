@@ -8,7 +8,6 @@
 
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
-#include <op/flur/Join.h>
 
 namespace OP::flur
 {
@@ -18,6 +17,11 @@ namespace OP::flur
     template <class Comp, class Elm, class ...Rx>
     struct MergeSortUnionSequence : public OrderedSequence<Elm>
     {
+        static_assert(
+            std::conjunction_v<
+            std::is_convertible< typename Rx::element_t, Elm >...>,
+            "union-merge-sort must operate on sequences producing same type elements");
+
         using base_t = Sequence<Elm>;
         using element_t = typename base_t::element_t;
 
@@ -117,19 +121,13 @@ namespace OP::flur
         constexpr auto compound(Src&& src) const& noexcept
         {
             using containers_t = details::sequence_type_t<Src>;
-            static_assert(
-                std::conjunction_v<
-                    std::is_convertible< 
-                        typename containers_t::element_t, 
-                        typename details::sequence_type_t<Tx>::element_t >...>,
-                "merge-sort-union must use sequences producing same type elements");
 
             return
                 std::apply([&](const auto& ... rx) ->decltype(auto){
                     return MergeSortUnionSequence<
                         Comp, 
                         typename containers_t::element_t,
-                        containers_t, details::sequence_type_t<Tx>... >(
+                        containers_t, decltype(details::get_reference(rx).compound())... >(
                             _comp,
                             std::make_tuple(std::move(src),
                                 details::get_reference(rx).compound() ... )
@@ -140,20 +138,17 @@ namespace OP::flur
         constexpr auto compound(Src&& src) && noexcept
         {
             using containers_t = details::sequence_type_t<Src>;
-            static_assert(
-                std::conjunction_v<
-                std::is_convertible< typename containers_t::element_t, typename details::sequence_type_t<Tx>::element_t >...>,
-                "merge-sort-union must use sequences producing same type elements");
 
             return
                 std::apply([&](auto&& ... rx) ->decltype(auto) {
                 return MergeSortUnionSequence<
                     Comp,
                     typename containers_t::element_t,
-                    containers_t, details::sequence_type_t<Tx>... >(
+                    containers_t, decltype(std::move(details::get_reference(rx)).compound())... >(
                             std::move(_comp),
                             std::make_tuple(std::move(src),
-                            details::get_reference(rx).compound() ...)
+                                //let factory recognize that move semantic used
+                            std::move(details::get_reference(rx)).compound() ...)
                     ); }, std::move(_right));
         }
 

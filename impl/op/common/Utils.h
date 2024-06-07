@@ -3,7 +3,8 @@
 
 #include <type_traits>
 #include <tuple>
-#include <atomic>
+#include <atomic>           
+#include <variant>
 #include <op/common/typedefs.h>
 
 
@@ -59,43 +60,7 @@ namespace OP
         struct get_type_index<T, Tail, Ts...> :
             std::integral_constant<std::size_t, 1 + get_type_index<T, Ts...>::value> {};
 
-        /**
-        *   Aggregates std::tuple and get access by type of tuple entry instead of index
-        */ 
-        template <typename ... Ts>
-        struct ext_tuple
-        {
-            typedef std::tuple<Ts...> tuple_t;
 
-            template <class ...Args>
-            explicit ext_tuple(Args&& ... args) noexcept
-                : _instance(std::forward<Args>(args)...)
-            {
-            }
-            template <class T>
-            T& get() 
-            {
-                return std::get< get_type_index<T, Ts...>::value >(
-                    _instance );    
-            }
-            template <class T>
-            const T& get()  const
-            {
-                return std::get< get_type_index<T, Ts...>::value >(
-                    _instance );    
-            }
-
-            tuple_t& tuple()
-            {
-                return _instance;
-            }
-            const tuple_t& tuple() const
-            {
-                return _instance;
-            }
-        private:
-            tuple_t _instance;
-        };
         /**
         *   Access tuple element by type instead index. In compare with get_type_index
         *   this indexer allows to operate over tuple explictly.
@@ -125,43 +90,25 @@ namespace OP
             enum { value = 0 };
         };
 
-        template <typename T, typename Tuple>
-        struct tuple_has_type
-        {};
+        /** Umbrela definition allows check if type container contains element
+            of specified type.
+        \tparam T - check presence of this type;
+        \tparam TypeContainer - type container. Supported:
+            \li std::tuple
+            \li std::variant
+        */
+        template <typename T, typename TypeContainer>
+        struct contains_type;
 
         template <typename T, typename... Us>
-        struct tuple_has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...>
-        { };
+        struct contains_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
 
-        template <typename T, typename Tuple>
-        inline constexpr bool tuple_has_type_v = tuple_has_type<T, Tuple>::value;
+        template <typename T, typename... Us>
+        struct contains_type<T, std::variant<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
 
-
-        /** Simple accessor to the tuple entry by type. Usage:\code
-        *   void my_function(std::tuple<int, double, std::string>& values)
-        *   {
-        *       std::cout << "Ref int:" << tuple_ref<int>(values) << '\n';//Some int is printed
-        *       std::cout << "Ref double:" << tuple_ref<double>(values) << '\n';//Some double is printed
-        *       std::cout << "Ref string:" << tuple_ref<std::string>(values).c_str() << '\n';//Some string is printed
-        *   }
-        *\endcode
-        */
-        template <class T, class Tuple>
-        inline OP_CONSTEXPR(OP_EMPTY_ARG) T&& tuple_ref(Tuple&& tuple) OP_NOEXCEPT
-        {
-            return std::forward<T&&>(
-                std::get< tuple_ref_index<T, Tuple>::value >(std::forward<Tuple>(tuple)) );
-        }
-        template <class T, class Tuple>
-        inline constexpr T& tuple_ref(Tuple& tuple) OP_NOEXCEPT
-        {
-            return std::get< tuple_ref_index<T, Tuple>::value >(tuple);
-        }
-        template <class T, class Tuple>
-        inline constexpr const T& tuple_ref(const Tuple& tuple) OP_NOEXCEPT
-        {
-            return std::get< tuple_ref_index<T, Tuple>::value >(tuple);
-        }
+        /** helper to infer type of 2 tuples after tuple_cat */
+        template <class Tup1, class Tup2>
+        using tuple_merge_t = decltype(std::tuple_cat(std::declval<Tup1>(), std::declval<Tup2>()));
 
 
         /**Allows to check if parameter T is defined from other template. Usage:
@@ -175,6 +122,109 @@ namespace OP
         struct is_generic : public std::false_type {};
         template <template <typename...> class Template, typename... Args>
         struct is_generic<Template<Args...>, Template> : public std::true_type {};
+
+        /**
+        *   Type filter may be applied to create sub-type from origin std::tuple by applying compile-time
+        * predicte to each entry.
+        *
+        * Use-case: need to get commands with 0 input args only \code
+        * using origin_t = std::tuple< Command1, Command2, ...>;
+        * \endcode
+        * Predicate must be declared as \code
+        * struct Predicate_Zero_Arg_Command{
+        *     template <class T>
+        *     struct check{
+        *       //value must be evaluated on compile time
+        *       static constexpr bool value = (T::arity_c == 0);
+        *     };
+        * }; \endcode
+        * Now it is possible to create sub-type:\code
+        * using zero_args_only_t = typename TypeFilter<Predicate_Zero_Arg_Command, origin_t>::type;
+        * \endcode
+        */
+        template <class P, class ... Tx>
+        struct TypeFilter;
+
+        template <class P, class T, class ... Tx  >
+        struct TypeFilter<P, T, Tx ...>
+        {
+            using type = std::conditional_t< P::template check<T>::value,
+                tuple_merge_t<std::tuple<T>, typename TypeFilter<P, Tx ...>::type>,
+                typename TypeFilter<P, Tx ...>::type >;
+        };
+
+        template <class P>
+        struct TypeFilter<P>
+        {//specialization for empty tuple
+            using type = std::tuple<>;
+        };
+        template <class P, class ... Tx>
+        struct TypeFilter<P, std::tuple<Tx...> >
+        {//specialization to accept tuples
+            using type = typename TypeFilter<P, Tx ...>::type;
+        };
+
+        /** shortcut for `typename TypeFilter<P, Tx...>::type` */
+        template <class P, class ... Tx>
+        using type_filter_t = typename TypeFilter<P, Tx...>::type;
+
+        /**Utility used with TypeFilter to allow apply 'not' to other filter predicate*/
+        template <class Predicate>
+        struct filter_not
+        {
+            template <class T>
+            static constexpr bool check = !(Predicate::template check<T>);
+            
+        };
+
+        /**Utility used with TypeFilter to allow check if type exactly match `Expected`*/
+        template <class Expected>
+        struct filter_exact_match
+        {
+            template <class T>
+            static constexpr bool check = std::is_same_v<Expected, T>;
+        };
+
+
+        /** compile time return true if applying TypeFilter<P, Tx ...> contains any record */
+        template <class P, class ... Tx>
+        constexpr bool any_typefilter_match() noexcept
+        {
+            return 0 < std::tuple_size_v<typename TypeFilter<P, Tx ...>::type>;
+        }
+
+        /** 
+        * Umbrela template to iterate all types containing in the source std::tuple or std::variant and creates new type
+        * containing new types defined by TMapFunction
+        * For toy example imagine change definition of std::tuple<int, float> to std::tuple<std::string, double>.
+        * \tparam  TMapFunction declared as structure with 1 type definition like: \code
+        * struct MyMapFunction{
+        * ...
+        * template <class T>
+        * using map_t = ... //whatever to map from T to other type 
+        * };
+        * \endcode
+        * Just for example, following allows map type to 2 choices (int or string): \code
+        *   map_t = std::conditional_t<std::is_arithmetic_v<T>, int, std::string>;
+        * \endcode 
+        *
+        */
+        template <class TMapFunction, class ... Tx>
+        struct MapType;
+
+        template <class TMapFunction, class ... Tx  >
+        struct MapType<TMapFunction, std::tuple<Tx ...>>
+        {
+            using type = std::tuple< typename TMapFunction::template map_t<Tx>... >;
+        };
+
+        template <template <typename> typename U>
+        struct SimpleTypeMap
+        {
+            template <typename T>
+            using map_t = U<T>;
+        };
+
 
         /**
         * Allow evaluate sizeof for type (including tuples) alligned to current compiler requirements.

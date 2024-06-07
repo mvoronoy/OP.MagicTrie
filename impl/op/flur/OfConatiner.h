@@ -13,7 +13,6 @@
 
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
-#include <op/flur/Join.h>
 
 namespace OP
 {
@@ -33,26 +32,38 @@ namespace flur
     *               All other suppose Sequence
     */
     template <class V, class Base>
-    struct OfContainer : Base
+    struct OfContainerSequence : Base
     {
-        using container_t = details::dereference_t<V>;
+        using unref_container_t = details::dereference_t<V>;
+        constexpr static bool is_wrap =
+            !std::is_same_v<
+            std::decay_t<V>, std::decay_t<unref_container_t>>;
+
+        using container_t = std::conditional_t<is_wrap,
+            std::decay_t<V>, V>; //keep reference only for raw container
+
         using base_t = Base;
         using element_t = typename base_t::element_t;
-        using iterator = decltype(std::begin(std::declval<container_t>()));//typename container_t::const_iterator;
+        using iterator = decltype(std::begin(std::declval<unref_container_t>()));
 
-        constexpr OfContainer(V&& v) noexcept
-            :_v(std::move(v))
+        template <class U>
+        constexpr OfContainerSequence(int, U&& v) noexcept
+            :_v(std::forward<U>(v))
         {
             _i = details::get_reference(_v).end();
         }
 
-        constexpr OfContainer(const V& v) noexcept
-            :_v(v)
+        constexpr OfContainerSequence(const OfContainerSequence& other)
+            : _v(other._v)
         {
             _i = details::get_reference(_v).end();
         }
-        
-        constexpr OfContainer(OfContainer&&) noexcept = default;
+
+        constexpr OfContainerSequence(OfContainerSequence&& other) noexcept
+            : _v(std::move(other._v))
+        {
+            _i = details::get_reference(_v).end();
+        }
 
         virtual void start() override
         {
@@ -84,26 +95,23 @@ namespace flur
             return _i;
         }
     private:
-        V _v;
+        container_t _v;
         iterator _i;
     };
 
-    template <class Container>
-    using OfUnorderedContainer = OfContainer<Container, 
-                                Sequence< details::element_of_container_t<Container> > >; 
+    template <class Container, class Base>
+    using OfUnorderedContainerSequence = OfContainerSequence<Container, Base>; 
 
-    template <class Container>
-    using OfOrderedContainer = OfContainer<Container, 
-                                OrderedSequence< details::element_of_container_t<Container> > >;
+    //template <class Container, class Base>
+    //using OfOrderedContainer = OfContainerSequence<Container, 
+    //                            OrderedSequence< details::element_of_container_t<Container> > >;
 
     //for all STL that supports lower_bound
-    template <class Container>
-    struct OfLowerBoundContainer : 
-        OfContainer<Container, 
-            OrderedSequenceOptimizedJoin< details::element_of_container_t<Container> > >
+    template <class Container, class Base>
+    struct OfLowerBoundContainerSequence : 
+        OfContainerSequence<Container, Base>
     {
-        using base_t = OfContainer<Container, 
-            OrderedSequenceOptimizedJoin< details::element_of_container_t<Container> > >;
+        using base_t = OfContainerSequence<Container, Base>;
         using element_t = typename base_t::element_t;
         using base_t::base_t;
         
@@ -112,6 +120,7 @@ namespace flur
         {
             return it;
         }
+
         template <class A, class B>
         const auto& extract_key(const std::pair<A, B>& it)
         {
@@ -127,12 +136,14 @@ namespace flur
 
     namespace details
     {
-        
+
         template <class Container>
         using detect_sequence_t = 
-            std::conditional_t< ::OP::flur::details::is_ordered_v<details::dereference_t<Container>> 
-            , OfLowerBoundContainer< Container >
-            , OfUnorderedContainer< Container >
+            std::conditional_t< ::OP::flur::details::is_ordered_v<details::dereference_t<std::decay_t<Container>> > 
+            , OfLowerBoundContainerSequence< Container, 
+                    OrderedSequenceOptimizedJoin<details::element_of_container_t<Container>> >
+            , OfUnorderedContainerSequence< Container, 
+                    Sequence<details::element_of_container_t<Container>> >
             >;
     } //ns:details
 
@@ -143,24 +154,22 @@ namespace flur
     template <class V>
     struct OfContainerFactory : FactoryBase
     {
-        using holder_t = std::decay_t < V >;
-        using container_t = details::dereference_t<holder_t>;
+        using holder_t = std::decay_t< V >;
 
-        /** Detects if container can support OrderedSequence or Sequence */
-        using sequence_t = details::detect_sequence_t<holder_t>;
-
-        constexpr OfContainerFactory(holder_t&& v) noexcept
-            :_v(std::move(v)) {}
-        constexpr OfContainerFactory(const holder_t& v) noexcept
-            :_v(v) {}
+        template <class U>
+        constexpr OfContainerFactory(U&& u) noexcept
+            :_v(std::forward<U>(u)) {}
 
         constexpr auto compound() const& noexcept
         {
-            return sequence_t(_v);
+            /** Detects if container can support OrderedSequence or Sequence */
+            using sequence_t = details::detect_sequence_t<const holder_t&>;
+            return sequence_t(0, _v);
         }
         constexpr auto compound() && noexcept
         {
-            return sequence_t(std::move(_v));
+            using sequence_t = details::detect_sequence_t<holder_t>;
+            return sequence_t(0, std::move(_v));
         }
         holder_t _v;
     };

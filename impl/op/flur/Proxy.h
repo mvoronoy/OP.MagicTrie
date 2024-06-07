@@ -67,7 +67,7 @@ namespace OP::flur
         bool in_range() const override
         {
             return std::visit(
-                [](auto& inst) { 
+                [](const auto& inst) { 
                     return details::get_reference(inst).in_range(); },
                 _instance);
         }
@@ -75,7 +75,7 @@ namespace OP::flur
         element_t current() const override
         {
             return std::visit(
-                [](auto& inst) ->element_t { 
+                [](const auto& inst) ->element_t { 
                     return details::get_reference(inst).current(); },
                 _instance);
         }
@@ -115,7 +115,9 @@ namespace OP::flur
         constexpr auto compound() && noexcept
         {
             return std::visit([](auto&& factory){
-                return target_sequence_t{ details::get_reference(factory).compound() };
+                    // `move` used only to cast to T&&
+                return target_sequence_t{ 
+                    std::move(details::get_reference(factory)).compound() };
                 }, std::move(_factory_instance));
         }
 
@@ -130,8 +132,10 @@ namespace OP::flur
         template <class Src>
         constexpr auto compound(Src&& src) && noexcept
         {
-            return std::visit([&](const auto& factory){
-                return target_sequence_t{ details::get_reference(factory).compound(std::move(src)) };
+            return std::visit([&](auto&& factory){
+                return target_sequence_t{ 
+                    // `move` used only to cast to T&&
+                    std::move(details::get_reference(factory)).compound(std::move(src)) };
                 }, std::move(_factory_instance));
         }
     private:

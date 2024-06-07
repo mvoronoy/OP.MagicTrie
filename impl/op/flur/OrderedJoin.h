@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _OP_FLUR_JOIN__H_
-#define _OP_FLUR_JOIN__H_
+#ifndef _OP_FLUR_ORDEREDJOIN__H_
+#define _OP_FLUR_ORDEREDJOIN__H_
 
 #include <functional>
 #include <memory>
@@ -166,89 +166,63 @@ namespace OP::flur
         bool _optimize_right_forward;
     };
 
-    namespace details{
-
+    namespace details
+    {
         template <class Left, class Right, class Comp>
-        constexpr auto make_join(Left&& left, Right&& right, Comp&& comp) noexcept
+        static constexpr auto make_join(Left&& left, Right&& right, Comp&& comp) noexcept
         {
             using left_t = std::decay_t<Left>;
             using right_t = std::decay_t<Right>;
-            using src_conatiner_t = details::sequence_type_t<details::dereference_t<left_t>>;
-            using element_t = typename src_conatiner_t::element_t;
+            using element_t = details::sequence_element_type_t<left_t>;
 
             return OrderedJoin<element_t, left_t, right_t, Comp>(
                 std::forward<Left>(left), 
                 std::forward<Right>(right),
                 std::forward<Comp>(comp));
         }
+
+        template <class Left, class Right, class Comp = full_compare_t>
+        using ordered_joint_sequence_t = decltype(
+            make_join(std::declval<Left>(), std::declval<Right>(), std::declval<Comp>())); 
     } //ns:details
 
-   
     template <class Right, class Comp = full_compare_t >
-    struct PartialJoinFactory : FactoryBase
+    class OrderedJoinFactory : FactoryBase
     {
-        constexpr PartialJoinFactory(Right&& right, Comp&& comp = Comp()) noexcept
-            :  _right(std::forward<Right>(right))
-            , _comp(std::forward<Comp>(comp))
+    public:
+
+        template <class U>
+        constexpr OrderedJoinFactory(U&& right, Comp comp = Comp()) noexcept
+            : _right(std::forward<U>(right))
+            , _comp(std::move(comp))
         {
         }
 
-        template <class Left >
+        template <class Left>
         auto compound(Left&& left) const& noexcept
         {
-            return details::make_join(std::forward<Left>(left), 
-                OP::flur::details::get_reference(_right).compound(), _comp);
+            return details::make_join(
+                std::forward<Left>(left), 
+                details::get_reference(_right).compound(), 
+                _comp);
         }
 
         template <class Left>
         constexpr auto compound(Left&& left) && noexcept
         {
-            return details::make_join(std::forward<Left>(left).compound(), 
-                std::move(_right).compound(), std::move(_comp));
-        }
-
-        Right _right;
-        Comp _comp; 
-    };
-
-    template <class Left, class Right, class Comp = full_compare_t >
-    struct JoinFactory : FactoryBase
-    {
-        constexpr JoinFactory(Left&& left, Right&& right, Comp&& comp = Comp()) noexcept
-            : _left(std::move(left))
-            , _right(std::move(right))
-            , _comp(std::forward<Comp>(comp))
-        {
-        }
-
-        constexpr JoinFactory(const Left& left, const Right& right, Comp&& comp = Comp()) noexcept
-            : _left(left)
-            , _right(right)
-            , _comp(std::forward<Comp>(comp))
-        {
-        }
-
-        constexpr auto compound() const& noexcept
-        {
+            //`std::move(deref(...))` used only as cast to T&& 
             return details::make_join(
-                details::get_reference(_left).compound(), 
-                details::get_reference(_right).compound(), 
-                _comp);
-        }
-
-        constexpr auto compound() && noexcept
-        {
-            return details::make_join(
-                details::get_reference(_left).compound(), 
-                details::get_reference(_right).compound(), 
+                std::move(left), 
+                std::move(details::get_reference(_right)).compound(),
                 std::move(_comp));
         }
 
-        Left _left;
+    private:
+
         Right _right;
         Comp _comp; 
     };
 
 } //ns: OP::flur
 
-#endif //_OP_FLUR_JOIN__H_
+#endif //_OP_FLUR_ORDEREDJOIN__H_

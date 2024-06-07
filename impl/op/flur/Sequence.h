@@ -84,6 +84,7 @@ namespace OP::flur
         template <class T>
         constexpr inline bool is_sequence_v = sequence_traits<T>::is_sequence_v;
 
+
     }//ns:details
 
     /** Sequence hint to modify sequence behaviour */

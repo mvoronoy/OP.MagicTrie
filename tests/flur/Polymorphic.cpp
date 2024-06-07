@@ -19,7 +19,7 @@ namespace {
 
         const set_t subset{ "aaa", "bbb", "ccc" };
         std::string vowels = { 'a', 'e', 'i', 'o', 'u', 'y' };
-        auto ptr1 = make_unique(
+        auto ptr1 = make_shared(
             src::of(subset) >> 
             then::filter([](const auto&s) 
                 {
@@ -27,17 +27,18 @@ namespace {
                 })
         );
         set_t target;
-        //auto pset = ptr1->compound_unique();
+
         for (auto const& a : *ptr1) 
         {
             target.insert(a);
         }
         tresult.assert_that<equals>(subset, target, "two sets must be identical");
-        //test unpack can deal with unique_ptr
-        auto ptr2 = make_unique(
+        //test unpack 
+        auto ptr2 = make_lazy_range(
             std::shared_ptr(std::move(ptr1)),
             then::filter([&](const auto&s) { return vowels.find(s[0]) != std::string::npos; })
         );
+        tresult.assert_that<eq_sets>(ptr2, std::array{"aaa"s}, "vowel set only");
 
     }
 

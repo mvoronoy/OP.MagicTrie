@@ -69,8 +69,8 @@ void test_OrderingFlatBasic(OP::utest::TestRuntime& tresult)
     tresult.info() << "Test all mappings empty...\n";
     for (auto _ : src::of_value(1)
         >> then::ordering_flat_mapping([](int i) {
-            std::set<int> result; //the way to indicate ordering seq
-            return src::of_container(std::move(result));
+            //std::set - the way to indicate ordering seq
+            return src::of_container(std::set<int>{});
         }))
     {
         tresult.fail("empty set must not generate any item");

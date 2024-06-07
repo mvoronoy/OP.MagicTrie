@@ -42,18 +42,18 @@ struct TestCopySensetive
 
 void test_Vector(OP::utest::TestRuntime& tresult)
 {
-    using sens_vectror_t = std::vector<TestCopySensetive>;
-    auto r = src::of_container(sens_vectror_t(3));
+    using sens_vector_t = std::vector<TestCopySensetive>;
+    auto r = src::of_container(sens_vector_t(3));
     tresult.info() << "Test no redundant copies\n";
     for (auto const& i : r)
     {
         tresult.assert_that<equals>(
-            i._tracks[ConstructorType::copy], 1, "You don't control how many times value has been copied");
+            i._tracks[ConstructorType::copy], 0, "You don't control how many times value has been copied");
     }
 
     
     tresult.info() << "Test no redundant copies for&&\n";
-    for (auto const& i : src::of_container(sens_vectror_t(3)).compound())//enforce `compound()&&` notaion
+    for (auto const& i : src::of_container(sens_vector_t(3)).compound())//enforce `compound()&&` notation
     {
         tresult.assert_that<equals>(
             i._tracks[ConstructorType::copy], 0, "You don't control how many times value has been copied");
@@ -61,8 +61,8 @@ void test_Vector(OP::utest::TestRuntime& tresult)
             i._tracks[ConstructorType::move], 0, "You don't control how many times value has been moved");
     }
 
-    tresult.info() << "Test processing by refernce std::cref\n";
-    sens_vectror_t local(3);
+    tresult.info() << "Test processing by reference std::cref\n";
+    sens_vector_t local(3);
     auto r1 = src::of_container(std::cref(local));
     for (auto const& i : r1)
     {

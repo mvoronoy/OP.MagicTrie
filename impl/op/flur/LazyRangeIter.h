@@ -29,8 +29,8 @@ namespace OP::flur
         using reference         = value_type&;
         using pointer           = void;
 
-        constexpr explicit LazyRangeIterator(T&& r) noexcept
-            : _target{std::forward<T>(r)}
+        constexpr explicit LazyRangeIterator(T r) noexcept
+            : _target{std::move(r)}
         {
         }
 
@@ -100,34 +100,40 @@ namespace OP::flur
         template <class Factory>
         using lazy_iterator_deduction_t = LazyRangeIterator < std::shared_ptr<
                 std::decay_t<
-                        OP::flur::details::dereference_t< OP::flur::details::unpack_t<Factory> >
+                        OP::flur::details::dereference_t<OP::flur::details::unpack_t<Factory> >
                 >>
         >;
 
-        template <class Factory>
+        template <class Factory, std::enable_if_t<std::is_base_of_v<FactoryBase, Factory>, int> = 0 >
         auto begin_impl(const Factory& inst)
         {
             auto seq = inst.compound();
-            using t_t = std::decay_t<decltype(seq)>;
-            using result_t = OP::flur::details::lazy_iterator_deduction_t < Factory >;
-
-            if constexpr (is_shared_ptr<t_t>::value)
+            using t_t = decltype(seq);
+            if constexpr (details::is_shared_ptr<t_t>::value)
             {
-                seq->start();
-                return result_t(std::move(seq));
+                return LazyRangeIterator(std::move(seq));
             }
             else
             {
                 auto seq_ptr = std::make_shared<t_t>(std::move(seq));
                 seq_ptr->start();
-                return result_t(std::move(seq_ptr));
+                return LazyRangeIterator(std::move(seq_ptr));
             }
         }
 
         template <class Factory>
-        constexpr auto end_impl(const Factory* = nullptr) noexcept
+        auto begin_impl(const std::shared_ptr<Factory>& inst)
         {
-            using result_t = OP::flur::details::lazy_iterator_deduction_t < Factory >;
+            auto seq = inst->compound();
+            using t_t = std::decay_t<decltype(seq)>;
+            seq->start();
+            return LazyRangeIterator<t_t>(std::move(seq));
+        }
+
+        template <class Factory>
+        constexpr auto end_impl(const Factory* p= nullptr) noexcept
+        {
+            using result_t = decltype(begin_impl(*p));
             return result_t{nullptr};
         }
     }//ns:details

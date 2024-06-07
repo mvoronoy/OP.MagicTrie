@@ -20,7 +20,7 @@ namespace OP::flur
         using element_t = typename base_t::element_t;
 
         constexpr CartesianSequence(F applicator, Seqx&& ...sx) noexcept
-            : _applicator(applicator)
+            : _applicator(std::move(applicator))
             , _sources(std::move(sx)...)
             , _all_good(false)
         {
@@ -110,21 +110,43 @@ namespace OP::flur
     };
 
 
-    template <class F, class ... Lx>
+    template <class F, class ... Tx>
     struct CartesianFactory : FactoryBase
     {
-        constexpr CartesianFactory(F f, Lx&& ... alien) noexcept
-            : _alien_factory(std::forward<Lx>(alien) ... )
-            , _applicator(std::move(f))
+        using factories_t = decltype(std::make_tuple(std::declval<Tx>()...));
+
+        template <class FLike, class ... Ux>
+        constexpr CartesianFactory(FLike&& f, Ux&& ... factories) noexcept
+            : _factories(std::make_tuple(std::forward<Ux>(factories)... )) //to force removing explicit references
+            , _applicator(std::forward<FLike>(f))
         {
         }
 
         template <class Src>
-        constexpr auto compound(Src&& src) const noexcept
+        constexpr auto compound(Src&& src) const& noexcept
         {
-            return construct_sequence(
-                std::make_index_sequence<sizeof...(Lx)>{}, std::forward<Src>(src)
-            );
+            return 
+                std::apply(
+                    [&](const auto& ... factory){
+                        return construct_sequence(
+                            _applicator, 
+                            std::move(src),
+                            details::get_reference(factory).compound() ...);
+                    }, _factories);
+        }
+
+        template <class Src>
+        constexpr auto compound(Src&& src) && noexcept
+        {
+            return 
+                std::apply(
+                    [&](auto&& ... factory){
+                        return construct_sequence(
+                            std::move(_applicator), 
+                            std::move(src),
+                            //`move` only to cast to T&&
+                            std::move(details::get_reference(factory)).compound() ...);
+                    }, std::move(_factories));
         }
 
         // factory can be used as a source (without previous `sequence >> cartesian`)
@@ -137,23 +159,21 @@ namespace OP::flur
     private:
         using applicator_t = std::decay_t<F>;
 
-        template <class ... Seqx, size_t ... I>
-        constexpr auto construct_sequence(std::index_sequence<I...>, Seqx&& ... sx ) const noexcept
+        template <class TApplicator, class ... Seqx>
+        static constexpr auto construct_sequence(TApplicator&& applicator, Seqx&& ... sx)
+            noexcept(std::is_nothrow_constructible_v<applicator_t, Seqx...>)
         {
             using result_t = decltype(
-                _applicator(
-                    details::get_reference(sx).current()...,
-                    details::get_reference(std::declval<details::sequence_type_t<Lx>&>()).current()...)
+                applicator(details::get_reference(sx).current()...)
                 );
             using sequence_t = CartesianSequence<
-                result_t, applicator_t, std::decay_t<Seqx>..., details::sequence_type_t<Lx>...>;
+                result_t, applicator_t, std::decay_t<Seqx>...>;
             return sequence_t{
-                _applicator,
-                std::move(sx)...,
-                std::move(details::get_reference(std::get<I>(_alien_factory)).compound())...
+                std::forward<TApplicator>(applicator),
+                std::move(sx)... //always move bcs sequence was just created
             };
         }
-        std::tuple<Lx...> _alien_factory;
+        factories_t _factories;
         applicator_t _applicator;
     };
 

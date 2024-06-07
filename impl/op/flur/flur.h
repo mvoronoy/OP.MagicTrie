@@ -31,6 +31,8 @@
 #include <op/flur/Minibatch.h>
 #include <op/flur/StringInput.h>
 #include <op/flur/Distinct.h>
+#include <op/flur/OrderedJoin.h>
+#include <op/flur/UnorderedJoin.h>
 #include <op/flur/UnionAll.h>
 #include <op/flur/MergeSortUnion.h>
 #include <op/flur/HierarchyTraversal.h>
@@ -105,7 +107,30 @@ namespace OP::flur
         * use `of_cref_value` instead. 
         *
         * \tparam V type that must support copy/move semantic. 
-        * \param v value to resolve during sequence iteration.
+        * \param v value to retrieve during this sequence iteration. Note that you have to provide correct policy
+        *   to avoid undefined behavior. 
+        *       reference policy                | type of sequence `current()` | comments
+        *       --------------------------------|------------------------------|---------
+        *       By value:                       | Result sequence is "by value"| Use carefully for a
+        *       \code                           |as well.                      | heavy objects. To force const 
+        *       src::of_value(std::string("a")) |                              |references result consider
+        *       \endcode                        |                              |`of_cref_value` instead.
+        *       --------------------------------|------------------------------|---------
+        *       By const reference:             | Result sequence is `const    | Use carefully to avoid dangling references.
+        *       \code                           | std::string&` that uses      | Bad example that creates a lazy sequence by 
+        *       std::string str("abc");         | local variable to point      | referencing an uncontrolled variable:
+        *       src::of_value(str) ...          | target value.                |  
+        *       \endcode                        |                              | \code
+        *                                       |                              | auto range_from_string(const std::string& arg)
+        *                                       |                              | {
+        *                                       |                              |    using namespace OP::flur;
+        *                                       |                              |    return src::of_value(arg); //keeps arg as cref
+        *                                       |                              | }
+        *                                       |                              | \endcode
+        *                                       |                              | To fix the issue, either copy `arg` by value or 
+        *                                       |                              | strongly control the lifespan of `arg`.
+        *       --------------------------------|------------------------------|---------
+        *
         * \param limit number of times to repeat result v during sequence iteration. The default is 1. Value 0 is
         *   allowed, but from optiomization perspective better to use `OP::flur::src::null()` instead.
         * \sa of_cref_value
@@ -446,7 +471,7 @@ namespace OP::flur
         template <class Right>
         constexpr auto ordered_join(Right&& right) noexcept
         {
-            return PartialJoinFactory<Right>(std::forward<Right>(right));
+            return OrderedJoinFactory<Right>(std::forward<Right>(right));
         }
 
         /** Same as '&' operator for LazyRange, but allows specify comparator of joining keys
@@ -455,20 +480,37 @@ namespace OP::flur
         template <class Right, class Comp>
         constexpr auto ordered_join(Right&& right, Comp&& comp) noexcept
         {
-            return PartialJoinFactory<Right, Comp>(
+            return OrderedJoinFactory<Right, Comp>(
                 std::forward<Right>(right), std::forward<Comp>(comp));
         }
 
+        template <class Right, class Comp>
+        constexpr auto unordered_join(Right&& right, Comp&& comp) noexcept
+        {            
+            return UnorderedJoinFactory<Right>(
+                std::forward<Right>(right), std::forward<Comp>(comp));
+        }
+
+        template <class Right>
+        constexpr auto unordered_join(Right&& right) noexcept
+        {            
+            return UnorderedJoinFactory<Right>(std::forward<Right>(right));
+        }
+
+        template <class Right>
+        constexpr auto adaptive_join(Right&& right) noexcept
+        {
+            return AdaptiveJoinFactory<Right>(std::forward<Right>(right));
+        }
         /**
-        *   Find difference between set. When sets contains dupplicates behaviour is same as std::set_difference, it will 
-        *   be output std::max(m-n, 0), where m - number of dupplicates from source and n number of dupplicates in Subtrahend.
+        *   Find difference between set. When sets contains duplicates behaviour is same as std::set_difference, it will 
+        *   be output std::max(m-n, 0), where m - number of duplicates from source and n number of duplicates in Subtrahend.
         */
         template <class TSubtrahend>
         constexpr auto ordered_diff(TSubtrahend&& right) noexcept
         {
-            return DiffFactory(
-                PolicyFactory<true, TSubtrahend>(std::forward<TSubtrahend>(right))
-            );
+            return DiffFactory<true, TSubtrahend>(
+                    std::forward<TSubtrahend>(right));
         }
 
         /** 
@@ -478,27 +520,26 @@ namespace OP::flur
         template <class TSubtrahend, class TComparators>
         constexpr auto ordered_diff(TSubtrahend&& right, TComparators&& cmp) noexcept
         {
-            return DiffFactory(
-                PolicyFactory<true, TSubtrahend, TComparators>(
+            return DiffFactory<true, TSubtrahend, TComparators>(
                     std::forward<TSubtrahend>(right),
-                    std::forward<TComparators>(cmp))
-                );
+                    std::forward<TComparators>(cmp));
         }
 
         template <class TSubtrahend>
         constexpr auto unordered_diff(TSubtrahend&& right) noexcept
         {
-            return DiffFactory(
-                PolicyFactory<false, TSubtrahend>(std::forward<TSubtrahend>(right))
-            );
+            return DiffFactory<false, TSubtrahend>(
+                    std::forward<TSubtrahend>(right)
+                );
         }
+
         template <class TSubtrahend, class TComparators>
         constexpr auto unordered_diff(TSubtrahend&& right, TComparators&& cmp) noexcept
         {
-            return DiffFactory(
-                PolicyFactory<false, TSubtrahend, TComparators>(
-                    std::forward<TSubtrahend>(right), std::forward<TComparators>(cmp))
-            );
+            return DiffFactory<false, TSubtrahend, TComparators>(
+                    std::forward<TSubtrahend>(right), 
+                    std::forward<TComparators>(cmp)
+                );
         }
 
         /**

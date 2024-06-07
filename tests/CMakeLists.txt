@@ -44,6 +44,7 @@ add_executable (trie_test
     "common/ThreadPool.cpp"
     "common/Currying.cpp"
     "common/Multiimplementation.cpp"
+    "common/basic.cpp"
 
     "vtm/ContainersTest.cpp"
     "vtm/FixedSizeMemoryManagerTest.cpp"
@@ -53,6 +54,7 @@ add_executable (trie_test
     "vtm/SegmentToplogyTest.cpp"
     "SpanContainerTest.cpp"
     "tr.cpp"
+
     "vtm/Transacted.cpp"
     "vtm/EventSourcedSegmentManagerTest.cpp"
     
@@ -83,6 +85,7 @@ add_executable (trie_test
     "flur/Iterators.cpp"
     "flur/ThenHierarchy.cpp"
     "flur/OfLazyValue.cpp"
+    "flur/JoinUnordered.cpp"
 )
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)

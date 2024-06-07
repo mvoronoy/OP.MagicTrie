@@ -25,46 +25,62 @@ namespace OP::flur::details
     template<typename T> struct is_optional<std::optional<T>> : std::true_type {};
 
     template <typename U>
-    U& get_reference(std::reference_wrapper<U> u) noexcept {
-        return (U&)u.get();
-    }
-    template <typename U>
-    const U& get_reference(std::reference_wrapper<U const> u) noexcept {
-        return (U&)u.get();
+    U& get_reference(std::reference_wrapper<U> u) noexcept 
+    {
+        return u.get();
     }
 
     template <typename U>
-    constexpr U& get_reference(U& u) noexcept {
+    U const& get_reference(std::reference_wrapper<U const> u) noexcept 
+    {
+        return u.get();
+    }
+
+    template <typename U>
+    constexpr U& get_reference(U& u) noexcept 
+    {
         return u;
     }
+    
     template <typename U>
-    constexpr const U& get_reference(const U& u) noexcept {
+    constexpr const U& get_reference(const U& u) noexcept 
+    {
         return u;
     }
+    
     template <typename U>
-    constexpr U&& get_reference(U&& u) noexcept{
+    constexpr U&& get_reference(U&& u) noexcept 
+    {
         return std::forward<U>(u);
     }
 
     template <typename U, typename ... Ux>
-    U& get_reference(std::unique_ptr<U, Ux ...>& u) noexcept {
+    U& get_reference(std::unique_ptr<U, Ux ...>& u) noexcept 
+    {
         return *u;
     }
+
     template <typename U, typename ... Ux>
-    const U& get_reference(const std::unique_ptr< U, Ux ...>& u) noexcept {
+    const U& get_reference(const std::unique_ptr< U, Ux ...>& u) noexcept 
+    {
         return *u;
     }
 
     template <typename U>
-    decltype(auto) get_reference(const std::shared_ptr<U>& u) noexcept {
+    decltype(auto) get_reference(const std::shared_ptr<U>& u) noexcept 
+    {
         return *u.get();
     }
+
     template <typename U>
-    decltype(auto) get_reference(std::shared_ptr<U>& u) {
+    decltype(auto) get_reference(std::shared_ptr<U>& u) 
+    {
         return *u.get();
     }
+
     template <typename U>
-    U& get_reference(std::shared_ptr<U>&& u) noexcept {
+    U& get_reference(std::shared_ptr<U>&& u) noexcept 
+    {
         //invoking this code means very-very bad lost control, used only for type-deduction only
         assert(false);
         return *u.get();
@@ -86,29 +102,31 @@ namespace OP::flur::details
     struct is_less_comparable < T, U, std::void_t< less_comparable_t<T, U> > >
         : std::is_same < less_comparable_t<T, U>, bool >
     {};
-    
+
     template <class SomeContainer>
     constexpr decltype(auto) unpack(SomeContainer&& co) noexcept
     {
-        if constexpr (std::is_base_of_v<FactoryBase, dereference_t<SomeContainer> >)
-            return get_reference(co).compound();
+        if constexpr (std::is_base_of_v<FactoryBase, std::decay_t<SomeContainer>>)
+            return std::forward<SomeContainer>(co).compound();
         else
-            return std::move(co);
+            return std::forward<SomeContainer>(co);
     }
+
     template <class SomeContainer>
-    constexpr decltype(auto) unpack(const SomeContainer& co) noexcept
+    constexpr decltype(auto) unpack(std::shared_ptr<SomeContainer> co) noexcept
     {
-        if constexpr (std::is_base_of_v<FactoryBase, dereference_t<SomeContainer> >)
-            return get_reference(co).compound();
+        if constexpr (std::is_base_of_v<FactoryBase, std::decay_t<SomeContainer>>)
+            return co->compound();
         else
             return co;
     }
+
     template <class SomeContainer>
-    using unpack_t = decltype(unpack(std::declval< SomeContainer>()));
-    
+    using unpack_t = decltype(unpack(std::declval<SomeContainer>()));
+
     //Compound together all factories to single construction
-    template <class Tuple, std::size_t I = std::tuple_size<Tuple>::value >
-    constexpr decltype(auto) compound_impl(const Tuple& t) noexcept
+    template <class FactoriesTuple, std::size_t I = std::tuple_size<FactoriesTuple>::value >
+    constexpr decltype(auto) compound_impl(const FactoriesTuple& t) noexcept
     {   //scan tuple in reverse order
         if constexpr (I == 1)
         { //at zero level must place no-arg `compound` implementation
@@ -116,50 +134,44 @@ namespace OP::flur::details
         }
         else // non-zero level invokes recursively `compound` with previous layer result
         {
-            return 
+            return
                 get_reference(std::get<I - 1>(t)).compound(
-                    std::move(compound_impl<Tuple, I - 1>(t)));
+                    compound_impl<FactoriesTuple, I - 1>(t));
         }
     }
 
-    template <class Tuple, std::size_t I = std::tuple_size<Tuple>::value >
-    constexpr decltype(auto) compound_impl(Tuple&& t) noexcept
+    template <class FactoriesTuple, std::size_t I = std::tuple_size<FactoriesTuple>::value >
+    constexpr decltype(auto) compound_impl(FactoriesTuple&& t) noexcept
     {   //scan tuple in reverse order
+
+        // In both following branches `std::move` used only as cast to T&& 
         if constexpr (I == 1)
         { //at zero level must reside no-arg `compound` implementation
-            return get_reference(std::move(std::get<0>(t))).compound();
+            return std::move(get_reference(std::get<0>(t))).compound();
         }
         else // non-zero level invokes recursively `compound` with previous layer result
         {
-            auto factory = std::move(std::get<I - 1>(t));
-            return get_reference(factory).compound(
-                    std::move(compound_impl<Tuple, I - 1>(std::move(t))) );
+            return std::move(get_reference(std::get<I - 1>(t)))
+                .compound(compound_impl<FactoriesTuple, I - 1>(std::move(t)));
         }
     }
-    
+
+    /** \brief Detect type of Sequence with respect to rules of sequence creation.
+    *
+    *   \tparam T can be either FactoryBase, FactoryBase wrapped with all standards
+    *   wrappers (like std::shared_ptr, std:reference_wrapper...) or even Sequence itself.
+    *
+    *   For some types (for example `OfContainerFactory`) this definition can provide different
+    *   types depending on (T& or T&&) has been used.
+    */
     template <class T>
-    class sequence_type
-    {
-        using _cleant_t = dereference_t< T >;
-        
+    using sequence_type_t = std::decay_t< unpack_t<T> >;
 
-        template <typename C> 
-        static typename OP::utils::function_traits<decltype(&C::compound)>::result_t test( decltype(& C::compound) ) ;
-
-        template <typename C> 
-        static _cleant_t& test(...);
-    public:
-        //using type = std::decay_t< decltype( test<_cleant_t>(nullptr) )>;
-        using type = std::decay_t< unpack_t<T> >;
-    };
-
-    template <class Value>
-    using sequence_type_t = typename sequence_type<Value>::type;
-
+    /** Detect type of element produced by Sequence iteration */
     template <class Value>
     using sequence_element_type_t = typename dereference_t< sequence_type_t<Value> >::element_t;
 
-    /** Generic check if arbitrary container (mostly about from std:: namespce) is ordered. 
+    /** Generic check if arbitrary container (mostly about from std:: namespace) is ordered.
     * By default it false.
     * Make specification or overload if you need more specific behavior for your purpose
     */
@@ -182,7 +194,7 @@ namespace OP::flur::details
     {
         return std::true_type{};
     }
-    
+
     /** Indicates that generic std::set is ordered */
     template <class ...Tx>
     constexpr std::true_type is_ordered(const std::set<Tx...>&) noexcept
@@ -204,7 +216,7 @@ namespace OP::flur::details
         return std::true_type{};
     }
 
-    /** Check if container `TContainer` is ordered. Definition just wraps reference to a 
+    /** Check if container `TContainer` is ordered. Definition just wraps reference to a
     *   custom function `constexpr std::<true/false>_type is_ordered(const TContainer&) noexcept`
     */
     template <class TContainer>

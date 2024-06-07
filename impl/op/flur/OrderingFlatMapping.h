@@ -15,9 +15,8 @@ namespace OP::flur
 {
     namespace fdet = OP::flur::details;
     /**
-    *   Implement sorting while flat-mapping on taken children from prfixes
-    *   \tparam TCompareTraits - trait to compare keys (obviously by OP::ranges::str_lexico_comparator)
-    *                           see OP::flur::CompareTraits for reference.
+    *   Implement flat map with sorting capability.
+    *   \tparam TCompareTraits - trait to compare keys.
     */
     template <class F, class TSequence, class TCompareTraits>
     struct OrderingFlatMapping : OP::flur::OrderedSequence<
@@ -32,7 +31,7 @@ namespace OP::flur
             F applicator, TSequence&& seq, TCompareTraits cmp_traits) noexcept
             : _applicator(std::move(applicator))
             , _prefix(std::move(seq))
-            , _cmp_traits(cmp_traits)
+            , _cmp_traits(std::move(cmp_traits))
         {
         }
 
@@ -40,26 +39,19 @@ namespace OP::flur
         {
             _seq_of_seq.clear();
             _reorder_index.clear();
-            for(_prefix.start(); _prefix.in_range(); _prefix.next() )
+            //cannot use _state for re-indexer layout because some ranges can be empty
+            size_t i = 0;
+            SequenceGreaterCmp cmp_seq(_cmp_traits.greater_factory(), this->_seq_of_seq);
+            for(_prefix.start(), _state.start(); _prefix.in_range(); _prefix.next(), _state.next())
             {
-                auto new_range = _applicator( _prefix.current() );
-                if constexpr( std::is_base_of_v<
-                    OP::flur::FactoryBase, fdet::dereference_t< decltype(new_range) >> )
-                { 
-                    emplace( new_range.compound() );
-                }
-                else
-                {
-                    emplace( std::move(new_range) );
+                if (emplace(
+                    details::unpack(traits_t::invoke(_applicator, _prefix, _state))))
+                {//create default re-indexer layout for non-empty sequence
+                    _reorder_index.push_back( i++);
+                    //contribute to heap
+                    std::push_heap(_reorder_index.begin(), _reorder_index.end(), cmp_seq);
                 }
             }
-            _reorder_index.resize(_seq_of_seq.size());
-            //create default reindexer layout 
-            for (size_t i = 0; i < _reorder_index.size(); ++i)
-                _reorder_index[i] = i;
-            //create heap
-            SequenceGreaterCmp cmp_seq(_cmp_traits.greater_factory(), this->_seq_of_seq);
-            std::make_heap(_reorder_index.begin(), _reorder_index.end(), cmp_seq);
             grant_smallest();
         }
 
@@ -114,7 +106,7 @@ namespace OP::flur
             * Compare 2 ranges by `current()` element 
             * Note, priority queue sorts in reverse order (greater goes first), 
             * so comparison method reverse result of key compare
-            * \param TLeft, TRight - sequnces to compare
+            * \param TLeft, TRight - sequences to compare
             */
             bool operator()(size_t left_idx, size_t right_idx) const
             {
@@ -129,15 +121,19 @@ namespace OP::flur
             que_of_seq_t& _data_container;
         };
         
-        bool emplace(applicator_res_t&& sequence)
+        template <class TSequence>
+        bool emplace(TSequence&& sequence)
         {
-            auto& rseq = fdet::get_reference(sequence);
+            _seq_of_seq.emplace_back(std::move(sequence));
+            auto& rseq = fdet::get_reference(_seq_of_seq.back());
             if (!rseq.is_sequence_ordered())
                 throw std::runtime_error("Children sequence of OrderingFlatMapping must be ordered");
             rseq.start();
             if (!rseq.in_range())
+            {
+                _seq_of_seq.pop_back();
                 return false;
-            _seq_of_seq.emplace_back(std::move(sequence));
+            }
             return true;
         }
         
@@ -151,7 +147,7 @@ namespace OP::flur
             return fdet::get_reference(_seq_of_seq[_reorder_index.back()]);
         }
 
-        /** Creare sequence from range and place to queue */
+        /** Create sequence from range and place to queue */
         void collect() 
         {
             auto& child_ref = smallest();
@@ -182,7 +178,8 @@ namespace OP::flur
             
         F _applicator;
         TSequence _prefix;
-        que_of_seq_t _seq_of_seq; 
+        SequenceState _state;
+        que_of_seq_t _seq_of_seq;
         reorder_index_t _reorder_index;
         TCompareTraits _cmp_traits;
     };
@@ -190,23 +187,29 @@ namespace OP::flur
     template <class F, class TCompareTraits>
     struct OrderingFlatMappingFactory : OP::flur::FactoryBase
     {
-        using applicator_t = std::decay_t<F>;
+        using applicator_t = F;//std::decay_t<F>;
 
-        constexpr OrderingFlatMappingFactory(F&& applicator, TCompareTraits&& cmp) noexcept
-            : _applicator(std::forward<F>(applicator))
-            , _cmp(std::forward<TCompareTraits>(cmp)) 
-        {}
+        template <class FLike, class TCmp>
+        constexpr OrderingFlatMappingFactory(FLike&& applicator, TCmp&& cmp) noexcept
+            : _applicator(std::forward<FLike>(applicator))
+            , _cmp(std::forward<TCmp>(cmp))
+        {
+        }
 
         template <class Src>
-        constexpr auto compound(Src&& src) const /*noexcept*/
+        constexpr auto compound(Src&& src) const& /*noexcept*/
         {
-            using src_container_t = std::decay_t<Src>;
-            using applicator_result_t = 
-                std::decay_t<decltype(_applicator(fdet::get_reference(src).current()))>;
-
-            using target_set_t = OrderingFlatMapping<applicator_t, src_container_t, TCompareTraits>;
+            using target_set_t = OrderingFlatMapping<applicator_t, Src, TCompareTraits>;
             return target_set_t(_applicator, std::move(src), _cmp);
         }
+
+        template <class Src>
+        constexpr auto compound(Src&& src) && /*noexcept*/
+        {
+            using target_set_t = OrderingFlatMapping<applicator_t, Src, TCompareTraits>;
+            return target_set_t(std::move(_applicator), std::move(src), std::move(_cmp));
+        }
+
     private:
         applicator_t _applicator;
         TCompareTraits _cmp;

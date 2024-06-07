@@ -61,7 +61,7 @@ namespace OP::flur
 
     /**
     *   Implement functor to apply Distinct for unordered sequences using std::unordered_set.  
-    *   It brings memory footprint propertional to sequence length
+    *   It brings memory footprint proportional to the source sequence length
     */
     template <class Seq, 
         class Hash = std::hash<std::decay_t<details::sequence_element_type_t <Seq>>>,
@@ -91,14 +91,14 @@ namespace OP::flur
     *   Sequence to implement Distinct stream
     */
     template <class T, class Policy, class Src>
-    struct Distinct : public Sequence<T>
+    struct DistinctSequence : public Sequence<T>
     {
-        using this_t = Distinct<T, Policy, Src>;
+        using this_t = DistinctSequence<T, Policy, Src>;
         using base_t = Sequence<T>;
         using element_t = typename base_t::element_t;
         using dereference_sequnce_t = details::dereference_t<std::decay_t<Src>>;
 
-        constexpr Distinct(Src&& src, Policy f) noexcept
+        constexpr DistinctSequence(Src&& src, Policy f) noexcept
             : _attrs(std::move(src), SequenceState{})
             , _policy(std::move(f))
         {
@@ -167,12 +167,11 @@ namespace OP::flur
         }
 
         OP::currying::CurryingTuple<
-            std::decay_t<Src>, 
-            SequenceState> _attrs;
+            std::decay_t<Src>, SequenceState> _attrs;
         Policy _policy;
     };
 
-    /** Policy configures DistinctFactory to use default std::equal_to comparator on ordered sequnces */
+    /** Policy configures DistinctFactory to use default std::equal_to comparator on ordered sequences */
     struct OrderedDistinctPolicy
     {
         template <class Seq>
@@ -185,7 +184,7 @@ namespace OP::flur
         }
     }; 
 
-    /** Policy configures DistinctFactory to use custome comparator on ordered sequnces */
+    /** Policy configures DistinctFactory to use custome comparator on ordered sequences */
     template <class Eq>
     struct OrderedDistinctPolicyWithCustomComparator
     {
@@ -204,7 +203,7 @@ namespace OP::flur
         Eq _eq;
     }; 
     
-    /** Policy configures DistinctFactory to use default std::equal_to and std::hash<> on un-ordered sequnces */
+    /** Policy configures DistinctFactory to use default std::equal_to and std::hash<> on un-ordered sequences */
     struct UnorderedHashDistinctPolicy
     {
         template <class Seq>
@@ -214,7 +213,7 @@ namespace OP::flur
         }
     }; 
 
-    /** Policy configures DistinctFactory to use custome comparator and standart std::hash<> on un-ordered sequnces */
+    /** Policy configures DistinctFactory to use custome comparator and standart std::hash<> on un-ordered sequences */
     template <class Eq>
     struct UnorderedDistinctPolicyWithCustomComparator
     {
@@ -236,7 +235,7 @@ namespace OP::flur
     }; 
 
     /**
-    *   Factory that creates Distinct sequence.
+    *   Factory that creates DistinctSequence.
     * Implementation allows support ordered and unordered sequences, depending on policy provided.
     * \tparam Policy one of predefined or custom policies. Known policies are:
     *   - OrderedDistinctPolicy - sequence is ordered, to compare elements used `operator <`
@@ -271,9 +270,9 @@ namespace OP::flur
         {
             using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
             using element_t = typename src_conatiner_t::element_t;
-            using base_t = Sequence<typename src_conatiner_t::element_t>;
+            using base_t = Sequence<element_t>;
             using effective_policy_t = decltype(_policy.template construct<Src>());
-            return Distinct<element_t, effective_policy_t, std::decay_t<Src>>(
+            return DistinctSequence<element_t, effective_policy_t, std::decay_t<Src>>(
                 std::forward<Src>(src), _policy.template construct<Src>());
         }
         Policy _policy;

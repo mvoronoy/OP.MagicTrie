@@ -18,8 +18,8 @@ void test_FlatMapFromPipeline(OP::utest::TestRuntime& tresult)
     constexpr int N = 4;
 
     constexpr auto fm_lazy = src::of_iota(1, N + 1)
-        >> then::flat_mapping([](auto i) {
-            return src::generator([step = 0, i]() mutable->std::optional<decltype(i)> 
+        >> then::flat_mapping([](int i) {
+        return src::generator([step = 0, i]() mutable->std::optional<decltype(i)>
             {
                 decltype(i) v = 1;
                 for (auto x = 0; x < step; ++x)
@@ -27,18 +27,18 @@ void test_FlatMapFromPipeline(OP::utest::TestRuntime& tresult)
                 return step++ < 3 ? std::optional<decltype(i)>(v) : std::optional<decltype(i)>{};
             }
         );
-        })
-    ;
+            })
+        ;
 
-    constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
-    size_t cnt = 0;
-    for (auto i : fm_lazy)
-    {
-        tresult.debug() << i << "\n";
-        ++cnt;
-    }
-    tresult.assert_that<equals>(cnt, 12, "Wrong times");
-    tresult.assert_that<equals>(expected_sum, std::reduce(fm_lazy.begin(), fm_lazy.end(), 0), "invalid num");
+            constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
+            size_t cnt = 0;
+            for (auto i : fm_lazy)
+            {
+                tresult.debug() << i << "\n";
+                ++cnt;
+            }
+            tresult.assert_that<equals>(cnt, 12, "Wrong times");
+            tresult.assert_that<equals>(expected_sum, std::reduce(fm_lazy.begin(), fm_lazy.end(), 0), "invalid num");
 }
 
 size_t g_copied = 0, g_moved = 0;
@@ -76,6 +76,7 @@ struct ExploreVector
 
     std::vector<T> _store;
 };
+
 void test_FlatMapFromContainer(OP::utest::TestRuntime& tresult)
 {
     constexpr int N = 4;
@@ -87,7 +88,7 @@ void test_FlatMapFromContainer(OP::utest::TestRuntime& tresult)
                 "b" + std::to_string(i),
                 "c" + std::to_string(i)});
             }
-        );
+    );
 
     size_t cnt = 0;
     g_copied = 0, g_moved = 0;
@@ -110,7 +111,7 @@ void test_FlatMapFromContainer(OP::utest::TestRuntime& tresult)
     };
     const auto super_factory = src::of_container(std::vector{ Some{}, Some{} })
         >> then::flat_mapping([](const auto& some_entry) {
-                return some_entry.relates.compound();
+        return some_entry.relates.compound();
             });
     cnt = 0, g_copied = 0, g_moved = 0;
     for (auto i : super_factory.compound())
@@ -121,19 +122,26 @@ void test_FlatMapFromContainer(OP::utest::TestRuntime& tresult)
     tresult.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
 
     tresult.assert_that<equals>(cnt, 6, "Wrong times");
-    tresult.assert_that<equals>(g_moved, 2, "Wrong times");
-    tresult.assert_that<equals>(g_copied, 4, "Wrong times");
+    tresult.assert_that<equals>(g_moved, 0, "Wrong times");
+    tresult.assert_that<equals>(g_copied, 0, "Wrong times");
 }
+
+struct User
+{
+    User(std::initializer_list<std::string> init)
+        : roles(std::move(init))
+    {}
+    ExploreVector<std::string> roles;
+    friend std::ostream& operator << (std::ostream& os, const User& u)
+    {
+        for (const auto& a : u.roles)
+            os << a << ", ";
+        return os;
+    }
+};
 
 void test_FlatMapFromCref(OP::utest::TestRuntime& tresult)
 {
-    struct User
-    {
-        User(std::initializer_list<std::string> init)
-            : roles(std::move(init))
-        {}
-        ExploreVector<std::string> roles;
-    };
     std::vector<User> usr_lst{
         User{"a1"s, "a2"s, "a3"s},
         User{"b1"s, "b2"s, "b3"s},
@@ -172,39 +180,39 @@ void test_FlatMapWithEmpty(OP::utest::TestRuntime& tresult)
 
     auto lst1 =
         src::of_container(std::vector<User>{
-            User{},
+        User{},
             User{ "a1"s, "a2"s, "a3"s },
             User{ "b1"s, "b2"s, "b3"s },
-        })
+    })
         >> then::flat_mapping([](const auto& u) {
             return src::of_container(std::cref(u.roles));
             });
 
-    tresult.assert_that<eq_sets>(expected, lst1, "result sequene broken by empty-first");
+        tresult.assert_that<eq_sets>(expected, lst1, "result sequence broken by empty-first");
 
-    auto lst2 =
-        src::of_container(std::vector<User>{
+        auto lst2 =
+            src::of_container(std::vector<User>{
             User{ "a1"s, "a2"s, "a3"s },
-            User{},
-            User{ "b1"s, "b2"s, "b3"s },
+                User{},
+                User{ "b1"s, "b2"s, "b3"s },
         })
-        >> then::flat_mapping([](const auto& u) {
-            return src::of_container(std::cref(u.roles));
-        })
-    ;
-    tresult.assert_that<eq_sets>(expected, lst2, "result sequene broken by empty-moddle");
+            >> then::flat_mapping([](const auto& u) {
+                return src::of_container(std::cref(u.roles));
+                })
+                ;
+                tresult.assert_that<eq_sets>(expected, lst2, "result sequence broken by empty-model");
 
-    auto lst3 =
-        src::of_container(std::vector<User>{
-            User{ "a1"s, "a2"s, "a3"s },
-            User{ "b1"s, "b2"s, "b3"s },
-            User{},
-        })
-        >> then::flat_mapping([](const auto& u) {
-            return src::of_container(std::cref(u.roles));
-        })
-    ;
-    tresult.assert_that<eq_sets>(expected, lst3, "result sequene broken by empty-moddle");
+                auto lst3 =
+                    src::of_container(std::vector<User>{
+                    User{ "a1"s, "a2"s, "a3"s },
+                        User{ "b1"s, "b2"s, "b3"s },
+                        User{},
+                })
+                    >> then::flat_mapping([](const auto& u) {
+                        return src::of_container(std::cref(u.roles));
+                        })
+                        ;
+                        tresult.assert_that<eq_sets>(expected, lst3, "result sequence broken by empty-model");
 }
 
 void test_FlatMapShared(OP::utest::TestRuntime& rt)
@@ -213,28 +221,39 @@ void test_FlatMapShared(OP::utest::TestRuntime& rt)
     auto shared_seq = make_shared(
         src::of_container(std::vector{ 1, 3, 5, 7 })
         >> then::flat_mapping([](auto odd) {
-            ExploreVector<int> even{2, 4, 6};
+            ExploreVector<int> even{ 2, 4, 6 };
             return make_shared(src::of_container(std::move(even)));
             })
     );
+    size_t cnt = 0;
     g_copied = 0;
     g_moved = 0;
     for (auto n : *shared_seq)
-        rt.debug() << n << ", ";
-    rt.debug() << "\ncopied:" << g_copied << ", moved:" << g_moved << "\n";
-    rt.assert_that<equals>(4, g_copied);
-    rt.assert_that<equals>(16, g_moved);
+        rt.debug() << (cnt++ ? ", " : "") << n;
+    rt.debug() << "\ntotal:" << cnt << ", copied:" << g_copied << ", moved:" << g_moved << "\n";
+
+    rt.assert_that<equals>(3*4, cnt);
+    rt.assert_that<equals>(0, g_copied);
+    rt.assert_that<equals>(12, g_moved);
 }
 
-void test_FlatMapArbitraryArgs(TestRuntime& tresult)
+void test_FlatMapArbitraryArgs(TestRuntime& rt)
 {
-    //auto shared_seq = make_shared(
-    //    src::of_container(std::vector{ 1, 3, 5, 7 })
-    //    >> then::flat_mapping([](const int& n, const SequenceState& attrs) {
-    //        ExploreVector<int> even{ 2, 4, 6 };
-    //        return make_shared(src::of_container(std::move(even)));
-    //        })
-    //);
+    using namespace OP::flur;
+    size_t sum_of = 0;
+    auto shared_seq = make_shared(
+        src::of_container(std::vector{ 1, 3, 5, 7 })
+        >> then::flat_mapping([&](const int& n, SequenceState& attrs) {
+            ExploreVector<int> even{ 2, 4, 6 };
+            sum_of += attrs.step(); //just accumulate current step to get correct sum at exit
+            return src::of_container(std::move(even));
+            })
+    );
+    size_t cnt = 0;
+    for (auto it : shared_seq) //recognize special form of std::shared_ptr<LazyRange>
+        ++cnt;
+    rt.assert_that<equals>(3 * 4, cnt);
+    rt.assert_that<equals>(6, sum_of);
 
 }
 
@@ -246,4 +265,4 @@ static auto& module_suite = OP::utest::default_test_suite("flur.then")
 .declare("flatmap-with-empty", test_FlatMapWithEmpty)
 .declare("flatmap-shared", test_FlatMapShared)
 .declare("flatmap-arb_args", test_FlatMapArbitraryArgs)
- ;
+;

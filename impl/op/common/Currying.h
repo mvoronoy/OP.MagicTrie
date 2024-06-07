@@ -230,7 +230,7 @@ namespace OP::currying
         /** Collate existing arguments and bind them to the TCallable arguments
         * using type matching.
         * @return functor of zero arguments that is bind to the current tuple. For convenience to reuse
-        *   result type is OP::cyrrying::F to allow use this as unpackable argument
+        *   result type is OP::currying::F to allow use this as unpackable argument
         */ 
         template <class TCallable>
         constexpr decltype(auto) tdef(TCallable f)&& noexcept
@@ -291,7 +291,7 @@ namespace OP::currying
         /** Create 0 argument functor by binding stored arguments by type matching to 
         * functor `f`.
         * @return functor of zero arguments that is bind to the current tuple. For convenience to reuse
-        *   result type is OP::cyrrying::F to allow use this as unpackable argument
+        *   result type is OP::currying::F to allow use this as unpackable argument
         */
         template <class TCallable>
         constexpr decltype(auto) typed_bind(TCallable f) const& noexcept
@@ -530,6 +530,10 @@ namespace OP::currying
     {
         return [method](TClass& inst, Args... args) {return (inst.*method)(args...); };
     }
+
+    template<class... Ts> struct ArgInjectors : Ts... { using Ts::operator()...; };
+    // explicit deduction guide (not needed as of C++20)
+    template<class... Ts> ArgInjectors(Ts...) -> ArgInjectors<Ts...>;
 
 }//ns:OP::currying
 

@@ -265,7 +265,7 @@ namespace OP::flur
     * functor of children resolution is responsible to prevent dead loops (for example use 
     * std::unorder_set to track visited vertices).
     *
-    * \tparam FChildrenResolve - functor to resolve children. It expects parent element at imput 
+    * \tparam FChildrenResolve - functor to resolve children. It expects parent element at input 
     *   but must return some flur LazyFactory to enumerate children entites. 
     * \tparam HierarchyTraversal traversal_alg_c algorithm how to deal with traversal order. By default 
     *   `HierarchyTraversal::deep_first` is used as fast-most.
@@ -292,9 +292,7 @@ namespace OP::flur
                 std::is_convertible_v< typename OP::flur::details::dereference_t<Src>::element_t, applicator_element_t>,
                 "must operate on sequences producing same type of elements");
             if constexpr (traversal_alg_c == HierarchyTraversal::deep_first)
-            {   //just reuse FlatMap sequence for this case
-                //using f_t = DeepFirstFunctor<applicator_element_t, FChildrenResolve>;
-                //return FlatMappingFactory< f_t >(f_t(_applicator)).compound(std::move(seq));
+            {   
                 return DeepFirstSequence<Src, FChildrenResolve, base_seq_t>(
                     std::move(seq), _applicator);
                 
@@ -315,9 +313,7 @@ namespace OP::flur
                 "must operate on sequences producing same type of elements");
             using base_seq_t = Sequence< element_t >;
             if constexpr (traversal_alg_c == HierarchyTraversal::deep_first)
-            {   //just reuse FlatMap sequence for this case
-                //using f_t = DeepFirstFunctor<applicator_element_t, FChildrenResolve>;
-                //return FlatMappingFactory< f_t >(f_t(_applicator)).compound(std::move(seq));
+            {   
                 return DeepFirstSequence<Src, FChildrenResolve, base_seq_t>(
                     std::move(seq), std::move(_applicator));
                 

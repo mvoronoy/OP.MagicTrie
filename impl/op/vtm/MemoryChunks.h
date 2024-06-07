@@ -305,7 +305,7 @@ namespace OP::vtm
     }
         
     /**
-    *   Create read/write accessor to virtual memory ocupied by array of `T` elements of length `number_elements`
+    *   Create read/write accessor to virtual memory occupied by array of `T` elements of length `number_elements`
     * \tparam T some type that resides at accesed readonly memory
     * \tparam SMProvider some type that either castable to SegmentManager or resolved by resolve_segment_manager() (like a SegmentTopology)
     * \param number_elements number of items in accessed array
@@ -432,7 +432,7 @@ namespace OP::vtm
     }
         
     /**
-    *   Create readonly accessor to virtual memory ocupied by array of `T` elements of length `number_elements`
+    *   Create readonly accessor to virtual memory occupied by array of `T` elements of length `number_elements`
     * \tparam T some type that resides at accesed readonly memory
     * \tparam SMProvider some type that either castable to SegmentManager or resolved by resolve_segment_manager() (like a SegmentToplogy)
     * \param number_elements number of items in accessed array

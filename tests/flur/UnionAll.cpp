@@ -17,8 +17,8 @@ namespace {
         using test_container_t = std::vector<int>;
         tresult.info() << "union_all of empties\n";
         test_container_t empty;
-        auto ee = src::of_container(/*copy*/(empty))
-            >> then::union_all(src::of_container(/*copy*/(empty)));
+        auto ee = src::of_container(/*c-ref*/(empty))
+            >> then::union_all(src::of_container(/*c-ref*/(empty)));
         tresult.assert_true(
          std::empty(ee), "all empty");
 

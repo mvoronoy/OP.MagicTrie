@@ -25,6 +25,7 @@ namespace OP
     * - When `std::optional` is not a case because of `const` constraints.
     * - When you have intensive cycles of constructing and destroying a single object, you can reuse the same 
     *   memory.
+    * - When, for some reason, class has only constructors without ability to implement copy/move operators.
     *
     *   Internally, MemBuf contains a byte buffer big enough to accommodate the type specified by the template 
     *   parameter T, taking into account the current platform's alignment requirements.
@@ -34,6 +35,7 @@ namespace OP
     template <typename T>
     struct MemBuf 
     {
+        using element_t = T;
         using this_t = MemBuf<T>;
         
         /** Create unitialized in memory buffer (no heap operations is involved) */
@@ -202,7 +204,7 @@ namespace OP
             return *this;
         }
 
-        /** \brief Provide low-level access to ocupied memory without additional 
+        /** \brief Provide low-level access to occupied memory without additional 
         *   checks if object has been initialized. 
         */
         T* data() noexcept
@@ -210,12 +212,12 @@ namespace OP
              return std::launder(reinterpret_cast<T*>(_data));
         }
 
-        /** \brief Provide low-level constant access to ocupied memory without 
+        /** \brief Provide low-level constant access to occupied memory without 
         * additional checks if object has been initialized. 
         */
         const T* data() const noexcept
         {
-             return std::launder(reinterpret_cast<T*>(_data));
+             return std::launder(reinterpret_cast<const T*>(_data));
         }
 
         /**

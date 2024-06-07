@@ -87,6 +87,8 @@ namespace {
             >> then::ordered_join(src::of_container(src2), key_only_compare);
         for (const auto& x : join_res_factory.compound())
             tresult.debug() << ">" << x.first << ", " << x.second << "\n";
+        tresult.assert_that<eq_sets>(join_res_factory, jn_res);
+
         tresult.assert_that<eq_sets>(
             src::of_container(src1) 
                 >> then::ordered_join(src::of_container(src2), key_only_compare),
@@ -186,16 +188,16 @@ namespace {
         using test_container_t = std::map<std::string, double>;
         test_container_t src1{
             {"a", 1.0},
-        {"ab", 1.0},
-        {"b", 1.0},
-        {"bc", 1.0},
-        {"c", 1.0},
-        {"cd", 1.0},
-        {"d", 1.0},
-        {"def", 1.0},
-        {"g", 1.0},
-        {"xyz", 1.0}
-        };
+            {"ab", 1.0},
+            {"b", 1.0},
+            {"bc", 1.0},
+            {"c", 1.0},
+            {"cd", 1.0},
+            {"d", 1.0},
+            {"def", 1.0},
+            {"g", 1.0},
+            {"xyz", 1.0}
+            };
 
         std::map<std::string, double> expected{ {"def", 1.0} };
         tresult.assert_that<eq_sets>(
@@ -213,7 +215,7 @@ namespace {
     void test_shared(TestRuntime& tresult)
     {
 
-        tresult.info() << "union Polymorphs ...\n";
+        tresult.info() << "join Polymorphs ...\n";
         ;
         auto r1_dat1 =
             make_shared(

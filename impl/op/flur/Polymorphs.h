@@ -10,7 +10,9 @@
 namespace OP::flur
 {
     template <class TElement>
-    struct AbstractPolymorphFactory: FactoryBase
+    struct AbstractPolymorphFactory
+        : FactoryBase
+        , std::enable_shared_from_this<AbstractPolymorphFactory<TElement>>
     {
         using element_t = TElement;
         using sequence_t = Sequence<element_t>;
@@ -25,7 +27,7 @@ namespace OP::flur
         virtual std::shared_ptr<sequence_t> compound_shared() const = 0;
 
         /** 
-            As a FactoryBase this abstarction must support `compound()` so 
+            As a FactoryBase this abstraction must support `compound()` so 
             it is aliasing of `compound_shared()` 
         */
         std::shared_ptr<sequence_t> compound() const 
@@ -35,7 +37,7 @@ namespace OP::flur
 
         auto begin() const
         {
-            return details::begin_impl(*this);
+            return details::begin_impl(shared_from_this());
         }
         auto end() const
         {
@@ -83,7 +85,12 @@ namespace OP::flur
             {
                 return std::shared_ptr<typename base_t::sequence_t>(
                     //uses move constructor
-                    new result_seq_t{std::move(result)}
+                    new result_seq_t{std::move(result)},
+                    // custom deleter to keep factory captured
+                    [capture = shared_from_this()](result_seq_t* p) mutable { 
+                        delete p;
+                        capture.reset(); //just to avoid optimization
+                    }
                 );
             }
         }
