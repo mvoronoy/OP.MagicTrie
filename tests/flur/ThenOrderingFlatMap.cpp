@@ -26,7 +26,9 @@ void test_OrderingFlatBasic(OP::utest::TestRuntime& tresult)
     //create top-unordered 
     std::vector<int> unord_data(1000);
     std::iota(unord_data.begin(), unord_data.end(), 1);
-    std::shuffle(unord_data.begin(), unord_data.end(), std::mt19937{std::random_device{}()});
+    std::shuffle(
+        unord_data.begin(), unord_data.end(), 
+        tools::RandomGenerator::instance().generator());
  
     auto ofm_lazy = 
         src::of_container(std::cref(unord_data))

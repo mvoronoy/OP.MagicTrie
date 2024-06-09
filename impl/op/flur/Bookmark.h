@@ -23,6 +23,13 @@ namespace OP::flur
 
     namespace details
     {
+        template <class T>
+        constexpr const T* _bmk()
+        {
+            T* r = nullptr;
+            return r;
+        }
+
         template <class T, auto k, class U>
         constexpr bool _check_is_bookmark(const Bookmark<k, U>* a) noexcept
         {
@@ -44,10 +51,7 @@ namespace OP::flur
     struct PredicateSelectBookmarks
     {
         template <class T>
-        struct check
-        {
-            static constexpr bool value = is_bookmark_c<T>;
-        };
+        static constexpr bool check = is_bookmark_c<std::decay_t<T>>;
     }; 
 
     struct AttributeManager

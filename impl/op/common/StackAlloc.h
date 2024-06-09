@@ -38,7 +38,7 @@ namespace OP
         using element_t = T;
         using this_t = MemBuf<T>;
         
-        /** Create unitialized in memory buffer (no heap operations is involved) */
+        /** Create un-initialized in memory buffer (no heap operations is involved) */
         constexpr MemBuf() noexcept = default;
 
         /** Construct in-place object of type `T` with constructor arguments specifed by `Ux...` */
@@ -235,7 +235,7 @@ namespace OP
     private:
 
         bool _init = false;
-        alignas(T) std::byte _data[sizeof(T)];
+        alignas(T) std::byte _data[sizeof(T)] = {};
     };
 
     struct IndexedConstructor

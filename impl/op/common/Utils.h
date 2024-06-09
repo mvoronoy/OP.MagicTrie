@@ -106,9 +106,36 @@ namespace OP
         template <typename T, typename... Us>
         struct contains_type<T, std::variant<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
 
+        template <typename... Us>
+        constexpr inline bool contains_type_v = contains_type<Us...>::value;
+
+        template <typename ...Tx>
+        struct tuple_merge
+        {
+            using type = std::tuple<Tx...>;
+        };
+
+        template <typename ...Tx, typename ... Ux>
+        struct tuple_merge<std::tuple<Tx...>, std::tuple<Ux...>>
+        {
+            using type = std::tuple<Tx..., Ux...>;
+        };
+
+        template <typename T, typename ... Ux>
+        struct tuple_merge<T, std::tuple<Ux...>>
+        {
+            using type = std::tuple<T, Ux...>;
+        };
+
+        template <typename ... Ux, typename T>
+        struct tuple_merge<std::tuple<Ux...>, T>
+        {
+            using type = std::tuple<Ux..., T>;
+        };
+
         /** helper to infer type of 2 tuples after tuple_cat */
-        template <class Tup1, class Tup2>
-        using tuple_merge_t = decltype(std::tuple_cat(std::declval<Tup1>(), std::declval<Tup2>()));
+        template <class ...Tx>
+        using tuple_merge_t = typename tuple_merge<Tx...>::type;//decltype(std::tuple_cat(std::declval<Tup1>(), std::declval<Tup2>()));
 
 
         /**Allows to check if parameter T is defined from other template. Usage:
@@ -125,7 +152,7 @@ namespace OP
 
         /**
         *   Type filter may be applied to create sub-type from origin std::tuple by applying compile-time
-        * predicte to each entry.
+        * predicate to each entry.
         *
         * Use-case: need to get commands with 0 input args only \code
         * using origin_t = std::tuple< Command1, Command2, ...>;
@@ -133,10 +160,8 @@ namespace OP
         * Predicate must be declared as \code
         * struct Predicate_Zero_Arg_Command{
         *     template <class T>
-        *     struct check{
-        *       //value must be evaluated on compile time
-        *       static constexpr bool value = (T::arity_c == 0);
-        *     };
+        *     //value must be evaluated on compile time
+        *     static constexpr bool value = (T::arity_c == 0);
         * }; \endcode
         * Now it is possible to create sub-type:\code
         * using zero_args_only_t = typename TypeFilter<Predicate_Zero_Arg_Command, origin_t>::type;
@@ -148,8 +173,8 @@ namespace OP
         template <class P, class T, class ... Tx  >
         struct TypeFilter<P, T, Tx ...>
         {
-            using type = std::conditional_t< P::template check<T>::value,
-                tuple_merge_t<std::tuple<T>, typename TypeFilter<P, Tx ...>::type>,
+            using type = std::conditional_t< P::template check<T>,
+                tuple_merge_t<T, typename TypeFilter<P, Tx ...>::type>,
                 typename TypeFilter<P, Tx ...>::type >;
         };
 

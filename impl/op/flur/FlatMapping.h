@@ -23,41 +23,46 @@ namespace OP
             using applicator_t = std::decay_t<F>;
             using input_sequence_t = InputSequence;
 
+            using deref_input_sequence_t = details::dereference_t<input_sequence_t>;
+
             static decltype(auto) invoke(
                 applicator_t& applicator,
-                const input_sequence_t& sequence,
+                const deref_input_sequence_t& sequence,
                 SequenceState& state)
             {
                 if constexpr (std::is_invocable_v<applicator_t>)
                 {// flat map functor can be empty
                     return applicator();
                 }
-                else if constexpr (std::is_invocable_v<applicator_t, decltype(sequence.current())>)
+                else if constexpr (std::is_invocable_v<applicator_t, 
+                    decltype(details::get_reference(sequence).current())>)
                 { //the same as default fallback, but allows in first order check `flat_mapping([](auto&...)`
-                    return applicator(sequence.current());
+                    return applicator(details::get_reference(sequence).current());
                 }
                 else if constexpr (std::is_invocable_v<applicator_t, decltype(state)>)
                 {// SequenceState only consumer
                     return applicator(state);
                 }
-                else if constexpr (std::is_invocable_v<applicator_t, decltype(sequence.current()), decltype(state)>)
+                else if constexpr (std::is_invocable_v<applicator_t, 
+                    decltype(details::get_reference(sequence).current()), decltype(state)>)
                 {
-                    return applicator(sequence.current(), state);
+                    return applicator(details::get_reference(sequence).current(), state);
                 }
-                else if constexpr (std::is_invocable_v<applicator_t, decltype(state), decltype(sequence.current())>)
+                else if constexpr (std::is_invocable_v<applicator_t, decltype(state), 
+                    decltype(details::get_reference(sequence).current())>)
                 {
-                    return applicator(state, sequence.current());
+                    return applicator(state, details::get_reference(sequence).current());
                 }
                 else //default fallback for consuming current element of input sequence
                 {
-                    return applicator(sequence.current());
+                    return applicator(details::get_reference(sequence).current());
                 }
             }
 
             /** result type of applicator function */
             using applicator_result_t = decltype(
                 invoke(std::declval<F&>(),
-                    std::declval<const input_sequence_t&>(),
+                    std::declval<const deref_input_sequence_t&>(),
                     std::declval<SequenceState&>()) );
                 //Works:
                 //decltype(
@@ -119,12 +124,12 @@ namespace OP
             bool is_sequence_ordered() const noexcept override
             {
                 return keep_order_c &&
-                    _src.is_sequence_ordered();
+                    details::get_reference(_src).is_sequence_ordered();
             }
 
             virtual void start() override
             {
-                _src.start();
+                details::get_reference(_src).start();
                 _state.start();
                 seek();
             }
@@ -141,10 +146,12 @@ namespace OP
 
             virtual void next() override
             {
-                deferred().next();
-                if (!deferred().in_range() && _src.in_range())
+                auto& def_ref = deferred();
+                auto& src_ref = details::get_reference(_src);
+                def_ref.next();
+                if (!def_ref.in_range() && src_ref.in_range())
                 {
-                    _src.next();
+                    src_ref.next();
                     _state.next();
                     seek();
                 }
@@ -156,37 +163,11 @@ namespace OP
 
             void seek()
             {
-                for (; _src.in_range(); _src.next(), _state.next())
+                auto& src_ref = details::get_reference(_src);
+                for (; src_ref.in_range(); src_ref.next(), _state.next())
                 {
                     _deferred.construct(details::unpack(
-                        traits_t::invoke(_applicator, _src, _state)));
-                    //if constexpr (std::is_base_of_v<FactoryBase, typename traits_t::unref_applicator_result_t>)
-                    //{
-                    //    //traits_t::invoke_compound(
-                    //    //    _deferred, _applicator(rrc.current())
-                    //    //);
-                    //    auto seq =
-                    //        details::get_reference(_applicator(rrc.current())).compound();
-                    //    std::cout <<"1)" << typeid(seq).name() << "\n";
-                    //    std::cout <<"2)" << typeid(typename sequence_holder_t::element_t).name() << "\n";
-                    //    std::cout << "3)" << typeid(typename traits_t::applicator_result_sequence_t).name() << "\n";
-                    //    _deferred.construct(details::unpack(_applicator(rrc.current())));
-                    //}
-                    //else //assume inheritance from Sequence
-                    //{
-                    //    traits_t::assign_new(
-                    //        _deferred,
-                    //        _applicator(rrc.current()));
-                    //}
-                    //
-                    // Following block works, but invokes more copying constructors
-                    // 
-                    //traits_t::assign_new(
-                    //    std::move(
-                    //        details::unpack(_applicator(details::get_reference(rrc.current())))
-                    //    ),
-                    //    _deferred
-                    //);
+                        traits_t::invoke(_applicator, src_ref, _state)));
                     deferred().start();
                     if (deferred().in_range())
                     { //new sequence is not empty, so we can proceed

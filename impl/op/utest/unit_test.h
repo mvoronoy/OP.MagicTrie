@@ -43,9 +43,9 @@
 
 
 /**Render inline information like __FILE__, __LINE__ in lazy way (rendered only on demand) */
-#define _OP_LAZY_INLINE_INFO(...) ([&]()->OP::utest::Details { OP::utest::Details res;\
-        res << "{File:" << __FILE__ << " at:" << __LINE__  << "} " __VA_ARGS__ << "\n"; return res;\
-    })
+#define _OP_LAZY_INLINE_INFO(...) OP::utest::Details{ [&](std::ostream&os) { \
+        os << "{File:" << __FILE__ << " at:" << __LINE__  << "} " __VA_ARGS__ << "\n"; \
+    }}
 #define OP_UTEST_DETAILS(...)  _OP_LAZY_INLINE_INFO(__VA_ARGS__)
 /** Allows place useful information to details output.
 * Usage:
@@ -55,7 +55,7 @@
 
 * \endcode
 */
-#define OP_CODE_DETAILS(...)  _OP_LAZY_INLINE_INFO(__VA_ARGS__)()
+#define OP_CODE_DETAILS(...)  _OP_LAZY_INLINE_INFO(__VA_ARGS__)
 
 #define OP_TEST_STRINGIFY(a) #a
 

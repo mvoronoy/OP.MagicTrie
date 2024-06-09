@@ -84,9 +84,10 @@ void test_FlatMapFromContainer(OP::utest::TestRuntime& tresult)
         >> then::flat_mapping([](auto i) {
         return src::of(
             ExploreVector<std::string>{
-            "a" + std::to_string(i),
+                "a" + std::to_string(i),
                 "b" + std::to_string(i),
-                "c" + std::to_string(i)});
+                "c" + std::to_string(i)
+            });
             }
     );
 
@@ -218,6 +219,8 @@ void test_FlatMapWithEmpty(OP::utest::TestRuntime& tresult)
 void test_FlatMapShared(OP::utest::TestRuntime& rt)
 {
     using namespace OP::flur;
+    size_t cnt = 0;
+
     auto shared_seq = make_shared(
         src::of_container(std::vector{ 1, 3, 5, 7 })
         >> then::flat_mapping([](auto odd) {
@@ -225,7 +228,6 @@ void test_FlatMapShared(OP::utest::TestRuntime& rt)
             return make_shared(src::of_container(std::move(even)));
             })
     );
-    size_t cnt = 0;
     g_copied = 0;
     g_moved = 0;
     for (auto n : *shared_seq)
@@ -235,6 +237,19 @@ void test_FlatMapShared(OP::utest::TestRuntime& rt)
     rt.assert_that<equals>(3*4, cnt);
     rt.assert_that<equals>(0, g_copied);
     rt.assert_that<equals>(12, g_moved);
+
+    //change the way, now flat-map pipelined to shared_ptr
+    auto r2 = make_lazy_range(make_shared(
+        src::of_container(std::vector{ 1, 3, 5, 7 }))
+        ) >> then::flat_mapping([](auto odd) {
+            ExploreVector<int> even{ 2, 4, 6 };
+            return make_shared(src::of_container(std::move(even)));
+            })
+    ;
+    cnt = 0;
+    r2 >>= apply::count(cnt);
+    rt.assert_that<equals>(3 * 4, cnt);
+
 }
 
 void test_FlatMapArbitraryArgs(TestRuntime& rt)

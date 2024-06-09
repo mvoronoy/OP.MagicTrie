@@ -128,6 +128,7 @@ namespace OP::flur::details
     template <class FactoriesTuple, std::size_t I = std::tuple_size<FactoriesTuple>::value >
     constexpr decltype(auto) compound_impl(const FactoriesTuple& t) noexcept
     {   //scan tuple in reverse order
+        static_assert(std::tuple_size_v<FactoriesTuple> > 0, "invalid factory set to compound");
         if constexpr (I == 1)
         { //at zero level must place no-arg `compound` implementation
             return get_reference(std::get<0>(t)).compound();

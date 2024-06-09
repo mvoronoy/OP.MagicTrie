@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _OP_FLUR_QUEUESRC__H_
-#define _OP_FLUR_QUEUESRC__H_
+#ifndef _OP_FLUR_QUEUESEQUENCE__H_
+#define _OP_FLUR_QUEUESEQUENCE__H_
 
 #include <functional>
 #include <memory>
@@ -13,16 +13,14 @@
 #include <op/flur/LazyRange.h>
 #include <op/flur/SimpleFactory.h>
 
-namespace OP
-{
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
+namespace OP::flur
 {
     /** Provide queue implmentation that can be used as a source async element 
         of a flur pipeline.
         Usage example:
         \code
-            QueueSrc<int> queue;
+            QueueSequence<int> queue;
 
             auto process = std::async([&]()
                 (src::outer(std::ref(queue))  //avoid copying the queue, use by ref
@@ -40,16 +38,15 @@ namespace flur
         Queue implmentation cannot be re-started second time, if needed use `repeater()` 
         element:
         \code
-            QueueSrc<int> queue;
+            QueueSequence<int> queue;
             ...
             src::outer(std::ref(queue)) >> then::repeater() ...
         \endcode
 
     */
     template <class T>
-    struct QueueSrc : OP::flur::Sequence<const T&>
+    struct QueueSequence : OP::flur::Sequence<const T&>
     {
-        using base_t = OP::flur::Sequence<T>;
         using element_t = T;
 
         std::deque<T> _queue;
@@ -72,16 +69,19 @@ namespace flur
             g.unlock();
             _access_condition.notify_one();
         }
+
         /** Thread safe method to notify that no more items will be posted to this queue */
         void stop()
         {
             _stop.store(true);
             _access_condition.notify_one();
         }
+
         /** Do nothing */
         virtual void start()
         {
         }
+
         /** Check if Sequence is in valid position and may call `next` safely */
         virtual bool in_range() const
         {
@@ -94,6 +94,7 @@ namespace flur
             else
                 return true;
         }
+        
         /** Return current item */
         virtual const element_t& current() const
         {
@@ -106,6 +107,7 @@ namespace flur
             else
                 return _queue.front();
         }
+        
         /** Position iterable to the next step */
         virtual void next()
         {
@@ -130,7 +132,7 @@ namespace flur
         
     }
 
-} //ns:flur
-} //ns:OP
 
-#endif //_OP_FLUR_QUEUESRC__H_
+} //ns:OP::flur
+
+#endif //_OP_FLUR_QUEUESEQUENCE__H_

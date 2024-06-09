@@ -13,7 +13,7 @@
 
 #include <op/flur/OfGenerator.h>
 #include <op/flur/flur.h>
-#include <op/flur/QueueSrc.h>
+#include <op/flur/Queue.h>
 
 using namespace OP::utest;
 using namespace OP::flur;
@@ -95,7 +95,7 @@ void test_Mt(OP::utest::TestRuntime& tresult)
     //        });
     OP::utils::ThreadPool tp;
 
-    QueueSrc<int> tee;
+    QueueSequence<int> tee;
 
     constexpr int i_start = 20, i_end = 114;
     auto teepipeline = src::of_iota(i_start, i_end)
@@ -183,7 +183,7 @@ void test_mt_exceptions(OP::utest::TestRuntime& tresult)
         }
         });
     tresult.info() << "check exception during asyn queue consumption...\n";
-    QueueSrc<std::future<int>> queue_for_pipeline2;
+    QueueSequence<std::future<int>> queue_for_pipeline2;
     auto pipeline2 = src::outer(std::ref(queue_for_pipeline2))
         >> then::mapping([](const auto& fut) { 
         return const_cast<std::future<int>&>(fut).get();

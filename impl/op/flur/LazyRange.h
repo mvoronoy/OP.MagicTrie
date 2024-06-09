@@ -22,13 +22,8 @@ namespace OP::flur
     struct PredicateSelectFactories
     {
         template <class T>
-        struct check
-        {
-            static constexpr bool value = is_factory_c<std::decay_t<details::dereference_t<T>>>;
-        };
+        static constexpr bool check = is_factory_c<std::decay_t<details::dereference_t<T>>>;
     };
-
-    struct D {};
 
     /** 
      * \brief Main building element of OP::flur to form a pipeline of transformations.
@@ -76,22 +71,25 @@ namespace OP::flur
             );
         using this_t = LazyRange<Tx...>;
 
-        using factories_t = OP::utils::type_filter_t<PredicateSelectFactories, Tx...>;
-        using bookmarks_t = OP::utils::type_filter_t<PredicateSelectBookmarks, Tx...>;
+        using factories_t = std::tuple<Tx...>;//OP::utils::type_filter_t<PredicateSelectFactories, Tx...>;
+        using bookmarks_t = std::tuple<>;//OP::utils::type_filter_t<PredicateSelectBookmarks, Tx...>;
 
         factories_t _factories;
         bookmarks_t _bookmarks;
 
+        template <class ...Ux>
         constexpr LazyRange(
-            D, factories_t factories, bookmarks_t bookmarks) noexcept
+            std::tuple<Ux...> factories) noexcept
             : _factories{ std::move(factories) }
-            , _bookmarks{ std::move(bookmarks) }
+            , _bookmarks{}
         {
+            static_assert(sizeof...(Ux) > 0, "non empty FactoryBase set must be specified");
         }
         
-        constexpr LazyRange(Tx&& ...tx) noexcept
+        constexpr LazyRange(std::in_place_t, Tx&& ...tx) noexcept
             : _factories{ std::forward<Tx>(tx) ... }
         {
+            static_assert(std::tuple_size_v<decltype(_factories)> > 0, "non empty FactoryBase set must be specified");
         }
 
         constexpr auto compound() const& noexcept
@@ -113,51 +111,55 @@ namespace OP::flur
         template <class T>
         constexpr auto operator >> (T&& t) const& noexcept
         {
-            return LazyRange < Tx ..., T >{D{}, 
-                std::tuple_cat(_factories, std::make_tuple(std::forward<T>(t))),
-                    _bookmarks
-            };
+            return std::apply([&](auto ...a) {//use copy semantic
+                return LazyRange<Tx..., T>{ std::in_place_t{}, std::move(a)..., std::forward<T>(t) };
+                }, _factories);
         }
 
         template <class T>
         constexpr auto operator >> (T&& t) && noexcept
         {
-            return LazyRange<Tx ..., T>{
-                D{},
-                std::tuple_cat(std::move(_factories), std::make_tuple(std::forward<T>(t))),
-                std::move(_bookmarks)
-            };
+            return std::apply([&](auto&& ...a) {
+                return LazyRange<Tx..., T>{ std::in_place_t{}, std::move(a)..., std::forward<T>(t) };
+                }, std::move(_factories));
         }
 
         template <class T>
         constexpr auto operator >> (const T& t) const& noexcept
         {
-            return LazyRange < Tx ..., T >(D{},
-                std::tuple_cat(_factories, std::make_tuple(t)));
+            return std::apply([&](const auto& ...a) {
+                return LazyRange{ std::in_place_t{}, a..., t };
+                }, _factories);
         }
 
         template <class ... Ux>
         constexpr auto operator >> (LazyRange<Ux ...> && lr) && noexcept
         {
-            using arg_t = LazyRange<Ux ...>;
-            return LazyRange < Tx ..., Ux ... >(
-                std::tuple_cat(std::move(_factories), lr._factories));
+            return std::apply([&](auto&& ...la) {
+                return std::apply([&](auto&& ...ra) {
+                    return LazyRange{ std::in_place_t{}, std::move(la)..., std::move(ra)... };
+                    }, std::move(lr));
+                }, std::move(_factories));
         }
 
         template <class ... Ux>
         constexpr auto operator >> (std::tuple<Ux ...> && lr) && noexcept
         {
-            using arg_t = LazyRange<Ux ...>;
-            return LazyRange < Tx ..., Ux ... >(
-                std::tuple_cat(std::move(_factories), lr));
+            return std::apply([&](auto&& ...la) {
+                return std::apply([&](auto&& ...ra) {
+                    return LazyRange<Tx ..., Ux...>{ std::in_place_t{}, std::move(la)..., std::move(ra)... };
+                    }, std::move(lr));
+                }, std::move(_factories));
         }
 
         template <class ... Ux>
         constexpr auto operator >> (const LazyRange<Ux ...>& lr)const& noexcept
         {
-            using arg_t = LazyRange<Ux ...>;
-            return LazyRange < Tx ..., Ux ... >(
-                std::tuple_cat(_factories, lr._factories));
+            return std::apply([&](const auto& ...la) {
+                return std::apply([&](const auto& ...ra) {
+                    return LazyRange{ std::in_place_t{}, la..., ra... };
+                    }, lr._factories);
+                }, _factories);
         }
 
         auto begin() const
@@ -174,16 +176,20 @@ namespace OP::flur
 
     /** Simplifies creation of LazyRange */
     template <class ... Tx >
-    constexpr LazyRange<Tx ...> make_lazy_range(Tx && ... tx) noexcept 
+    constexpr LazyRange<Tx...> make_lazy_range(Tx&& ... tx) noexcept
     {
-        return LazyRange<Tx ...>(std::forward<Tx>(tx) ...);
+        return LazyRange<Tx...>{ std::in_place_t{}, std::forward<Tx>(tx) ... };
     }
 
-    template <class ... Tx >
-    constexpr auto make_lazy_range(std::piecewise_construct_t, Tx && ... tx) noexcept
-    {
-        return LazyRange<std::decay_t<Tx> ...>(std::forward<Tx>(tx) ...);
-    }
+    //
+    //  Commissioned as arguable reason
+    //
+    //template <class ... Tx >
+    //constexpr auto make_lazy_range(std::piecewise_construct_t, Tx && ... tx) noexcept
+    //{
+    //    return LazyRange<std::decay_t<Tx> ...>(std::forward<Tx>(tx) ...);
+    //}
+
     //
     //  Commissioned as arguable reason
     //
@@ -231,8 +237,8 @@ namespace OP::flur
     {
         using union_all_factory_t = UnionAllSequenceFactory<TLeft, TRight>;
 
-        return LazyRange < union_all_factory_t >(
-            union_all_factory_t(std::forward<TLeft>(l), std::forward<TRight>(r) ));
+        return LazyRange{ std::in_place_t{},
+            union_all_factory_t(std::forward<TLeft>(l), std::forward<TRight>(r)) };
     }
 
     template <class TLeft, class TRight, 
@@ -259,7 +265,7 @@ namespace OP::flur
     inline constexpr auto operator& (TLeft l, TRight r) noexcept
     {
         using right_range_t = OrderedJoinFactory<TRight>;
-        return LazyRange{std::move(l), right_range_t{std::move(r)}};
+        return std::move(l) >> right_range_t{std::move(r)};
     }
 
     template <class TLeft, class TRight,
