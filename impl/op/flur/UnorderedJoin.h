@@ -101,39 +101,28 @@ namespace OP::flur
     template <class Right>
     class AdaptiveJoinFactory : FactoryBase
     {
-    public:
-
-        template <class U>
-        constexpr AdaptiveJoinFactory(U&& right) noexcept
-            : _right(std::forward<U>(right))
+    private:
+        //need let know to _right what to use && or const&
+        template <class RightSeq, class LeftSeq>
+        static auto auto_join_impl(RightSeq&& right_seq, LeftSeq&& left)
         {
-        }
-
-        template <class Left >
-        auto compound(Left&& left) const& noexcept
-        {
-            auto right_seq =
-                details::get_reference(_right).compound();
-
-            using right_seq_t = decltype(right_seq);
-
-            using left_element_t = details::sequence_element_type_t<Left>;
-            using right_element_t = details::sequence_element_type_t<right_seq_t>;
+            using left_element_t = details::sequence_element_type_t<LeftSeq>;
+            using right_element_t = details::sequence_element_type_t<RightSeq>;
             static_assert(std::is_same_v< left_element_t, right_element_t>, "must be same item to join");
 
             using left_predicate_t = HashSetFilterPredicate< std::decay_t<left_element_t>>;
             using right_predicate_t = HashSetFilterPredicate< std::decay_t<right_element_t>>;
 
-            using left_unordered_t = UnorderedJoin<right_seq_t, left_predicate_t>; //pay attention of cross-swap
-            using right_unordered_t = UnorderedJoin<Left, right_predicate_t>; //pay attention of cross-swap
-        
+            using left_unordered_t = UnorderedJoin<RightSeq, left_predicate_t>; //pay attention of cross-swap
+            using right_unordered_t = UnorderedJoin<LeftSeq, right_predicate_t>; //pay attention of cross-swap
 
-            using all_ordered_t = details::ordered_joint_sequence_t<Left, right_seq_t>;
+
+            using all_ordered_t = details::ordered_joint_sequence_t<LeftSeq, RightSeq>;
 
             /*
             using dummy_t = NullSequenceFactory< right_element_t>;
             using target_t = SequenceProxy< details::unpack_t<dummy_t> >;
-            std::cout 
+            std::cout
                 << "1)" << typeid(all_ordered_t).name() << "\n"
                 << "2a) elem = " << typeid(left_element_t).name() << "\n"
                 << "2b) r-seq = " << typeid(right_seq_t).name() << "\n"
@@ -144,86 +133,61 @@ namespace OP::flur
              */
             using target_sequence_t =
                 std::conditional_t<
-                    //occasionally `left_unordered_t` may be the same as `right_unordered_t`
-                    // that means `std::variant` can fail to distinguish them, so reduce 
-                    // number of proxied types
-                    std::is_same_v<left_unordered_t, right_unordered_t>,
-                    SequenceProxy<all_ordered_t, left_unordered_t>,
-                    SequenceProxy<all_ordered_t, left_unordered_t, right_unordered_t>
+                //occasionally `left_unordered_t` may be the same as `right_unordered_t`
+                // that means `std::variant` can fail to distinguish them, so reduce 
+                // number of proxied types
+                std::is_same_v<left_unordered_t, right_unordered_t>,
+                SequenceProxy<all_ordered_t, left_unordered_t>,
+                SequenceProxy<all_ordered_t, left_unordered_t, right_unordered_t>
                 >;
 
-            bool is_left_ordered = 
+            bool is_left_ordered =
                 details::get_reference(left.is_sequence_ordered());
 
-            if( details::get_reference(right_seq).is_sequence_ordered() )
+            if (details::get_reference(right_seq).is_sequence_ordered())
             {
-                if(is_left_ordered)
+                if (is_left_ordered)
                 { //all ordered
-                    return target_sequence_t{ 
+                    return target_sequence_t{
                         details::make_join(std::move(left), std::move(right_seq), full_compare_t{})
                     };
                 }
                 //left unordered
-                return target_sequence_t{ 
-                    left_unordered_t{std::move(right_seq), left_predicate_t{0, std::move(left)}} 
-                };    
+                return target_sequence_t{
+                    left_unordered_t{std::move(right_seq), left_predicate_t{0, std::move(left)}}
+                };
             }
             else //right unordered
             {
-                return target_sequence_t{ 
-                    right_unordered_t{std::move(left), right_predicate_t{0, std::move(right_seq)}} 
+                return target_sequence_t{
+                    right_unordered_t{std::move(left), right_predicate_t{0, std::move(right_seq)}}
                 };
-                
+
             }
         }
+        Right _right;
+    public:
 
-        template <class Left >
+        template <class U>
+        constexpr AdaptiveJoinFactory(U&& right) noexcept
+            : _right(std::forward<U>(right))
+        {
+        }
+
+        template <class Left>
+        auto compound(Left&& left) const& noexcept
+        {
+            return auto_join_impl(
+                details::get_reference(_right).compound(), std::move(left));
+        }
+
+        template <class Left>
         auto compound(Left&& left) && noexcept
         {
-            using left_element_t = details::sequence_element_type_t<Left>;
-            using right_element_t = details::sequence_element_type_t<Right>;
-
-            using left_predicate_t = HashSetFilterPredicate<left_element_t>;
-            using right_predicate_t = HashSetFilterPredicate<right_element_t>;
-
-            using left_unordered_t = UnorderedJoin<Right, left_predicate_t>; //pay attention of cross-swap
-            using righ_unordered_t = UnorderedJoin<Left, right_predicate_t>; //pay attention of cross-swap
-        
-            using all_ordered_t = ordered_joint_sequence_t<Left, Right>;
-
-            using target_sequence_t = SequenceProxy<
-                all_ordered_t, 
-                left_unordered_t, 
-                righ_unordered_t
-                >;
-
-            bool is_left_ordered = 
-                details::get_reference(left.is_sequence_ordered());
-
-            auto right_seq = //for T&& cast only
-                std::move(details::get_reference(_right)).compound();
-            if( details::get_reference(right_seq).is_sequence_ordered() )
-            {
-                if(is_left_ordered)
-                { //all ordered
-                    return target_sequence_t{ details::make_join(std::move(left), std::move(right_seq), full_compare_t{})};
-                }
-                //left unordered
-                return target_sequence_t{ 
-                    left_unordered_t{std::move(right_seq), left_predicate_t{std::move(left)}} };    
-            }
-            else //right unordered
-            {
-                return target_sequence_t{ 
-                    right_unordered_t{std::move(left), right_predicate_t{std::move(right_seq)}} };    
-                
-            }
+            return auto_join_impl(
+                //tell factory use move semantic
+                std::move(details::get_reference(_right)).compound(), std::move(left));
         }
-    private:
-        //template <class TThis>
-        //static auto
-
-        Right _right;
     };
 
 } //ns: OP::flur

@@ -120,8 +120,8 @@ namespace OP::flur
         template <class T>
         constexpr auto operator >> (T&& t) && noexcept
         {
-            return std::apply([&](auto&& ...a) {
-                return LazyRange<Tx..., std::decay_t<T>>{
+            return std::apply([&t](auto&& ...a) {
+                return LazyRange<Tx..., T>{
                     std::in_place_t{}, std::move(a)..., std::forward<T>(t) };
                 }, std::move(_factories));
         }

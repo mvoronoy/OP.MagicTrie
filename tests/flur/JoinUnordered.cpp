@@ -243,6 +243,22 @@ namespace {
             "wrong auto-join result for u+u"
         );
 
+        //next test very similar to previous r_u_u, but allows ensure `compound()&&` invoked
+        auto seq = (src::of_container(std::cref(src1))
+            >> then::auto_join(
+                src::of_container(std::cref(src1)) //filter 1 letter only strings
+                >> then::filter([](const std::string& a)->bool {return a.length() == 1; })
+            )).compound();
+
+        size_t n = 0;
+        for (const auto& a : seq)
+        {
+            tresult.assert_true(expected.find(a) != expected.end(),
+                "wrong auto-join result for u+u"
+            );
+            ++n;
+        }
+        tresult.assert_that<equals>(n, expected.size());
     }
     
     static auto& module_suite = OP::utest::default_test_suite("flur.unordered_join")

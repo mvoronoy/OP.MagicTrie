@@ -44,7 +44,8 @@ namespace OP::flur
             start();
             return LazyRangeIterator<t_t>(std::ref(*this));
         }
-        auto end()
+
+        auto end() const
         {
             using t_t = std::reference_wrapper<this_t> ;
             return LazyRangeIterator<t_t>(nullptr);
@@ -100,6 +101,6 @@ namespace OP::flur
     };
 
 
-}//ns:OP
+}//ns:OP::flur
 
 #endif //_OP_FLUR_SEQUENCE__H_

@@ -136,6 +136,7 @@ namespace OP::flur
             using result_t = decltype(begin_impl(*p));
             return result_t{nullptr};
         }
+
     }//ns:details
 } //ns:OP::flur
 #endif //_OP_FLUR_LAZYRANGEITER__H_
