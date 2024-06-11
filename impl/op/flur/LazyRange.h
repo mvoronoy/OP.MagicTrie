@@ -108,27 +108,30 @@ namespace OP::flur
             action(*this);
         }
 
-        template <class T>
-        constexpr auto operator >> (T&& t) const& noexcept
-        {
-            return std::apply([&](auto ...a) {//use copy semantic
-                return LazyRange<Tx..., T>{ std::in_place_t{}, std::move(a)..., std::forward<T>(t) };
-                }, _factories);
-        }
+        //template <class T>
+        //constexpr auto operator >> (T&& t) const& noexcept
+        //{
+        //    return std::apply([&](const auto& ...a) {//use copy semantic
+        //        return LazyRange<std::decay_t<Tx>..., std::decay_t<T> >{ 
+        //            std::in_place_t{}, a..., std::forward<T>(t) };
+        //        }, _factories);
+        //}
 
         template <class T>
         constexpr auto operator >> (T&& t) && noexcept
         {
             return std::apply([&](auto&& ...a) {
-                return LazyRange<Tx..., T>{ std::in_place_t{}, std::move(a)..., std::forward<T>(t) };
+                return LazyRange<Tx..., std::decay_t<T>>{
+                    std::in_place_t{}, std::move(a)..., std::forward<T>(t) };
                 }, std::move(_factories));
         }
 
         template <class T>
         constexpr auto operator >> (const T& t) const& noexcept
         {
-            return std::apply([&](const auto& ...a) {
-                return LazyRange{ std::in_place_t{}, a..., t };
+            return std::apply([&](const auto& ...a) {//uses copy semantic
+                return LazyRange<Tx..., std::decay_t<T>>{
+                    std::in_place_t{}, Tx(a)..., std::decay_t<T>{t} };
                 }, _factories);
         }
 
@@ -137,7 +140,7 @@ namespace OP::flur
         {
             return std::apply([&](auto&& ...la) {
                 return std::apply([&](auto&& ...ra) {
-                    return LazyRange{ std::in_place_t{}, std::move(la)..., std::move(ra)... };
+                    return LazyRange<Tx..., Ux...>{ std::in_place_t{}, std::move(la)..., std::move(ra)... };
                     }, std::move(lr));
                 }, std::move(_factories));
         }
@@ -178,7 +181,7 @@ namespace OP::flur
     template <class ... Tx >
     constexpr LazyRange<Tx...> make_lazy_range(Tx&& ... tx) noexcept
     {
-        return LazyRange<Tx...>{ std::in_place_t{}, std::forward<Tx>(tx) ... };
+        return LazyRange<std::decay_t<Tx>...>{ std::in_place_t{}, std::forward<Tx>(tx) ... };
     }
 
     //

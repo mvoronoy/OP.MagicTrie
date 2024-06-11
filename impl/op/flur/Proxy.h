@@ -26,7 +26,7 @@ namespace OP::flur
             {
                 using zero_t = sequence_element_type_t <dereference_t<pick0_t<Tx...>>>;
                 if constexpr (sizeof...(Tx) > 1)
-                    return (std::is_convertible_v<sequence_element_type_t<dereference_t<Tx>>, zero_t> && ...);
+                    return (std::is_same_v<sequence_element_type_t<dereference_t<Tx>>, zero_t> && ...);
                 else // only single T
                     return true;
             }
@@ -75,7 +75,7 @@ namespace OP::flur
         element_t current() const override
         {
             return std::visit(
-                [](const auto& inst) ->element_t { 
+                [](const auto& inst) -> element_t {
                     return details::get_reference(inst).current(); },
                 _instance);
         }

@@ -108,7 +108,7 @@ void test_FlatMapFromContainer(OP::utest::TestRuntime& tresult)
     struct Some
     {
         OfContainerFactory<ExploreVector<std::string>> relates;
-        Some() :relates{ ExploreVector{ "a"s, "b"s, "c"s} } {};
+        Some() :relates{0, ExploreVector{ "a"s, "b"s, "c"s} } {};
     };
     const auto super_factory = src::of_container(std::vector{ Some{}, Some{} })
         >> then::flat_mapping([](const auto& some_entry) {

@@ -206,7 +206,7 @@ namespace OP
             using applicator_t = F;//std::decay_t<F>;
 
             template <class FLike>
-            constexpr FlatMappingFactory(FLike&& f) noexcept
+            constexpr FlatMappingFactory(int, FLike&& f) noexcept
                 : _applicator(std::forward<FLike>(f))
             {
             }

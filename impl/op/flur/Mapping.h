@@ -15,18 +15,18 @@ namespace OP
 namespace flur
 {
     /**
-    * Mapping converts one sequence to another by applying function to source element.
+    * MappingSequence converts one sequence to another by applying functor to a source element.
     * \tparam Src - source sequence to convert
     */
     template <class Base, class Src, class F, bool keep_order_c>
-    struct Mapping : public Base
+    struct MappingSequence : public Base
     {
         using base_t = Base;
         using element_t = typename base_t::element_t;
         using base_t::ordered_c;
 
         template <class U>
-        constexpr Mapping(Src&& src, U&& f) noexcept
+        constexpr MappingSequence(Src&& src, U&& f) noexcept
             : _src(std::move(src))
             , _applicator(std::forward<U>(f))
         {
@@ -113,9 +113,11 @@ namespace flur
     template < class F, bool keep_order_c = false >
     struct MappingFactory : FactoryBase
     {
-        using applicator_t = std::decay_t<F>;
-        constexpr MappingFactory(F&& f) noexcept
-            : _applicator(std::forward<F>(f))
+        using applicator_t = F;//std::decay_t<F>;
+
+        template <class FLike>
+        constexpr MappingFactory(int, FLike&& f) noexcept
+            : _applicator(std::forward<FLike>(f))
         {
         }
 
@@ -141,7 +143,7 @@ namespace flur
                 Sequence<result_t>
             >;
 
-            return Mapping<target_sequence_base_t, input_t, applicator_t, keep_order_c>(
+            return MappingSequence<target_sequence_base_t, input_t, applicator_t, keep_order_c>(
                 std::move(src), 
                 _applicator);
         }

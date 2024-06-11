@@ -170,7 +170,7 @@ namespace OP::flur::details
 
     /** Detect type of element produced by Sequence iteration */
     template <class Value>
-    using sequence_element_type_t = typename dereference_t< sequence_type_t<Value> >::element_t;
+    using sequence_element_type_t = typename dereference_t< sequence_type_t<dereference_t<Value>> >::element_t;
 
     /** Generic check if arbitrary container (mostly about from std:: namespace) is ordered.
     * By default it false.

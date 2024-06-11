@@ -53,7 +53,7 @@ namespace OP::flur
         template <class T>
         constexpr auto of_container(T&& t) noexcept
         {
-            return make_lazy_range(OfContainerFactory<T>(std::forward<T>(t)));
+            return make_lazy_range(OfContainerFactory<T>(0, std::forward<T>(t)));
         }
         
         template <class T, std::enable_if_t<std::is_invocable<decltype(of_container<T>), T&&>::value, int> = 0>
@@ -385,7 +385,7 @@ namespace OP::flur
         constexpr auto mapping(F f) noexcept
         {
             using f_t = std::decay_t<F>;
-            return MappingFactory<f_t, OP::utils::any_of<options_c...>(Intrinsic::keep_order)>(std::move(f));
+            return MappingFactory<f_t, OP::utils::any_of<options_c...>(Intrinsic::keep_order)>(0, std::move(f));
         }
 
         /** Equivalent to call of `mapping<Intrinsic::keep_order>(std::move(f))`
@@ -397,7 +397,7 @@ namespace OP::flur
         constexpr auto keep_order_mapping(F f) noexcept
         {
             using f_t = std::decay_t<F>;
-            return MappingFactory<f_t, true>(std::move(f));
+            return MappingFactory<f_t, true>(0, std::move(f));
         }
 
         /** Map and Filter factory that execute both operations in the single functor.
@@ -430,7 +430,7 @@ namespace OP::flur
         * Creates `maf` factory that  
         *  produces sequence that keeps ordering and copies result instead of const-reference.
         * Result sequence is not mandatory ordered it just commitment of developer of `F` to keep order  
-        * if source sequenceis ordered as well.
+        * if source sequencies ordered as well.
         * \tparam F functor with the signature `bool(typename Src::element_t, <desired-mapped-type> &result)`
         *       Note that implementation assumes that <desired-mapped-type> is default constructible
         */
@@ -443,6 +443,8 @@ namespace OP::flur
 
         /** Equivalent to call of `maf_cv<Intrinsic::keep_order>(std::move(f))`. Creates `maf` factory that  
         *  that keeps ordering.
+        * \tparam F functor with the signature `bool(typename Src::element_t, <desired-mapped-type> &result)`
+        *       Note that implementation assumes that <desired-mapped-type> is default constructible
         */
         template <class F>
         constexpr auto keep_order_maf_cv(F f) noexcept
@@ -462,7 +464,7 @@ namespace OP::flur
         template <auto ... options_c, class F>
         constexpr auto flat_mapping(F&& f) noexcept
         {
-            return FlatMappingFactory<F, options_c...>(std::forward<F>(f));
+            return FlatMappingFactory<F, options_c...>{0, std::forward<F>(f)};
         }
 
         /** Same as '&' operator for LazyRange, but allows use `>>` operator 
@@ -498,7 +500,7 @@ namespace OP::flur
         }
 
         template <class Right>
-        constexpr auto adaptive_join(Right&& right) noexcept
+        constexpr auto auto_join(Right&& right) noexcept
         {
             return AdaptiveJoinFactory<Right>(std::forward<Right>(right));
         }

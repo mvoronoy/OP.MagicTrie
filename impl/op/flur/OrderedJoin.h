@@ -90,7 +90,7 @@ namespace OP::flur
     private:
         template <class U, class V>
         static inline constexpr bool is_join_op_f()
-        { //unfortunatelly optimization works with default key-compare only
+        { //unfortunately optimization works with default key-compare only
             if constexpr(details::has_lower_bound<U>::value)
             {
                 return std::is_invocable_v<decltype(&U::lower_bound), U&, const V&>;
@@ -177,7 +177,7 @@ namespace OP::flur
 
             return OrderedJoin<element_t, left_t, right_t, Comp>(
                 std::forward<Left>(left), 
-                std::forward<Right>(right),
+                std::move(right),
                 std::forward<Comp>(comp));
         }
 
@@ -202,7 +202,7 @@ namespace OP::flur
         auto compound(Left&& left) const& noexcept
         {
             return details::make_join(
-                std::forward<Left>(left), 
+                std::move(left), 
                 details::get_reference(_right).compound(), 
                 _comp);
         }

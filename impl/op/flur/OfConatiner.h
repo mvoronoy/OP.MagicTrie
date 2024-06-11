@@ -157,7 +157,7 @@ namespace flur
         using holder_t = std::decay_t< V >;
 
         template <class U>
-        constexpr OfContainerFactory(U&& u) noexcept
+        constexpr OfContainerFactory(int, U&& u) noexcept
             :_v(std::forward<U>(u)) {}
 
         constexpr auto compound() const& noexcept
