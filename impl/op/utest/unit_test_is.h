@@ -7,6 +7,7 @@
 #include <functional>
 #include <map>
 #include <set>
+#include <regex>
 #include <unordered_set>
 #include <op/utest/details.h>
 #include <op/common/has_member_def.h>

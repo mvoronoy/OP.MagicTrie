@@ -480,17 +480,17 @@ namespace OP::flur
         *  \tparam Comp - functor that matches functor `signed f( const Right::element_t& , const Right::element_t)`
         */
         template <class Right, class Comp>
-        constexpr auto ordered_join(Right&& right, Comp&& comp) noexcept
+        constexpr auto ordered_join(Right&& right, Comp comp) noexcept
         {
             return OrderedJoinFactory<Right, Comp>(
-                std::forward<Right>(right), std::forward<Comp>(comp));
+                std::forward<Right>(right), std::move(comp));
         }
 
         template <class Right, class Comp>
-        constexpr auto unordered_join(Right&& right, Comp&& comp) noexcept
+        constexpr auto unordered_join(Right&& right, Comp comp) noexcept
         {            
             return UnorderedJoinFactory<Right>(
-                std::forward<Right>(right), std::forward<Comp>(comp));
+                std::forward<Right>(right), std::move(comp));
         }
 
         template <class Right>
@@ -600,7 +600,7 @@ namespace OP::flur
         
         constexpr auto unordered_distinct() noexcept
         {
-            return DistinctFactory<UnorderedHashDistinctPolicy>();
+            return DistinctFactory<UnorderedHashDistinctPolicy>(UnorderedHashDistinctPolicy{});
         }
         
         /**
@@ -609,7 +609,7 @@ namespace OP::flur
         */
         constexpr auto ordered_distinct() noexcept
         {
-            return DistinctFactory<OrderedDistinctPolicy>();
+            return DistinctFactory<OrderedDistinctPolicy>(OrderedDistinctPolicy{});
         }
 
         /**

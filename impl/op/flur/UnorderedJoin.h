@@ -47,10 +47,16 @@ namespace OP::flur
         >
     {
         using element_t = details::sequence_element_type_t<Left>;
+        using base_t = Filter<
+            Predicate,
+            Left,
+            Sequence<element_t>
+        >;
+
 
         template <class U>
         constexpr UnorderedJoin(U&& left, Predicate predicate) noexcept
-            : Filter{std::forward<U>(left), std::move(predicate)}
+            : base_t{std::forward<U>(left), std::move(predicate)}
         {
         }
                 

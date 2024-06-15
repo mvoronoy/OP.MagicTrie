@@ -28,10 +28,10 @@ namespace OP::flur
         using element_t = typename base_t::element_t;
 
         constexpr OrderingFlatMapping(
-            F applicator, TSequence&& seq, TCompareTraits cmp_traits) noexcept
-            : _applicator(std::move(applicator))
+            F&& applicator, TSequence&& seq, TCompareTraits&& cmp_traits) noexcept
+            : _applicator(std::forward<F>(applicator))
             , _prefix(std::move(seq))
-            , _cmp_traits(std::move(cmp_traits))
+            , _cmp_traits(std::forward<TCompareTraits>(cmp_traits))
         {
         }
 
@@ -121,8 +121,8 @@ namespace OP::flur
             que_of_seq_t& _data_container;
         };
         
-        template <class TSequence>
-        bool emplace(TSequence&& sequence)
+        template <class Src>
+        bool emplace(Src&& sequence)
         {
             _seq_of_seq.emplace_back(std::move(sequence));
             auto& rseq = fdet::get_reference(_seq_of_seq.back());
@@ -187,31 +187,32 @@ namespace OP::flur
     template <class F, class TCompareTraits>
     struct OrderingFlatMappingFactory : OP::flur::FactoryBase
     {
-        using applicator_t = F;//std::decay_t<F>;
 
-        template <class FLike, class TCmp>
-        constexpr OrderingFlatMappingFactory(FLike&& applicator, TCmp&& cmp) noexcept
-            : _applicator(std::forward<FLike>(applicator))
-            , _cmp(std::forward<TCmp>(cmp))
+        constexpr OrderingFlatMappingFactory(F applicator, TCompareTraits cmp) noexcept
+            : _applicator(std::forward<F>(applicator))
+            , _cmp(std::forward<TCompareTraits>(cmp))
         {
         }
 
         template <class Src>
         constexpr auto compound(Src&& src) const& /*noexcept*/
         {
-            using target_set_t = OrderingFlatMapping<applicator_t, Src, TCompareTraits>;
-            return target_set_t(_applicator, std::move(src), _cmp);
+            using f_t = std::decay_t<F>;
+            using cmp_t = std::decay_t<TCompareTraits>;
+
+            using target_set_t = OrderingFlatMapping<f_t, Src,  cmp_t>;
+            return target_set_t(f_t(_applicator), std::move(src), cmp_t(_cmp));
         }
 
         template <class Src>
         constexpr auto compound(Src&& src) && /*noexcept*/
         {
-            using target_set_t = OrderingFlatMapping<applicator_t, Src, TCompareTraits>;
+            using target_set_t = OrderingFlatMapping<F, Src, TCompareTraits>;
             return target_set_t(std::move(_applicator), std::move(src), std::move(_cmp));
         }
 
     private:
-        applicator_t _applicator;
+        F _applicator;
         TCompareTraits _cmp;
     };
 

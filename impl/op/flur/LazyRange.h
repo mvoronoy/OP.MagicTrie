@@ -14,6 +14,7 @@
 #include <op/flur/FactoryBase.h>
 #include <op/flur/Applicator.h>
 #include <op/flur/Bookmark.h>
+#include <op/flur/UnionAll.h>
 
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace OP::flur
@@ -65,8 +66,8 @@ namespace OP::flur
     struct LazyRange : FactoryBase
     {
         static_assert(
-            ((PredicateSelectFactories::template check<Tx>::value
-                || details::is_bookmark_c<details::dereference_t<Tx>>) && ...),
+            ((PredicateSelectFactories::check<Tx>
+                || is_bookmark_c<details::dereference_t<Tx>>) && ...),
             "LazyRange must be instantiated by classes inherited from FactoryBase"
             );
         using this_t = LazyRange<Tx...>;

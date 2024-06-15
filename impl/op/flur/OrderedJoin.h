@@ -192,7 +192,7 @@ namespace OP::flur
     public:
 
         template <class U>
-        constexpr OrderedJoinFactory(U&& right, Comp comp = Comp()) noexcept
+        constexpr OrderedJoinFactory(U&& right, Comp comp = {}) noexcept
             : _right(std::forward<U>(right))
             , _comp(std::move(comp))
         {

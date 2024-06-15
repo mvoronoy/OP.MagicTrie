@@ -153,7 +153,7 @@ namespace OP::flur
         constexpr auto compound() const noexcept
         {
             return construct_sequence(
-                std::make_index_sequence<sizeof...(Lx)>{} );
+                std::make_index_sequence<sizeof...(Tx)>{} );
         }
 
     private:

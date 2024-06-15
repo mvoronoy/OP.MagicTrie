@@ -227,13 +227,13 @@ namespace OP::flur
 
             using sub_sequence_t = decltype(_sub.compound());
 
-            // It is not a mistake, Distinct uses policy that implements Diff
+            // It is not a mistake, DistinctSequence uses policy that implements Diff
             if constexpr (is_ordered_c)
             {
                 using policy_t =
                     OrderedOrderedPolicy<Src, sub_sequence_t, comparator_t>;
 
-                return Distinct<element_t, policy_t, Src>(
+                return DistinctSequence<element_t, policy_t, Src>(
                     std::move(src),
                     policy_t(std::move(_sub).compound(), std::move(_compare_traits))
                 );
@@ -242,9 +242,9 @@ namespace OP::flur
             {
                 using policy_t = UnorderedDiffPolicy<Src, sub_sequence_t, comparator_t>;
 
-                return Distinct<element_t, policy_t, Src>(
+                return DistinctSequence<element_t, policy_t, Src>(
                     std::move(src),
-                    policy_t<Src>::create(std::move(_sub).compound(), 
+                    policy_t::create(std::move(_sub).compound(), 
                         std::move(_compare_traits)));
             }
         }

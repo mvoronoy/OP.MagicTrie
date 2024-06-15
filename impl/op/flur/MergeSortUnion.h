@@ -159,8 +159,6 @@ namespace OP::flur
                 sizeof...(Tx) > 1,
                 "specify 2 or more sources in MergeSortUnionFactory<Cmp, Tx...>");
 
-            using containers_t = details::sequence_type_t<Src>;
-
             using all_factories_t = decltype(_right);
             using zero_sequence_t = details::sequence_type_t< 
                     std::tuple_element_t<0, all_factories_t> >;

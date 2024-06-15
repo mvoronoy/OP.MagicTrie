@@ -37,8 +37,9 @@ namespace OP::flur
 
         auto begin() const
         {
-            return details::begin_impl(shared_from_this());
+            return details::begin_impl(this->shared_from_this());
         }
+
         auto end() const
         {
             return details::end_impl(this);
@@ -87,7 +88,7 @@ namespace OP::flur
                     //uses move constructor
                     new result_seq_t{std::move(result)},
                     // custom deleter to keep factory captured
-                    [capture = shared_from_this()](result_seq_t* p) mutable { 
+                    [capture = this->shared_from_this()](result_seq_t* p) mutable { 
                         delete p;
                         capture.reset(); //just to avoid optimization
                     }

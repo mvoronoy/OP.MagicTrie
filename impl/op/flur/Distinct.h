@@ -260,7 +260,7 @@ namespace OP::flur
     struct DistinctFactory : FactoryBase
     {
 
-        constexpr DistinctFactory(Policy policy = Policy{}) noexcept
+        constexpr DistinctFactory(Policy policy) noexcept
             : _policy(std::move(policy))
         {
         }

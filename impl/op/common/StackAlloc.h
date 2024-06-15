@@ -337,7 +337,7 @@ namespace OP
         Multiimplementation(const U& instance) 
         {
             static_assert(
-                std::is_same_v<Tx, U> || ...,
+                ((std::is_same_v<Tx, U>) || ...),
                 "Cannot cast type U to any of the declared implementations.");
             ::new(_data) U(instance);
             _type_index = type_to_index<U>(std::index_sequence_for <Tx...>{});
@@ -541,9 +541,10 @@ namespace OP
         constexpr void apply_by_index_impl(size_t index, F applicator, std::index_sequence<Ix...>)
         {
             //use && to laverage immediate stop when functor was applied
-            ((index == Ix 
-              ? (applicator( std::launder(reinterpret_cast<target_t<Ix>*>(_data))), false )
-              : true) && ...);
+            bool is_apply_succeed = ((index != Ix ||
+                (applicator( std::launder(reinterpret_cast<target_t<Ix>*>(_data))), false ) ) 
+            && ...);
+            static_cast<void>(is_apply_succeed);//hide unused warning
         }
 
         template <class U>

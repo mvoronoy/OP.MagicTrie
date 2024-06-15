@@ -32,7 +32,7 @@
         enum { value = sizeof(test<A>(nullptr)) == sizeof(YesType) }; \
         template <class ... Ax> \
         static constexpr bool is_invocable() \
-        { if constexpr (value) {return std::is_invocable_v<&A::Member, A&, Ax...>;} \
+        { if constexpr (value) {return std::is_invocable_v<decltype(&A::Member), A&, Ax...>;} \
           else return false; \
         }\
         static inline constexpr auto ref_method_c() \
