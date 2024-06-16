@@ -94,17 +94,18 @@ namespace {
 
         auto pipeline = src::of_iota(0, 10)
             >> then::mapping([](auto i) ->int {
-            throw std::runtime_error{ "current" };
+                    throw std::runtime_error{ "current" };
                 })
             >> then::on_exception<std::runtime_error>(src::of_value(57))
-                    ;
-                size_t n = 0;
-                for (auto i : pipeline)
-                {
-                    ++n;
-                    tresult.assert_that<equals>(57, i, "only 1 value must pass");
-                }
-                tresult.assert_that<equals>(1, n, "single entry only");
+            ;
+
+        size_t n = 0;
+        for (auto i : pipeline)
+        {
+            ++n;
+            tresult.assert_that<equals>(57, i, "only 1 value must pass");
+        }
+        tresult.assert_that<equals>(1, n, "single entry only");
     }
 
     void test_MultyExceptions(OP::utest::TestRuntime& tresult)
