@@ -25,7 +25,7 @@ namespace OP
 
             using deref_input_sequence_t = details::dereference_t<input_sequence_t>;
 
-            static decltype(auto) invoke(
+            static /*decltype(auto)*/auto invoke(
                 applicator_t& applicator,
                 const deref_input_sequence_t& sequence,
                 SequenceState& state)

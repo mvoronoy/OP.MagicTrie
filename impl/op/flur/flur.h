@@ -369,7 +369,7 @@ namespace OP::flur
         /**
         *   Add handle of exception to previous definition of pipeline. For more details and examples see OnException.
         * \tparam Ex - type of exception to intercept
-        * \tparam Alt - factory that produces alternatice source in case of exception. 
+        * \tparam Alt - factory that produces alternative source in case of exception. 
         */
         template <class Ex, class Alt>
         constexpr auto on_exception(Alt&& t) noexcept
@@ -384,14 +384,15 @@ namespace OP::flur
         template <auto ... options_c, class F>
         constexpr auto mapping(F f) noexcept
         {
-            using f_t = std::decay_t<F>;
-            return MappingFactory<f_t, OP::utils::any_of<options_c...>(Intrinsic::keep_order)>(0, std::move(f));
+            //using f_t = std::decay_t<F>;
+            //return MappingFactory<f_t, OP::utils::any_of<options_c...>(Intrinsic::keep_order)>(0, std::move(f));
+            return MappingFactory<F, OP::utils::any_of<options_c...>(Intrinsic::keep_order)>(0, std::forward<F>(f));
         }
 
         /** Equivalent to call of `mapping<Intrinsic::keep_order>(std::move(f))`
         * Creates mapping factory to produces a sequence that keeps ordering.
         * Result sequence is not mandatory ordered it just commitment of developer of `F` to keep order  
-        * if source sequenceis ordered as well.
+        * if source sequencies ordered as well.
         */
         template <class F>
         constexpr auto keep_order_mapping(F f) noexcept
@@ -462,11 +463,31 @@ namespace OP::flur
         *   FactoryBase for 'flat' result.
         */
         template <auto ... options_c, class F>
-        constexpr auto flat_mapping(F&& f) noexcept
+        constexpr auto flat_mapping(F f) noexcept
         {
-            return FlatMappingFactory<F, options_c...>{0, std::forward<F>(f)};
+            return FlatMappingFactory<F, options_c...>{0, std::move(f)};
         }
 
+        /**
+        *  Implement flat map logic and produce OrderedSequence from unordered source on condition that
+        *   functor `F` produces ordered sequence as well.
+        *  Note! Implementation allocates extra memory to provide binary-heap for all sequences.
+        *
+        *  \throws std::runtime_error if `F` creates non-ordered sequence.
+        */
+        template <class F, class TCompareTraits>
+        constexpr auto ordering_flat_mapping(F applicator, TCompareTraits cmp) noexcept
+        {
+            return OrderingFlatMappingFactory<F, TCompareTraits>(
+                std::move(applicator), std::move(cmp));
+        }
+
+        template <class F>
+        constexpr auto ordering_flat_mapping(F applicator) noexcept
+        {
+            return OrderingFlatMappingFactory<F, CompareTraits>(
+                std::move(applicator), CompareTraits{});
+        }
         /** Same as '&' operator for LazyRange, but allows use `>>` operator 
         *
         */
@@ -477,7 +498,11 @@ namespace OP::flur
         }
 
         /** Same as '&' operator for LazyRange, but allows specify comparator of joining keys
-        *  \tparam Comp - functor that matches functor `signed f( const Right::element_t& , const Right::element_t)`
+        *  \tparam Comp - functor that matches to signature `signed f( const Right::element_t& , const Right::element_t)`. Where 
+        *   the result of the comparator functor is interpreted as follows: 
+        *       - two elements are equal if the result is 0, 
+        *       - the left element is less if the return value is less than zero, 
+        *       - and the left element is greater if the return value is greater than zero."
         */
         template <class Right, class Comp>
         constexpr auto ordered_join(Right&& right, Comp comp) noexcept
@@ -571,7 +596,7 @@ namespace OP::flur
                 std::move(cmp), std::forward<T>(right) );
         }
 
-        /** Convert source by filtering out some ellements according to predicate 
+        /** Convert source by filtering out some elements according to predicate 
         * If applied to ordered source then result is ordered as well
         * \tparam Fnc - must be a predicate producing false for items to filter out
         */
@@ -735,26 +760,7 @@ namespace OP::flur
                 std::move(children_resolve)};
         }
 
-        /**
-        *  Implement flat map logic and produce OrderedSequence from unordered source on condition that 
-        *   functor `F` produces ordered seqeunce as well.
-        *  Note! Implementation allocates extra memory to provide binary-heap for all sequences.
-        *  
-        *  \throws std::runtime_error if `F` creates non-ordered sequence.
-        */
-        template <class F, class TCompareTraits>
-        constexpr auto ordering_flat_mapping(F&& applicator, TCompareTraits&& cmp) noexcept
-        {
-            return OrderingFlatMappingFactory<F, TCompareTraits>(
-                std::forward<F>(applicator), std::forward<TCompareTraits>(cmp));
-        }
-
-        template <class F>
-        constexpr auto ordering_flat_mapping(F&& applicator) noexcept
-        {
-            return OrderingFlatMappingFactory<F, CompareTraits>(
-                std::forward<F>(applicator), CompareTraits{});
-        }
+        
 
         template <class TFactory>
         auto make_polymorph(TFactory &&poly)

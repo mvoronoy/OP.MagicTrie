@@ -25,8 +25,11 @@ namespace OP::flur
 
         template <class TSequence>
         HashSetFilterPredicate(int, TSequence&& seq)
-            : _filter(std::begin(seq), std::end(seq))
+            : _filter{ }
         {
+            auto& rseq = details::get_reference(seq);
+            for (rseq.start(); rseq.in_range(); rseq.next())
+                _filter.insert(rseq.current());
         }
 
         template <class T>
@@ -148,7 +151,7 @@ namespace OP::flur
                 >;
 
             bool is_left_ordered =
-                details::get_reference(left.is_sequence_ordered());
+                details::get_reference(left).is_sequence_ordered();
 
             if (details::get_reference(right_seq).is_sequence_ordered())
             {

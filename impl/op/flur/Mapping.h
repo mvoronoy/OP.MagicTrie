@@ -9,10 +9,7 @@
 #include <op/flur/Sequence.h>
 #include <op/common/ftraits.h>
 
-namespace OP
-{
-/** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
-namespace flur
+namespace OP::flur
 {
     /**
     * MappingSequence converts one sequence to another by applying functor to a source element.
@@ -149,8 +146,6 @@ namespace flur
         }
         applicator_t _applicator;
     };
-
-} //ns:flur
-} //ns:OP
+} //ns:OP::flur
 
 #endif //_OP_FLUR_MAPPING__H_

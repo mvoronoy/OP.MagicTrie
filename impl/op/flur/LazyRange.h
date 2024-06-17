@@ -182,7 +182,7 @@ namespace OP::flur
     template <class ... Tx >
     constexpr LazyRange<Tx...> make_lazy_range(Tx&& ... tx) noexcept
     {
-        return LazyRange<std::decay_t<Tx>...>{ std::in_place_t{}, std::forward<Tx>(tx) ... };
+        return LazyRange<Tx...>{ std::in_place_t{}, std::forward<Tx>(tx) ... };
     }
 
     //
