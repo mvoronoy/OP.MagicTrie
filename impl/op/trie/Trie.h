@@ -21,9 +21,8 @@
 #include <op/trie/TrieNode.h>
 #include <op/trie/TrieIterator.h>
 #include <op/trie/TrieResidence.h>
-#include <op/trie/TrieRangeAdapter.h>
-#include <op/trie/SectionAdapter.h>
 #include <op/trie/StoreConverter.h>
+#include <op/trie/MixedAdapter.h>
 
 #include <op/vtm/StringMemoryManager.h>
 

@@ -5,11 +5,9 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 
-#include <op/ranges/OrderedRange.h>
 #include <op/trie/Trie.h>
 #include <op/trie/PlainValueManager.h>
 
-#include <op/ranges/RangeUtils.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
@@ -332,7 +330,7 @@ void test_UnorderedOrderFlatMap(TestRuntime& tresult)
             auto le = std::end(left);
             auto rb = std::begin(right);
             auto re = std::end(right);
-            return OP::ranges::str_lexico_comparator(lb, le, rb, re);
+            return OP::common::str_lexico_comparator(lb, le, rb, re);
         });
 
     auto all_prefix = src::of_iota<size_t>(0, 500)

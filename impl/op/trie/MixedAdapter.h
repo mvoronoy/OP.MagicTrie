@@ -7,6 +7,7 @@
 #include <functional>
 #include <type_traits>
 #include <op/common/has_member_def.h>
+#include <op/common/LexComparator.h>
 
 
 namespace OP::trie
@@ -143,7 +144,7 @@ namespace OP::trie
                 auto pb = std::begin(_prefix);
                 auto pe = std::end(_prefix);
                 //do lexicographic compare to check if ever key starts with prefix 
-                int cmpres = OP::ranges::str_lexico_comparator(pb, pe, kb, ke);
+                int cmpres = OP::common::str_lexico_comparator(pb, pe, kb, ke);
                 if (pb == pe) // key starts from prefix
                 {
                     i = trie.lower_bound(key);

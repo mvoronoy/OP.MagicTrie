@@ -7,6 +7,8 @@
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <op/vtm/StringMemoryManager.h>
 
+#include <op/flur/flur.h>
+
 #include <op/trie/PlainValueManager.h>
 #include <op/trie/Trie.h>
 

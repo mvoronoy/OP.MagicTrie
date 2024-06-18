@@ -49,9 +49,9 @@ add_executable (trie_test
     "vtm/ContainersTest.cpp"
     "vtm/FixedSizeMemoryManagerTest.cpp"
     "vtm/StringManagerTest.cpp"
-    "ranges/CommonRangesOpTest.cpp"
     "vtm/SegmentManagerTest.cpp"
     "vtm/SegmentToplogyTest.cpp"
+
     "SpanContainerTest.cpp"
     "tr.cpp"
 

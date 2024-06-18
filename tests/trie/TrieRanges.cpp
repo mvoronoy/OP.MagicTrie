@@ -5,16 +5,14 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 
-#include <op/ranges/OrderedRange.h>
+#include <op/flur/flur.h>
+
 #include <op/trie/Trie.h>
 #include <op/trie/PlainValueManager.h>
 
-#include <op/ranges/RangeUtils.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/CacheManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
-#include <op/ranges/FlattenRange.h>
-#include <op/trie/TrieRangeAdapter.h>
 
 #include <algorithm>
 #include "../test_comparators.h"

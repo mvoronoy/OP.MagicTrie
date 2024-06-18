@@ -76,7 +76,7 @@ private:
         auto rb = std::begin(prefix);
         auto re = std::end(prefix);
         //do lexicographic compare to check if ever key starts with prefix 
-        int diff = OP::ranges::str_lexico_comparator(lb, le, rb, re);
+        int diff = OP::common::str_lexico_comparator(lb, le, rb, re);
         if (diff > 0)
         {
             size_t delt = (lb - std::begin(test));
