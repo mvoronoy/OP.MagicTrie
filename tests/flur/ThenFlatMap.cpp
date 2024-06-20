@@ -273,7 +273,7 @@ void test_FlatMapArbitraryArgs(TestRuntime& rt)
 }
 
 
-static auto& module_suite = OP::utest::default_test_suite("flur.then")
+static auto& module_suite = OP::utest::default_test_suite("flur.then.flatmap")
 .declare("flatmap", test_FlatMapFromPipeline)
 .declare("rref-flatmap", test_FlatMapFromContainer)
 .declare("cref-flatmap", test_FlatMapFromCref)

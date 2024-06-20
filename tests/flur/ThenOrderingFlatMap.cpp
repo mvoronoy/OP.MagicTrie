@@ -91,7 +91,7 @@ void test_ExcptionOnNoOrd(TestRuntime& tresult)
     tresult.fail("Exception must be raised when no-ordered sequence evaluated");
 }
 
-static auto& module_suite = OP::utest::default_test_suite("flur.then")
+static auto& module_suite = OP::utest::default_test_suite("flur.then.ord-flatmap")
     .declare("ord-flatmap", test_OrderingFlatBasic)
     .declare_exceptional("ord-flatmap-no-ord", test_ExcptionOnNoOrd)
  ;

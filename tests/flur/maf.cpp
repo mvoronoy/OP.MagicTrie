@@ -63,7 +63,7 @@ namespace
             OP_CODE_DETAILS());
     }
 
-    static auto& module_suite = OP::utest::default_test_suite("flur.then")
+    static auto& module_suite = OP::utest::default_test_suite("flur.then.maf")
         .declare("maf", test_ThenMaf)
         ;
 }//ns: empty

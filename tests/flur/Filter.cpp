@@ -51,7 +51,7 @@ namespace {
         });
         tresult.assert_that<eq_sets>(r1, std::vector<int>{2, 4}, OP_CODE_DETAILS());
     }
-    static auto& module_suite = OP::utest::default_test_suite("flur.then")
+    static auto& module_suite = OP::utest::default_test_suite("flur.then.filter")
         .declare("filter", test_ThenFilter)
         .declare("filter-edge", test_FilterEdge)
         ;

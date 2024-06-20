@@ -106,13 +106,14 @@ namespace OP::flur
         constexpr auto compound(Src&& src) const& noexcept
         {
             using result_t = typename FTrait::template result_sequence_t<Src>;
-            return result_t(std::forward<Src>(src), _fnc);
+            return result_t(std::move(src), _fnc);
         }
+
         template <class Src>
         constexpr auto compound(Src&& src) && noexcept
         {
             using result_t = typename FTrait::template result_sequence_t<Src>;
-            return result_t(std::forward<Src>(src), std::move(_fnc));
+            return result_t(std::move(src), std::move(_fnc));
         }
         holder_t _fnc;
     };

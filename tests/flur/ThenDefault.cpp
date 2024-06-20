@@ -70,7 +70,7 @@ void test_SortedOrDefault(OP::utest::TestRuntime& tresult)
 
 }
 
-static auto& module_suite = OP::utest::default_test_suite("flur.then")
+static auto& module_suite = OP::utest::default_test_suite("flur.then.default")
 .declare("or_default", test_OrDefault)
 .declare("or_default_sorted", test_SortedOrDefault)
 ;

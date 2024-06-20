@@ -97,7 +97,7 @@ void test_Simple(OP::utest::TestRuntime& tresult)
     tresult.assert_that<equals>(60, count);
 }
 
-static auto& module_suite = OP::utest::default_test_suite("flur.then")
+static auto& module_suite = OP::utest::default_test_suite("flur.then.cartesian")
 .declare("cartesian", test_ThenCartesian)
 .declare("cartesian_app", test_Simple)
 ;

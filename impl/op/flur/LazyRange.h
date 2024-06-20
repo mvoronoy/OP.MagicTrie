@@ -227,6 +227,9 @@ namespace OP::flur
         std::enable_if_t<std::is_base_of_v<FactoryBase, TFactoryBase>, int> = 0>
     constexpr auto make_shared(TFactoryBase&& tx)
     {
+        static_assert( 
+            !std::is_rvalue_reference_v<TFactoryBase>,
+            "Please don't use make_shared with left-reference (always use move semantic)");
         using impl_t = PolymorphFactory<TFactoryBase>;
         using interface_t = typename impl_t::base_t;
         return std::shared_ptr<interface_t>( new impl_t{ std::move(tx) });

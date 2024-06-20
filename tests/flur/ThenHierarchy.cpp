@@ -440,7 +440,7 @@ namespace
     }
     
     
-    static auto& module_suite = OP::utest::default_test_suite("flur.then")
+    static auto& module_suite = OP::utest::default_test_suite("flur.then.hierarchy")
         .declare("hierarchy-deep-first-simple", test_HierarchyDeepFirstSimple)
         .declare("hierarchy-deep-first", test_HierarchyDeepFirst)
         .declare("hierarchy-breadth-first", test_HierarchyBreadthFirst)

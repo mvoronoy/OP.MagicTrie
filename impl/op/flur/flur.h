@@ -536,7 +536,7 @@ namespace OP::flur
         template <class TSubtrahend>
         constexpr auto ordered_diff(TSubtrahend&& right) noexcept
         {
-            return DiffFactory<true, TSubtrahend>(
+            return DiffFactory<DiffAlgorithm::ordered, TSubtrahend>(
                     std::forward<TSubtrahend>(right));
         }
 
@@ -547,7 +547,7 @@ namespace OP::flur
         template <class TSubtrahend, class TComparators>
         constexpr auto ordered_diff(TSubtrahend&& right, TComparators&& cmp) noexcept
         {
-            return DiffFactory<true, TSubtrahend, TComparators>(
+            return DiffFactory<DiffAlgorithm::ordered, TSubtrahend, TComparators>(
                     std::forward<TSubtrahend>(right),
                     std::forward<TComparators>(cmp));
         }
@@ -555,7 +555,7 @@ namespace OP::flur
         template <class TSubtrahend>
         constexpr auto unordered_diff(TSubtrahend&& right) noexcept
         {
-            return DiffFactory<false, TSubtrahend>(
+            return DiffFactory<DiffAlgorithm::unordered, TSubtrahend>(
                     std::forward<TSubtrahend>(right)
                 );
         }
@@ -563,9 +563,17 @@ namespace OP::flur
         template <class TSubtrahend, class TComparators>
         constexpr auto unordered_diff(TSubtrahend&& right, TComparators&& cmp) noexcept
         {
-            return DiffFactory<false, TSubtrahend, TComparators>(
+            return DiffFactory<DiffAlgorithm::unordered, TSubtrahend, TComparators>(
                     std::forward<TSubtrahend>(right), 
                     std::forward<TComparators>(cmp)
+                );
+        }
+
+        template <class Right>
+        constexpr auto auto_diff(Right&& right) noexcept
+        {
+            return DiffFactory<DiffAlgorithm::automatic, Right>(
+                    std::forward<Right>(right)
                 );
         }
 
