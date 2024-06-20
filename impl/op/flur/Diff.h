@@ -178,10 +178,61 @@ namespace OP::flur
         mutable presence_map_t _subtrahend;
     };
 
-    template <bool is_ordered_c, class TSubtrahend, class TComp = CompareTraits>
-    struct DiffFactory : FactoryBase
+    enum class DiffAlgorithm
     {
-        using comparator_t = std::decay_t<TComp>;
+        ordered,
+        unordered,
+        automatic
+    };
+
+    template <DiffAlgorithm algorithm, class TSubtrahend, class TComparator = CompareTraits>
+    class DiffFactory : FactoryBase
+    {
+        template <DiffAlgorithm custom_alg_c, class TMinuend, class TSub, class TCmp>
+        auto static make_sequence(TMinuend&& minuend, TSub&& subtrahend, TCmp comparator)
+        {
+            using element_t = details::sequence_element_type_t<TMinuend>;
+
+            // It is not a mistake, Distinct uses policy that implements Diff
+
+            if constexpr (custom_alg_c == DiffAlgorithm::ordered)
+            {
+                using policy_t = 
+                    OrderedOrderedPolicy<TMinuend, TSub, TCmp>;
+
+                return DistinctSequence<element_t, policy_t, TMinuend>(
+                    std::move(minuend), //always move!
+                    policy_t(std::forward<TSub>(subtrahend), std::move(comparator))
+                );
+            }
+            else if constexpr (custom_alg_c == DiffAlgorithm::unordered)
+            {
+                using policy_t = UnorderedDiffPolicy<TMinuend, TSub, TCmp>;
+
+                return DistinctSequence<element_t, policy_t, TMinuend>(
+                    std::move(minuend), //always move!
+                    policy_t::create(std::forward<TSub>(subtrahend), std::move(comparator)));
+            }
+            else //automatic
+            {
+                using unordered_t = decltype(make_sequence<DiffAlgorithm::unordered>(
+                    std::move(minuend), std::move(subtrahend), std::move(comparator)));
+                using ordered_t = decltype(make_sequence<DiffAlgorithm::ordered>(
+                    std::move(minuend), std::move(subtrahend), std::move(comparator)));
+                using proxy_t = SequenceProxy<unordered_t, ordered_t>;
+                return 
+                    (details::get_reference(minuend).is_sequence_ordered() && 
+                     details::get_reference(subtrahend).is_sequence_ordered() )
+                    ? proxy_t{ make_sequence<DiffAlgorithm::ordered>(
+                           std::move(minuend), std::move(subtrahend), std::move(comparator)) }
+                    : proxy_t{ make_sequence<DiffAlgorithm::unordered>(
+                           std::move(minuend), std::move(subtrahend), std::move(comparator)) }
+                     ;
+            }
+        }
+
+    public:
+        using comparator_t = std::decay_t<TComparator>;
 
         template <class TSub>
         constexpr DiffFactory(TSub&& sub, comparator_t cmp = comparator_t{}) noexcept
@@ -193,65 +244,24 @@ namespace OP::flur
         template <class Src>
         constexpr auto compound(Src&& src) const& noexcept
         {
-            using src_conatiner_t = details::dereference_t<Src>;
-            using element_t = typename src_conatiner_t::element_t;
-            
-            using sub_sequence_t = decltype(_sub.compound());
-
-            // It is not a mistake, Distinct uses policy that implements Diff
-            if constexpr (is_ordered_c)
-            {
-                using policy_t = 
-                    OrderedOrderedPolicy<Src, sub_sequence_t, comparator_t>;
-
-                return DistinctSequence<element_t, policy_t, Src>(
-                    std::move(src),
-                    policy_t(_sub.compound(), _compare_traits)
-                );
-            }
-            else
-            {
-                using policy_t = UnorderedDiffPolicy<Src, sub_sequence_t, comparator_t>;
-
-                return DistinctSequence<element_t, policy_t, Src>(
-                    std::move(src),
-                    policy_t::create(_sub.compound(), _compare_traits));
-            }
+            return make_sequence<algorithm>(
+                std::move(src), 
+                details::get_reference(_sub).compound(), 
+                _compare_traits);
         }
 
         template <class Src>
         constexpr auto compound(Src&& src) && noexcept
         {
-            using src_conatiner_t = details::dereference_t<Src>;
-            using element_t = typename src_conatiner_t::element_t;
-
-            using sub_sequence_t = decltype(_sub.compound());
-
-            // It is not a mistake, DistinctSequence uses policy that implements Diff
-            if constexpr (is_ordered_c)
-            {
-                using policy_t =
-                    OrderedOrderedPolicy<Src, sub_sequence_t, comparator_t>;
-
-                return DistinctSequence<element_t, policy_t, Src>(
-                    std::move(src),
-                    policy_t(std::move(_sub).compound(), std::move(_compare_traits))
-                );
-            }
-            else
-            {
-                using policy_t = UnorderedDiffPolicy<Src, sub_sequence_t, comparator_t>;
-
-                return DistinctSequence<element_t, policy_t, Src>(
-                    std::move(src),
-                    policy_t::create(std::move(_sub).compound(), 
-                        std::move(_compare_traits)));
-            }
+            return make_sequence<algorithm>(
+                std::move(src), 
+                std::move(details::get_reference(_sub)).compound(), 
+                std::move(_compare_traits));
         }
 
     private:
         std::decay_t<TSubtrahend> _sub;
-        std::decay_t<TComp> _compare_traits;
+        std::decay_t<TComparator> _compare_traits;
 
     };
 
