@@ -113,7 +113,7 @@ namespace OP::flur
 
         constexpr MergeSortUnionFactory(Comp cmp, Tx&& ... rx ) noexcept
             : _comp(std::move(cmp))
-            , _right(std::make_tuple(std::forward<Tx>(rx)...)) //make_tuple is imprtant to get rid-off any refernces 
+            , _right(std::make_tuple(std::forward<Tx>(rx)...)) //make_tuple is important to get rid-off any references 
         {
         }
 
@@ -153,7 +153,7 @@ namespace OP::flur
         }
 
         /** This factory can be used as root-level lazy range */
-        constexpr auto compound() const noexcept
+        constexpr auto compound() const& noexcept
         {
             static_assert(
                 sizeof...(Tx) > 1,
@@ -170,8 +170,32 @@ namespace OP::flur
                         Comp,
                         element_t,
                         details::sequence_type_t<Tx>... >(
+                            _comp,
                             std::make_tuple( details::get_reference(rx).compound() ... )
                     );}, _right);
+        }
+
+        constexpr auto compound() && noexcept
+        {
+            static_assert(
+                sizeof...(Tx) >= 1,
+                "specify 2 or more sources in MergeSortUnionFactory<Cmp, Tx...>");
+
+            using all_factories_t = decltype(_right);
+            using zero_sequence_t = details::sequence_type_t< 
+                    std::tuple_element_t<0, all_factories_t> >;
+            using element_t = typename details::dereference_t<zero_sequence_t>::element_t;
+
+            return
+                std::apply([&](auto && ... rx) -> auto {
+                    return MergeSortUnionSequence<
+                        Comp,
+                        element_t,
+                        details::sequence_type_t<Tx>... >(
+                            std::move(_comp),
+                            std::make_tuple( std::move(details::get_reference(rx)).compound() ... )
+                    );
+                }, std::move(_right));
         }
 
     private:

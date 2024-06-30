@@ -771,18 +771,21 @@ namespace OP::utest
         }
 
         /**
-        *   Register test case in this suite to execute.
-        * \param name - symbolic name of case inside the suite.
-        * \param f - functor to execute during test run. Input parameters for the functor
-        *            may be empty or any combination in any order of the following
-        *            types:
-        *               - TestSuite& - accept this instance of test suite;
-        *               - TestRuntime& - accept utility class with a lot of useful
-        *                   logging and assert-methods;
-        *               - `std::any` or user type with value constructed inside `#before_suite`
-        */
+         *   Register a test case in this suite to execute.
+         * \param name - Symbolic name of the case inside the suite.
+         * \param f - Functor to execute during the test run. Input parameters for the functor
+         *            may be empty or any combination, in any order, of the following
+         *            types:
+         *               - TestSuite& - Accepts this instance of the test suite.
+         *               - TestRuntime& - Accepts a utility class with multiple useful
+         *                   logging and assert methods.
+         *               - `std::any` or a user type with value constructed inside `#before_suite`.
+         * \param tags - Optional list of tags that allows starting or filtering out cases at runtime. For example,
+         *               create a tag "long" for long-running tests and then exclude it for smoke testing.
+         */
         template <class F>
-        TestSuite& declare(std::string name, F f)
+        TestSuite& declare(std::string name, F f, 
+            std::initializer_list<std::string> tags = {})
         {
             return this->declare_case(
                 std::make_unique<FunctionalTestCase<F>>(

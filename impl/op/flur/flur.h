@@ -39,6 +39,7 @@
 #include <op/flur/PolymorphsBack.h>
 #include <op/flur/Applicator.h>
 #include <op/flur/stl_adapters.h>
+#include <op/flur/ParallelSort.h>
 
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace OP::flur
@@ -488,6 +489,13 @@ namespace OP::flur
             return OrderingFlatMappingFactory<F, CompareTraits>(
                 std::move(applicator), CompareTraits{});
         }
+        
+        template <size_t N, class TThreads>
+        constexpr auto parallel_sort(TThreads& pool) noexcept
+        {
+            return ParallelSortFactory<N, TThreads>{pool};
+        }
+
         /** Same as '&' operator for LazyRange, but allows use `>>` operator 
         *
         */

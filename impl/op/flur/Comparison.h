@@ -69,16 +69,12 @@ namespace OP::flur
         
     }//ns:details
 
-    /** Traits that aggregates default factory implementations of 3 operations :
-    *    - three-way
-    *    - less
-    *    - equals
-    * 
-    */
-    struct CompareTraits
+
+    template <class TFullCompare>
+    struct CompareTraitsBase
     {
         /** full comparison operator (< 0, == 0, > 0) */
-        using comparison_t = full_compare_t;
+        using comparison_t = TFullCompare;
 
         /** bool implementation of std::less on top of comparison_t, may be used by stl */
         using less_t = details::CompareOnTopOfFullComparison<details::CmpOp::less, comparison_t >;
@@ -119,6 +115,15 @@ namespace OP::flur
         }
         */
     };
+
+    /** Traits that aggregates default factory implementations of 3 operations :
+    *    - three-way
+    *    - less
+    *    - equals
+    * 
+    */
+    using CompareTraits = CompareTraitsBase<full_compare_t>;
+    
 
     /**
     *  Allows customize CompareTraits by specifying custom three-way comparison function (c++20 operator `<=>`
