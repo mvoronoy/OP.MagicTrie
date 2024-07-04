@@ -93,7 +93,7 @@ namespace OP::flur
     {
         /** Used as dummy stub */
         none,
-        /** Keep order feature. Multiple algorithm like Map, FlatMap, MaF allows support ordering
+        /** Keep order feature. Multiple algorithm like Map, FlatMap, MapAndFilter(MaF) allows support ordering
         *  if source ordered as well. NOTE! keep_order does not mean 'ordered', it just state 
         *  if source ordered then result just keeps ordering as well.
         */

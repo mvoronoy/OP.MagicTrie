@@ -102,7 +102,7 @@ namespace OP::flur
                 new shared_state_t{std::move(source), std::mutex{}, _cmp});
             details::get_reference(shared_src->_source).start();
 
-            auto make_collect = [&, shared_src](auto/*dummy*/){
+            auto make_collect = [this, shared_src](auto/*dummy*/){
                 return factory_t(_pool.async(factory_t::collect, shared_src));
             };
 
@@ -128,7 +128,7 @@ namespace OP::flur
                     std::move(src), std::make_index_sequence<Nthreads>{})) >;
 
             using proxy_sequence_t = SequenceProxy<Src, sorting_sequence_t>;
-            if (src.is_sequence_ordered())
+            if (details::get_reference(src).is_sequence_ordered())
             {
                 return proxy_sequence_t{ std::move(src) };
             }

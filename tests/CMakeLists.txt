@@ -70,6 +70,7 @@ add_executable (trie_test
     "flur/Filter.cpp" 
     "flur/maf.cpp" 
     "flur/Cartesian.cpp"
+    "flur/Zip.cpp"
     "flur/Generator.cpp"
     "flur/ThenFlatMap.cpp"
     "flur/ThenOrderingFlatMap.cpp"

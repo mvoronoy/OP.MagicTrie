@@ -17,6 +17,7 @@
 #include <op/flur/SimpleFactory.h>
 
 #include <op/flur/Cartesian.h>
+#include <op/flur/Zip.h>
 #include <op/flur/Conditional.h>
 #include <op/flur/Filter.h>
 #include <op/flur/TakeAwhile.h>
@@ -264,7 +265,7 @@ namespace OP::flur
         *  @tparam F the generator functor. The functor must return a value that is contextually convertible to 
         *           bool (i.e., supports `operator bool` or an equivalent operator). Additionally, it must 
         *           support dereferencing via `*`. Therefore, the generator class will work out-of-the-box for 
-        *           raw pointers.
+        *           raw pointers, std::optional.
         * 
         *           F may have the following input arguments:
         *           - No arguments (`f()`).
@@ -276,6 +277,17 @@ namespace OP::flur
         constexpr auto generator(F&& f) noexcept
         {
             return make_lazy_range( GeneratorFactory<F, false>(std::forward<F>(f)) );
+        }
+
+        /*
+        * \brief indicate that generator provides ordered sequence.
+        * 
+        */
+        template <class F>
+        constexpr auto keep_order_generator(F&& f) noexcept
+        {
+            return make_lazy_range( 
+                GeneratorFactory<F, true>(std::forward<F>(f)) );
         }
 
         template <typename T, 
@@ -341,6 +353,67 @@ namespace OP::flur
         {
             using poly_t = std::decay_t<Poly>;
             return make_lazy_range( OfReversePolymorphFactory<poly_t>(std::forward<Poly>(poly)) );
+        }
+
+        /**
+         * \brief Combine multiple sequences using the zip algorithm and produce elements as a result of applying `F`.
+         *
+         *  Zip works on two or more sequences, combining them sequentially as multiple arguments to the `F` applicator.
+         *  For example:
+         *  \code
+         *   src::zip(
+         *       [](int i, char c) -> std::string { // Convert zipped pair to string
+         *               std::ostringstream result;
+         *               result << '[' << i << ", " << c << ']';
+         *               return result.str();
+         *       },
+         *       src::of_container(std::array{1, 2, 3}),
+         *       src::of_container(std::array{'a', 'b', 'c', 'd'}) //'d' will be omitted
+         *   )
+         *   >>= apply::for_each([](const std::string& r) { std::cout << r << "\n"; });
+         *  \endcode
+         *  This prints: \code
+         * [1, a]
+         * [2, b]
+         * [3, c] \endcode
+         *
+         *  Note that by default, zip operates until the smallest sequence is exhausted, so you cannot control the trailing
+         *  elements of longer sequences.
+         *  To process all elements in the longest sequence, wrap all arguments of your applicator with `std::optional`. This
+         *  gives the flur-library a hint that you would like to process all elements. For example, a 3-sequence zip with optional arguments:
+         *  \code
+         *   using namespace std::string_literals;
+         *   auto print_optional = [](std::ostream& os, const auto& v) -> std::ostream&
+         *      { return v ? (os << *v) : (os << '?'); };
+         *   src::of_container(std::array{1, 2, 3})
+         *       >> then::zip(
+         *           // Convert zipped triplet to string with '?' when optional is empty
+         *           // Note: All arguments must be `std::optional`
+         *           [](zip_opt<int> i, zip_opt<char> c, zip_opt<float> f) -> std::string {
+         *                   std::ostringstream result;
+         *                   result << '[';
+         *                   print_optional(result, i) << ", ";
+         *                   print_optional(result, c) << ", ";
+         *                   print_optional(result, f) << ']';
+         *                   return result.str();
+         *           },
+         *           src::of_container("abcd"s), // String as source of 4 characters
+         *           src::of_container(std::array{1.1f, 2.2f}) // Source of 2 floats
+         *       )
+         *       >>= apply::for_each([](const std::string& r) { std::cout << r << "\n"; });
+         *  \endcode
+         * This prints: \code
+         * [1, a, 1.1]
+         * [2, b, 2.2]
+         * [3, c, ?]
+         * [?, d, ?] \endcode
+         */
+        template <class F, class Alien, class ... Ax>
+        constexpr auto zip(F f, Alien&& alien, Ax&& ...ax) noexcept
+        {
+            return make_lazy_range(
+                ZipFactory<F, Alien, Ax...>(std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...)
+                );
         }
 
     } //ns:src
@@ -684,7 +757,9 @@ namespace OP::flur
         }
 
         /**
-        *  Produce cartesian product of main flur source with 1...N other sources. 
+        *  \brief Produce cartesian product of multiple (1...N) flur sources. 
+        *
+        *  Cartesian product . This function is from `src` namespace \sa `then::cartesian` when need combine pipeline with product.
         * \tparam F - function that accept N+1 arguments (element from source and element from Alien and Ax...) then 
         *           produces target result element. As an example of result you may use std::pair
         * \tparam Alien, Ax... - some other pipeline(s) to make cartesian product with main flur sequence
@@ -695,6 +770,20 @@ namespace OP::flur
             //const second_src_t<Alien>&
             //auto cros = std::function<R(const Src&, const R&)>(fnc);
             return CartesianFactory<F, Alien, Ax...>(std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...);
+        }
+
+        /**
+        * \brief Combine multiple sequences using the zip algorithm and produce elements as a result of applying `F`.
+        * 
+        * This function from `then` namespace is almost the same as \sa `src::zip` but intended to be used 
+        * with pipeline operator `>>`
+        */ 
+        template <class F, class Alien, class ... Ax>
+        constexpr auto zip(F f, Alien&& alien, Ax&& ...ax) noexcept
+        {
+            return 
+                ZipFactory<F, Alien, Ax...>(std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...)
+            ;
         }
 
         /** Produce repeater (for details see OP::flur::Repeater */

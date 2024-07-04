@@ -15,7 +15,7 @@
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace OP::flur
 {
-    
+
     template <class TElement>
     struct HashSetFilterPredicate
     {
@@ -47,7 +47,7 @@ namespace OP::flur
         Predicate,
         Left,
         Sequence<details::sequence_element_type_t<Left>>
-        >
+    >
     {
         using element_t = details::sequence_element_type_t<Left>;
         using base_t = Filter<
@@ -59,18 +59,18 @@ namespace OP::flur
 
         template <class U>
         constexpr UnorderedJoin(U&& left, Predicate predicate) noexcept
-            : base_t{std::forward<U>(left), std::move(predicate)}
+            : base_t{ std::forward<U>(left), std::move(predicate) }
         {
         }
-                
+
     };
 
-   /**
-    * \brief Provides a join of two sets when at least one doesn't support ordering.
-    *
-    * Use it very cautiously because it has a significant overhead due to copying one of 
-    *   the unordered sequences to `std::unordered_set`.
-    */
+    /**
+     * \brief Provides a join of two sets when at least one doesn't support ordering.
+     *
+     * Use it very cautiously because it has a significant overhead due to copying one of
+     *   the unordered sequences to `std::unordered_set`.
+     */
     template <class Right>
     struct UnorderedJoinFactory : FactoryBase
     {
@@ -88,16 +88,16 @@ namespace OP::flur
         constexpr decltype(auto) compound(Left&& left) const& noexcept
         {
             HashSetFilterPredicate<hashed_element_t> predicate{ 0, _right.compound() };
-            return UnorderedJoin<Left, decltype(predicate)>{ 
+            return UnorderedJoin<Left, decltype(predicate)>{
                 std::forward<Left>(left), std::move(predicate)
-                };
+            };
         }
 
         template <class Left>
         constexpr decltype(auto) compound(Left&& left) && noexcept
         {
             return UnorderedJoin{ std::move(left),
-                HashSetFilterPredicate<hashed_element_t>(0, 
+                HashSetFilterPredicate<hashed_element_t>(0,
                     //`move` used as cast to T&& only
                     std::move(details::get_reference(_right)).compound()
                     ) };
@@ -117,7 +117,9 @@ namespace OP::flur
         {
             using left_element_t = details::sequence_element_type_t<LeftSeq>;
             using right_element_t = details::sequence_element_type_t<RightSeq>;
-            static_assert(std::is_same_v< left_element_t, right_element_t>, "must be same item to join");
+            // Don't need to compare because SequenceProxy compares types
+            //static_assert(
+            //    std::is_same_v< left_element_t, right_element_t>, "must be same item to join");
 
             using left_predicate_t = HashSetFilterPredicate< std::decay_t<left_element_t>>;
             using right_predicate_t = HashSetFilterPredicate< std::decay_t<right_element_t>>;

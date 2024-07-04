@@ -19,15 +19,6 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
-    namespace details
-    {
-        /** \brief detect type of STL container's contained element
-        * To get element type reference operator `*` is applied to result of std::begin of `Container`
-        */ 
-        template <class Container>
-        using element_of_container_t = decltype(*std::begin(
-            std::declval<details::dereference_t<Container>>()));
-    }
 
     /**
     *   Create conatiner from any stl based container 
@@ -142,6 +133,13 @@ namespace flur
 
     namespace details
     {
+
+        /** \brief detect type of STL container's contained element
+        * To get element type reference operator `*` is applied to result of std::begin of `Container`
+        */ 
+        template <class Container>
+        using element_of_container_t = decltype(*std::begin(
+            std::declval<details::dereference_t<Container>>()));
 
         template <class Container>
         using detect_sequence_t = 

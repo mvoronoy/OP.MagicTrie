@@ -28,16 +28,15 @@ namespace OP::flur
 
         void start() override
         {
-            auto ini_seq = [](auto& seq) -> bool 
+            auto init_seq = [](auto& seq) -> bool 
             {
-                auto& ref = details::get_reference(seq);
-                ref.start();
-                return ref.in_range();
+                seq.start();
+                return seq.in_range();
             };
             //start all
             _all_good = std::apply( 
                 [&](auto& ...seq) ->bool {  
-                    return (ini_seq(seq) && ...);
+                    return (init_seq(details::get_reference(seq)) && ...);
             }, _sources);
         }
 
@@ -61,25 +60,19 @@ namespace OP::flur
 
         void next() override
         {
-            _all_good = do_next(std::make_index_sequence<seq_size_c>{});
+            _all_good = std::apply([&](auto& ...sequences) -> bool {
+                bool sequence_failed = false;
+                bool result = (do_step(sequence_failed, details::get_reference(sequences)) || ...);
+                return !sequence_failed && result;
+            }, _sources);
         }
 
     private:
         static constexpr size_t seq_size_c = sizeof ... (Seqx);
 
-        template <size_t... I>
-        bool do_next(std::index_sequence<I...>)
+        template <class T>
+        bool do_step(bool& sequence_failed, T& seq)
         {
-            bool sequence_failed = false;
-            bool result = (do_step<I>(sequence_failed) || ...);
-            return !sequence_failed && result;
-        }
-
-        template <size_t I>
-        bool do_step(bool& sequence_failed)
-        {
-            auto &seq = details::get_reference(std::get<I>(_sources));
-            
             if(!seq.in_range()) //indication of empty sequence stop all
             {
                 sequence_failed = true;
@@ -94,7 +87,7 @@ namespace OP::flur
                 sequence_failed = true;
                 return true; //don't propagate
             }
-            return false; //propagate sequences enumeration
+            return false; //propagate next sequences enumeration
         }
 
         template <size_t... I>
