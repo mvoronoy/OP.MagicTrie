@@ -368,7 +368,7 @@ namespace OP::flur
          *               return result.str();
          *       },
          *       src::of_container(std::array{1, 2, 3}),
-         *       src::of_container(std::array{'a', 'b', 'c', 'd'}) //'d' will be omitted
+         *       src::of_container(std::array{'a', 'b', 'c', 'd'}) //'d' will be omitted in result
          *   )
          *   >>= apply::for_each([](const std::string& r) { std::cout << r << "\n"; });
          *  \endcode
@@ -377,26 +377,42 @@ namespace OP::flur
          * [2, b]
          * [3, c] \endcode
          *
-         *  Note that by default, zip operates until the smallest sequence is exhausted, so you cannot control the trailing
+         *  Note that zip operates until the smallest sequence is exhausted, so you cannot control the trailing
          *  elements of longer sequences.
-         *  To process all elements in the longest sequence, wrap all arguments of your applicator with `std::optional`. This
-         *  gives the flur-library a hint that you would like to process all elements. For example, a 3-sequence zip with optional arguments:
-         *  \code
+         *  To process all elements in the longest sequence use \sa `zip_longest`.
+         */
+        template <class F, class Alien, class ... Ax>
+        constexpr auto zip(F f, Alien&& alien, Ax&& ...ax) noexcept
+        {
+            return make_lazy_range(
+                ZipFactory<false, F, Alien, Ax...>(std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...)
+                );
+        }
+
+
+        /**
+         * \brief Combine multiple sequences using the zip algorithm, ensuring all elements of the 
+         *  longest sequence are included by filling shorter sequences with optional values.
+         *
+         *  Applicator `F` combines result of multiple sequences to some result, there why you need wrap all arguments of 
+         *  your applicator with `zip_opt`. This gives you control if some sequence is exhausted. For example, a 3-sequence zip 
+         *  with optional arguments: \code
          *   using namespace std::string_literals;
-         *   auto print_optional = [](std::ostream& os, const auto& v) -> std::ostream&
+         *   //helper to print
+         *   auto print_optional = [](std::ostream& os, const auto& v) -> std::ostream& 
          *      { return v ? (os << *v) : (os << '?'); };
          *   src::of_container(std::array{1, 2, 3})
-         *       >> then::zip(
+         *       >> then::zip_longest( 
          *           // Convert zipped triplet to string with '?' when optional is empty
          *           // Note: All arguments must be `std::optional`
-         *           [](zip_opt<int> i, zip_opt<char> c, zip_opt<float> f) -> std::string {
+         *           [](zip_opt<int> i, zip_opt<char> c, zip_opt<float> f) -> std::string { 
          *                   std::ostringstream result;
          *                   result << '[';
          *                   print_optional(result, i) << ", ";
          *                   print_optional(result, c) << ", ";
-         *                   print_optional(result, f) << ']';
+         *                   print_optional(result, f) << ']'; 
          *                   return result.str();
-         *           },
+         *           }, 
          *           src::of_container("abcd"s), // String as source of 4 characters
          *           src::of_container(std::array{1.1f, 2.2f}) // Source of 2 floats
          *       )
@@ -407,13 +423,13 @@ namespace OP::flur
          * [2, b, 2.2]
          * [3, c, ?]
          * [?, d, ?] \endcode
-         */
+         */ 
         template <class F, class Alien, class ... Ax>
-        constexpr auto zip(F f, Alien&& alien, Ax&& ...ax) noexcept
+        constexpr auto zip_longest(F f, Alien&& alien, Ax&& ...ax) noexcept
         {
             return make_lazy_range(
-                ZipFactory<F, Alien, Ax...>(std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...)
-                );
+                ZipFactory<true, F, Alien, Ax...>(std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...)
+            );
         }
 
     } //ns:src
@@ -781,9 +797,22 @@ namespace OP::flur
         template <class F, class Alien, class ... Ax>
         constexpr auto zip(F f, Alien&& alien, Ax&& ...ax) noexcept
         {
-            return 
-                ZipFactory<F, Alien, Ax...>(std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...)
-            ;
+            return ZipFactory<false, F, Alien, Ax...>(
+                    std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...);
+        }
+
+        /**
+        * \brief Combine multiple sequences using the zip algorithm, ensuring all elements of the
+        * longest sequence are included by filling shorter sequences with optional values.
+        *
+        * This function from `then` namespace is almost the same as \sa `src::zip_longest` but intended to be used
+        * with pipeline operator `>>`
+        */
+        template <class F, class Alien, class ... Ax>
+        constexpr auto zip_longest(F f, Alien&& alien, Ax&& ...ax) noexcept
+        {
+            return ZipFactory<true, F, Alien, Ax...>(
+                    std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...);
         }
 
         /** Produce repeater (for details see OP::flur::Repeater */

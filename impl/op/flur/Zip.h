@@ -71,16 +71,16 @@ namespace OP::flur
      * [2, b]
      * [3, c] \endcode
      * 
-     *  Note that by default, zip operates until the smallest sequence is exhausted, so you cannot control the trailing 
+     *  Note that zip operates until the smallest sequence is exhausted, so you cannot control the trailing 
      *  elements of longer sequences. 
-     *  To process all elements in the longest sequence, wrap all arguments of your applicator with `std::optional`. This 
-     *  gives the flur-library a hint that you would like to process all elements. For example, a 3-sequence zip with optional arguments:
-     *  \code
+     *  To process all elements in the longest sequence use `zip_longest`, this way you need wrap all arguments of 
+     *  your applicator with `zip_opt`. This gives you control if sequence is exhausted. For example, a 3-sequence zip 
+     *  with optional arguments: \code
      *   using namespace std::string_literals;
      *   auto print_optional = [](std::ostream& os, const auto& v) -> std::ostream& 
      *      { return v ? (os << *v) : (os << '?'); };
      *   src::of_container(std::array{1, 2, 3})
-     *       >> then::zip( 
+     *       >> then::zip_longest( 
      *           // Convert zipped triplet to string with '?' when optional is empty
      *           // Note: All arguments must be `std::optional`
      *           [](zip_opt<int> i, zip_opt<char> c, zip_opt<float> f) -> std::string { 
@@ -221,7 +221,7 @@ namespace OP::flur
     };
 
 
-    template <class F, class ... Tx>
+    template <bool is_longest_sequence_zip, class F, class ... Tx>
     struct ZipFactory : FactoryBase
     {
         using factories_t = decltype(std::make_tuple(std::declval<Tx>()...));
@@ -288,8 +288,7 @@ namespace OP::flur
         using applicator_t = std::decay_t<F>;
 
         template <class TApplicator, class ... Seqx>
-        static constexpr auto construct_sequence(TApplicator&& applicator, Seqx&& ... sx)
-            noexcept(std::is_nothrow_constructible_v<applicator_t, Seqx...>)
+        static constexpr auto construct_sequence(TApplicator&& applicator, Seqx&& ... sx) noexcept
         {
             constexpr static bool is_longest_sequence_zip = 
                 std::is_invocable_v<applicator_t,

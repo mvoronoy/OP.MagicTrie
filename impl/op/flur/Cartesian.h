@@ -153,8 +153,7 @@ namespace OP::flur
         using applicator_t = std::decay_t<F>;
 
         template <class TApplicator, class ... Seqx>
-        static constexpr auto construct_sequence(TApplicator&& applicator, Seqx&& ... sx)
-            noexcept(std::is_nothrow_constructible_v<applicator_t, Seqx...>)
+        static constexpr auto construct_sequence(TApplicator&& applicator, Seqx&& ... sx) noexcept
         {
             using result_t = decltype(
                 applicator(details::get_reference(sx).current()...)

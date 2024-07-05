@@ -46,14 +46,14 @@ namespace
 
         // test empty with longest_sequence zip_opt
         tresult.assert_that<eq_sets>(
-            src::zip(
+            src::zip_longest(
                 op_logic_or,
                 src::null<bool>(),
                 src::null<bool>()
             ), std::array<bool, 0>{});
 
         tresult.assert_that<eq_sets>(
-            src::zip(
+            src::zip_longest(
                 op_logic_or,
                 src::of_value(false),//not empty
                 src::null<bool>()
@@ -61,13 +61,13 @@ namespace
         //////////////////////////////////////
         tresult.assert_that<eq_sets>(
             src::zip(
-            [](int i, char c) -> std::string { // Convert zipped pair to string
-                    std::ostringstream result;
-                    result << i << c;
-                    return result.str();
-            }, 
-            src::of_container(std::array{1, 2, 3}),
-            src::of_container(std::array{'a', 'b', 'c', 'd'})
+                [](int i, char c) -> std::string { // Convert zipped pair to string
+                        std::ostringstream result;
+                        result << i << c;
+                        return result.str();
+                }, 
+                src::of_container(std::array{1, 2, 3}),
+                src::of_container("abcd"s) //expecting 'd' is omitted
             ), 
             std::array{ "1a"s, "2b"s, "3c"s }
         );
@@ -92,29 +92,29 @@ namespace
                 src::null<bool>()
             ), 
             std::array<bool, 0>{});
-    //////////////////////////
-    auto print_optional = [](std::ostream& os, const auto& v) -> std::ostream& { return v ? (os << *v) : (os << '?'); };
-    auto zip3 = src::of_container(std::array{1, 2, 3})
-        >> then::zip( 
-            // Convert zipped triplet to string with '?' when optional is empty
-            // Note: All arguments must be `std::optional`
-            [&](const auto& i, const auto& c, const auto& f) -> std::string {
-                    std::ostringstream result;
-                    print_optional(result, i);
-                    print_optional(result, c);
-                    print_optional(result, f); 
-                    return result.str();
-            }, 
-            src::of_container("abcd"s), // String as source of 4 characters
-            src::of_container(std::array{1.1f, 2.2f}) // Source of 2 floats
-        )
-        ;
-    tresult.assert_that<eq_sets>(zip3,
-        std::array{
-            "1a1.1"s,
-            "2b2.2"s,
-            "3c?"s,
-            "?d?"s });
+
+        auto print_optional = [](std::ostream& os, const auto& v) -> std::ostream& { return v ? (os << *v) : (os << '?'); };
+        auto zip3 = src::of_container(std::array{1, 2, 3})
+            >> then::zip_longest( 
+                // Convert zipped triplet to string with '?' when optional is empty
+                // Note: All arguments must be `std::optional`
+                [&](const auto& i, const auto& c, const auto& f) -> std::string {
+                        std::ostringstream result;
+                        print_optional(result, i);
+                        print_optional(result, c);
+                        print_optional(result, f); 
+                        return result.str();
+                }, 
+                src::of_container("abcd"s), // String as source of 4 characters
+                src::of_container(std::array{1.1f, 2.2f}) // Source of 2 floats
+            )
+            ;
+        tresult.assert_that<eq_sets>(zip3,
+            std::array{
+                "1a1.1"s,
+                "2b2.2"s,
+                "3c?"s,
+                "?d?"s });
 
     }
 
