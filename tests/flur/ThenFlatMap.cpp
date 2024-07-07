@@ -3,8 +3,6 @@
 #include <array>
 #include <map>
 #include <set>
-#include <numeric>
-#include <vector>
 #include <string>
 #include <op/utest/unit_test.h>
 #include <op/flur/flur.h>
@@ -249,7 +247,6 @@ void test_FlatMapShared(OP::utest::TestRuntime& rt)
     cnt = 0;
     r2 >>= apply::count(cnt);
     rt.assert_that<equals>(3 * 4, cnt);
-
 }
 
 void test_FlatMapArbitraryArgs(TestRuntime& rt)

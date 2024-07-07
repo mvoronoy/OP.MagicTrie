@@ -907,6 +907,7 @@ namespace OP::flur
 
     namespace apply
     {
+
         /**
         * ( src::of(...) >> then::filter(...) 
                 >> apply::copy(std::back_inserter(to_vector)) 

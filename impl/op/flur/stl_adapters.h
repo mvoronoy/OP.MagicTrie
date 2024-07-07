@@ -5,11 +5,12 @@
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
 #include <op/flur/LazyRange.h>
+#include <op/flur/FactoryBase.h>
 
 namespace OP::flur
 {
     template <class T, class V = typename details::sequence_type_t<T>::element_t>
-    constexpr std::enable_if_t <std::is_base_of_v<OP::flur::FactoryBase, T>, V> reduce(const T& inst, V init={}) noexcept
+    constexpr std::enable_if_t <is_factory_c<T>, V> reduce(const T& inst, V init={}) noexcept
     {
         auto seq = inst.compound();
         auto& rseq = details::get_reference(seq);

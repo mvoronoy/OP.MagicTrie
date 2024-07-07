@@ -360,7 +360,7 @@ void test_UnorderedOrderFlatMap(TestRuntime& tresult)
     }
 
     tresult.assert_that<equals>(
-        50000, OP::flur::consume_all(all_prefix));
+        50000, all_prefix >>= OP::flur::apply::count());
     //trie->prefixed_range("1"_astr);
 }
 

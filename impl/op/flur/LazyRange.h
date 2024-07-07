@@ -103,11 +103,6 @@ namespace OP::flur
             return details::compound_impl(std::move(_factories));
         }
 
-        template <class TAction>
-        void apply(TAction action) const
-        {
-            action(*this);
-        }
 
         //template <class T>
         //constexpr auto operator >> (T&& t) const& noexcept
@@ -166,6 +161,40 @@ namespace OP::flur
                 }, _factories);
         }
 
+        /**
+        * Collect result from lazy range by applying applicator.
+        * Next example evaluates 6:
+        * \code
+        *  src::of({1, 2, 3}) >>= apply::sum();
+        * \endcode
+        *
+        */
+        template <class TApplicator, std::enable_if_t<is_applicator_c<TApplicator>, int> = 0>
+        decltype(auto) operator >>= (TApplicator&& applicator) const&
+        {
+            return collect_result(*this, applicator);
+        }
+
+        template <class TApplicator, std::enable_if_t<is_applicator_c<TApplicator>, int> = 0>
+        decltype(auto) operator >>= (TApplicator&& applicator) &&
+        {
+            return collect_result(std::move(*this), applicator);
+        }
+
+        template <class TUnaryFunction, 
+            std::enable_if_t<std::is_invocable_v<TUnaryFunction, const this_t&>, int> = 0>
+        decltype(auto) operator >>= (TUnaryFunction f) const
+        {
+            return f(*this);
+        }
+
+        template <template <typename> class TUnaryFunction, 
+            std::enable_if_t<std::is_invocable_v<TUnaryFunction<this_t>, const this_t&>, int> = 0>
+        decltype(auto) operator >>= (TUnaryFunction<this_t> f) const
+        {
+            return f(*this);
+        }
+
         auto begin() const
         {
             return details::begin_impl(*this);
@@ -184,40 +213,6 @@ namespace OP::flur
     {
         return LazyRange<Tx...>{ std::in_place_t{}, std::forward<Tx>(tx) ... };
     }
-
-    //
-    //  Commissioned as arguable reason
-    //
-    //template <class ... Tx >
-    //constexpr auto make_lazy_range(std::piecewise_construct_t, Tx && ... tx) noexcept
-    //{
-    //    return LazyRange<std::decay_t<Tx> ...>(std::forward<Tx>(tx) ...);
-    //}
-
-    //
-    //  Commissioned as arguable reason
-    //
-    ///** Create polymorph LazyRange (with type erasure). 
-    //*   @return instance of AbstractPolymorphFactory as std::unique_ptr
-    //*/
-    //template <class ... Tx >
-    //constexpr auto make_unique(Tx && ... tx) 
-    //{
-    //    using impl_t = PolymorphFactory<LazyRange<Tx ...>>;
-    //    using interface_t = typename impl_t::base_t;
-    //
-    //    return std::unique_ptr<interface_t>( new impl_t{LazyRange<Tx ...>(std::forward<Tx>(tx) ...)});
-    //}
-    //
-    //template <class ... Tx >
-    //constexpr auto make_unique(LazyRange<Tx ...> && range) 
-    //{
-    //    using lrange_t = LazyRange<Tx ...>;
-    //    using impl_t = PolymorphFactory<lrange_t>;
-    //    using interface_t = typename impl_t::base_t;
-    //
-    //    return std::unique_ptr<interface_t>( new impl_t{ std::forward<lrange_t>(range) } );
-    //}
 
     /**
     *   Wraps specific `TFactoryBase` to polymorph std::share_ptr<AbstractPolymorphFactory<U>> (with type erasure) 
@@ -288,130 +283,25 @@ namespace OP::flur
             std::move(l), right_range_t{std::move(r)} ));
     }
 
-    /** 
-    * Allow multiple applicators like: \code
-    *  src::of(...) >>= Sum(...) >>= Sum(...)
-    * \endcode.
-    *
-    */
-    template <class ...Tx, class TApplicator>
-    const auto& operator >>= (const LazyRange<Tx...>& range, const TApplicator& applicator)
-    {
-        range.apply(applicator);
-        return range; //allow multiple applicators
-    }
+//
+//    /** 
+//    * Collect result from lazy range by applying applicator. 
+//    * Next example evaluates 6:
+//    * \code
+//    *  src::of({1, 2, 3}) >>= apply::sum();
+//    * \endcode
+//    *
+//    */
+//    template <class TFactoryBase, class TApplicator, 
+//        std::enable_if_t<
+//            is_factory_c<TFactoryBase> &&
+//            is_applicator_c<TApplicator>, int > = 0>
+//    decltype(auto) operator >>= (TFactoryBase& range, TApplicator applicator)
+//    {
+//        return applicator(range);
+//    }
 
-    /** 
-    * Allow multiple applicators like: \code
-    *  src::of(...) >>= Sum(...) >>= Sum(...)
-    * \endcode.
-    *
-    */
-    template <class ...Tx, class TApplicator>
-    const auto& operator >>= (const LazyRange<Tx...>& range, TApplicator& applicator)
-    {
-        range.apply(applicator);
-        return range; //allow multiple applicators
-    }
-
-    template <class TFactoryBase, class TApplicator, 
-        std::enable_if_t<
-            std::is_base_of_v<FactoryBase, TFactoryBase> &&
-            std::is_base_of_v<ApplicatorBase, TApplicator>, int > = 0>
-    const auto& operator >>= (TFactoryBase& range, TApplicator applicator)
-    {
-        applicator(range);
-        return range; //allow multiple applicators
-    }
-
-
-    //template <class ... Tx >
-    //constexpr auto make_shared(LazyRange<Tx ...> range) 
-    //{
-    //    using lrange_t = LazyRange<Tx ...>;
-    //    using impl_t = PolymorphFactory<lrange_t>;
-    //    using interface_t = typename impl_t::base_t;
-
-    //    return std::shared_ptr<interface_t>( new impl_t{ std::move(range) } );
-    //}
-
-    template <class ... Tx >
-    size_t consume_all(const LazyRange<Tx ...>& range) 
-    {
-        size_t count = 0;
-        auto seq = range.compound();
-        for (seq.start(); seq.in_range(); seq.next())
-        {
-            static_cast<void>(seq.current()); //ignore return value
-            ++count;
-        }
-        return count;
-    }
-
-    template <class G>
-    std::enable_if_t<std::is_base_of_v<FactoryBase, G>, size_t> consume_all(const G& range) 
-    {
-        size_t count = 0;
-        auto seq = range.compound();
-        auto& seq_ref = details::get_reference(seq);
-        for (seq_ref.start(); seq_ref.in_range(); seq_ref.next())
-        {
-            static_cast<void>(seq_ref.current()); //ignore return value
-            ++count;
-        }
-        return count;
-    }
-
-    struct consume_all_stub {};
-    constexpr static inline consume_all_stub consume_all_c;
-
-    template <class ...Tx>
-    auto operator >>= (const LazyRange<Tx...>& range, consume_all_stub)
-    {
-        return consume_all(range); 
-    }
-
-
-    /*template <class T >
-    auto first( Sequence<T>& seq) 
-    {
-        seq.start(); 
-        if(!seq.in_range())
-        {
-            throw std::out_of_range("takin `first` of empty lazy range");
-        }
-        return seq.current();
-    }
-    template <class T >
-    auto first(std::unique_ptr< T > pseq)
-    {
-        return first(*pseq);
-    }
-    template <class T >
-    auto first(std::shared_ptr< T > pseq)
-    {
-        return first(details::get_reference(pseq));
-    }
-
-    template <class T, typename P = std::enable_if_t<std::is_base_of_v<FactoryBase,T>>>
-    auto first(T& range) 
-    {
-        return first( range.compound() );
-    }*/
-    template <class T >
-    auto first(T&& flur_obj)
-    {
-        auto seq = details::get_reference(flur_obj).compound();
-        auto& rseq = details::get_reference(seq);
-        rseq.start();
-        if (!rseq.in_range())
-        {
-            throw std::out_of_range("taking `first` of empty lazy range");
-        }
-        return rseq.current();
-
-    }
-
+    
 } //ns:OP::flur
 
 #endif //_OP_FLUR_LAZYRANGE__H_

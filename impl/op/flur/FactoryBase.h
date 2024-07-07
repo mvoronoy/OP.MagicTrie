@@ -7,6 +7,7 @@ namespace OP::flur
     /** Base for all classes that composes result Sequence */
     struct FactoryBase {};
 
+    /** Trait test if template parameter T is FactoryBase */
     template <class T>
     constexpr static inline bool is_factory_c = std::is_base_of_v<FactoryBase, T>;
 

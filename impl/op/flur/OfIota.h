@@ -56,12 +56,12 @@ namespace flur
 
         virtual bool in_range() const override
         {
-            if constexpr(OP::has_operators::less_v<T>)
-            {
-                return (_current < std::get<1>(_bounds));
-            }
-            else
-                return _current != _bounds.second;
+            //if constexpr(OP::has_operators::less_v<T>)
+            //{
+            //    return (_current < std::get<1>(_bounds));
+            //}
+            //else
+                return _current != std::get<1>(_bounds);
         }
 
         virtual R current() const override

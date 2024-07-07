@@ -88,6 +88,8 @@ add_executable (trie_test
     "flur/OfLazyValue.cpp"
     "flur/JoinUnordered.cpp"
     "flur/ParallelSort.cpp"
+    "flur/Applicator.cpp"
+ 
 )
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
