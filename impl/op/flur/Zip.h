@@ -290,9 +290,6 @@ namespace OP::flur
         template <class TApplicator, class ... Seqx>
         static constexpr auto construct_sequence(TApplicator&& applicator, Seqx&& ... sx) noexcept
         {
-            constexpr static bool is_longest_sequence_zip = 
-                std::is_invocable_v<applicator_t,
-                    zip_opt<decltype(details::get_reference(sx).current())> ...>;
             if constexpr (is_longest_sequence_zip)
             {
                 using result_t = 
