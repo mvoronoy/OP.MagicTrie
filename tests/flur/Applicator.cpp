@@ -81,6 +81,27 @@ namespace {
         rt.assert_that<equals>(25, sum);
     }
 
+    void test_drain(TestRuntime& rt)
+    {
+        std::vector<int> dest1{ {17} };
+        src::null<int>() >>= apply::drain(std::back_inserter(dest1));
+        rt.assert_that<eq_sets>(std::array{ 17 }, dest1);
+
+        std::set<int> dest2{ {17} };
+        src::of_iota(1, 4) >>= apply::drain(
+            std::inserter(dest2, dest2.begin())
+        );
+        rt.assert_that<eq_sets>(std::array{1, 2, 3, 17}, dest2);
+
+        std::vector<int> dest3{ {57, 57} };
+        auto dest3_ins = ++dest3.begin(); //between 2 numbers
+        src::of_iota(1, 4) >>= apply::drain(
+            std::inserter(dest3, dest3_ins)
+        );
+        rt.assert_that<eq_sets>(std::array{57, 1, 2, 3, 57 }, dest3);
+
+    }
+
     void test_reduce(TestRuntime& rt)
     {
         size_t count = 17;
@@ -110,8 +131,17 @@ namespace {
         rt.assert_that<equals>(r1, 57);
 
         rt.assert_that<equals>(apply::first(src::of_iota(0, 3)), 0);
-    }
 
+        auto r2 = range >>= apply::first;
+        rt.assert_that<equals>(r2, 57);
+
+        //test as shared_ptr
+        rt.assert_that<equals>(
+            make_shared(src::of_value(57)) >>= apply::first, 57);
+        rt.assert_that<equals>(apply::first(
+            make_shared(src::of_value(57))), 57);
+
+    }
 
     void test_last(TestRuntime& rt)
     {
@@ -126,12 +156,21 @@ namespace {
 
         rt.assert_that<equals>(apply::last(src::of_iota(0, -3, -1)), -2);
 
+        auto r2 = range >>= apply::last;
+        rt.assert_that<equals>(r2, 57);
+        
+        //test as shared_ptr
+        rt.assert_that<equals>(
+            make_shared(src::of_value(57)) >>= apply::last, 57);
+        rt.assert_that<equals>(apply::last(
+            make_shared(src::of_value(57))) , 57);
     }
 
     static auto& module_suite = OP::utest::default_test_suite("flur.apply")
         .declare("sum", test_sum)
         .declare("count", test_count)
         .declare("for_each", test_for_each)
+        .declare("drain", test_drain)
         .declare("reduce", test_reduce)
         .declare("first", test_first)
         .declare("last", test_last)

@@ -114,7 +114,7 @@ namespace OP
             * specialization when Alt is FactoryBase or std::shared_ptr<FactoryBase> 
             */
             template <class A, class Src, 
-                std::enable_if_t<std::is_base_of_v<FactoryBase, std::decay_t<details::dereference_t<A>> >, int> = 0>
+                std::enable_if_t<is_factory_c<std::decay_t<details::dereference_t<A>> >, int> = 0>
             auto static sequence_factory(A&& alt_factory, Src&& source_sequence,
                 details::priority_tag<1> = {/*normal priority*/})
             {

@@ -189,7 +189,7 @@ namespace OP::flur
         }
 
         template <template <typename> class TUnaryFunction, 
-            std::enable_if_t<std::is_invocable_v<TUnaryFunction<this_t>, const this_t&>, int> = 0>
+            std::enable_if_t<std::is_invocable_v<TUnaryFunction<this_t>, const this_t&>, short> = 0>
         decltype(auto) operator >>= (TUnaryFunction<this_t> f) const
         {
             return f(*this);
@@ -219,7 +219,7 @@ namespace OP::flur
     *   where `U` is element produced by sequence of `TFactoryBase`.
     */ 
     template <class TFactoryBase, 
-        std::enable_if_t<std::is_base_of_v<FactoryBase, TFactoryBase>, int> = 0>
+        std::enable_if_t<is_factory_c<TFactoryBase>, int> = 0>
     constexpr auto make_shared(TFactoryBase&& tx)
     {
         static_assert( 
@@ -283,6 +283,12 @@ namespace OP::flur
             std::move(l), right_range_t{std::move(r)} ));
     }
 
+    template <class LazyRange, class TApplicator, 
+        std::enable_if_t<is_applicator_c<std::decay_t<TApplicator>> && is_factory_c<LazyRange>, int> = 0>
+    decltype(auto) operator >>= (std::shared_ptr<LazyRange> lr, TApplicator&& applicator)
+    {
+        return collect_result(std::move(lr), applicator);
+    }
 //
 //    /** 
 //    * Collect result from lazy range by applying applicator. 

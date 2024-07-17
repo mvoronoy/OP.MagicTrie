@@ -52,22 +52,47 @@ void test_SortedOrDefault(OP::utest::TestRuntime& tresult)
 {
     std::set<std::string> sample{ "a"s, "b"s, "c"s };
     const std::string sylable_c{ 'a', 'e', 'i', 'o', 'u', 'y' };
-    //auto r0 = src::of_container(std::cref(sample))
-    //    >> then::filter([](const auto& i) {return i.size() > 1; }) //every element is filtered, so result empty
-    //    >> then::or_default(
-    //        //ordered container + filter must produce ordered sequence
-    //        src::of_container(std::cref(sample))
-    //        >> then::filter([&](const auto& i) {return i.find_first_of(sylable_c) != std::string::npos; })
-    //    );
-    //auto compound = r0.compound();
-    //tresult.assert_true(compound.ordered_c, "or_default must produce ordered sequence when both source and alternative are sorted");
-    
-    auto lr =
-        src::of_container(std::cref(sample))
-        >> then::filter([&](const auto& i) {return i.find_first_of(sylable_c) != std::string::npos; })
-        ;
-    tresult.assert_that<eq_sets>(lr, std::set<std::string>{"a"s}, "Wrong filtering");
+    auto r0 = src::of_container(std::cref(sample))
+        //every element is filtered-out, so result is empty
+        >> then::filter([](const auto& i) {return i.size() > 1; }) 
+        >> then::or_default(
+            //ordered container + filter must produce ordered sequence
+            src::of_container(std::cref(sample))
+            >> then::filter([&](const auto& i) {return i.find_first_of(sylable_c) != std::string::npos; })
+        );
+    tresult.assert_true(
+        r0.compound().is_sequence_ordered(),
+        "or_default must produce ordered sequence when both source and alternative are sorted");
 
+    tresult.assert_that<eq_sets>(std::array{ "a"s }, r0);
+
+    auto unordered = std::vector{ "z"s, "y"s, "x"s };
+    auto r1 = src::of_container(std::cref(sample))
+        //every element is filtered-out, so result is empty
+        >> then::filter([](const auto& i) {return i.size() > 1; }) 
+        >> then::or_default(
+            //un-ordered container 
+            src::of_container(unordered)
+        );
+
+    tresult.assert_false(
+        r1.compound().is_sequence_ordered(),
+        "or_default must produce un-ordered sequence ordered+unordered");
+
+    tresult.assert_that<eq_sets>(unordered, r1);
+
+    auto r2 = src::of_container(unordered)
+        //every element is filtered-out, so result is empty
+        >> then::filter([](const auto& i) {return i == "@"s;/*always false*/ })
+        >> then::or_default(//ordered container:
+            r0 //reuse ordered lazy-range
+        );
+
+    tresult.assert_false(
+        r2.compound().is_sequence_ordered(),
+        "or_default must produce un-ordered sequence unordered+ordered");
+
+    tresult.assert_that<eq_sets>(r2, r0);
 }
 
 static auto& module_suite = OP::utest::default_test_suite("flur.then.default")

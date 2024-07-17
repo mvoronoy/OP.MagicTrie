@@ -29,14 +29,21 @@ namespace OP::flur
             OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(on_start);
             OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(on_consume);
         }
+
+       
     }//ns:details
 
 
     template <class Lr, class TAction, std::enable_if_t<is_applicator_c<TAction>, int> = 0 >
     decltype(auto) collect_result(Lr&& factory, TAction& action)
     {
-        auto seq = std::forward<Lr>(factory).compound();
+        constexpr bool factory_reference_v = std::is_lvalue_reference_v<Lr>;
+        using base_lr_t = std::decay_t<details::dereference_t<Lr>>;
+        using lazy_range_t = std::conditional_t<factory_reference_v, const base_lr_t&, base_lr_t&&>;
+
+        auto seq = std::forward<lazy_range_t>(details::get_reference(factory)).compound();
         auto& rseq = details::get_reference(seq);
+
         using sequence_t = std::decay_t<decltype(rseq)>;
         decltype(auto) collector = action.collect_for(rseq);
         using collector_t = std::decay_t<decltype(collector)>;
@@ -49,16 +56,16 @@ namespace OP::flur
             collector.on_start(rseq);
         }
 
-        for(; rseq.in_range(); rseq.next())
+        if constexpr (
+            details::has_on_consume<collector_t>::value
+            || details::extra::has_on_consume<collector_t, sequence_t>::value)
         {
-            if constexpr(
-                details::has_on_consume<collector_t>::value
-                || details::extra::has_on_consume<collector_t, sequence_t>::value)
+            for (; rseq.in_range(); rseq.next())
             {
                 collector.on_consume(rseq);
             }
-        }        
-        
+        }
+
         if constexpr(details::has_on_complete<collector_t>::value)
         {
             return collector.on_complete();
@@ -75,7 +82,7 @@ namespace OP::flur
         }
 
         template <class TSeq>
-        auto& collect_for(TSeq& rseq) const noexcept
+        auto& collect_for(TSeq& rseq) noexcept
         {
             return *this;
         }
@@ -90,15 +97,6 @@ namespace OP::flur
         OutputIterator _out_iter;
     };
 
-    namespace apply
-    {
-        template <class OutputIterator>
-        constexpr auto drain(OutputIterator&& out_iter) noexcept
-        {
-            return Drain<OutputIterator>(std::forward<OutputIterator>(out_iter));
-        }
-
-    }// ns:apply
 
     /** placeholder to postpone target type detection */
     struct AsSequence{};
@@ -247,8 +245,99 @@ namespace OP::flur
         TUnaryFunction _f;
     };
 
+    struct FirstImpl : ApplicatorBase
+    {
+        template <class TSeq>
+        struct Collect
+        {
+            Collect(TSeq& origin)
+                : _origin(origin) //keep reference
+            {
+            }
+
+            decltype(auto) on_complete() const
+            {
+                if(!_origin.in_range())
+                    throw std::out_of_range("taking `first` of empty lazy range");
+                return _origin.current();
+            }
+            TSeq& _origin;
+        };
+
+        template <class TSeq>
+        auto collect_for(TSeq& rseq) const noexcept
+        {
+            return Collect<TSeq>(rseq);
+        }
+        
+        /** mimic to regular function */
+        template <class T>
+        [[nodiscard]] decltype(auto) operator()(T&& flur_obj) const
+        {
+            return collect_result(std::forward<T>(flur_obj), *this);
+            //auto seq = details::get_reference(flur_obj).compound();
+            //auto& ref_seq = details::get_reference(seq);
+            //ref_seq.start();
+            //if (!ref_seq.in_range())
+            //{
+            //    throw std::out_of_range("taking `first` of empty lazy range");
+            //}
+            //return ref_seq.current();
+        }
+    };
+
+    struct LastImpl : ApplicatorBase
+    {
+        template <class TSeq>
+        struct Collect
+        {
+            using last_t = std::decay_t< details::sequence_element_type_t<TSeq> >;
+            Collect() = default;
+            
+            void on_consume(const TSeq& seq)
+            {
+                _last = seq.current();
+            }
+
+            //Implementation uses `auto` (instead of `decltype(auto)`) and 
+            // copy/move semantic to return result to avoid dangling references
+            auto on_complete()
+            {
+                if(!_last.has_value())
+                    throw std::out_of_range("taking `last` of empty lazy range");
+                return *std::move(_last);
+            }
+            
+            std::optional<last_t> _last;
+        };
+
+        template <class TSeq>
+        auto collect_for(TSeq& rseq) const noexcept
+        {
+            return Collect<TSeq>{};
+        }
+
+        template <class T>
+        [[nodiscard]] decltype(auto) operator()(T&& flur_obj) const
+        {
+            return collect_result(std::forward<T>(flur_obj), *this);
+        }
+    };
+
     namespace apply
     {
+        /**
+        * \brief Consume all from sequence using output iterator.
+        *
+        *   \tparam OutputIterator - some destination that supports `*` and (postfix)`++`. For reference example see
+        *       std::insert_iterator, std::back_inserter, std::front_inserter
+        */
+        template <class OutputIterator>
+        constexpr auto drain(OutputIterator&& out_iter) noexcept
+        {
+            return Drain<OutputIterator>(std::forward<OutputIterator>(out_iter));
+        }
+
         template <class TUnaryFunction>
         constexpr auto for_each(TUnaryFunction terminator) noexcept
         {
@@ -290,112 +379,55 @@ namespace OP::flur
             return Reduce<T, TBinaryConsumer>(target, std::move(consumer));
         }
 
+        /** \brief takes the first element of non-empty LazyRange.
+        *   Takes only the first element of LazyRange and raises exception when source is empty. 
+        *   Function can be used as regular call or as part of applicator syntax using operator `>>=`. For example:\code
+        *   using namespace OP::flur;
+        *   apply::first(src::of_value(57)); //returns 57
+        *   \endcode
+        *   The same with consuming over operator `>>=`: \code
+        *   using namespace OP::flur;
+        *   src::of_value(57) >>= apply::first; //returns 57
+        *   \endcode
+        *
+        *   \throws std::out_of_range when source LazyRange produces empty sequence.
+        */
+        constexpr static inline FirstImpl first{};
 
-        template <class T >
-        [[nodiscard]] auto first(T&& flur_obj)
-        {
-            auto seq = details::get_reference(flur_obj).compound();
-            auto& rseq = details::get_reference(seq);
-            rseq.start();
-            if (!rseq.in_range())
-            {
-                throw std::out_of_range("taking `first` of empty lazy range");
-            }
-            return rseq.current();
-        }
+        constexpr static inline LastImpl last{};
 
-        template <class T>
-        [[nodiscard]] auto last(T&& flur_obj)
-        {
-            auto seq = details::get_reference(flur_obj).compound();
-            auto& rseq = details::get_reference(seq);
-            rseq.start();
-            if (!rseq.in_range())
-            {
-                throw std::out_of_range("taking `last` of empty lazy range");
-            }
-            details::sequence_element_type_t<T> result;
-            for (; rseq.in_range(); rseq.next())
-                result = rseq.current();
-            return result;
-        }
+        //template <class T >
+        //[[nodiscard]] auto first(T&& flur_obj)
+        //{
+        //    auto seq = details::get_reference(flur_obj).compound();
+        //    auto& rseq = details::get_reference(seq);
+        //    rseq.start();
+        //    if (!rseq.in_range())
+        //    {
+        //        throw std::out_of_range("taking `first` of empty lazy range");
+        //    }
+        //    return rseq.current();
+        //}
+
+        //template <class T>
+        //[[nodiscard]] auto last(T&& flur_obj)
+        //{
+        //    auto seq = std::forward<T>(details::get_reference(flur_obj)).compound();
+        //    auto& rseq = details::get_reference(seq);
+        //    rseq.start();
+        //    if (!rseq.in_range())
+        //    {
+        //        throw std::out_of_range("taking `last` of empty lazy range");
+        //    }
+        //    details::sequence_element_type_t<T> result;
+        //    for (; rseq.in_range(); rseq.next())
+        //        result = rseq.current();
+        //    return result;
+        //}
 
     }// ns:apply
 
-    //
-    //template <class ... FApplicators>
-    //struct MultiConsumer : ApplicatorBase
-    //{
-    //    using applicator_set_t = std::tuple<std::decay_t<FApplicators>...>;
-    //
-    //    template <class TElement>
-    //    inline static constexpr auto type_matches_c = 
-    //            std::conjunction<
-    //            std::is_convertible< 
-    //                /*From:*/TElement,
-    //                /*To:*/typename function_traits< std::decay_t<FApplicators> >::template arg_i<0> 
-    //                >, ...
-    //            >;
-    //
-    //    constexpr MultiConsumer(FApplicators&& ... applicators) noexcept
-    //        : _lazy_factory(std::forward<TLazy>(lazy_factory))
-    //        , _applicators(std::make_tuple(applicators...))
-    //    {
-    //    }
-    //    
-    //    template <class TApplicator>
-    //    constexpr auto then_apply(TApplicator&& after) && noexcept
-    //    {
-    //        using ext_t = BaseApplicator<TLazy, FApplicators ..., TApplicator>; 
-    //        return std::apply([&](auto& ... applicator){ 
-    //            return ext_t{std::move(_lazy_factory), std::move(applicator)..., std::forward<TApplicator>(after)};
-    //            });
-    //    }
-    //
-    //    template <class TLazy>
-    //    void run(const TLazy& lazy_factory) const
-    //    {
-    //        auto seq = _lazy_factory.compound();
-    //        for(seq.start(); seq.in_range(); seq.next())
-    //        {
-    //            std::apply([](const auto& ... applicator){
-    //                applicator(seq.current());
-    //            }); 
-    //        }
-    //    }
-    //
-    //    /*void run(OP::utils::ThreadPool& tpool)
-    //    {
-    //    }
-    //    */
-    //private:
-    //    applicator_set_t _applicators;
-    //};
-    //
-    //
-    //template <class TLazy, class TConsumer>
-    //struct Consumer
-    //{
-    //    static_assert(
-    //        TConsumer::type_matches_c<typename sequence_type_t<TLazy>::element_t>,
-    //        "Applicator must be exactly 1 arg functor of type provided by Lazy Sequence"
-    //    );
-    //
-    //    constexpr Consumer(TLazy&& lazy_sequence, TConsumer&& consumer):
-    //        : _lazy_sequence(std::forward<TLazy>(lazy_sequence))
-    //        , consumer(std::forward<TConsumer>(consumer))
-    //        {
-    //        }
-    //
-    //    void operator()() const
-    //    {
-    //        _consumer.run(details::get_reference(_lazy_sequence));
-    //    }
-    //
-    //private:
-    //    TLazy _lazy_sequence;
-    //    TConsumer  _consumer;
-    //};
+
 
     template <class ... Lx>
     struct CartesianApplicator : ApplicatorBase
