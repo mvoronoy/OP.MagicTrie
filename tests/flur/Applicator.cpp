@@ -83,11 +83,11 @@ namespace {
 
     void test_drain(TestRuntime& rt)
     {
-        std::vector<int> dest1{ {17} };
+        std::vector<int> dest1( {17} );
         src::null<int>() >>= apply::drain(std::back_inserter(dest1));
         rt.assert_that<eq_sets>(std::array{ 17 }, dest1);
 
-        std::set<int> dest2{ {17} };
+        std::set<int> dest2( {17} );
         src::of_iota(1, 4) >>= apply::drain(
             std::inserter(dest2, dest2.begin())
         );
