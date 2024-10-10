@@ -96,7 +96,7 @@ namespace flur
 
         Src _src;
         F _predicate;
-        mutable mapped_t _entry;
+        mutable mapped_t _entry{};
     };
 
     /**
