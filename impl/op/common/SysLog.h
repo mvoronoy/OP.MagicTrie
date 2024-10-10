@@ -31,9 +31,9 @@ namespace OP
                 {}
                 ~Transport()
                 {}
-                void print(const std::string& s)
+                void print(const char* s)
                 {
-                    OutputDebugStringA(s.c_str());
+                    OutputDebugStringA(s);
                 }
 #elif defined(OP_COMMON_OS_LINUX) //asume LINUX platform
                 Transport()
@@ -45,17 +45,17 @@ namespace OP
                 {
                     closelog();
                 }
-                static void print(const std::string& s)
+                static void print(const char* s)
                 {
-                    syslog(LOG_ERR, "%s", s.c_str());
+                    syslog(LOG_ERR, "%s", s);
                 }
 #endif // _WINDOWS / LINUX
             };//Transport
             Transport _transport;
         public:
-            void print(const std::string& s)
+            void print(const char* s)
             {
-                _transport.print(s.c_str());
+                _transport.print(s);
             }
         };//SysLog
     }//ns:utils
