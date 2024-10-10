@@ -363,7 +363,7 @@ namespace OP
         }
 
         /** copy assign from other instance */
-        this_t& operator = (const this_t& t)
+        [[maybe_unused]] this_t& operator = (const this_t& t)
         {
             if (t.has_value())
             {
@@ -384,7 +384,7 @@ namespace OP
         }
 
         /** move assign from other instance */
-        this_t& operator = (this_t&& t) noexcept
+        [[maybe_unused]] this_t& operator = (this_t&& t) noexcept
         {
             if (t.has_value())
             {
@@ -412,7 +412,7 @@ namespace OP
         * Otherwise, it delegates the call to the move-assignment operator of `U`.
         */
         template <class U>
-        this_t& operator = (const U& t)
+        [[maybe_unused]] this_t& operator = (const U& t)
         {
             assign(t);
             return *this;
@@ -425,74 +425,80 @@ namespace OP
         * Otherwise, it delegates the call to the move-assignment operator of `U`.
         */
         template <class U, std::enable_if_t<!std::is_same_v<U, this_t>>>
-        this_t& operator = (U&& t)
+        [[maybe_unused]] this_t& operator = (U&& t)
         {
             assign(std::move(t));
             return *this;
         }
 
         /** check if buffer contains initialized instance of `T` */
-        constexpr bool has_value() const noexcept
+        [[nodiscard]] constexpr bool has_value() const noexcept
         {
             return _type_index < npos_c;
         }
 
         /** check if buffer contains initialized instance of `T` */
-        constexpr operator bool() const noexcept
+        [[nodiscard]] constexpr operator bool() const noexcept
         {
             return has_value();
         }
         
         /** check if buffer does not contain initialized instance of `T` */
-        constexpr bool operator !() const noexcept
+        [[nodiscard]] constexpr bool operator !() const noexcept
         {
             return !has_value();
         }
         
         /** Construct inplace type `U` on condition `U` is one of the `Tx`...
+         * \tparam inplace type `U` must be one of enumerated in this class declarations.
          * \tparam Args argument of constructor `U`
+         * \throws std::runtime_error when container already owns an instance (#destroy it first).
+         * \return instance of U& that can be ignored or used to after-construction access to 
+         *      implementation specific details. For example: \code
+         *      
+         *      \endcode
          */
         template <class U, class ...Args>
-        TInterface* construct(Args&& ...arg)
+        [[maybe_unused]] U& construct(Args&& ...arg)
         {
-            if( has_value() )
-                throw std::runtime_error("Instance is already initialized, destroy it first");
             static_assert(
                  std::disjunction_v<std::is_same<U, Tx>...>, 
                  "Try to construct type U not defined in Tx... list");
-            TInterface *result = ::new(_data) U(std::forward<Args>(arg)...);
+            if( has_value() )
+                throw std::runtime_error("Instance is already initialized, destroy it first");
+            U *result = ::new(_data) U(std::forward<Args>(arg)...);
             _type_index = type_to_index<U>(std::make_index_sequence<sizeof...(Tx)>{});
-            return result;
+            return *result;
         }
 
-        TInterface* operator ->() 
+        [[nodiscard]] TInterface* operator ->() 
         {
              return get();
         }
 
-        const TInterface* operator ->() const
+        [[nodiscard]] const TInterface* operator ->() const
         {
             return get();
         }
 
-        TInterface* get() 
+        [[nodiscard]] TInterface* get() 
         {
             if(!has_value())
                 throw not_initialized_error{};
             return data();
         }
 
-        const TInterface* get() const noexcept
+        [[nodiscard]] const TInterface* get() const noexcept
         {
             return const_cast<this_t*>(this)->get();
         }
 
-        TInterface& operator *()
+        [[nodiscard]] TInterface& operator *()
         {
             return *get();
         }
         
-        const TInterface& operator *() const
+        [[nodiscard]] const TInterface& operator *() const
         {
             return *get();
         }
