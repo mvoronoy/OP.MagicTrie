@@ -1395,7 +1395,9 @@ namespace OP::utest
                     << "\t[" << tcase->id() << "] done with status:"
                     << "-=[" << result.back().status_to_colored_str()
                     << "]=-"
-                    << " in:" << std::fixed << result.back().ms_duration() << "ms"
+                    << " in:" 
+                    << std::fixed << std::setprecision(3) 
+                    << result.back().ms_duration() << "ms"
                     << std::endl //need flush
                 ;
         }
