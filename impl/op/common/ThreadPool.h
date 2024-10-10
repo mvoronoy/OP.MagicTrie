@@ -76,10 +76,10 @@ namespace OP::utils
                 }
                 catch (const std::exception& ex)
                 {
-                    using namespace std::string_literals;
                     pack_exception();
                     OP::utils::SysLog log;
-                    log.print("Unhandled thread exception hides that:"s + ex.what());
+                    log.print("Unhandled thread exception hides that:");
+                    log.print(ex.what());
                 }
                 catch (...)
                 {
@@ -99,7 +99,7 @@ namespace OP::utils
                 catch (...)
                 { // set_exception() may throw too
                     OP::utils::SysLog log;
-                    log.print("Unhandled thread exception has been hiden"s);
+                    log.print("Unhandled thread exception has been hiden");
                 }
             }
 
@@ -255,7 +255,7 @@ namespace OP::utils
                 uniq_guard_t g(owner->_acc_tasks);
                 
                 if(owner->_task_list.empty())
-                    owner->_cv_task.wait(g, [owner]{return  owner->_end || !owner->_task_list.empty();});
+                    owner->_cv_task.wait(g, [owner]{return owner->_end || !owner->_task_list.empty();});
                 
                 if( owner->_task_list.empty() )
                     continue;
@@ -274,7 +274,7 @@ namespace OP::utils
                     using namespace std::string_literals;
                     //hard intercept all errors
                     OP::utils::SysLog log;
-                    log.print("Unhandled thread exception hide it"s);
+                    log.print("Unhandled thread exception from thread pool, hide it");
                 }
                 --owner->_busy;
             }
