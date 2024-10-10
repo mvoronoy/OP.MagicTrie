@@ -497,14 +497,16 @@ namespace OP
                 if( capacity == dim_nil_c )
                     capacity = _capacity; 
                 return (capacity < 256) 
-                    ? out.template construct<hash_table_t>(topology, *this, capacity)
-                    : out.template construct<anti_hash_table_t>(topology, *this, capacity)
+                    ? static_cast<key_value_t*>(
+                        &out.template construct<hash_table_t>(topology, *this, capacity))
+                    : static_cast<key_value_t*>(
+                        &out.template construct<anti_hash_table_t>(topology, *this, capacity))
                     ;
             }
 
             /**
             * Take some part of string specified by [begin ,end) and place inside this node
-            * @return origin index that matches to accomodated key (reindexed key)
+            * @return origin index that matches to accommodated key (reindexed key)
             */
             template <class TSegmentTopology, class Atom>
             void insert_stem(TSegmentTopology& topology, NodeData& node, Atom& begin, Atom end)
