@@ -70,9 +70,6 @@ namespace OP::flur
         constexpr PolymorphFactory(base_factory_t&& rref) noexcept
             : _base_factory(std::move(rref)) {}
 
-        virtual ~PolymorphFactory() = default;
-
-
         std::shared_ptr<typename base_t::sequence_t> compound_shared() const override
         {
             auto result = _base_factory.compound();

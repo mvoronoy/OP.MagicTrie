@@ -88,22 +88,6 @@ namespace OP
                 holder.construct(std::forward<V>(from));
             }
 
-            template <class T>
-            static bool is_empty(const std::shared_ptr<T>& holder)
-            {
-                return !holder;
-            }
-
-            template <typename Dest, typename U, class... Args>
-            static auto invoke_compound(Dest& dest, U&& u, Args&& ...args) {
-                // case when std::optional used, `std::forward<U>(u)` - is important to avoid copy constructor
-                dest.construct(std::forward<U>(u).compound(std::forward<Args>(args)...));
-            }
-
-            template <typename Dest, typename U, class... Args>
-            static auto invoke_compound(Dest& dest, std::shared_ptr<U> u, Args&& ...args) {
-                dest.construct(u->compound(std::forward<Args>(args)...));
-            }
         };
 
         template <class TFlatMapTraits, bool keep_order_c>

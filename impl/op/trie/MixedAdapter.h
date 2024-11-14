@@ -163,20 +163,25 @@ namespace OP::trie
         };
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range customize `in_range` in a way to check that 
-        * range iterates over items with specific prefix */
+        * range iterates over items with specific prefix 
+        * \tparam F should be `bool(const iterator&)`
+        */
+        template <class F>
         struct PrefixedInRange
         {
-            template <class F>
+            using functor_t = std::decay_t<F>;
+
             PrefixedInRange(F pred)
-                : _prefix_check(std::move(pred))
+                : _prefix_check(std::forward<F>(pred))
                 {}
 
             bool _in_range(const Trie& trie, const iterator& i) const
             {
                 return trie.in_range(i) && _prefix_check(i);
             }
+
         private:
-            const std::function<bool(const iterator&)> _prefix_check;
+            functor_t _prefix_check;
         };
 
         /** Ingredient for MixAlgorithmRangeAdapter - just alias for PrefixedInRange, but give more consistence when mixing iteration over

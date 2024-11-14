@@ -7,27 +7,6 @@ namespace OP
 {
     namespace utils
     {
-        /**
-        *   Allows avoid undefined behaviour while unsigned type increment. On overflow make value 0.
-        * @return new 
-        */
-        template <class U>
-        inline U uinc(U &v)
-        {
-            static_assert(std::is_unsigned<U>::value, "type must be unsigned");
-            return std::numeric_limits<U>::max() == v ? (v = 0) : ++v; 
-        }
-
-        template <class U>
-        inline U uadd(U v, U delta)
-        {
-            static_assert(std::is_unsigned<U>::value, "type must be unsigned");
-            if( delta > (std::numeric_limits<U>::max() - v) )
-            {
-                return delta - 1;        
-            }
-            return (v + delta); 
-        }
 
         /** Calculate signed difference between two unsigned 
         * \throw std::overflow_error if operation raises undefined behaviour of overflow

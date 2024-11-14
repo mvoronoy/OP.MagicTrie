@@ -152,18 +152,18 @@ namespace OP::flur
         template <class U>
         const auto& rsrc() const
         {
-            return details::get_reference(std::get<U>(_attrs));
+            return details::get_reference(std::get<U>(_attrs.arguments()));
         }
 
         template <class U>
         auto& rsrc() 
         {
-            return details::get_reference(std::get<U>(_attrs));
+            return details::get_reference(std::get<U>(_attrs.arguments()));
         }
 
         bool distinct_result()
         {
-            return _attrs.typed_invoke(_policy);
+            return _attrs.invoke(_policy);
         }
 
         OP::currying::CurryingTuple<

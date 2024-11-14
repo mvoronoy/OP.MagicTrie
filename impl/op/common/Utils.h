@@ -23,7 +23,7 @@ namespace OP
                     return false;
             }
         }
-        /** Check if function argument of type `T` is containing in the parameter pack `auto ... c`.
+        /** Check if argument value of type `T` is containing in the parameter pack `auto ... c`.
         *   For example may be used with enums (pay attention to mixing of several enums in the same 
         *       query Enum1, Enum2):
         *   \code
@@ -33,7 +33,7 @@ namespace OP
         *   assert( OP::utils::any_of<Enum1::e1_1, Enum2::e2_1>( Enum1::e1_1 ) );
         *   assert( !OP::utils::any_of<Enum1::e1_1, Enum2::e2_1>( Enum2::e2_2 ) );
         *   \endcode
-        *   \tparam ... check_c - any type constants supprting operator `==`;
+        *   \tparam ... check_c - any type constants supporting operator `==`;
         *   \tparam T arbitrary type to check against pack of constants
         *   \return true when at least one constant is matched by type and value to the argument `T t`
         */
@@ -161,7 +161,7 @@ namespace OP
         * struct Predicate_Zero_Arg_Command{
         *     template <class T>
         *     //value must be evaluated on compile time
-        *     static constexpr bool value = (T::arity_c == 0);
+        *     static constexpr bool check = (T::arity_c == 0);
         * }; \endcode
         * Now it is possible to create sub-type:\code
         * using zero_args_only_t = typename TypeFilter<Predicate_Zero_Arg_Command, origin_t>::type;
@@ -292,6 +292,33 @@ namespace OP
             return ((size_t)(address) % base) == 0;
         }
         
+        /** Priority-tag is used to simplify compiler select between two or more methods. For example you have 
+        * following definitions:
+        * \code
+        *   template <class T>
+        *   void f(const T& t, other args...){...}
+        *
+        *   template <class T, std::enable_if_t<std::is_base_of_v<SomeBase, T>, int> = 0>
+        *   void f(const T& t, other args...){...}
+        * \endcode
+        * Sometimes (influencing of `other args`) f<T>() may not be selected in the expected way.
+        * To help this you can use `priority_tag<0>` - for lowest priority selection, `priority_tag<1>` for regular
+        * priroriy and during call provide `priority_tag<2>`.
+        * For example: \code
+        *   template <class T>
+        *   void f(const T& t, other args..., priority_tag<0> = {} ){...} //let compiler know match this in last order.
+        *
+        *   template <class T, std::enable_if_t<std::is_base_of_v<SomeBase, T>, int> = 0>
+        *   void f(const T& t, other args..., priority_tag<1> = {} ){...} //let compiler know to match this before `0`.
+        *   ...
+        *   //later in call:
+        *   f(args..., priority_tag<2>{});
+        * \endcode
+        */
+        template<unsigned N>
+        struct priority_tag : priority_tag<N - 1> {};
+        template<> struct priority_tag<0> {};
+
    } //utils
 } //OP
 #endif //_OP_TRIE_UTILS__H_

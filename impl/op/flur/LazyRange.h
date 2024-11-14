@@ -230,6 +230,18 @@ namespace OP::flur
         return std::shared_ptr<interface_t>( new impl_t{ std::move(tx) });
     }
 
+    /** Simplifies creation of shared_ptr from multiple chained factories */
+    template <class ... Tx >
+    constexpr auto make_shared_lazy(Tx&& ... tx) noexcept
+    {
+        using lazy_range_t = LazyRange<Tx...>;
+        using impl_t = PolymorphFactory<lazy_range_t>;
+        using interface_t = typename impl_t::base_t;
+
+        return std::shared_ptr<interface_t>(
+            new impl_t{lazy_range_t{std::in_place_t{}, std::forward<Tx>(tx) ...}});
+    }
+
     template <class TLeft, class TRight,
         std::enable_if_t<
             std::is_base_of_v<FactoryBase, TLeft> &&
@@ -283,31 +295,6 @@ namespace OP::flur
             std::move(l), right_range_t{std::move(r)} ));
     }
 
-    template <class LazyRange, class TApplicator, 
-        std::enable_if_t<is_applicator_c<std::decay_t<TApplicator>> && is_factory_c<LazyRange>, int> = 0>
-    decltype(auto) operator >>= (std::shared_ptr<LazyRange> lr, TApplicator&& applicator)
-    {
-        return collect_result(std::move(lr), applicator);
-    }
-//
-//    /** 
-//    * Collect result from lazy range by applying applicator. 
-//    * Next example evaluates 6:
-//    * \code
-//    *  src::of({1, 2, 3}) >>= apply::sum();
-//    * \endcode
-//    *
-//    */
-//    template <class TFactoryBase, class TApplicator, 
-//        std::enable_if_t<
-//            is_factory_c<TFactoryBase> &&
-//            is_applicator_c<TApplicator>, int > = 0>
-//    decltype(auto) operator >>= (TFactoryBase& range, TApplicator applicator)
-//    {
-//        return applicator(range);
-//    }
-
-    
 } //ns:OP::flur
 
 #endif //_OP_FLUR_LAZYRANGE__H_

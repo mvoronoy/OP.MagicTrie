@@ -254,10 +254,10 @@ namespace OP::utils
             {
                 uniq_guard_t g(owner->_acc_tasks);
                 
-                if(owner->_task_list.empty())
+                if(owner->_task_list.empty() && !owner->_end)
                     owner->_cv_task.wait(g, [owner]{return owner->_end || !owner->_task_list.empty();});
                 
-                if( owner->_task_list.empty() )
+                if( owner->_task_list.empty() || owner->_end)
                     continue;
                 
                 ++owner->_busy;

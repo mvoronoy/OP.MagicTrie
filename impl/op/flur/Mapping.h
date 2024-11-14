@@ -11,20 +11,44 @@
 
 namespace OP::flur
 {
+    namespace details
+    {
+        template <class F, class A, class ...Ax>
+        inline decltype(auto) map_invoke_impl(F& applicator, A&& a, Ax&& ...ax)
+        {
+            if constexpr (std::is_invocable_v<F, A>)
+            {
+                return applicator(std::forward<A>(a));
+            }
+            else if constexpr (std::is_invocable_v<F, A, Ax...>)
+            {
+                return applicator(std::forward<A>(a), std::forward<Ax>(ax)...);
+            }
+            else if constexpr (std::is_invocable_v<F, Ax..., A>)
+            { //it is not real recombination, but for 2 it works
+                return applicator(std::forward<Ax>(ax)..., std::forward<A>(a));
+            }
+            else 
+            {
+                return map_invoke_impl(applicator, std::forward<Ax>(ax)...);
+            }
+        }
+
+    } //ns:details
     /**
     * MappingSequence converts one sequence to another by applying functor to a source element.
     * \tparam Src - source sequence to convert
     */
-    template <class Base, class Src, class F, bool keep_order_c>
-    struct MappingSequence : public Base
+    template <class R, class Src, class F, bool keep_order_c>
+    struct MappingSequence : public Sequence<R>
     {
-        using base_t = Base;
+        using base_t = Sequence<R>;
         using element_t = typename base_t::element_t;
-        using base_t::ordered_c;
 
         template <class U>
         constexpr MappingSequence(Src&& src, U&& f) noexcept
             : _src(std::move(src))
+            , _state{}
             , _applicator(std::forward<U>(f))
         {
         }
@@ -38,6 +62,7 @@ namespace OP::flur
         void start() override
         {
             details::get_reference(_src).start();
+            _state.start();
         }
 
         bool in_range() const override
@@ -47,15 +72,19 @@ namespace OP::flur
         
         element_t current() const override
         {
-            return _applicator(details::get_reference(_src).current());
+            return details::map_invoke_impl(_applicator, details::get_reference(_src).current(), _state);
         }
 
         void next() override
         {
             details::get_reference(_src).next();
+            _state.next();
         }
 
+    private:
+
         Src _src;
+        SequenceState _state;
         F _applicator;
     };
     
@@ -121,26 +150,16 @@ namespace OP::flur
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
-            using input_t = std::decay_t<details::unpack_t<Src>>;
-            //using src_container_t = std::decay_t < 
-            //    details::dereference_t<
-            //        decltype(details::get_reference(std::declval< input_t >()))
-            //    > 
-            //>;
             using src_container_t = details::sequence_type_t< details::dereference_t<Src> >;
 
-            using result_t = decltype( 
-                std::declval<applicator_t>()(
-                    std::declval< src_container_t& >().current()
+            using result_t = decltype( details::map_invoke_impl(
+                std::declval<applicator_t&>(),
+                std::declval< src_container_t& >().current(), 
+                std::declval<SequenceState&>()
                 )
             );
 
-            using target_sequence_base_t = std::conditional_t<keep_order_c,
-                OrderedSequence<result_t>/*Ordered sequence is no guarantee is_sequence_ordered() is true*/,
-                Sequence<result_t>
-            >;
-
-            return MappingSequence<target_sequence_base_t, input_t, applicator_t, keep_order_c>(
+            return MappingSequence<result_t, Src, applicator_t, keep_order_c>(
                 std::move(src), 
                 _applicator);
         }

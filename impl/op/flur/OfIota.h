@@ -24,17 +24,22 @@ namespace flur
     {
         using this_t = OfIota<T, R>;
         using distance_t = std::ptrdiff_t;
-        using bounds_t = std::tuple<T, T, distance_t>;
+        struct Bounds
+        {
+            T _begin;
+            T _end;
+            distance_t _step;
+        };
+        using bounds_t = Bounds;
         constexpr OfIota(T&& begin, T&& end, distance_t step = 1) noexcept
-            : _bounds(std::forward<T>(begin), std::forward<T>(end), step)
-            , _current(std::get<1>(_bounds)) //end
+            : _bounds{ std::forward<T>(begin), std::forward<T>(end), step }
+            , _current(_bounds._end) //end
         {
         }
 
-        template <class AltBounds>
-        constexpr OfIota(AltBounds&& bounds) noexcept
-            : _bounds(std::forward<AltBounds>(bounds))
-            , _current(std::get<1>(_bounds)) //end
+        constexpr OfIota(bounds_t bounds) noexcept
+            : _bounds(std::move(bounds))
+            , _current(_bounds._end) //end
         {}
 
         OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
@@ -42,8 +47,8 @@ namespace flur
             if constexpr(OP::has_operators::less_v<T>)
             {
                 // check begin <= end
-                return (std::get<0>(_bounds) < std::get<1>(_bounds)) || 
-                    (std::get<0>(_bounds) == std::get<1>(_bounds));
+                return (_bounds._begin < _bounds._end) || 
+                    (_bounds._begin == _bounds._end);
             }
             else 
                 return false;
@@ -51,17 +56,12 @@ namespace flur
 
         virtual void start() override
         {
-            _current = std::get<0>(_bounds);
+            _current = _bounds._begin;
         }
 
         virtual bool in_range() const override
         {
-            //if constexpr(OP::has_operators::less_v<T>)
-            //{
-            //    return (_current < std::get<1>(_bounds));
-            //}
-            //else
-                return _current != std::get<1>(_bounds);
+            return _current != _bounds._end;
         }
 
         virtual R current() const override
@@ -78,12 +78,12 @@ namespace flur
             );
             if constexpr(OP::has_operators::plus_eq_v<T, distance_t>)
             {
-                _current += std::get<2>(_bounds);
+                _current += _bounds._step;
             }
             else
             {
                 //@! impl have no ability to advance in negative direction
-                for(auto i = 0; in_range() && i < std::get<2>(_bounds); ++i)
+                for(auto i = 0; in_range() && i < _bounds._step; ++i)
                     ++_current;
             }
         }

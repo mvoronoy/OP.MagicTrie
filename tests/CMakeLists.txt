@@ -73,6 +73,7 @@ add_executable (trie_test
     "flur/Zip.cpp"
     "flur/Generator.cpp"
     "flur/ThenFlatMap.cpp"
+    "flur/ThenMap.cpp"
     "flur/ThenOrderingFlatMap.cpp"
     "flur/Minibatch.cpp"
     "flur/ThenException.cpp" 

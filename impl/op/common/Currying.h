@@ -4,6 +4,7 @@
 #include <tuple>
 #include <any>
 #include <op/common/ftraits.h>
+#include <op/common/Utils.h>
 
 namespace OP::currying
 {
@@ -35,16 +36,64 @@ namespace OP::currying
         }
 
         template <typename U>
-        static constexpr bool can_handle()
+        static constexpr bool can_handle() noexcept
         {
-            return std::is_same_v<std::decay_t<result_t>, std::decay_t<U> >;
+            return std::is_same_v<
+                std::remove_reference_t<result_t>, std::remove_reference_t<U> >;
         }
 
     private:
         TCallable _callable;
     };
-    
-    /** Var allows bind external vriable to a function argument */ 
+
+    template <class M, class TClass, class ... Args>
+    struct MemberFunctor : CurryingArgSpec
+    {
+
+        constexpr MemberFunctor(TClass inst, M method, Args&&...args) noexcept
+            : _inst(inst)
+            , _method(method)
+            , _args(std::forward<Args>(args)...)
+        {
+        }
+
+        decltype(auto) operator()()
+        {
+            return std::apply([this](auto&& ...args) -> decltype(auto){
+                return (_inst.*_method)(std::forward<decltype(args)>(args)...);
+            }, _args);
+        }
+
+        decltype(auto) operator()() const
+        {
+            return std::apply([this](auto&& ...args) -> decltype(auto){
+                return (_inst.*_method)(std::forward<decltype(args)>(args)...);
+            }, _args);
+        }
+
+        template <typename>
+        decltype(auto) extract()
+        {
+            return operator()();
+        }
+
+        template <typename U>
+        static constexpr bool can_handle()
+        {
+            using method_traits_t = OP::utils::function_traits<M>;
+
+            return std::is_same_v<
+                std::remove_reference_t<typename method_traits_t::result_t>, 
+                std::remove_reference_t<U> >;
+        }
+
+    private:
+        TClass _inst;
+        M _method;
+        std::tuple<Args...> _args;
+    };
+
+    /** Var allows bind external variable to a function argument */ 
     template <class T>
     struct Var : CurryingArgSpec
     {
@@ -61,7 +110,7 @@ namespace OP::currying
         template <typename U>
         static constexpr bool can_handle() noexcept
         {
-            return std::is_same_v<T, U>;
+            return std::is_same_v<std::decay_t<T>, std::decay_t<U> >;
         }
 
         decltype(auto) operator()()
@@ -113,7 +162,7 @@ namespace OP::currying
         using base_t::base_t;
 
         template <typename >
-        static constexpr bool can_handle() 
+        static constexpr bool can_handle() noexcept
         {
             return true;
         }
@@ -143,6 +192,23 @@ namespace OP::currying
         return Functor(std::move(t));
     }
 
+    template <class M, class TClass, class ... Args>
+    constexpr auto of_member(const TClass& inst, M(TClass::* method)(Args...) const, Args&& ...args)
+    {
+        return MemberFunctor<decltype(method), const TClass&, Args...>{inst, method, std::forward<Args>(args)...};
+    }
+
+    /**
+    * Create callable wrapper around member of arbitrary class that can be used 
+    * together with CurryingTuple in role of `TCallable` template parameter.
+    * Result is lambda with `TClass&` as a first argument.
+    */
+    template <class R, class TClass, class ... Args>
+    constexpr auto of_member(TClass& inst, R(TClass::* method)(Args...), Args&& ...args)
+    {
+        return MemberFunctor<decltype(method), TClass&, Args...>{inst, method, std::forward<Args>(args)...};
+    }
+
     template <class T>
     auto of_var()
     {
@@ -154,22 +220,150 @@ namespace OP::currying
     {
         return Var<std::decay_t<T>>(std::forward<T>(t));
     }
+    namespace det
+    {
+        template <class TDest, class TSource>
+        struct CanSubstAsArg
+        {
+            static long test(TDest);
+            static char test(...);
+            constexpr static inline bool value = sizeof(decltype(test(std::declval<TSource>()))) == sizeof(long);
+        };
+
+        template <class TDest, class TSource>
+        constexpr static inline bool can_subst_as_arg_v = CanSubstAsArg<TDest, TSource>::value;
+
+        template <class TDest, class TSource, typename Enabler = void>
+        struct Injector
+        {
+            /** compile-time checker if TSource can be injected as an argument to TDest 
+            * \param strong used either to weak or strong match for type matching.
+            */
+            constexpr static bool can_handle(bool strong) noexcept
+            {
+                return strong 
+                    ? std::is_same_v<std::remove_reference_t<TDest>, std::remove_reference_t<TSource>>
+                    : can_subst_as_arg_v<TDest, TSource>;
+            }
+
+            constexpr static TDest inject(TSource& src)
+            {
+                return static_cast<TDest>(src);
+            }
+        };
+
+        template <class TDest, class TSource>
+        struct Injector<TDest, std::reference_wrapper<TSource>, void>
+        {
+            constexpr static bool can_handle(bool /*strong*/) noexcept
+            {
+                return std::is_same_v<std::remove_reference_t<TDest>, TSource>;
+            }
+
+            constexpr static TDest& inject(std::reference_wrapper<TSource>& src)
+            {
+                return src.get();
+            }
+        };
+
+        template <class TDest, class TSource>
+        struct Injector<TDest, TSource,
+            std::enable_if_t<std::is_base_of_v<OP::currying::CurryingArgSpec, std::decay_t<TSource>>>>
+        {
+            constexpr static decltype(auto) inject(TSource& src)
+            {
+                return src.extract<TDest>();
+            }
+
+            constexpr static bool can_handle(bool strong) noexcept
+            {
+                using real_dest_t = std::remove_reference_t< decltype(inject(*(std::add_pointer_t<TSource>)(nullptr))) >;
+                return strong
+                    //check result type vs expected type
+                    ? std::is_same_v<std::remove_reference_t<TDest>, real_dest_t>
+                    : std::decay_t<TSource>::template can_handle<TDest>();
+            }
+
+        };
+
+        template <class TDest, class Tuple, size_t I = 0>
+        constexpr size_t index_of() noexcept
+        {
+            static_assert(I < std::tuple_size_v<Tuple>, "No of Tuple elements can be used to inject argument of type TDest");
+            using element_t = std::tuple_element_t<I, Tuple>;
+            if constexpr (Injector<TDest, element_t>::can_handle(false))
+                return I;
+            else
+                return index_of<TDest, Tuple, I + 1>();
+        }
+
+        template <class TDest, class Tuple>
+        constexpr decltype(auto) as_argument_weak(Tuple& args)
+        {
+            constexpr size_t I = index_of<TDest, Tuple>();
+            return Injector<TDest, std::tuple_element_t< I, Tuple >>::inject(
+                std::get< I >(args));
+        }
+
+        //template <class TDest>
+        //struct WeakCanHandlePredicate
+        //{
+        //    template <class TSource>
+        //    static constexpr bool check = Injector<TDest, TSource>::can_handle(false);
+        //};
+
+        template <class TDest>
+        struct CanHandlePredicate
+        {
+            template <class TSource>
+            static constexpr bool check = Injector<TDest, TSource>::can_handle(true);
+        };
+
+        template <class TDest, class Tuple>
+        constexpr decltype(auto) as_argument(Tuple& args)
+        {
+            //using narrow_t = typename OP::utils::TypeFilter< WeakCanHandlePredicate<TDest>, Tuple>::type;
+            using exact_match_t = typename OP::utils::TypeFilter<CanHandlePredicate<TDest>, Tuple>::type;
+            if constexpr (std::tuple_size_v<exact_match_t> == 0)
+            { //there is no strong match
+                return as_argument_weak<TDest>(args);
+            }
+            else
+            {
+                using best_match_t = std::tuple_element_t< 0, exact_match_t >;
+                return Injector<TDest, best_match_t>::inject(
+                    std::get<best_match_t>(args));
+            }
+        }
+
+    }//ns:det
 
     template <class ... Tx>
     struct CurryingTuple
     {
         using this_t = CurryingTuple<Tx...>;
         using arguments_t = std::tuple<Tx...>;
-        arguments_t _arguments;
+        
+        constexpr CurryingTuple() = default;
 
-        template <class ...Ax>
-        constexpr CurryingTuple(Ax&& ...ax) noexcept
-            : _arguments(std::forward<Ax>(ax)...)
+        template <class ...Ux>
+        constexpr CurryingTuple(Ux&& ...ax) noexcept
+            : _arguments{ std::forward<Ux>(ax)... }
         {}
 
         constexpr CurryingTuple(std::tuple<Tx ...>&& ax) noexcept
-            : _arguments(std::forward<std::tuple<Tx ...>>(ax))
+            : _arguments{ std::forward<std::tuple<Tx ...>>(ax) }
         {}
+
+        auto& arguments() noexcept
+        {
+            return _arguments;
+        }
+
+        const auto& arguments() const noexcept
+        {
+            return _arguments;
+        }
 
         template <class T>
         auto& assign(T&& t)
@@ -179,39 +373,23 @@ namespace OP::currying
         }
 
         template <class T>
-        decltype(auto) get() 
+        decltype(auto) eval_arg() 
         {
-            constexpr size_t type_idx = match_type_explicit<T, 0>();
-            if constexpr (type_idx < sizeof...(Tx))
-            {
-                return std::get<type_idx>(_arguments);
-            }
-            else
-            {
-                constexpr size_t impl_idx = match_type_implicit<T, 0>();
-                auto& element = std::get<impl_idx>(_arguments);
-                using element_t = std::decay_t<decltype(element)>;
-                if constexpr (std::is_base_of_v<CurryingArgSpec, element_t>)
-                {
-                    return element.template extract<T>();
-                }
-                else
-                    return element;
-            }
+            return det::as_argument<T>(_arguments);
         }
         
         template <class T>
-        decltype(auto) get() const
+        decltype(auto) eval_arg() const
         {
-            return const_cast<this_t*>(this)->get<T>();
+            return det::as_argument<T>(_arguments);
         }
 
         /** Create functor of zero-arguments by substitution args from this tuple to argument function */
         template <class TCallable>
         constexpr decltype(auto) def(TCallable f)& noexcept
         {
-            return [f = std::move(f), args = std::ref(*this)]() -> decltype(auto){
-                return args.invoke(f);
+            return [f = std::move(f), this]() -> decltype(auto){
+                return this->invoke(f);
             };
         }
 
@@ -221,94 +399,53 @@ namespace OP::currying
         {
             return of_callable([
                 func = std::move(func), 
-                args = CurryingTuple(std::move(this->_arguments))
+                args = std::move(*this)
                 ]() mutable -> decltype(auto){
-                    return args.template do_invoke<true>(func, std::make_index_sequence<sizeof...(Tx)>{});
-            });
-        }
-
-        /** Collate existing arguments and bind them to the TCallable arguments
-        * using type matching.
-        * @return functor of zero arguments that is bind to the current tuple. For convenience to reuse
-        *   result type is OP::currying::F to allow use this as unpackable argument
-        */ 
-        template <class TCallable>
-        constexpr decltype(auto) tdef(TCallable f)&& noexcept
-        {
-            using ftraits_t = OP::utils::function_traits<TCallable>;
-            return of_callable([
-                f = std::move(f), 
-                //move this tuple to lambda owning since don't need this anymore
-                args = CurryingTuple(std::move(this->_arguments))
-            ] () mutable -> decltype(auto)
-            {
-                return args
-                    .typed_invoke(f);
+                    return args.invoke(func);
             });
         }
 
         /** Invoke functor `func` with positional substitution from this tuple */
-        template <typename TCallable>
-        constexpr decltype(auto) invoke(TCallable& func)
-        {
-            return do_invoke<true>(func, std::make_index_sequence<sizeof...(Tx)>());
-        }
-
-        /** 
-        * Invoke function with type binding with front positional `Ax...` arguments.
-        */
         template <typename TCallable, typename ... Ax>
-        decltype(auto) typed_invoke(TCallable& func, Ax&&...ax)
+        constexpr decltype(auto) invoke(TCallable& func, Ax&&...ax) &
         {
-            using ftraits_t = OP::utils::function_traits<TCallable>;
-            return typed_invoke_impl<true>(
-                func, 
-                std::make_index_sequence<ftraits_t::arity_c - sizeof...(Ax)>{},
-                std::forward<Ax>(ax)...
-                );
-        }
-        
-        template <typename TCallable, typename ... Ax>
-        decltype(auto) typed_invoke(TCallable&& func, Ax&&...ax)
-        {
-            using temp_type_t = std::add_lvalue_reference_t<decltype(func)>;
-
-            return typed_invoke(
-                (temp_type_t)func, std::forward<Ax>(ax)...);
+            using traits_t = OP::utils::function_traits<TCallable>;
+            if constexpr (sizeof...(Ax))
+            {
+                return do_invoke(func, std::tuple_cat(
+                    _arguments,
+                    std::forward_as_tuple(std::forward<Ax>(ax)...)), 
+                    std::make_index_sequence<traits_t::arity_c>{});
+            }
+            else
+                return do_invoke(func, _arguments, std::make_index_sequence<traits_t::arity_c>{});
         }
 
         template <typename TCallable, typename ... Ax>
-        decltype(auto) typed_invoke_back(TCallable& func, Ax&&...ax)
+        constexpr decltype(auto) invoke(TCallable& func, Ax&&...ax) &&
         {
-            using ftraits_t = OP::utils::function_traits<TCallable>;
-            return typed_invoke_impl<false>(
-                func,
-                std::make_index_sequence<ftraits_t::arity_c - sizeof...(Ax)>{},
-                std::forward<Ax>(ax)...
-                );
+            using traits_t = OP::utils::function_traits<TCallable>;
+            if constexpr (sizeof...(Ax))
+            {
+                return do_invoke(func, std::tuple_cat(
+                    std::move(_arguments),
+                    std::forward_as_tuple(std::forward<Ax>(ax)...)), std::make_index_sequence<traits_t::arity_c>{});
+            }
+            else
+                return do_invoke(func, std::move(_arguments), std::make_index_sequence<traits_t::arity_c>{});
         }
 
-        /** Create 0 argument functor by binding stored arguments by type matching to 
-        * functor `f`.
-        * @return functor of zero arguments that is bind to the current tuple. For convenience to reuse
-        *   result type is OP::currying::F to allow use this as unpackable argument
-        */
-        template <class TCallable>
-        constexpr decltype(auto) typed_bind(TCallable f) const& noexcept
+        template <typename TCallable, typename ... Ax>
+        decltype(auto) invoke_back(TCallable& func, Ax&&...ax)
         {
-            return of_callable([
-                    f = std::move(f),
-                        //copy this tuple to lambda owning 
-                        args = CurryingTuple(this->_arguments)
-                ] () mutable -> decltype(auto)
-                {
-                    return args.typed_invoke(f);
-                });
+            using traits_t = OP::utils::function_traits<TCallable>;
+            return do_invoke(func, std::tuple_cat(std::forward_as_tuple(std::forward<Ax>(ax)...), _arguments),
+                std::make_index_sequence<traits_t::arity_c>{});
         }
 
         /**
         * The same way as #typed_def collates existing arguments and bind them to the TCallable 
-        * arguments using type matching, but keeps N front arguments unbinded to allow specify during a call time.
+        * arguments using type matching, but keeps N front arguments unbound to allow specify during a call time.
         * @return functor of N arguments where other expected bind to the current tuple.
         * 
         * *Example*:\code
@@ -325,189 +462,36 @@ namespace OP::currying
         * ) << "\n";
         * \endcode
         */
-        template <size_t N, class TCallable>
-        constexpr decltype(auto) typed_bind_free_front(TCallable f) && noexcept
+    //private:
+        arguments_t _arguments;
+
+        template <typename TCallable, typename Tuple, size_t ... I>
+        static decltype(auto) do_invoke(TCallable& func, Tuple&& args, std::index_sequence<I...>)
         {
-            return typed_bind_impl<true>(
-                f, std::move(_arguments), std::make_index_sequence<N>{});
+            using traits_t = OP::utils::function_traits<TCallable>;
+            return func(
+                    det::as_argument<typename traits_t::template arg_i<I>>(args)
+                    ...
+            );
         }
 
-
-        template <size_t N, class TCallable>
-        constexpr decltype(auto) typed_bind_free_front(TCallable f) const& noexcept
-        {
-            return typed_bind_impl<true>(
-                f, _arguments, std::make_index_sequence<N>{});
-        }
-
-    private:
-
-        template <bool front_invoke, typename F, size_t... I, typename ... Ax, typename ftraits_t = OP::utils::function_traits<F> >
-        decltype(auto) typed_invoke_impl(F& func, std::index_sequence<I...>, Ax&& ...ax)
-        {
-            if constexpr (front_invoke)
-            {
-                constexpr size_t Pn = sizeof...(Ax);
-                return func(ax...,
-                    inject_argument<typename ftraits_t::template arg_i<I + Pn>>(
-                        std::get<
-                        // reindex tuple elements according to types
-                        index_of_type<typename ftraits_t::template arg_i<I + Pn>>()
-                        >(_arguments))...);
-            }
-            else
-            {
-                return func(
-                    inject_argument<typename ftraits_t::template arg_i<I>>(
-                        std::get<
-                        // reindex tuple elements according to types
-                        index_of_type<typename ftraits_t::template arg_i<I>>()
-                        >(_arguments))..., ax...);
-            }
-
-        }
-
-        template <bool front_invoke, typename TCallable, size_t... Ns>
-        constexpr static decltype(auto) typed_bind_impl(TCallable& func, arguments_t args, std::index_sequence<Ns...>) noexcept
-        {
-            using ftraits_t = OP::utils::function_traits<TCallable>;
-
-            return
-                [func = std::move(func),
-                //move this tuple to lambda owning since don't need this anymore
-                args = CurryingTuple(std::move(args))]
-            //declare free (binding) arguments
-            (typename ftraits_t::template arg_i<Ns>&&...ax) mutable -> decltype(auto)
-            {
-                constexpr size_t Pn = sizeof...(ax);
-                return args.template typed_invoke_impl<front_invoke>(
-                    func, 
-                    std::make_index_sequence<ftraits_t::arity_c - Pn>{},
-                    std::forward<std::decay_t<decltype(ax)>>(ax)...
-                    );
-            };
-        }
-
-        template <bool front_invoke, typename TCallable, size_t... I, typename ... Ax>
-        auto do_invoke(TCallable& func, std::index_sequence<I...>, Ax&& ...ax)
-        {
-            using ftraits_t = OP::utils::function_traits<TCallable>;
-            constexpr size_t Pn = sizeof ... (Ax);
-
-            if constexpr (front_invoke) //free args go in front
-                return func(ax...,
-                    inject_argument<typename ftraits_t::template arg_i<I + Pn>>(
-                        std::get<I>(_arguments))...
-                );
-            else // bind free args from back side
-                return func(inject_argument<typename ftraits_t::template arg_i<I>>(
-                    std::get<I>(_arguments))...,
-                    ax...)
-                ;
-        }
-
-        template <class T>
-        static T& deref(T& t) noexcept
-        {
-            return t;
-        }
-
-        template <typename T>
-        static const T& deref(std::reference_wrapper<T const> t) noexcept 
-        {
-            return (T&)t.get();
-        }
-
-        template <typename T>
-        static T& deref(std::reference_wrapper<T> t) noexcept 
-        {
-            return (T&)t.get();
-        }
-
-        /** Method allows preprocess function arguments before invocation with help of CurryingArgSpec
-         *
-         * @return reference 
-         */
-        template <typename expected_t, typename arg_t>
-        static constexpr decltype(auto) inject_argument(arg_t& a) noexcept
-        {
-            using t_t = std::decay_t<arg_t>;
-            
-            if constexpr (std::is_base_of_v<CurryingArgSpec, t_t>)
-            {//may be additional extraction required
-                if constexpr (std::is_same_v<t_t, std::decay_t<expected_t> >)
-                    return deref(a);
-                else
-                    return a.template extract<expected_t>();
-            }
-            else
-                return deref(a);
-        }
-
-        /** Taken tuple #arguments_t return index of type `T` entry */
-        template<typename T, size_t I = 0>
-        static constexpr size_t index_of_type() noexcept
-        {
-            constexpr size_t type_idx = match_type_explicit<T, I>();
-            if constexpr (type_idx < sizeof...(Tx))
-                return type_idx;
-            else
-            {
-                return match_type_implicit<T, I>();
-            }
-        }
-
-        /** Find exact (explicit) matching of type `T` in `arguments_t` starting from index `I`*/
-        template<typename T, size_t I>
-        static constexpr size_t match_type_explicit() noexcept
-        {
-            if constexpr(I >= sizeof...(Tx))
-                return I;
-            else 
-            {
-                using current_t = std::decay_t<std::tuple_element_t<I, arguments_t>>;
-                using t_t = std::decay_t<T>;
-                if constexpr (std::is_same_v<t_t, current_t>)
-                {
-                    return I;
-                }
-                else
-                {
-                    return match_type_explicit<T, I + 1>();
-                }
-            }
-        }
-
-        /** Find fuzzy (implicit) matching of type `T` in `arguments_t` starting from index `I`*/
-        template<typename T, size_t I>
-        static constexpr size_t match_type_implicit() noexcept
-        {
-            static_assert(I < sizeof...(Tx),
-                "Cannot find matched type T in arguments tuple");
-
-            using current_t = std::decay_t<std::tuple_element_t<I, arguments_t>>;
-            using t_t = std::decay_t<T>;
-            if constexpr (std::is_base_of_v<CurryingArgSpec, current_t>)
-            {
-                if constexpr (current_t::template can_handle<t_t>())
-                    return I;
-                else
-                    return match_type_implicit<T, I + 1>();
-            }
-            else
-            {
-                return match_type_implicit<T, I + 1>();
-            }
-        }
+        
+        //template<typename>
+        //struct sfinae_true : std::true_type {};
+        //template <class TDest, class TSource> static auto test_deref_exists(int) -> sfinae_true<decltype(
+        //    det::deref<TDest>(std::declval<TSource>(), utils::priority_tag<2>{})) >;
+        //template <class TDest, class TSource> static auto test_deref_exists(long) -> std::false_type;
+        //
+        //template <class TDest, class TSource> constexpr static inline bool test_deref_exists_v =
+        //    decltype(test_deref_exists<TDest, TSource>(0))::value;
 
     };
 
     template <class ...Tx>
     constexpr auto arguments(Tx&& ...tx)
     {
-        return CurryingTuple(std::make_tuple(std::forward<Tx>(tx)...));
+        return CurryingTuple{ std::make_tuple(std::forward<Tx>(tx)...) };
     }
-
 
     /** 
     * Create callable wrapper around member of arbitrary class that can be used
@@ -515,7 +499,7 @@ namespace OP::currying
     * Result is lambda with `const TClass&` as a first argument.
     */ 
     template <class M, class TClass, class ... Args>
-    constexpr auto callable_of_member(M(TClass::* method)(Args...) const)
+    constexpr auto use_member(M(TClass::* method)(Args...) const)
     {
         return [method](const TClass& inst, Args... args) {return (inst.*method)(args...); };
     }
@@ -526,7 +510,7 @@ namespace OP::currying
     * Result is lambda with `TClass&` as a first argument.
     */
     template <class M, class TClass, class ... Args>
-    constexpr auto callable_of_member(M(TClass::* method)(Args...))
+    constexpr auto use_member(M(TClass::* method)(Args...))
     {
         return [method](TClass& inst, Args... args) {return (inst.*method)(args...); };
     }
@@ -537,34 +521,4 @@ namespace OP::currying
 
 }//ns:OP::currying
 
-namespace std
-{
-    // special override to emulate access over std::get
-    template <size_t I, class ... Tx>
-    constexpr decltype(auto) get(OP::currying::CurryingTuple<Tx...>& args) noexcept
-    {
-        return std::get<I>(args._arguments);
-    }
-
-    // special override to emulate access over std::get
-    template <size_t I, class ... Tx>
-    constexpr decltype(auto) get(const OP::currying::CurryingTuple<Tx...>& args) noexcept
-    {
-        return std::get<I>(args._arguments);
-    }
-
-    // special override to emulate access over std::get
-    template <class T, class ... Tx>
-    constexpr decltype(auto) get(OP::currying::CurryingTuple<Tx...>& args) noexcept
-    {
-        return args.template get<T>();
-    }
-
-    // special override to emulate access over std::get
-    template <class T, class ... Tx>
-    constexpr decltype(auto) get(const OP::currying::CurryingTuple<Tx...>& args) noexcept
-    {
-        return args.template get<T>();
-    }
-}//ns:std
 #endif //_OP_COMMON_CURRYING__H_

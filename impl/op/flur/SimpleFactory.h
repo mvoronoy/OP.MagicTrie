@@ -21,7 +21,7 @@ namespace flur
     struct SimpleFactory : FactoryBase
     {
         /**
-        * Construct underlayed container from arbitrary parameters
+        * Construct underlaid container from arbitrary parameters
         */
         template <class ... Ux, std::enable_if_t<std::is_constructible_v<V, Ux...>, int> = 0>
         constexpr SimpleFactory(Ux&& ...u) noexcept

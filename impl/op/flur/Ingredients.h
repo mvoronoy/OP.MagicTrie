@@ -27,9 +27,12 @@ namespace OP::flur
             _generation.next();
             _step.start();
         }
+
         /** Increase current `step` */
         void next() noexcept { _step.next(); }
+
         const Step& step() const noexcept { return _step; }
+
         /** \brief count number of times sequence was started (how many `start` method was called) */
         const Step& generation() const noexcept { return _generation; }
 

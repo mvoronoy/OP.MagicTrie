@@ -7,12 +7,18 @@
 #include <string>
 #include <iomanip>
 
-#if defined( _MSC_VER ) && defined(max)
-#undef max
-#undef min
-#endif
+#if defined( _MSC_VER ) 
+    #if defined(max)
+    #undef max
+    #endif
+
+    #if defined(min)
+    #undef min
+    #endif
+#endif 
 
 #define OP_EMPTY_ARG
+
 #ifdef _MSC_VER
 #if _MSC_VER <= 1800
 #define OP_CONSTEXPR(alt) alt 

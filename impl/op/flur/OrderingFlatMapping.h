@@ -77,12 +77,6 @@ namespace OP::flur
     private:
         using applicator_res_t = typename traits_t::applicator_result_sequence_t;
         
-        //if sequence is already std::shared_ptr don't add wrapper
-        //using applicator_res_ptr = std::conditional_t<
-        //    fdet::is_shared_ptr<applicator_res_t >::value,
-        //    applicator_res_t,
-        //    std::shared_ptr<applicator_res_t>>;
-
         using que_of_seq_t = std::deque<applicator_res_t>;
         /**
         * Current STL implementation of std::push_heap have no support std::move

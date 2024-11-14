@@ -216,7 +216,7 @@ namespace OP::flur
             using iota_value_t = std::decay_t<T>;
             using iota_t = OfIota<iota_value_t> ;
             using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
-            return make_lazy_range(factory_t(std::move(begin), std::move(end), T{ 1 }));
+            return make_lazy_range(factory_t(typename iota_t::bounds_t{ std::move(begin), std::move(end), T{ 1 } }));
         }
         
         template <class T>
@@ -225,7 +225,8 @@ namespace OP::flur
             using iota_value_t = std::decay_t<T>;
             using iota_t = OfIota<iota_value_t>;
             using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
-            return make_lazy_range(factory_t(std::move(begin), std::move(end), std::move(step)));
+            return make_lazy_range(factory_t(
+                typename iota_t::bounds_t{ std::move(begin), std::move(end), std::move(step) }));
         }
 
         template <class T>
@@ -244,7 +245,7 @@ namespace OP::flur
             using iota_value_t = std::decay_t<T>;
             using iota_t = OfIota<iota_value_t, const iota_value_t&>;
             using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
-            return make_lazy_range(factory_t(std::move(begin), std::move(end), T{ 1 }));
+            return make_lazy_range(factory_t(typename iota_t::bounds_t{ std::move(begin), std::move(end), T{ 1 } }));
         }
 
         /**

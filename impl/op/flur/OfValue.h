@@ -94,7 +94,7 @@ namespace flur
 
         virtual T current() const
         {
-            return _attrs.typed_invoke(_gen);
+            return _attrs.invoke(_gen);
             //return _gen();
         }
 
@@ -106,13 +106,13 @@ namespace flur
         template <class U>
         const auto& attr() const
         {
-            return details::get_reference(std::get<U>(_attrs));
+            return details::get_reference(std::get<U>(_attrs.arguments()));
         }
 
         template <class U>
         auto& attr() 
         {
-            return details::get_reference(std::get<U>(_attrs));
+            return details::get_reference(std::get<U>(_attrs.arguments()));
         }
         /** Store current progress and total limit for this sequence to use as optional attributes
         * for applicator functor

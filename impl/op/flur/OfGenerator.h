@@ -50,8 +50,8 @@ namespace OP
             /** Start iteration from the beginning. If iteration was already in progress it resets.  */
             virtual void start() override
             {
-                std::get<SequenceState>(_attrs).start();
-                _current = _attrs.typed_invoke(_generator);
+                std::get<SequenceState>(_attrs.arguments()).start();
+                _current = _attrs.invoke(_generator);
             }
             
             /** Check if Sequence is in valid position and may call `next` safely */
@@ -69,8 +69,8 @@ namespace OP
             /** Position iterable to the next step */
             virtual void next() override
             {
-                std::get<SequenceState>(_attrs).next();
-                _current = _attrs.typed_invoke(_generator);
+                std::get<SequenceState>(_attrs.arguments()).next();
+                _current = _attrs.invoke(_generator);
             }
 
         private:

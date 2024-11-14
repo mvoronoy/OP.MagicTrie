@@ -27,26 +27,22 @@ namespace
         const int int_sample(n_sample); //explicit match
         auto f2 = arguments(std::ref(int_sample), std::ref(invoke_evidence), 
             std::ref(tresult), std::cref(s_sample), /*redundant arg*/5.7, "")
-            .typed_bind(test_function);
+            .def(test_function);
         tresult.assert_false(invoke_evidence);
         f2();
         tresult.assert_true(invoke_evidence);
 
         invoke_evidence = false;
         auto f3 = arguments(
-            std::ref(int_sample), std::ref(invoke_evidence),
-            std::ref(tresult), of_callable([&]() -> const std::string&{ return s_sample; }), /*redundant arg*/5.7, "")
-            .typed_bind(test_function);
+            std::ref(int_sample), 
+            std::ref(invoke_evidence),
+            std::ref(tresult), 
+            of_callable([&]() -> const std::string&{ return s_sample; }), 
+            /*redundant arg*/5.7, 
+            "")
+            .def(test_function);
         tresult.assert_false(invoke_evidence);
         f3();
-        tresult.assert_true(invoke_evidence);
-        //free args
-        invoke_evidence = false;
-        auto f4 = arguments(std::ref(int_sample), std::ref(invoke_evidence),
-            std::cref(s_sample), /*redundant arg*/5.7, "")
-            .typed_bind_free_front<1>(test_function);
-        tresult.assert_false(invoke_evidence);
-        f4(tresult);
         tresult.assert_true(invoke_evidence);
     }
 
@@ -64,24 +60,25 @@ namespace
             of_unpackable(shared_data)
         };
 
-        auto f1 = attrs.typed_bind(src1);
+        auto f1 = attrs.def(src1);
         shared_data = mark_int;
         f1();
         tresult.assert_true(evidence);
     }
 
-    float hypot3d(float x, float y, float z)
+    float sum_int(float x, int y)
     {
-        return std::hypot(x, y, z);
+        return x + y;
     }
 
     //Test for compile-time only check
     void test_Example(OP::utest::TestRuntime& tresult)
     {
-        auto free_x_y = arguments(2.f).//this value will pass as 3d argument z
-            typed_bind_free_front<2>(hypot3d);
-        tresult.debug() << "(Should be 7.)hypot = " << free_x_y(3.f, 6.f) << "\n";
-        tresult.assert_that<almost_eq>(7.f, free_x_y(3.f, 6.f));
+        using namespace std::placeholders;
+        auto all = arguments(2.f, -9).//this value will pass as 3d argument z
+            invoke(sum_int);
+        tresult.debug() << "(Should be -7.)sum = " << all << "\n";
+        tresult.assert_that<almost_eq>(-7.f, all);
     }
     
     struct TstFunctor
@@ -94,7 +91,7 @@ namespace
     void test_Retval(OP::utest::TestRuntime& tresult)
     {
         TstFunctor f;
-        tresult.assert_true(arguments(2.f, -1).typed_invoke(f));
+        tresult.assert_true(arguments(2.f, -1).invoke(f));
     }
 
     struct ClassWithMember
@@ -112,27 +109,40 @@ namespace
         {
             _a = a;
         }
+
+        float consumer_of_float(float arg) 
+        {
+            _a *= arg;
+            return _a;
+        }
     };
 
     void test_MemberFunction(OP::utest::TestRuntime& tresult)
     {
         const ClassWithMember const_class(11);
-        auto eval = callable_of_member(&ClassWithMember::member);
+        auto eval = use_member(&ClassWithMember::member);
         tresult.assert_that<almost_eq>(-23.f, 
-            arguments(12, 7.5f, const_class).typed_invoke(eval));
+            arguments(12, 7.5f, const_class).invoke(eval));
         //check std::reference_wrapper works
         tresult.assert_that<almost_eq>(-23.f,
-            arguments(12, 7.5f, std::cref(const_class)).typed_invoke(eval));
+            arguments(12, 7.5f, std::cref(const_class)).invoke(eval));
 
         //check member allowed alter class instance
         ClassWithMember class_with_method(11);
-        auto up_method = callable_of_member(&ClassWithMember::update);
-        arguments(15, 7.5f, std::ref(class_with_method)).typed_invoke(up_method);
+        auto up_method = use_member(&ClassWithMember::update);
+        arguments(15, 7.5f, std::ref(class_with_method)).invoke(up_method);
         tresult.assert_that<equals>(15, class_with_method._a);
 
         //check member allowed with const reference
         tresult.assert_that<almost_eq>(9.f,
             arguments(std::cref(class_with_method), 12, 7.5f).invoke(eval));
+        
+        ////////////////////////////////////////////////////////////
+        tresult.assert_that<almost_eq>(-18.f,
+                arguments(12, of_member(const_class, &ClassWithMember::member, 101, 102.f), std::ref(class_with_method))
+                .invoke(use_member(&ClassWithMember::consumer_of_float))
+        );
+
     }
 
     static auto& module_suite = OP::utest::default_test_suite("Currying")

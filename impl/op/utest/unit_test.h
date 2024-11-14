@@ -630,7 +630,7 @@ namespace OP::utest
         template <class Exception>
         static inline void render_exception_status(test_run_shared_args_t& runtime, Exception const& e)
         {
-            TestRuntime& tr = runtime.get<Var<TestRuntime>>();
+            TestRuntime& tr = runtime.eval_arg<TestRuntime&>();
             if (e.what() && *e.what())
             {
                 tr.error() << e.what();
@@ -649,6 +649,7 @@ namespace OP::utest
             }
             TestResult& _result;
         };
+
         void isolate_exception_run(test_run_shared_args_t& runtime, TestResult& retval)
         {
             try
@@ -671,7 +672,7 @@ namespace OP::utest
             {
                 retval._status = TestResult::Status::exception;
 
-                runtime.get<TestRuntime>().error()
+                runtime.eval_arg<TestRuntime&>().error()
                     << "\n----["
                     << console::esc<console::red_t>("exception")<<"] - what:("
                     << e.what() 
@@ -750,9 +751,9 @@ namespace OP::utest
                     &suite_shared_state = _suite_shared_state
                 ] () mutable {
                     if constexpr (std::is_same_v<std::any, result_t>)
-                        suite_shared_state = std::move(args.typed_invoke(fwrap));
+                        suite_shared_state = std::move(args.invoke(fwrap));
                     else //not a std::any, need to assign
-                        suite_shared_state.emplace<result_t>(args.typed_invoke(fwrap));
+                        suite_shared_state.emplace<result_t>(args.invoke(fwrap));
                 };
             }
 
@@ -936,7 +937,7 @@ namespace OP::utest
         protected:
             void run(test_run_shared_args_t& retval) override
             {
-                retval.typed_invoke(_function);
+                retval.invoke(_function);
             }
 
         private:
@@ -961,7 +962,7 @@ namespace OP::utest
                 }
                 catch (...) {
                     //normal flow
-                    retval.get<TestRuntime>().debug() << "exception was raised as expected\n";
+                    retval.eval_arg<TestRuntime&>().debug() << "exception was raised as expected\n";
                 }
             }
         };

@@ -26,7 +26,9 @@ namespace OP::flur
         OP_DECLARE_CLASS_HAS_MEMBER(on_complete);
         namespace extra
         {
+            //sometimes on_start can have template definitions
             OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(on_start);
+            //sometimes on_consume can have template definitions
             OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(on_consume);
         }
 
@@ -39,6 +41,7 @@ namespace OP::flur
     {
         constexpr bool factory_reference_v = std::is_lvalue_reference_v<Lr>;
         using base_lr_t = std::decay_t<details::dereference_t<Lr>>;
+        //implement logic of c++20: std::forward_like - make `get_reference` result be similar to `factory` 
         using lazy_range_t = std::conditional_t<factory_reference_v, const base_lr_t&, base_lr_t&&>;
 
         auto seq = std::forward<lazy_range_t>(details::get_reference(factory)).compound();
@@ -72,6 +75,19 @@ namespace OP::flur
         }
     }
 
+    template <class TFactory, class TApplicator, 
+        std::enable_if_t<is_factory_c<TFactory> && is_applicator_c<TApplicator>, int> = 0>
+    decltype(auto) operator >>= (std::shared_ptr<TFactory> factory, TApplicator&& applicator)
+    {
+        return collect_result(*factory, std::forward<TApplicator>(applicator));
+    }
+
+    template <class TFactory, class TApplicator, 
+        std::enable_if_t<is_factory_c<TFactory> && is_applicator_c<TApplicator>, int> = 0>
+    decltype(auto) operator >>= (std::shared_ptr<TFactory> factory, const TApplicator& applicator)
+    {
+        return collect_result(*factory, applicator);
+    }
 
     template <class OutputIterator>
     struct Drain : ApplicatorBase
@@ -528,4 +544,14 @@ namespace OP::flur
     };
 
 } //ns: OP::flur
+
+//
+// global ns
+//
+
+//
+// end global ns
+//
+
+
 #endif //_OP_FLUR_APPLICATOR__H_
