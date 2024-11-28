@@ -15,7 +15,7 @@ namespace OP::utest
         Details() = default;
 
         template <class F, std::enable_if_t<std::is_invocable_v<F, std::ostream&>, int> = 0>
-        Details(F&& preprocess)
+        explicit Details(F&& preprocess) noexcept
             : _preprocess(std::forward<F>(preprocess))
         {
         }

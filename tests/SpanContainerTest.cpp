@@ -87,7 +87,6 @@ void test_add(OP::utest::TestRuntime& tresult)
     }
     {
         const zone_t test_span(999, 5);
-        check_container_t check_container;
         intersect_test(tresult, test_span, container, check_container_t{zone_t(10, 1000), zone_t(1001, 1)});
     }
     tresult.info() << "test dupplicate addings...\n";
@@ -211,16 +210,7 @@ constexpr unsigned TST_CHUNK_SIZE = 111 * 16;
 std::uniform_int_distribution<unsigned> pos_dist(0, 0x10000); //rules to generate zone begining
 std::uniform_int_distribution<unsigned> size_dist(0x10, 0x1000);// rules to generate zone size
 
-template <class Pt, class Rnd, class Vext>
-void generate_rand_chunk(Rnd& rnd, Vext& container)
-{
-    container.clear();
-    container.reserve(TST_CHUNK_SIZE);
-    for (unsigned i = 0; i < TST_CHUNK_SIZE; ++i)
-    {
-        container.emplace_back(typename Vext::value_type{ Pt(pos_dist(rnd)), Pt(size_dist(rnd)) });
-    }
-}
+
 auto find_all_intersects = [](const zone_t& what, const check_container_t& from) -> check_container_t {
     check_container_t rv;
     std::copy_if(from.begin(), from.end(),
@@ -271,7 +261,6 @@ void random_stuff_test(OP::utest::TestRuntime& tresult)
     //
     //  Positive + Negative tests - intersect with random span that exists and non exists
     //
-    unsigned prev_p = 0, prev_sz = 0;
     start = std::chrono::steady_clock::now();
     for(auto i = 0; i < TST_CHUNK_SIZE; ++i)
     {
@@ -287,6 +276,7 @@ void random_stuff_test(OP::utest::TestRuntime& tresult)
         << std::chrono::duration<double, std::milli>(finish - start).count() << "[mks]"
         << std::endl;
 }
+
 void test_erase(OP::utest::TestRuntime& tresult)
 {
     using span_container_t = OP::zones::SpanSet<zone_t>;
@@ -327,7 +317,7 @@ void test_erase(OP::utest::TestRuntime& tresult)
              };
              std::shuffle(ins_res.begin(), ins_res.end(), g);
         
-             for(auto &ri : ins_res)
+             for(const auto &ri : ins_res)
                 tresult.assert_true(1 == container.erase(ri));
 
              intersect_test( tresult,
@@ -347,14 +337,14 @@ void test_erase(OP::utest::TestRuntime& tresult)
         {
             auto p = pos_dist(rgen);
             auto sz = size_dist(rgen);
-            auto r = container.emplace(p, sz);
+            auto empl_res = container.emplace(p, sz);
             if( (i % 3) == 0 ) //peek each 3d
-                check_container.emplace_back(r);
+                check_container.emplace_back(empl_res);
             else
-                exist_conatiner.emplace(*r);
+                exist_conatiner.emplace(*empl_res);
         }
         // **********
-        for (auto & w : check_container)
+        for (const auto& w : check_container)
         {
             tresult.assert_true(1 == container.erase(w));
         }
@@ -367,23 +357,6 @@ void test_erase(OP::utest::TestRuntime& tresult)
         }
 
     }
-}
-void test_dump(OP::utest::TestRuntime& tresult)
-{
-    using span_container_t = OP::zones::SpanSet<zone_t>;
-    using tracker_t = typename span_container_t::IntersectionTracker ;
-    span_container_t container;
-    std::mt19937 rgen;
-    // Seed the engine with an unsigned int
-    rgen.seed(UNIFIED_MAGIC_NUM);
-    const unsigned limit_c = 200;
-    for (unsigned i = 0; i < limit_c; ++i)
-    {
-        auto p = pos_dist(rgen);
-        auto sz = size_dist(rgen);
-        auto r = container.emplace(p, sz);
-    }
-    container.dump(tresult.debug() << "--====##### Branches dump for :("<< limit_c<< ") node #####====--\n");
 }
 
 void test_map(OP::utest::TestRuntime& tresult)
@@ -421,10 +394,11 @@ void test_map(OP::utest::TestRuntime& tresult)
     }
     tresult.assert_true(sample_map.empty());
 }
+
 static auto& module_suite = OP::utest::default_test_suite("SpanContainer")
-.declare("add", test_add)
-.declare("overlap", overlap_add)
-.declare("random", random_stuff_test)
-.declare("erase", test_erase)
-.declare("map", test_map)
+    .declare("add", test_add)
+    .declare("overlap", overlap_add)
+    .declare("random", random_stuff_test)
+    .declare("erase", test_erase)
+    .declare("map", test_map)
 ;

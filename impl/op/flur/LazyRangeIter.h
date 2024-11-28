@@ -45,7 +45,7 @@ namespace OP::flur
             details::get_reference(get()).next();
             return *this;
         }
-
+        
         /** Note! not all targets supports copy operation so postfix ++ may fail at compile time*/
         //LazyRangeIterator operator ++(int) &
         //{
@@ -97,37 +97,30 @@ namespace OP::flur
 
     namespace details
     {
-        template <class Factory>
-        using lazy_iterator_deduction_t = LazyRangeIterator < std::shared_ptr<
-                std::decay_t<
-                        OP::flur::details::dereference_t<OP::flur::details::unpack_t<Factory> >
-                >>
-        >;
 
         template <class Factory, std::enable_if_t<std::is_base_of_v<FactoryBase, Factory>, int> = 0 >
         auto begin_impl(const Factory& inst)
         {
-            auto seq = inst.compound();
-            using t_t = decltype(seq);
-            if constexpr (details::is_shared_ptr<t_t>::value)
+            auto postprocess = [](auto& ptr){ ptr->start(); return ptr; };
+            if constexpr(
+                    OP::utils::is_generic<Factory, OP::flur::AbstractPolymorphFactory>::value
+                )
             {
-                return LazyRangeIterator(std::move(seq));
+                return LazyRangeIterator(postprocess(inst.compound_shared()));
             }
             else
             {
-                auto seq_ptr = std::make_shared<t_t>(std::move(seq));
-                seq_ptr->start();
-                return LazyRangeIterator(std::move(seq_ptr));
+                auto sequence = inst.compound();
+                using t_t = decltype(sequence);
+                return LazyRangeIterator(postprocess(std::make_shared<t_t>(std::move(sequence))));
             }
+
         }
 
         template <class Factory>
         auto begin_impl(const std::shared_ptr<Factory>& inst)
         {
-            auto seq = inst->compound();
-            using t_t = std::decay_t<decltype(seq)>;
-            seq->start();
-            return LazyRangeIterator<t_t>(std::move(seq));
+            return begin_impl(*inst);
         }
 
         template <class Factory>

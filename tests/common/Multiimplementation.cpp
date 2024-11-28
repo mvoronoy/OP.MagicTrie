@@ -14,21 +14,23 @@ namespace {
         virtual int method() = 0;
         virtual int method() const = 0;
     protected:
-        Abstract(int arg) :_data(arg) {};
+        explicit Abstract(int arg) noexcept :_data(arg) {};
     };
 
     struct TestImpl1 : Abstract
     {
-        TestImpl1(int ini)
+        explicit TestImpl1(int ini) noexcept
             : Abstract(ini)
         {
 
         }
-        virtual int method()
+
+        virtual int method() override
         {
             return _data | is_impl1;
         }
-        virtual int method() const
+
+        virtual int method() const override
         {
             return _data | is_impl1 | is_called_from_const;
         }
@@ -36,16 +38,17 @@ namespace {
 
     struct TestImpl2 : Abstract
     {
-        TestImpl2(int ini)
+        explicit TestImpl2(int ini) noexcept
             : Abstract(ini)
         {
         }
 
-        virtual int method()
+        virtual int method() override
         {
             return _data | is_impl2;
         }
-        virtual int method() const
+
+        virtual int method() const override
         {
             return _data | is_impl2 | is_called_from_const;
         }
@@ -62,7 +65,9 @@ namespace {
     {
         static_assert(!std::has_virtual_destructor_v<NoVDtorInterface >,
             "For the test purpose base destructor must not be virtual");
+
         T t{};
+
         static inline int destructor_called = 0;
         
         ~NoVDtorImpl()
@@ -70,11 +75,12 @@ namespace {
             ++destructor_called;
         }
 
-        virtual void some()
+        virtual void some() override
         {
             t += t * (t-1);
         }
     };
+
     void test_Construct(OP::utest::TestRuntime& tresult)
     {
         using test_t = OP::Multiimplementation<Abstract, TestImpl1, TestImpl2>;

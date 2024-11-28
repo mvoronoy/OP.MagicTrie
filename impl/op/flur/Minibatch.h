@@ -24,8 +24,7 @@ namespace flur
 
             constexpr CyclicBuffer() noexcept = default;
             
-            CyclicBuffer(this_t&& other) noexcept
-                : this_t()
+            CyclicBuffer(CyclicBuffer&& other) noexcept
             {
                 while ( other._r_current < other._w_current)
                     _buffer[_w_current++] = std::move(other._buffer[other._r_current++ % N]);
@@ -81,12 +80,14 @@ namespace flur
     class Minibatch : public Base
     {
         static_assert(N >= 2, "to small N for drain buffer");
+
     public:
         using this_t = Minibatch<TThreads, Base, Src, N>;
 
         using base_t = Base;
         using src_element_t = typename Src::element_t;
         using element_t = typename base_t::element_t;
+
     private:
         using background_t = std::future<void>;
 
@@ -103,6 +104,7 @@ namespace flur
                 _work.get();
             return std::move(_src);
         }
+
     public:
         constexpr Minibatch(Src&& src, TThreads& thread_pool) noexcept
             : _src(std::move(src))
@@ -112,7 +114,7 @@ namespace flur
 
         Minibatch(const this_t& src) noexcept = delete;
 
-        constexpr Minibatch(this_t&& src) /*noexcept - safe_take may raise*/
+        constexpr Minibatch(Minibatch&& src) /*noexcept - safe_take may raise*/
             : _src(src.safe_take())
             , _batch(std::move(src._batch))
             , _thread_pool(src._thread_pool)
@@ -136,6 +138,12 @@ namespace flur
                 async_drain(N - 1);
             }
         }
+
+        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept
+        {
+            return _src.is_sequence_ordered();
+        }
+
         /** Check if Sequence is in valid position and may call `next` safely */
         virtual bool in_range() const override
         {
@@ -175,6 +183,7 @@ namespace flur
                 throw std::out_of_range("fail on next");
             }
         }
+
     private:
         void drain(size_t lim)
         {
@@ -212,19 +221,19 @@ namespace flur
     struct MinibatchFactory : FactoryBase
     {
         
-        MinibatchFactory(TThreads& thread_pool)
+        explicit MinibatchFactory(TThreads& thread_pool)
             :_thread_pool(thread_pool)
         {}
 
         template <class Src>
         constexpr auto compound(Src&& src) const noexcept
         {
-            using base_minibatch_t = std::conditional_t< Src::ordered_c,
-                OrderedSequence< const typename Src::element_t& >,
-                Sequence< const typename Src::element_t& > >;
+            using base_minibatch_t = 
+                Sequence< const typename Src::element_t& >;
 
             return Minibatch<TThreads, base_minibatch_t, Src, N>(std::move(src), _thread_pool);
         }
+
     private:
         TThreads& _thread_pool;
     };

@@ -237,8 +237,8 @@ void test_NodeManagerSmallPayload(OP::utest::TestRuntime &tresult)
     test_Generic<test_node_manager_t>(tresult, mngrToplogy);
 }
 
-static auto& module_suite = OP::utest::default_test_suite("FixedSizeMemoryManager")
-.declare("general", test_NodeManager)
-.declare("multialloc", test_Multialloc)
-.declare("small-payload", test_NodeManagerSmallPayload)
+static auto& module_suite = OP::utest::default_test_suite("vtm.FixedSizeMemoryManager")
+    .declare("general", test_NodeManager)
+    .declare("multialloc", test_Multialloc)
+    .declare("small-payload", test_NodeManagerSmallPayload)
 ;

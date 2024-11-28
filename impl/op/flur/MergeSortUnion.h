@@ -66,14 +66,14 @@ namespace OP::flur
         
         void next() override
         {
-            auto* current = _retain_heap[0];
-            current->next();
+            auto* in_heap = _retain_heap[0];
+            in_heap->next();
             //pop will move current to the [_retain_size-1]
             std::pop_heap(
                 _retain_heap.begin(), 
                 _retain_heap.begin() + _retain_size,
                 _comparator);
-            if( !current->in_range() )
+            if( !in_heap->in_range() )
                 --_retain_size;
             if( _retain_size ) // move to [0] sequence with minimal `current`
                 std::push_heap(
@@ -93,11 +93,11 @@ namespace OP::flur
         */
         struct GreatComparator
         {
-            constexpr GreatComparator(Comp&& comp) noexcept
+            explicit constexpr GreatComparator(Comp&& comp) noexcept
                 : _comp(std::move(comp))
             {}
             
-            bool operator()(const base_t* left, const base_t* right)
+            bool operator()(const base_t* left, const base_t* right) const
             {
                 return _comp(left->current(), right->current()) > 0;
             }

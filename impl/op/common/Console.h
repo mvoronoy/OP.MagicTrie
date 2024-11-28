@@ -78,7 +78,8 @@ namespace OP::console
                     std::make_index_sequence<std::tuple_size_v<esc_init_t>>{});
                 return result;
             }
-            LinuxColorer(std::ostream& console_os, sequence_t seq)
+
+            LinuxColorer(std::ostream& console_os, const sequence_t& seq)
                 : _console_os(&console_os)
             {
                 _console_os->flush(); //prevent stuck symbols be colored with unexpected color

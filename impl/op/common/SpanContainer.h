@@ -98,28 +98,33 @@ namespace OP
                 }
             };
             using iterator = Nav;
+
             struct Node
             {
                 virtual ~Node() = default;
-                virtual bool is_terminal() const = 0;
+                virtual bool is_terminal() const noexcept = 0;
                 virtual const key_t& span() const = 0;
             };
 
             struct Terminal : public Node
             {
-                Terminal(const storage_iter_t& position)
+                explicit Terminal(const storage_iter_t& position) noexcept
                     : _first(position), _second(position)
                 {}
-                bool is_terminal() const override
+
+                bool is_terminal() const noexcept override
                 {
                     return true;
                 }
+
                 const key_t& span() const override
                 {
                     return traits_t::keyof(*_first);
                 }
+
                 storage_iter_t _first, _second;
             };
+
             struct Index : public Node
             {
                 enum
@@ -127,21 +132,25 @@ namespace OP
                     Cardinality = 3
                 };
                 using slot_t = std::unique_ptr<Node>;
-                Index()
+
+                Index() noexcept
                     : Index(key_t{})
                 {}
-                Index(key_t span)
+
+                explicit Index(key_t span) noexcept
                     : _span(std::move(span))
                 {}
 
-                bool is_terminal() const override
+                bool is_terminal() const noexcept override
                 {
                     return false;
                 }
+
                 const key_t& span() const override
                 {
                     return _span;
                 }
+                
                 bool in_range(std::uint8_t idx) const
                 {
                     return idx < _interrior.size() //aka < Cardinality
@@ -168,6 +177,7 @@ namespace OP
                 };
                 mutable LeafState _current{};
             public:
+
                 IntersectionTracker(SpanContainer &from, key_t boundary) noexcept
                     : _end(from._store.end())
                     , _boundary(std::move(boundary))
@@ -178,33 +188,35 @@ namespace OP
                         _fetch_on_background();
                     }
                 }
-                IntersectionTracker() noexcept {}
-                struct SpLock{
+
+                struct SpLock
+                {
                     std::atomic_flag& _flag;
-                    SpLock(std::atomic_flag& flag)
+                    explicit SpLock(std::atomic_flag& flag)
                         :_flag(flag)
                     {
                         while (_flag.test_and_set(std::memory_order_acquire))  // acquire lock
                             ; // spin
                     }
+
                     ~SpLock()
                     {
                         _flag.clear(std::memory_order_release);               // release lock
                     }
                 };
 
+                IntersectionTracker() noexcept = default;
                 IntersectionTracker(IntersectionTracker&& ) noexcept = default;
                 IntersectionTracker(const IntersectionTracker& other) = default;
 
-                ~IntersectionTracker()
-                {
-                }
+                ~IntersectionTracker() = default;
 
-                storage_iter_t end() const
+                storage_iter_t end() const noexcept
                 {
                     return _end;
                 }
-                storage_iter_t current() const
+
+                storage_iter_t current() const noexcept
                 {
                     return _current._leaf ? _current._iter : _end;
                 }
@@ -215,26 +227,30 @@ namespace OP
                         throw std::out_of_range("run out of bound");
                     return _current._iter.operator ->();
                 }
+
                 auto operator * ()
                 {
                     if(!_current._leaf)
                         throw std::out_of_range("run out of bound");
                     return _current._iter.operator *();
                 }
+
                 bool valid() const
                 {
                     return _current._leaf && _current._iter != _end ;
                 }
+
                 operator bool() const
                 {
                     return valid();
                 }
+
                 bool operator !() const
                 {
                     return !valid();
                 }
                 
-                bool operator == (const IntersectionTracker& other)const
+                bool operator == (const IntersectionTracker& other) const
                 {
                     return _current._leaf == other._current._leaf 
                         && _current._iter == other._current._iter;
@@ -254,6 +270,7 @@ namespace OP
                     } 
                     return *this;
                 }
+
                 void operator()(storage_iter_t& iter)
                 {
                     operator++();
@@ -261,6 +278,7 @@ namespace OP
                 }
 
             private:
+
                 void _fetch_on_background()
                 {
                     _current = _next();
@@ -271,11 +289,11 @@ namespace OP
                 {
                     while (!_breadcrumbs.empty())
                     {
-                        auto* current = &_breadcrumbs.top();
-                        while(current->first->in_range(current->second))
+                        
+                        for(auto* pos = &_breadcrumbs.top(); pos->first->in_range(pos->second); )
                         {
-                            Node* child = current->first->_interrior[current->second].get();
-                            ++current->second;
+                            Node* child = pos->first->_interrior[pos->second].get();
+                            ++pos->second;
                             if( _boundary_check(child) )
                             {
                                 if(child->is_terminal())
@@ -287,26 +305,27 @@ namespace OP
                                     static_cast<Index*>(child), 
                                     0
                                 );
-                                current = &_breadcrumbs.top();
+                                pos = &_breadcrumbs.top();
                             }
                         }
                         _breadcrumbs.pop();
                     }
                     return LeafState {nullptr, _end};
                 }
+
                 template <class NodePtr>
                 bool _boundary_check(const NodePtr& from) const
                 {
                     return OP::zones::is_overlapping(_boundary, from->span());
                 }
                 
-
             };//IntersectionTracker
 
             ~SpanContainer()
             {
                 _clear(false);
             }
+
             /** add new entry */
             template <class... Args>
             iterator emplace(Args&&... args)
@@ -316,22 +335,26 @@ namespace OP
                 Nav res(ins_pos, default_next);
                 return add_index(res);
             }
+
             /** Start iteration over all elements */
             iterator begin()
             {
                 return Nav{ _store.begin(), default_next };
             }
+
             /** end of iteration */
             iterator end()
             {
                 return Nav(_store.end(), default_next);
             }
+
             /** Start iteration over elements that intersects specified boundary */
             iterator intersect_with(key_t with) 
             {
                 IntersectionTracker track(*this, std::move(with));
                 return !track? end() : Nav(track.current(), track);
             }
+
             /** Only for debug purpose! It uses resursion for proofing purpose and should be used against large set */
             template <class Os>
             Os& dump(Os& os)
@@ -415,15 +438,6 @@ namespace OP
                     _index.reset(new Index);
             }
             /**Add one more data iterator position to 'target' index */
-            //void _append_data_ref(Terminal& target, Nav& to_update)
-            //{
-            //    //move internal list's element closer to Index
-            //    auto ins_pos = _store.before_begin(); //IT IS NOT GOOD but assumption that 'to_update' contains just appended element
-            //                                          //because I need element right before
-            //    _store.splice_after(target._second, _store, ins_pos);
-            //    to_update._data_pos = ++target._second;
-            //}
-
             void _append_data_ref(Terminal& target, Nav& to_update)
             {
                 //move internal list's element closer to Index
@@ -431,6 +445,7 @@ namespace OP
                 _store.splice(target._second, _store, to_update._data_pos);
                 target._second = to_update._data_pos;
             }
+
             /**Using std::move shifts items in array*/
             template <class Iter>
             static void _move_items(Iter from, Iter to, Iter dest)
@@ -438,6 +453,7 @@ namespace OP
                 for(; from != to; ++from, ++dest)
                     *dest = std::move(*from);
             }
+            
             template <class Breadcrumbs>
             static void _erase_top_item(Breadcrumbs& breadcrumbs)
             {

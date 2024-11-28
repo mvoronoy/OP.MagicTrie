@@ -16,7 +16,7 @@ namespace
         tresult.info() << "Filter empty source\n";
         const std::set<std::string> empty_set;
         auto r_empty = src::of(empty_set)
-            >> then::maf_cv([&](const std::string& a, std::string& r) {
+            >> then::maf_cv([&](const std::string&, const std::string&) {
             tresult.fail("Empty must not invoke filter");
             return true; })
         ;
@@ -25,7 +25,7 @@ namespace
         const std::set<std::string> single_set = { "a" };
         size_t invocations = 0;
         auto r_empty2 = src::of(single_set)
-            >> then::maf_cv([&](const std::string& a, std::string& ) {
+            >> then::maf_cv([&](const std::string&, const std::string& ) {
             ++invocations;
             return false;
         });

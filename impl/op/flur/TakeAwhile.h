@@ -14,11 +14,10 @@
 namespace OP::flur
 {
 
-    template <class Fnc, class Src, class Base>
-    struct TakeAwhile : public Base
+    template <class Fnc, class Src>
+    struct TakeAwhile : public Sequence<details::sequence_element_type_t<Src>>
     {
-        using base_t = Base;
-        using element_t = typename base_t::element_t;
+        using element_t = details::sequence_element_type_t<Src>;
 
         template <class F>
         constexpr TakeAwhile(Src&& src, F f) noexcept
@@ -67,7 +66,7 @@ namespace OP::flur
     };
 
     template <class Fnc>
-    using TakeAwhileFactory = FilterFactoryBase < FilterFactoryTrait<Fnc, TakeAwhile>>;
+    using TakeAwhileFactory = FilterFactoryBase<Fnc, TakeAwhile>;
 
 
 } //ns:OP::flur

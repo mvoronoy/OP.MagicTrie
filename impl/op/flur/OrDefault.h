@@ -148,7 +148,7 @@ namespace OP
             }
 
         public:
-            constexpr OrDefaultFactory(Alt&& alt) noexcept
+            explicit constexpr OrDefaultFactory(Alt&& alt) noexcept
                 : _alt(std::forward<Alt>(alt))
             {
             }

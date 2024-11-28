@@ -45,7 +45,7 @@ namespace OP::flur
         template <CmpOp operation, class TCompareBase>
         struct CompareOnTopOfFullComparison
         {
-            constexpr CompareOnTopOfFullComparison(TCompareBase base = TCompareBase{}) noexcept
+            explicit constexpr CompareOnTopOfFullComparison(TCompareBase base = TCompareBase{}) noexcept
                 : _base(std::move(base))
             {}
 
@@ -149,7 +149,7 @@ namespace OP::flur
         using equals_t = details::CompareOnTopOfFullComparison<
             details::CmpOp::equals, comparison_t >;
 
-        constexpr OverrideComparisonTraits(F f) noexcept
+        explicit constexpr OverrideComparisonTraits(F f) noexcept
             : _cmp(std::move(f))
         {
         }

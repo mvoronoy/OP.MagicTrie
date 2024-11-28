@@ -32,7 +32,7 @@ namespace flur
     struct OfValue : public OrderedSequence<R>
     {
         template < class U = T >
-        constexpr OfValue(U&& src, size_t limit = 1)
+        explicit constexpr OfValue(U&& src, size_t limit = 1)
             :_src(std::forward<U>(src))
             , _limit(limit)
             , _i(0)
@@ -75,33 +75,34 @@ namespace flur
         /**Since this sequence created by SimpleFactory need pack arguments to single value*/
         using simple_factory_param_t = std::pair<gen_t, size_t>;
 
-        constexpr OfLazyValue(simple_factory_param_t param) noexcept
+        explicit constexpr OfLazyValue(simple_factory_param_t param) noexcept
             : _attrs(SequenceState{}, param.second)
             , _gen(std::move(param.first))
         {
         }
 
-        virtual void start()
+        virtual void start() override
         {
             auto& pline = attr<SequenceState>();
             pline.start();
         }
 
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
             return attr<SequenceState>().step().current() < attr<size_t>();
         }
 
-        virtual T current() const
+        virtual T current() const override
         {
             return _attrs.invoke(_gen);
             //return _gen();
         }
 
-        virtual void next()
+        virtual void next() override
         {
             attr<SequenceState>().next();
         }
+
     private:
         template <class U>
         const auto& attr() const
@@ -151,6 +152,7 @@ namespace flur
             throw std::out_of_range("advance empty sequence");
         }
     };
+
     template <class T>
     struct NullSequenceFactory : FactoryBase
     {

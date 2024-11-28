@@ -49,7 +49,7 @@ namespace OP::flur
      * implementation that takes the previous factory result as a Sequence and concatenates some processing unit. 
      * 
      * It is recommended that developers use `constexpr` and `noexcept` in the implementations of both `compound` methods to 
-     * ensure compile-time evaluation and minimizing exception frame ovehead.
+     * ensure compile-time evaluation and minimizing exception frame overhead.
      * The main contribution of LazyRange is to expose several important operators:
      * 1) `operator >>` - to combine two FactoryBase instances into a single lazy chain.
      * 2) `operator >>=`, to consume the lazy chain by some applicator.
@@ -79,7 +79,7 @@ namespace OP::flur
         bookmarks_t _bookmarks;
 
         template <class ...Ux>
-        constexpr LazyRange(
+        explicit constexpr LazyRange(
             std::tuple<Ux...> factories) noexcept
             : _factories{ std::move(factories) }
             , _bookmarks{}
@@ -187,14 +187,14 @@ namespace OP::flur
         {
             return f(*this);
         }
-
+/*
         template <template <typename> class TUnaryFunction, 
             std::enable_if_t<std::is_invocable_v<TUnaryFunction<this_t>, const this_t&>, short> = 0>
         decltype(auto) operator >>= (TUnaryFunction<this_t> f) const
         {
             return f(*this);
         }
-
+*/
         auto begin() const
         {
             return details::begin_impl(*this);

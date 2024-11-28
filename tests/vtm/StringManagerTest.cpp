@@ -251,7 +251,7 @@ void test_SmartStr(OP::utest::TestRuntime& tresult)
 
 }
 
-static auto& module_suite = OP::utest::default_test_suite("StringManager")
+static auto& module_suite = OP::utest::default_test_suite("vtm.StringManager")
     .declare("basic", test_StringManager)
     .declare("edgecase-transactional", test_StringManagerEdgeCase)
     .declare("edgecase-no-tran", test_StringManagerEdgeCaseNoTran)

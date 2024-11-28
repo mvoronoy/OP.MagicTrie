@@ -21,7 +21,6 @@ namespace
                 return std::stoi(s) * state.step().current();
             });
         tresult.assert_that<eq_sets>(ints, std::array{0, 12, 26});
-
         tresult.assert_that<eq_sets>(
             src::null<int>() 
             >> then::mapping([](int x, const SequenceState& state) -> int {
@@ -33,6 +32,7 @@ namespace
             >> then::mapping([](int x) -> int {
                 return (x+1) ;
                 }), std::array<int, 0>{});
+
     }
 
 

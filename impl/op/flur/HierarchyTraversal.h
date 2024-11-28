@@ -277,7 +277,7 @@ namespace OP::flur
         using applicator_result_t = typename applicator_traits_t::result_t;
         using applicator_element_t = typename details::sequence_type_t<applicator_result_t>::element_t;
 
-        constexpr HierarchyTraversalFactory(FChildrenResolve applicator) noexcept
+        explicit constexpr HierarchyTraversalFactory(FChildrenResolve applicator) noexcept
             : _applicator(std::move(applicator))
         {
         }
@@ -325,6 +325,7 @@ namespace OP::flur
             }
         }
 
+    private:
         FChildrenResolve _applicator;
     };
 }  //ns:OP::flur

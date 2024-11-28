@@ -11,11 +11,15 @@ namespace OP::flur
 {
     namespace details
     {
+        /** Equalize usage of constant bool and predicate.
+        * This implementation keeps predicate.
+        */
         template <class T>
         struct eval_condition
         {
             T _t;
-            constexpr eval_condition(T t) noexcept
+
+            explicit constexpr eval_condition(T t) noexcept
                 : _t(std::move(t))
             {}
             
@@ -25,14 +29,18 @@ namespace OP::flur
             }
         };
 
+        /**
+        *   Specialization uses constant bool.
+        */
         template <>
         struct eval_condition<bool>
         {
             bool _v;
-             constexpr eval_condition(bool v) noexcept
-                 :_v(v)
-             {
-             }
+
+            explicit constexpr eval_condition(bool v) noexcept
+                :_v(v)
+            {
+            }
             
             constexpr bool operator()() const noexcept
             {
@@ -90,6 +98,7 @@ namespace OP::flur
                 return target_sequence_t{ details::get_reference(_on_false).compound(std::move(src)) };
         }
 
+    private:
         TBoolEval _eval;
         TOnTrue _on_true;
         TOnFalse _on_false;

@@ -72,21 +72,21 @@ namespace OP::flur
         constexpr auto of_optional(std::optional<V>&& v) noexcept
         {
             return make_lazy_range(
-                SimpleFactory<std::optional<V>, OfOptional<V>>(std::forward<std::optional<V>>(v)) );
+                SimpleFactory<OfOptional<V>, std::optional<V>>{std::forward<std::optional<V>>(v)});
         }
 
         template <class V>
         constexpr auto of_optional(V v) noexcept
         {
             return make_lazy_range(
-                SimpleFactory<std::optional<V>, OfOptional<V>>(std::optional <V>(std::move(v))));
+                SimpleFactory<OfOptional<V>, std::optional<V>>{std::optional <V>(std::move(v))});
         }
         
         template <class V>
         constexpr auto of_optional() noexcept
         {
             return make_lazy_range(
-                SimpleFactory<std::optional<V>, OfOptional<V>>(std::optional <V>{}));
+                SimpleFactory<OfOptional<V>, std::optional<V>>{std::optional <V>{}});
         }
         
         template <class T, std::enable_if_t<std::is_invocable<decltype(of_optional<T>), T>::value, int> = 0>
@@ -140,7 +140,8 @@ namespace OP::flur
         template <class V>
         constexpr auto of_value(V&& v, size_t limit = 1) noexcept
         {
-            return make_lazy_range( SimpleFactory<std::decay_t<V>, OfValue<std::decay_t<V>>>(std::forward<V>(v)) );
+            return make_lazy_range( 
+                SimpleFactory<OfValue<std::decay_t<V>>, std::decay_t<V> >{std::forward<V>(v)});
         }
         
 
@@ -151,7 +152,7 @@ namespace OP::flur
         template <class V>
         constexpr auto of_cref_value(V&& v, size_t limit = 1) noexcept
         {
-            return make_lazy_range( SimpleFactory<const V&, OfValue<V, const V&>>(std::forward<V>(v)) );
+            return make_lazy_range(SimpleFactory<OfValue<V, const V&>, const V&>{std::forward<V>(v)});
         }
 
         /**
@@ -173,14 +174,14 @@ namespace OP::flur
             using result_t = typename functor_traits_t::result_t;
             using sequence_t = OfLazyValue<result_t, F>;
             using simple_factory_param_t = typename sequence_t::simple_factory_param_t;
-            return make_lazy_range( SimpleFactory<simple_factory_param_t, sequence_t>(
-                simple_factory_param_t{ std::move(f), limit }) );
+            return make_lazy_range(SimpleFactory<sequence_t, simple_factory_param_t>{
+                simple_factory_param_t{ std::move(f), limit }});
         }
 
         template <class TOnTrue, class TOnFalse>
         constexpr auto conditional(bool condition, TOnTrue on_true, TOnFalse on_false) noexcept
         {
-            auto eval_arg = [](auto& arg){
+            auto eval_arg = [](auto&& arg){
                 if constexpr( std::is_invocable_v<decltype(arg)> )
                     return arg();
                 else
@@ -191,9 +192,9 @@ namespace OP::flur
             using proxy_factory_t = ProxyFactory<on_true_t, on_false_t>;
 
             if( condition )
-                return make_lazy_range(proxy_factory_t{eval_arg(on_true)});
+                return make_lazy_range(proxy_factory_t{eval_arg(std::forward<TOnTrue>(on_true))});
             else
-                return make_lazy_range(proxy_factory_t{eval_arg(on_false)});
+                return make_lazy_range(proxy_factory_t{eval_arg(std::forward<TOnFalse>(on_false))});
         }
 
         /**
@@ -215,8 +216,9 @@ namespace OP::flur
         {
             using iota_value_t = std::decay_t<T>;
             using iota_t = OfIota<iota_value_t> ;
-            using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
-            return make_lazy_range(factory_t(typename iota_t::bounds_t{ std::move(begin), std::move(end), T{ 1 } }));
+            using factory_t = SimpleFactory<iota_t, typename iota_t::bounds_t>;
+            return make_lazy_range(factory_t{ 
+                typename iota_t::bounds_t{ std::move(begin), std::move(end), T{ 1 } } });
         }
         
         template <class T>
@@ -224,7 +226,7 @@ namespace OP::flur
         {
             using iota_value_t = std::decay_t<T>;
             using iota_t = OfIota<iota_value_t>;
-            using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
+            using factory_t = SimpleFactory<iota_t, typename iota_t::bounds_t>;
             return make_lazy_range(factory_t(
                 typename iota_t::bounds_t{ std::move(begin), std::move(end), std::move(step) }));
         }
@@ -234,7 +236,7 @@ namespace OP::flur
         {
             using iota_value_t = std::decay_t<T>;
             using iota_t = OfIota<iota_value_t, const iota_value_t&>;
-            using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
+            using factory_t = SimpleFactory<iota_t, typename iota_t::bounds_t>;
             return make_lazy_range(factory_t(std::move(begin), std::move(end), std::move(step)));
         }
 
@@ -244,8 +246,9 @@ namespace OP::flur
         {
             using iota_value_t = std::decay_t<T>;
             using iota_t = OfIota<iota_value_t, const iota_value_t&>;
-            using factory_t = SimpleFactory<typename iota_t::bounds_t, iota_t>;
-            return make_lazy_range(factory_t(typename iota_t::bounds_t{ std::move(begin), std::move(end), T{ 1 } }));
+            using factory_t = SimpleFactory<iota_t, typename iota_t::bounds_t>;
+            return make_lazy_range(factory_t{
+                typename iota_t::bounds_t{ std::move(begin), std::move(end), T{ 1 } } });
         }
 
         /**
@@ -257,7 +260,9 @@ namespace OP::flur
         template <class It>
         constexpr auto of_iterators(It begin, It end) noexcept
         {
-            return make_lazy_range( SimpleFactory<std::pair<It, It>, OfIterators<It>>(std::move(begin), std::move(end)) );
+            return make_lazy_range( 
+                SimpleFactory<OfIterators<It>, std::pair<It, It>>{std::pair<It, It>{
+                std::move(begin), std::move(end)}});
         }
 
         /**
@@ -328,8 +333,9 @@ namespace OP::flur
             using splitter_t = StringSplit<raw_t, str_view_t>;
             //Simple factory will use copy operation of the same instance
             return make_lazy_range( 
-                SimpleFactory<splitter_t, splitter_t>(
-                    splitter_t(std::move(str), std::forward<String<Str2>>(separators))));
+                SimpleFactory<splitter_t, splitter_t>{
+                splitter_t{ std::move(str), std::forward<String<Str2>>(separators) }}
+            );
         }
 
         template <class Str>
@@ -726,7 +732,10 @@ namespace OP::flur
         template <class Eq>
         constexpr auto unordered_distinct(Eq eq) noexcept
         {
-            return DistinctFactory<UnorderedDistinctPolicyWithCustomComparator<Eq>>(std::move(eq));
+            return DistinctFactory<UnorderedDistinctPolicyWithCustomComparator<Eq>>(
+                UnorderedDistinctPolicyWithCustomComparator<Eq>(
+                std::move(eq))
+            );
         }
         
         constexpr auto unordered_distinct() noexcept

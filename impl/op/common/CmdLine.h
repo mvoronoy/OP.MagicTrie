@@ -57,7 +57,7 @@ namespace OP::console
         bool _assigned = false;
 
         template <class Iter>
-        void when_match(Iter&, Iter)
+        void when_match(Iter&, Iter) noexcept
         {
             _assigned = true;
         }
@@ -81,12 +81,14 @@ namespace OP::console
     struct desc
     {
         template <class T>
-        desc(T&& t)
+        explicit desc(T&& t)
             : _str(std::forward<T>(t)) {}
-        const std::string& info() const
+
+        const std::string& info() const noexcept
         {
             return _str;
         }
+
         std::string _str;
     };
 
@@ -100,13 +102,14 @@ namespace OP::console
     * 
     * States that `--test` or `-t` assigns variable value `&x.v`.
     */
-    struct _key
+    struct key
     {
-        _key(std::string t) noexcept
-            : _str(std::move(t)) {}
+        template <class T>
+        explicit key(T&& t) noexcept
+            : _str(std::forward<T>(t)) {}
 
         template <class Iter>
-        bool match(Iter& current, Iter)
+        bool match(Iter& current, Iter) noexcept
         {
             if (_str == *current)
             {
@@ -116,20 +119,14 @@ namespace OP::console
             return false;
         }
 
-        const std::string& id() const
+        const std::string& id() const noexcept
         {
             return _str;
         }
+
         std::string _str;
     };
 
-    template <class T>
-    auto key(T&& t)
-    {
-        return _key(t);
-    }
-
-    
     /**
     * Ingredient to OP::console::Arg declaration to declare handler of free (stroll) parameter
     * without `key.
@@ -145,7 +142,7 @@ namespace OP::console
         stroll() = default;
 
         template <class Iter>
-        bool match_fallback(Iter&, Iter)
+        bool match_fallback(Iter&, Iter) noexcept
         {
             return true;
         }
@@ -157,7 +154,7 @@ namespace OP::console
         }
 
         template <class Iter>
-        void when_match(Iter& current, Iter)
+        void when_match(Iter& current, Iter) noexcept
         {
             ++current; //need if no `assign` operation followed
         }
@@ -176,7 +173,7 @@ namespace OP::console
     template <class F>
     struct action
     {
-        action(F f)
+        explicit action(F f) noexcept
             : _fun(std::move(f))
         {}
 
@@ -190,12 +187,6 @@ namespace OP::console
     private:
         F _fun;
     };
-
-    //template <class T>
-    //auto action(std::function<void(T)> f)
-    //{
-    //    return _action<T>(std::move(f));
-    //}
 
     /**
     * Ingredient to OP::console::Arg declaration to assign value 
@@ -216,9 +207,9 @@ namespace OP::console
     * Code will succeed with `--bool` 
     */
     template <class T>
-    struct _assign
+    struct assign
     {
-        _assign(T* dest)
+        explicit assign(T* dest) noexcept
             : _dest(dest) {}
 
         template <class Iter>
@@ -234,24 +225,20 @@ namespace OP::console
     };
 
     template <>
-    struct _assign<bool>
+    struct assign<bool>
     {
-        _assign(bool* dest)
+        explicit assign(bool* dest) noexcept
             : _dest(dest) {}
-        bool* _dest;
-
+        
         template <class Iter>
-        void when_match(Iter&, Iter)
+        void when_match(Iter&, Iter) noexcept
         {
             *_dest = true;
         }
-    };
 
-    template <class T>
-    auto assign(T* dest)
-    {
-        return _assign(dest);
-    }
+    private:
+        bool* _dest;
+    };
 
     /** Declare rules for single parameters. For possible usage see
     * #key, #assign, #stroll, #action, #desc, #required
@@ -259,7 +246,7 @@ namespace OP::console
     template <class ... Tx>
     struct Arg 
     {
-        Arg(Tx&& ...tx) 
+        explicit Arg(Tx&& ...tx) noexcept
             : _entries(std::forward<Tx>(tx)...)
         {}
 
@@ -344,8 +331,9 @@ namespace OP::console
                 throw; //re-raise without upgrade
             }
         }
+
         /** Renders human readable identifier of the current argument */
-        std::string identify(std::string separator = ", "s)
+        std::string identify(const std::string& separator = ", "s)
         {
             std::string result, current;
             auto step = [&](auto& m) {
@@ -379,6 +367,7 @@ namespace OP::console
             result += current;
             return result;
         }
+
     private:
         OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(match)
         OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(match_fallback)
@@ -399,6 +388,7 @@ namespace OP::console
             }
             
         }
+
         template <class T>
         bool _id_of(T& t, std::string& id_buf)
         {
@@ -426,7 +416,7 @@ namespace OP::console
     template <class ...TArg>
     struct CommandLineParser
     {
-        CommandLineParser(TArg&& ...rules) 
+        explicit CommandLineParser(TArg&& ...rules) noexcept
             : _rules(std::make_tuple(std::forward<TArg>(rules)...))
         {
         }

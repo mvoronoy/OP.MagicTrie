@@ -17,6 +17,21 @@ namespace OP::flur
         using element_t = TElement;
         using sequence_t = Sequence<element_t>;
         using base_sequence_t = sequence_t;
+        using this_t = AbstractPolymorphFactory<TElement>;
+        using this_ptr = std::shared_ptr<this_t>;
+        using this_cptr = std::shared_ptr<this_t const>;
+
+        struct SequenceDeleter
+        {
+            this_cptr _factory;
+            void operator()(sequence_t* ptr)
+            { 
+                delete ptr; 
+                _factory.reset(); //release factory counter
+            }
+        };
+
+        using sequence_ptr = std::unique_ptr<sequence_t, SequenceDeleter>;
 
         AbstractPolymorphFactory() = default;
         AbstractPolymorphFactory(const AbstractPolymorphFactory&) = delete;
@@ -24,15 +39,17 @@ namespace OP::flur
 
         virtual ~AbstractPolymorphFactory() = default;
 
+        virtual sequence_ptr compound_unique() const = 0;
+
         virtual std::shared_ptr<sequence_t> compound_shared() const = 0;
 
         /** 
             As a FactoryBase this abstraction must support `compound()` so 
-            it is aliasing of `compound_shared()` 
+            it is aliasing of `compound_unique()` 
         */
-        std::shared_ptr<sequence_t> compound() const 
+        sequence_ptr compound() const 
         {
-            return compound_shared();
+            return compound_unique();
         }
 
         auto begin() const
@@ -60,42 +77,57 @@ namespace OP::flur
         AbstractPolymorphFactory<details::sequence_element_type_t<TFactory>>
     {
         using base_factory_t = std::decay_t<TFactory>;
+
         static_assert( std::is_base_of_v<FactoryBase, base_factory_t>,
             "Base must be derived from FactoryBase");
-        using sequence_t = details::sequence_type_t<base_factory_t>;
+
         using base_t = AbstractPolymorphFactory<  
             details::sequence_element_type_t<TFactory>
         >;
+        using sequence_ptr = typename base_t::sequence_ptr;
+        using sequence_t = typename base_t::sequence_t;
 
-        constexpr PolymorphFactory(base_factory_t&& rref) noexcept
-            : _base_factory(std::move(rref)) {}
+        explicit constexpr PolymorphFactory(base_factory_t&& rref) noexcept
+            : _base_factory(std::move(rref)) 
+        {
+        }
 
-        std::shared_ptr<typename base_t::sequence_t> compound_shared() const override
+        sequence_ptr compound_unique() const override
         {
             auto result = _base_factory.compound();
             using result_seq_t = std::decay_t<decltype(result)>;
             // underlaying factory may already produce shared ptr, so skip wrapping then
-            if constexpr(details::is_shared_ptr<result_seq_t>::value )
+            if constexpr(details::is_unique_ptr<result_seq_t>::value )
             {
                 return result;
             }
             else
             {
-                return std::shared_ptr<typename base_t::sequence_t>(
+                return sequence_ptr(
                     //uses move constructor
                     new result_seq_t{std::move(result)},
                     // custom deleter to keep factory captured
-                    [capture = this->shared_from_this()](result_seq_t* p) mutable { 
-                        delete p;
-                        capture.reset(); //just to avoid optimization
-                    }
+                    SequenceDeleter{ this->shared_from_this() }
                 );
             }
         }
+        
+        std::shared_ptr<sequence_t> compound_shared() const override
+        {
+            auto result = _base_factory.compound();
+            using result_seq_t = std::decay_t<decltype(result)>;
+            return std::shared_ptr<sequence_t>(
+                    //uses move constructor
+                    new result_seq_t{std::move(result)},
+                    // custom deleter to keep factory captured
+                    SequenceDeleter{ this->shared_from_this() }
+                );
+        }
+
     private:
         base_factory_t _base_factory;
     };
-    template<class TFactory> PolymorphFactory(TFactory) -> PolymorphFactory<TFactory>;
+    template<class TFactory> explicit PolymorphFactory(TFactory) -> PolymorphFactory<TFactory>;
 
 } //ns: OP::flur
 

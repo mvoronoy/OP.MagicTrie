@@ -37,7 +37,7 @@ namespace flur
         {
         }
 
-        constexpr OfIota(bounds_t bounds) noexcept
+        explicit constexpr OfIota(bounds_t bounds) noexcept
             : _bounds(std::move(bounds))
             , _current(_bounds._end) //end
         {}

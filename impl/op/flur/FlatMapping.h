@@ -25,7 +25,8 @@ namespace OP
 
             using deref_input_sequence_t = details::dereference_t<input_sequence_t>;
 
-            static /*decltype(auto)*/auto invoke(
+            static decltype(auto) invoke(
+                // cppcheck-suppress constParameterReference
                 applicator_t& applicator,
                 const deref_input_sequence_t& sequence,
                 SequenceState& state)
@@ -64,11 +65,6 @@ namespace OP
                 invoke(std::declval<F&>(),
                     std::declval<const deref_input_sequence_t&>(),
                     std::declval<SequenceState&>()) );
-                //Works:
-                //decltype(
-                //    std::declval<F>()(
-                //        details::get_reference(std::declval<std::decay_t<input_sequence_t>&>().current()))
-                //    )
                 ;
 
             using applicator_result_sequence_t =

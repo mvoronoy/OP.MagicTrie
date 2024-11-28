@@ -255,7 +255,7 @@ void test_FlatMapArbitraryArgs(TestRuntime& rt)
     size_t sum_of = 0;
     auto shared_seq = make_shared(
         src::of_container(std::vector{ 1, 3, 5, 7 })
-        >> then::flat_mapping([&](const int& n, SequenceState& attrs) {
+        >> then::flat_mapping([&](const int& n, const SequenceState& attrs) {
             ExploreVector<int> even{ 2, 4, 6 };
             sum_of += attrs.step(); //just accumulate current step to get correct sum at exit
             return src::of_container(std::move(even));

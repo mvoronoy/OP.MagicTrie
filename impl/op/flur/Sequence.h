@@ -14,9 +14,6 @@ namespace OP::flur
     template <class T>
     struct Sequence
     {
-        /** Compile time constant indicates Sequence over sorted sequence */
-        static constexpr bool ordered_c = false;
-
         using this_t = Sequence<T>;
 
         /** Type of element */
@@ -56,8 +53,6 @@ namespace OP::flur
     template <class T>
     struct OrderedSequence : public Sequence<T>
     {
-        /** Compile time constant indicates Sequence over sorted sequence */
-        static constexpr bool ordered_c = true;
         using base_t = Sequence<T>;
         using this_t = OrderedSequence<T>;
         using element_t = typename base_t::element_t;

@@ -11,12 +11,16 @@ namespace OP::flur
     {
         struct Step
         {
-            constexpr Step(size_t start = 0) noexcept
-                : _step(start) {}
+            explicit constexpr Step(size_t start = 0) noexcept
+                : _step(start) 
+            {
+            }
+
             void next() noexcept  { ++_step; }
             constexpr size_t current() const noexcept  { return _step; }
             constexpr operator size_t() const noexcept { return _step; }
             void start() { _step = 0; }
+
         private:
             size_t _step;
         };

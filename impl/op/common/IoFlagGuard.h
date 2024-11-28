@@ -25,27 +25,32 @@ namespace OP
     template <class TStream = std::ostream>
     struct IoFlagGuard
     {
-        IoFlagGuard(TStream& stream)
+        explicit IoFlagGuard(TStream& stream) noexcept
             : _stream(stream)
             , _origin_flags(_stream.flags())
             , _format(nullptr) 
         {
             _format.copyfmt(stream);
         }
+
         ~IoFlagGuard()
         {
             reset();
         }
+
         void reset()
         {
             _stream.copyfmt(_format);
             _stream.flags( _origin_flags );
         }
+
     private:
         TStream& _stream;
         std::ios_base::fmtflags _origin_flags;
         std::ios _format;
     };
+    // explicit deduction guide (not needed as of C++20)
+    template<class TStream> IoFlagGuard(TStream&) -> IoFlagGuard<TStream>;
 
 
 } //end of namespace OP

@@ -11,7 +11,7 @@ void test_UintDiff(OP::utest::TestRuntime& tresult)
     tresult.assert_that<equals>(-2ll, OP::utils::uint_diff_int( 3ull, 5ull ), 
         OP_CODE_DETAILS() );
 }
-void test_UintDiffOverflow(OP::utest::TestRuntime& tresult)
+void test_UintDiffOverflow()
 {
     OP::utils::uint_diff_int( 0u, (unsigned)(-1));
 }

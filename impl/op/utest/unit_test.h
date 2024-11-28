@@ -87,70 +87,86 @@ namespace OP::utest
         /**Display all messages*/
         debug = 3
     };
+
     /** Options for load running */
     struct LoadRunOptions
     {
         /** Number of dummy exercise before real metrics measurement */
         size_t _warm_up = 10;
-        /** Number of dummy exercise before real metrics measurement */
+
+        /** Number of times to execute test for the real metrics measurement */
         size_t _runs = 1;
+        
         [[nodiscard]] bool is_load_run() const
         {
             return _runs > 1;
         }
     };
+
     /** Encapsulate test suite configurable options */
     struct TestRunOptions
     {
-        TestRunOptions()
+        TestRunOptions() noexcept
+            : _fail_fast{false}
+            , _intercept_sig_abort{true}
+            , _output_width{40}
         {
-            _intercept_sig_abort = true;
-            _output_width = 40;
+        }
+
+        TestRunOptions& fail_fast(bool new_value) noexcept
+        {
+            _fail_fast = new_value;
+            return *this;
+        }
+
+        [[nodiscard]] bool fail_fast() const noexcept
+        {
+            return _fail_fast;
         }
 
         /** Modifies permission to intercept 'abort' from test code.
          * Set true if C-style assert shouldn't break test execution
          */
-        TestRunOptions& intercept_sig_abort(bool new_value)
+        TestRunOptions& intercept_sig_abort(bool new_value) noexcept
         {
             _intercept_sig_abort = new_value;
             return *this;
         }
 
-        [[nodiscard]] bool intercept_sig_abort() const
+        [[nodiscard]] bool intercept_sig_abort() const noexcept
         {
             return _intercept_sig_abort;
         }
 
-        [[nodiscard]] std::uint16_t output_width() const
+        [[nodiscard]] std::uint16_t output_width() const noexcept
         {
             return _output_width;
         }
 
-        TestRunOptions& output_width(std::uint16_t output_width)
+        TestRunOptions& output_width(std::uint16_t output_width) noexcept
         {
             _output_width = output_width;
             return *this;
         }
 
-        [[nodiscard]] ResultLevel log_level() const
+        [[nodiscard]] ResultLevel log_level() const noexcept
         {
             return _log_level;
         }
 
-        TestRunOptions& log_level(ResultLevel level)
+        TestRunOptions& log_level(ResultLevel level) noexcept
         {
             _log_level = level;
             return *this;
         }
         
         /** Options for load runs */
-        [[nodiscard]] LoadRunOptions load_run() const
+        [[nodiscard]] LoadRunOptions load_run() const noexcept
         {
             return _load_run;
         }
 
-        TestRunOptions& load_run(LoadRunOptions lro)
+        TestRunOptions& load_run(LoadRunOptions lro) noexcept
         {
             _load_run = std::move(lro);
             return *this;
@@ -160,18 +176,20 @@ namespace OP::utest
          * If needed to get the same random values between several tests run specify
          * some constant for this parameter
          */
-        [[nodiscard]] const auto& random_seed() const
+        [[nodiscard]] const auto& random_seed() const noexcept
         {
             return _random_seed;
         }
 
         template <class IntOrOptional>
-        TestRunOptions& random_seed(IntOrOptional seed)
+        TestRunOptions& random_seed(IntOrOptional seed) noexcept
         {
             _random_seed = std::forward<IntOrOptional>(seed);
             return *this;
         }
+
     private:
+        bool _fail_fast;
         bool _intercept_sig_abort;
         std::uint16_t _output_width;
         ResultLevel _log_level = ResultLevel::info;
@@ -630,7 +648,7 @@ namespace OP::utest
         template <class Exception>
         static inline void render_exception_status(test_run_shared_args_t& runtime, Exception const& e)
         {
-            TestRuntime& tr = runtime.eval_arg<TestRuntime&>();
+            const TestRuntime& tr = runtime.eval_arg<TestRuntime&>();
             if (e.what() && *e.what())
             {
                 tr.error() << e.what();
@@ -769,6 +787,7 @@ namespace OP::utest
                 throw std::runtime_error("TestSuite('"s + _name + "') already has defined `after_suite`"s);
             _shutdown_suite =
                 OP::currying::arguments(std::ref(*this)).def(std::move(tear_down));
+            return *this;
         }
 
         /**
@@ -1036,6 +1055,7 @@ namespace OP::utest
 
                 stream_guard.reset();
                 suite_decl.second->options() = _options;
+
                 try
                 { // This try allows intercept exceptions only from suite initialization
                     auto single_res = suite_decl.second->run_if(predicate);
@@ -1046,11 +1066,15 @@ namespace OP::utest
                 {
                     result.push_back(handle_environment_crash(
                             *suite_decl.second, &ex));
+                    if (_options.fail_fast())
+                        break;
                 }
                 catch (...)
                 {
                     result.push_back(handle_environment_crash(
                             *suite_decl.second, nullptr));
+                    if (_options.fail_fast())
+                        break;
                 }
             }
             return result;
@@ -1059,12 +1083,11 @@ namespace OP::utest
     private:
         static TestResult handle_environment_crash(TestSuite&suite, const std::exception* pex)
         {
-            TestResult crash_res("ENVIRONMENT");
-            crash_res._status = TestResult::Status::aborted;
-            suite.error() << "Test Environment Crash, aborted.";
+            TestResult crash_res("Suite");
+            crash_res._status = TestResult::Status::exception;
+            suite.error() << "Unhandled exception, execution stopped.\n";
             if (pex)
-                suite.error() << "----[exception-what]:" << pex->what();
-            suite.error() << "\n";
+                suite.error() << "----[exception-what]:" << pex->what() << '\n';
             return crash_res;
         }
 
@@ -1401,6 +1424,8 @@ namespace OP::utest
                     << result.back().ms_duration() << "ms"
                     << std::endl //need flush
                 ;
+            if (_options.fail_fast() && result.back().status() != TestResult::Status::ok)
+                break;
         }
         return result;
     }

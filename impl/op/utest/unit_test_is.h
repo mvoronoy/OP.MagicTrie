@@ -122,10 +122,8 @@ namespace OP::utest
         }
     };
 
-    struct eq_ranges
+    struct eq_ranges : details::marker_arity<4>
     {
-        constexpr static size_t args_c = 4;
-
         template <class T>
         using el_t = decltype(*std::begin(std::declval<const T&>()));
 
@@ -211,10 +209,8 @@ namespace OP::utest
     *   rt.assert_that<eq_sets>(left, right, "Items aren't the same"s); //will fail at [3, 5]
     *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
-    struct eq_sets : private eq_ranges
+    struct eq_sets : details::marker_arity<2> 
     {
-        constexpr static size_t args_c = 2;
-
         /** 
         *   \brief Implementation finds mismatch in 2 containers.
         *
@@ -224,9 +220,10 @@ namespace OP::utest
         template <class Left, class Right>
         constexpr auto operator()(const Left& left, const Right& right) const
         {
-            return eq_ranges::operator()(std::begin(left), std::end(left), std::begin(right), std::end(right));
+            return _aggregate(std::begin(left), std::end(left), std::begin(right), std::end(right));
         }
-
+    private:
+        eq_ranges _aggregate;
     };
 
     namespace details

@@ -43,6 +43,6 @@ void test_SegmentTopology(OP::utest::TestRuntime& result)
 }
 
 //using std::placeholders;
-static auto& module_suite = OP::utest::default_test_suite("SegmentTopology")
+static auto& module_suite = OP::utest::default_test_suite("vtm.SegmentTopology")
 .declare("general", test_SegmentTopology)
 ;

@@ -12,21 +12,19 @@
 namespace OP::flur
 {
 
-    template <class Fnc, class Src, class Base>
-    struct Filter : public Base
+    template <class Fnc, class Src>
+    struct Filter : public Sequence<details::sequence_element_type_t<Src>>
     {
-        using base_t = Base;
-        using element_t = typename base_t::element_t;
+        using element_t = details::sequence_element_type_t<Src>;
 
         template <class F>
         constexpr Filter(Src&& src, F f) noexcept
             : _src(std::move(src))
             , _predicate(std::move(f))
-            , _end (true)
+            , _end(true)
         {
         }
 
-        
         bool is_sequence_ordered() const noexcept override
         {
             return details::get_reference(_src).is_sequence_ordered();
@@ -81,44 +79,40 @@ namespace OP::flur
         using src_conatiner_t = details::sequence_type_t<details::dereference_t<Src>>;
 
         template <class Src>
-        using sequence_base_t = std::conditional_t<
-            src_conatiner_t<Src>::ordered_c,
-            OrderedSequence<typename src_conatiner_t<Src>::element_t>,
-            Sequence<typename src_conatiner_t<Src>::element_t>
-        >;
-
-        template <class Src>
-        using result_sequence_t = Impl<Fnc, Src, sequence_base_t<Src> >;
+        using result_sequence_t = Impl<Fnc, Src>;
     };
 
 
-    template <class FTrait>
+    template <class F, template <typename...> class Impl>
     struct FilterFactoryBase : FactoryBase
     {
-        using holder_t = typename FTrait::functor_t;//std::function<Fnc>;
+        template <class Src>
+        using result_sequence_t = Impl<F, Src>;
 
-        template <class U>
-        constexpr FilterFactoryBase(U f) noexcept
-            : _fnc(std::move(f))
+        template <class FLike>
+        explicit constexpr FilterFactoryBase(FLike&& f) noexcept
+            : _fnc(std::forward<FLike>(f))
         {
         }
+
         template <class Src>
         constexpr auto compound(Src&& src) const& noexcept
         {
-            using result_t = typename FTrait::template result_sequence_t<Src>;
-            return result_t(std::move(src), _fnc);
+            return result_sequence_t<Src>(std::move(src), _fnc);
         }
 
         template <class Src>
         constexpr auto compound(Src&& src) && noexcept
         {
-            using result_t = typename FTrait::template result_sequence_t<Src>;
-            return result_t(std::move(src), std::move(_fnc));
+            return result_sequence_t<Src>(std::move(src), std::move(_fnc));
         }
-        holder_t _fnc;
+
+    private:
+        F _fnc;
     };
-    template <class Fnc>
-    using FilterFactory = FilterFactoryBase< FilterFactoryTrait<Fnc, Filter> >;
+
+    template <class F>
+    using FilterFactory = FilterFactoryBase<F, Filter>;
 
 }  //ns:OP::flur
 

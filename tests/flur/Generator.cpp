@@ -82,10 +82,7 @@ namespace {
             {
                 throw std::runtime_error("generation fail emulation");
             }
-            //don't do optional of future in real code
-            return (i3 > 3)
-                ? std::optional<int>{}
-            : std::make_optional(++i3);
+            return std::optional<int>{};
             });
 
         tresult.assert_exception<std::runtime_error>([&]() {
@@ -101,9 +98,10 @@ namespace {
         target_set_t result;
         using cstr_ptr = const std::string*;
         size_t invocked = 0;
-        typename set_t::iterator current;
+        typename set_t::iterator current{};
         for (const auto& r : OP::flur::src::generator([&](const SequenceState& attrs) -> cstr_ptr {
             current = attrs.step() == 0 ? subset.begin() : std::next(current);
+            ++invocked;
             return current == subset.end() ? nullptr : &*current;
             }))
         {
@@ -111,6 +109,7 @@ namespace {
             result.insert(r);
         }
         tresult.assert_that<eq_sets>(subset, result, "generator doesn't produce expected result");
+        tresult.assert_that<equals>(invocked, 3);
     }
 
     static auto& module_suite = OP::utest::default_test_suite("flur.generator")

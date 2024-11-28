@@ -43,19 +43,10 @@ namespace OP::flur
     };
 
     template <class Left, class Predicate>
-    struct UnorderedJoin : public Filter<
-        Predicate,
-        Left,
-        Sequence<details::sequence_element_type_t<Left>>
-    >
+    struct UnorderedJoin : public Filter<Predicate, Left>
     {
         using element_t = details::sequence_element_type_t<Left>;
-        using base_t = Filter<
-            Predicate,
-            Left,
-            Sequence<element_t>
-        >;
-
+        using base_t = Filter<Predicate, Left>;
 
         template <class U>
         constexpr UnorderedJoin(U&& left, Predicate predicate) noexcept
@@ -79,7 +70,7 @@ namespace OP::flur
             details::sequence_element_type_t<Right>>;
 
         template <class U>
-        constexpr UnorderedJoinFactory(U&& u) noexcept
+        explicit constexpr UnorderedJoinFactory(U&& u) noexcept
             : _right(std::forward<U>(u))
         {
         }
@@ -130,18 +121,6 @@ namespace OP::flur
 
             using all_ordered_t = details::ordered_joint_sequence_t<LeftSeq, RightSeq>;
 
-            /*
-            using dummy_t = NullSequenceFactory< right_element_t>;
-            using target_t = SequenceProxy< details::unpack_t<dummy_t> >;
-            std::cout
-                << "1)" << typeid(all_ordered_t).name() << "\n"
-                << "2a) elem = " << typeid(left_element_t).name() << "\n"
-                << "2b) r-seq = " << typeid(right_seq_t).name() << "\n"
-                << "2)" << typeid(left_unordered_t).name() << "\n"
-                << "3)" << typeid(right_unordered_t).name() << "\n"
-                ;
-            return target_t{ dummy_t{}.compound() };
-             */
             using target_sequence_t =
                 std::conditional_t<
                 //occasionally `left_unordered_t` may be the same as `right_unordered_t`
@@ -180,7 +159,7 @@ namespace OP::flur
     public:
 
         template <class U>
-        constexpr AdaptiveJoinFactory(U&& right) noexcept
+        explicit constexpr AdaptiveJoinFactory(U&& right) noexcept
             : _right(std::forward<U>(right))
         {
         }

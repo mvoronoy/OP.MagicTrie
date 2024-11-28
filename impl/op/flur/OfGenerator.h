@@ -42,7 +42,7 @@ namespace OP
             using element_t = typename base_t::element_t;
             using value_t = std::decay_t<element_t>;
 
-            constexpr Generator(F f) noexcept
+            explicit constexpr Generator(F f) noexcept
                 : _generator(std::move(f)) 
             {
             }
@@ -85,16 +85,16 @@ namespace OP
 
         namespace details
         {
-        template <typename A>
-        class has_deref_operator
-        { 
-            typedef char YesType[1]; 
-            typedef char NoType[2]; 
-            template <typename C> static std::enable_if_t< !std::is_same_v<void, decltype(*std::declval<C>())>, YesType&> test( void* = nullptr ) ; 
-            template <typename C> static NoType& test(...); 
-        public: 
-            enum { value = sizeof(test<A>(nullptr)) == sizeof(YesType) }; 
-        };
+            template <typename A>
+            class has_deref_operator
+            { 
+                typedef char YesType[1]; 
+                typedef char NoType[2]; 
+                template <typename C> static std::enable_if_t< !std::is_same_v<void, decltype(*std::declval<C>())>, YesType&> test( void* = nullptr ) ; 
+                template <typename C> static NoType& test(...); 
+            public: 
+                enum { value = sizeof(test<A>(nullptr)) == sizeof(YesType) }; 
+            };
         }
         /**
         *
@@ -114,12 +114,15 @@ namespace OP
                 "Generator must be contextually convertible to bool (like std::optional<?>, std::shared_ptr<?>, std::unique_ptr<?> or raw-pointer)");
 
             using element_t = std::decay_t<decltype(*std::declval<result_t>())>;
-            using generator_base_t = std::conditional_t< ordered,
-                OrderedSequence<const element_t&>,
-                Sequence<const element_t&> >;
-            using generator_t = Generator< generator_base_t, F>;
+            using generator_base_t = std::conditional_t< 
+                    ordered,
+                    OrderedSequence<const element_t&>,
+                    Sequence<const element_t&>
+                >;
 
-            constexpr GeneratorFactory(F&& f) noexcept
+            using generator_t = Generator<generator_base_t, F>;
+
+            explicit constexpr GeneratorFactory(F&& f) noexcept
                 : _gen(std::forward<F>(f))
             {
             }
@@ -128,6 +131,7 @@ namespace OP
             {
                 return generator_t(_gen);
             }
+
             constexpr auto compound() && noexcept
             {
                 return generator_t(std::move(_gen));

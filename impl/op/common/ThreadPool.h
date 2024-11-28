@@ -48,7 +48,7 @@ namespace OP::utils
             using result_t = function_res_t<F>;
             using this_t = Functor<F>;
 
-            Functor(F&& f)
+            explicit Functor(F&& f) noexcept
                 : _f(std::move(f))
             {
             }
@@ -110,7 +110,7 @@ namespace OP::utils
         template <class F>
         struct Action : Task
         {
-            Action(F&& f)
+            explicit Action(F&& f) noexcept
                 : _f(std::move(f))
             {
             }
@@ -148,7 +148,7 @@ namespace OP::utils
         *   \param grow_by - number of threads to allocate after exhausting available threads. 
         *                   If 0 is specified thread pool will not grow and unhandled jobs will be queued.
         */
-        ThreadPool(size_t initial, unsigned grow_by = 0)
+        explicit ThreadPool(size_t initial, unsigned grow_by = 0)
             : _grow_factor(grow_by)
             , _busy( 0 )
             , _allocated( 0 )

@@ -90,22 +90,22 @@ namespace OP::flur
     
     /** Helper class allows to reduce allocations number when mapping result
     * is a heap consuming entity. For example, following code allocates memory for 
-    `std::string` several times:
-     \code
-        src::of_iota(5, 7)
-        >> then::keep_order_mapping([](auto n)->std::string{ return std::to_string(n); }
-    \endcode
-    To optimize it we can add state-full functor:\code
-        src::of_iota(5, 7)
-        >> then::keep_order_mapping(
-            ReusableMapBuffer([](auto n, std::string& already_existing) -> void
-            { 
-                std::format_to(
-                    std::back_inserter(already_existing), "{}", n); 
-            })
-        );
-    \endcode
-
+    * `std::string` several times:
+    *  \code
+    *     src::of_iota(5, 7)
+    *     >> then::keep_order_mapping([](auto n)->std::string{ return std::to_string(n); }
+    *  \endcode
+    *  To optimize it use state-full functor: \code
+    *     src::of_iota(5, 7)
+    *     >> then::keep_order_mapping(
+    *         ReusableMapBuffer([](auto n, std::string& already_existing) -> void
+    *         { 
+    *             std::format_to(
+    *                 std::back_inserter(already_existing), "{}", n); 
+    *         })
+    *     );
+    * \endcode
+    * 
     */
     template <class F, bool result_by_value_c = false>
     struct ReusableMapBuffer
@@ -115,7 +115,7 @@ namespace OP::flur
         using to_t = std::decay_t<typename traits_t::template arg_i<1>>;
         using result_t = std::conditional_t< result_by_value_c, to_t, const to_t&>;
 
-        ReusableMapBuffer(F f) 
+        explicit ReusableMapBuffer(F f)
             : _f(std::move(f)) 
         {
         }
@@ -126,6 +126,7 @@ namespace OP::flur
             return _entry;
         }
 
+    private:
         F _f;
         mutable to_t _entry;
     };
@@ -163,6 +164,7 @@ namespace OP::flur
                 std::move(src), 
                 _applicator);
         }
+    private:
         applicator_t _applicator;
     };
 } //ns:OP::flur

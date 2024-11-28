@@ -54,7 +54,7 @@ namespace OP
         * When the source object is not initialized, the copy is also not initialized. However, 
         * when the original MemBuf contains a valid object, the copy constructor of `T` is used.
         */
-        constexpr MemBuf(const this_t& other) noexcept(std::is_nothrow_constructible_v<T, const T&>)
+        constexpr MemBuf(const MemBuf& other) noexcept(std::is_nothrow_constructible_v<T, const T&>)
         {
             if(other._init)
             {
@@ -70,7 +70,7 @@ namespace OP
         * When the source object is not initialized, the copy is also not initialized. However, 
         * when the original MemBuf contains a valid object, the move constructor of `T` is used.
         */
-        constexpr MemBuf(this_t&& other) noexcept(std::is_nothrow_constructible_v<T, T&&>)
+        constexpr MemBuf(MemBuf&& other) noexcept(std::is_nothrow_constructible_v<T, T&&>)
         {
             if(other._init)
             {
@@ -293,7 +293,7 @@ namespace OP
         constexpr Multiimplementation() noexcept = default;
         
         /** \brief Copy constructor */
-        Multiimplementation(const this_t& other)
+        explicit Multiimplementation(const Multiimplementation& other)
         {
             if(other.has_value())
             {
@@ -313,7 +313,7 @@ namespace OP
         }
 
         /** \brief Move constructor */
-        Multiimplementation(Multiimplementation&& other) noexcept
+        explicit Multiimplementation(Multiimplementation&& other) noexcept
         {
             if(other.has_value())
             {
@@ -334,7 +334,7 @@ namespace OP
 
         /** \brief Constructor creates instance from implmentation `U` on condition U is the same as one of Tx... */
         template <class U>
-        Multiimplementation(const U& instance) 
+        explicit Multiimplementation(const U& instance) 
         {
             static_assert(
                 ((std::is_same_v<Tx, U>) || ...),
@@ -347,7 +347,7 @@ namespace OP
         *   on condition U is the same as one of Tx... 
         */
         template <class U>
-        Multiimplementation(U&& instance) noexcept
+        explicit Multiimplementation(U&& instance) noexcept
         {
             using plain_u = std::decay_t<U>;
             static_assert(

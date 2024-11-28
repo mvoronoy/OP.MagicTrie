@@ -22,7 +22,7 @@ namespace OP::flur
     {
         using comparison_t = typename TComp::comparison_t;
 
-        constexpr OrderedOrderedPolicy(TSubtrahendSequence&& sub, TComp cmp = TComp{}) noexcept
+        explicit constexpr OrderedOrderedPolicy(TSubtrahendSequence&& sub, TComp cmp = TComp{}) noexcept
             : _subtrahend(std::move(sub))
             , _cmp(cmp.compare_factory())
         {
@@ -98,7 +98,7 @@ namespace OP::flur
                     drain, std::move(sub), std::move(comp)));
         }
         
-        bool operator()(SequenceState& attrs, const Src& seq) const
+        bool operator()(const SequenceState& attrs, const Src& seq) const
         {
             if (attrs.step() == 0)
             {// first entry to sequence
@@ -169,7 +169,7 @@ namespace OP::flur
             return result;
         }
 
-        UnorderedDiffPolicy(std::future<presence_map_t> diff_set)
+        explicit UnorderedDiffPolicy(std::future<presence_map_t> diff_set) noexcept
             : _subtrahend_future(std::move(diff_set))
         {
         }
@@ -216,18 +216,22 @@ namespace OP::flur
             else //automatic
             {
                 using unordered_t = decltype(make_sequence<DiffAlgorithm::unordered>(
-                    std::move(minuend), std::move(subtrahend), std::move(comparator)));
+                    std::declval<TMinuend>(), std::declval<TSub>(), std::declval<TCmp>()));
                 using ordered_t = decltype(make_sequence<DiffAlgorithm::ordered>(
-                    std::move(minuend), std::move(subtrahend), std::move(comparator)));
+                    std::declval<TMinuend>(), std::declval<TSub>(), std::declval<TCmp>()));
                 using proxy_t = SequenceProxy<unordered_t, ordered_t>;
-                return 
-                    (details::get_reference(minuend).is_sequence_ordered() && 
+
+                if(details::get_reference(minuend).is_sequence_ordered() && 
                      details::get_reference(subtrahend).is_sequence_ordered() )
-                    ? proxy_t{ make_sequence<DiffAlgorithm::ordered>(
-                           std::move(minuend), std::move(subtrahend), std::move(comparator)) }
-                    : proxy_t{ make_sequence<DiffAlgorithm::unordered>(
-                           std::move(minuend), std::move(subtrahend), std::move(comparator)) }
-                     ;
+                {
+                    return proxy_t{ make_sequence<DiffAlgorithm::ordered>(
+                           std::move(minuend), std::move(subtrahend), std::move(comparator)) };
+                }
+                else
+                {
+                    return proxy_t{ make_sequence<DiffAlgorithm::unordered>(
+                           std::move(minuend), std::move(subtrahend), std::move(comparator)) };
+                }
             }
         }
 
@@ -235,7 +239,7 @@ namespace OP::flur
         using comparator_t = std::decay_t<TComparator>;
 
         template <class TSub>
-        constexpr DiffFactory(TSub&& sub, comparator_t cmp = comparator_t{}) noexcept
+        explicit constexpr DiffFactory(TSub&& sub, comparator_t cmp = comparator_t{}) noexcept
             : _sub(std::forward<TSub>(sub))
             , _compare_traits(std::move(cmp))
         {

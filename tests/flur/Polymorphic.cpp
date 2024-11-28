@@ -57,7 +57,9 @@ namespace {
             make_shared(src::of_container(std::vector<std::string>{"a", "b", "c"}));
         auto target2 = src::back_to_lazy(src2);
         using back_struct2_t = std::decay_t<OP::flur::details::unpack_t<decltype(target2)>>;
-        static_assert(!back_struct2_t::ordered_c, "must produce un-ordered");
+        tresult.assert_false(
+            target2.compound().is_sequence_ordered(), 
+            "must produce un-ordered");
 
     }
     static auto& module_suite = OP::utest::default_test_suite("flur.polymorphic")

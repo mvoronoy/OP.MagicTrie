@@ -20,9 +20,10 @@ namespace OP::currying
     {
         using result_t = decltype(std::declval<TCallable>()());
 
-        constexpr Functor(TCallable callable) noexcept:
-            _callable(std::move(callable))
-            {}
+        explicit constexpr Functor(TCallable callable) noexcept
+            : _callable(std::move(callable))
+        {
+        }
 
         decltype(auto) operator()()
         {
@@ -99,7 +100,7 @@ namespace OP::currying
     {
         using result_t = T&;
 
-        constexpr Var(T& val) noexcept:
+        explicit constexpr Var(T& val) noexcept:
             _val(&val)
         {}
 
@@ -118,10 +119,12 @@ namespace OP::currying
             return *_val;
         }
 
-        void set(T& val)
+        template <class U>
+        void set(U&& val)
         {
-            _val = val;
+            *_val = std::forward<U>(val);
         }
+
         operator T& ()
         {
             return *_val;
@@ -147,19 +150,25 @@ namespace OP::currying
     * Allows to extract expected argument type
     */
     template <class T>
-    struct Unpackable : Var<T>
+    struct Unpackable : CurryingArgSpec
     {
-        template <typename >
-        static constexpr bool can_handle();
+        template <typename U>
+        static constexpr bool can_handle() noexcept;
+
         template <typename U>
         auto& extract();
     };
 
     template <>
-    struct Unpackable<std::any> : Var<std::any>
+    struct Unpackable<std::any> : CurryingArgSpec
     {
-        using base_t = Var<std::any>;
-        using base_t::base_t;
+        explicit constexpr Unpackable(std::any& val) noexcept
+            : _val(&val)
+        {}
+
+        constexpr Unpackable() noexcept
+            : _val(nullptr)
+        {}
 
         template <typename >
         static constexpr bool can_handle() noexcept
@@ -167,17 +176,22 @@ namespace OP::currying
             return true;
         }
         
+        /**
+        *   \throws std::bad_any_cast
+        */
         template <typename U>
         auto& extract()
         {
-            std::any& holder = base_t::extract<std::any>();
             if constexpr(std::is_same_v<std::decay_t<U>, std::any>)
-                return holder;
+                return *_val;
             else
             {
-                return *std::any_cast<std::decay_t<U>>(&holder);
+                return std::any_cast<std::add_lvalue_reference_t<std::decay_t<U>>>(*_val);
             }
         }
+
+    private:
+        std::any* _val;
     };
 
     template <class T>
@@ -220,6 +234,7 @@ namespace OP::currying
     {
         return Var<std::decay_t<T>>(std::forward<T>(t));
     }
+
     namespace det
     {
         template <class TDest, class TSource>
@@ -236,6 +251,8 @@ namespace OP::currying
         template <class TDest, class TSource, typename Enabler = void>
         struct Injector
         {
+            using src_arg_ref = std::add_lvalue_reference_t<TSource>;
+
             /** compile-time checker if TSource can be injected as an argument to TDest 
             * \param strong used either to weak or strong match for type matching.
             */
@@ -245,8 +262,9 @@ namespace OP::currying
                     ? std::is_same_v<std::remove_reference_t<TDest>, std::remove_reference_t<TSource>>
                     : can_subst_as_arg_v<TDest, TSource>;
             }
-
-            constexpr static TDest inject(TSource& src)
+            
+            /** Simplest case to inject argument by apply non-conflicting type cast */
+            constexpr static TDest inject(src_arg_ref src) noexcept
             {
                 return static_cast<TDest>(src);
             }
@@ -351,7 +369,7 @@ namespace OP::currying
             : _arguments{ std::forward<Ux>(ax)... }
         {}
 
-        constexpr CurryingTuple(std::tuple<Tx ...>&& ax) noexcept
+        explicit constexpr CurryingTuple(std::tuple<Tx ...>&& ax) noexcept
             : _arguments{ std::forward<std::tuple<Tx ...>>(ax) }
         {}
 

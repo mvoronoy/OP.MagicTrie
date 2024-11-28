@@ -14,21 +14,6 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
-    //template <class Src, class Dest>
-    //struct ReconcileReferenceStreamValue
-    //{
-    //    static_assert(
-    //        std::is_convertible_v<Src, Dest>,
-    //        "A must be compatible with B by producing type"
-    //        );
-    //    constexpr bool need_correction_c =
-    //        (std::is_lvalue_reference_v<Src> && !std::is_lvalue_reference_v<Dest>)
-    //        || (!std::is_lvalue_reference_v<Src> && std::is_lvalue_reference_v<Dest>)
-    //        ;
-
-    //    using holder_t = std::decay_t<A>;
-
-    //};
 
     /** 
     *   OnException allows intercept exception from previous pipeline and to produce 
@@ -154,7 +139,7 @@ namespace flur
         using alt_container_t = details::sequence_type_t<Alt>;
         using alt_element_t = typename alt_container_t::element_t;
 
-        constexpr OnExceptionFactory(Alt&& alt) noexcept
+        explicit constexpr OnExceptionFactory(Alt&& alt) noexcept
             : _alt_factory(std::forward<Alt>(alt))
         {
         }
@@ -175,12 +160,9 @@ namespace flur
             // Element type can be reference only if both are reference, otherwise use decay
             using element_t = std::conditional_t< need_correction_c, std::decay_t<src_element_t>, src_element_t>;
 
-            using base_t = std::conditional_t<
-                (src_conatiner_t::ordered_c&& alt_container_t::ordered_c),
-                OrderedSequence<element_t >,
-                Sequence<element_t>
-            >;
+            using base_t = Sequence<element_t>;
         };
+
         template <class Src>
         constexpr auto compound(Src&& src) const& noexcept
         {
@@ -199,6 +181,7 @@ namespace flur
                     std::move(src), _alt_factory);
             }
         }
+        
         template <class Src>
         constexpr auto compound(Src&& src) && noexcept
         {

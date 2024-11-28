@@ -1,21 +1,17 @@
-
 #include <op/utest/unit_test.h>
 
 #include <op/trie/Containers.h>
 
 using namespace OP::trie;
+
 bool allow_long_test = false;
+
 struct TestEmpty{};
+
 template <node_size_t capacity_c>
 struct TestHashTable : public NodeHashTable< TestEmpty, capacity_c >
 {
     typedef NodeHashTable < TestEmpty, capacity_c > base_t;
-    TestHashTable() 
-    {}
-    ~TestHashTable()
-    {
-    }
-    
 };
 
 template <class T, class Tbl, class F>
@@ -120,59 +116,59 @@ void NodeHash_erase(OP::utest::TestRuntime &tresult)
     tresult.assert_true(1 == tbl.erase(15));
     tresult.assert_true(15 == tbl.find(31)._debug());//shift must affect last one
     tresult.assert_true(0 == tbl.insert(0).first._debug());
-    if (1 == 1)
-    {
-        TestHashTable<16> tbl;
-        tbl.insert(0);
-        tresult.assert_true(1 == tbl.insert(16).first._debug()); //force place
-        tresult.assert_true(2 == tbl.insert(1).first._debug()); //force place
-        tresult.assert_true(3 == tbl.insert(17).first._debug()); //force place
-        tresult.assert_true(1 == tbl.erase(0));
-        tresult.assert_true(tbl.size() == 3);
-        auto p = tbl.begin();
+    
+    {//nested block
+        TestHashTable<16> nested_tbl;
+        nested_tbl.insert(0);
+        tresult.assert_true(1 == nested_tbl.insert(16).first._debug()); //force place
+        tresult.assert_true(2 == nested_tbl.insert(1).first._debug()); //force place
+        tresult.assert_true(3 == nested_tbl.insert(17).first._debug()); //force place
+        tresult.assert_true(1 == nested_tbl.erase(0));
+        tresult.assert_true(nested_tbl.size() == 3);
+        auto p = nested_tbl.begin();
         tresult.assert_true(16 == *p++);
         tresult.assert_true(1 == *p++);
         tresult.assert_true(17 == *p++);
     }
-    if (1 == 1)
-    {
-        TestHashTable<16> tbl;
-        tbl.insert(0);
-        tresult.assert_true(0 == tbl.insert(0).first._debug()); //force place
-        tresult.assert_true(1 == tbl.insert(1).first._debug()); //force place
-        tresult.assert_true(2 == tbl.insert(16).first._debug()); //force place
-        tresult.assert_true(1 == tbl.erase(1));
-        tresult.assert_true(tbl.size() == 2);
+    
+    {//nested block
+        TestHashTable<16> nested_tbl;
+        nested_tbl.insert(0);
+        tresult.assert_true(0 == nested_tbl.insert(0).first._debug()); //force place
+        tresult.assert_true(1 == nested_tbl.insert(1).first._debug()); //force place
+        tresult.assert_true(2 == nested_tbl.insert(16).first._debug()); //force place
+        tresult.assert_true(1 == nested_tbl.erase(1));
+        tresult.assert_true(nested_tbl.size() == 2);
         {
-            auto p = tbl.begin();
+            auto p = nested_tbl.begin();
             tresult.assert_true(0 == *p++);
             tresult.assert_true(16 == *p++);
         }
-        tbl.erase(0);
-        tbl.erase(16);
+        nested_tbl.erase(0);
+        nested_tbl.erase(16);
         //erase test on range cases
-        tresult.assert_true(14 == tbl.insert(0xe).first._debug());
-        tresult.assert_true(15 == tbl.insert(0xf).first._debug());
-        tresult.assert_true(0 == tbl.insert(0x1e).first._debug());
-        tresult.assert_true(1 == tbl.erase(0xf));
-        tresult.assert_true(tbl.size() == 2);
+        tresult.assert_true(14 == nested_tbl.insert(0xe).first._debug());
+        tresult.assert_true(15 == nested_tbl.insert(0xf).first._debug());
+        tresult.assert_true(0 == nested_tbl.insert(0x1e).first._debug());
+        tresult.assert_true(1 == nested_tbl.erase(0xf));
+        tresult.assert_true(nested_tbl.size() == 2);
         
         {
-            auto p = tbl.begin();
+            auto p = nested_tbl.begin();
             tresult.assert_true(14 == *p++);
             tresult.assert_true(0x1e == *p++);
         }
-        tbl.erase(14);
-        tbl.erase(0x1e);
+        nested_tbl.erase(14);
+        nested_tbl.erase(0x1e);
         //
-        tresult.assert_true(14 == tbl.insert(0xe).first._debug()); 
-        tresult.assert_true(15 == tbl.insert(0xf).first._debug()); 
-        tresult.assert_true(0 == tbl.insert(0x1e).first._debug()); 
-        tresult.assert_true(1 == tbl.insert(0).first._debug()); 
-        tresult.assert_true(1 == tbl.erase(0xe));
-        tresult.assert_true(tbl.size() == 3);
+        tresult.assert_true(14 == nested_tbl.insert(0xe).first._debug()); 
+        tresult.assert_true(15 == nested_tbl.insert(0xf).first._debug()); 
+        tresult.assert_true(0 == nested_tbl.insert(0x1e).first._debug()); 
+        tresult.assert_true(1 == nested_tbl.insert(0).first._debug()); 
+        tresult.assert_true(1 == nested_tbl.erase(0xe));
+        tresult.assert_true(nested_tbl.size() == 3);
         {
-            auto p = tbl.begin();
+            auto p = nested_tbl.begin();
             tresult.assert_true(0 == *p++);
             tresult.assert_true(0x1e == *p++);
             tresult.assert_true(0xf == *p++);
@@ -180,7 +176,7 @@ void NodeHash_erase(OP::utest::TestRuntime &tresult)
     }
     if (allow_long_test)
     {
-         TestHashTable<8> tbl8;
+        TestHashTable<8> tbl8;
         _random_test<std::uint8_t>(tbl8);
         TestHashTable<16> tbl16;
         _random_test<std::uint8_t>(tbl16);
@@ -196,7 +192,7 @@ void NodeHash_erase(OP::utest::TestRuntime &tresult)
 }
 
 //using std::placeholders;
-static auto& module_suite = OP::utest::default_test_suite("Containers")
+static auto& module_suite = OP::utest::default_test_suite("vtm.Containers")
 .declare("Hash(Insert)", NodeHash_insert)
 .declare("Hash(Erase)", NodeHash_erase)
 ;

@@ -205,78 +205,14 @@ void test_TransactedSegmentManager(OP::utest::TestRuntime &tresult)
     tresult.assert_true(0 == memcmp(tst_seq, overlapped_block.pos(), sizeof(tst_seq)), OP_CODE_DETAILS( << "part of overlaped is not correct" ));
     //test block inclusion
 }
-/*!!!!!!!!!==>
-void test_FarAddress(OP::utest::TestRuntime &tresult)
-{
-    tresult.info() << "test FAR address translation ..." << std::endl;
-    const char seg_file_name[] = "t-segementation.test";
-    const FarAddress test_addr_seg0(0, 100);
-    const FarAddress test_addr_seg1(1, 100);
-    const FarAddress test_addr2_seg1(1, 200);
 
-    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
-        OP::trie::SegmentOptions()
-        .segment_size(0x110000));
-
-    tmngr1->ensure_segment(0);
-    tmngr1->ensure_segment(1);
-    //take reference out of tran
-    auto block0 = tmngr1->readonly_block(test_addr_seg0, 1);
-    try
-    { //check correctness of invalid segment processing
-        tmngr1->to_far(1, block0.pos());  
-        tresult.fail("Exception must be raised");
-    }
-    catch (const OP::trie::Exception& e)
-    {
-        tresult.assert_true(OP::trie::er_invalid_block== e.code());
-    }
-    auto block1_1 = tmngr1->readonly_block(test_addr_seg1, 1);
-    auto block2_1 = tmngr1->readonly_block(test_addr2_seg1, 1);
-
-    auto tran1 = tmngr1->begin_transaction();
-    auto wr_block_seg0 = tmngr1->writable_block(test_addr_seg0, 1);
-    auto ptr1 = wr_block_seg0.pos();
-    tresult.assert_true(ptr1 != block0.pos(), "Transaction must allocate new memory space for write operation");
-    auto far_addr1 = tmngr1->to_far(0, ptr1);
-    auto far_addr_test = tmngr1->to_far(0, block0.pos());
-    tresult.assert_that<equals>(far_addr1, far_addr_test, "Far address must be the same");
-    auto ro_block_seg1 = tmngr1->readonly_block(test_addr_seg1, 1);
-    //ro must force use optimistic-write strategy, 
-    auto wr_block_seg1 = tmngr1->writable_block(test_addr_seg1, 1);
-    tresult.assert_true(ro_block_seg1.pos() == wr_block_seg1.pos(), "Inside tran all blocks must be the same");
-    tresult.assert_true(block1_1.pos() == wr_block_seg1.pos(), "Optimistic write must point the same memory as before transaction");
-
-    auto wr_block2_seg1 = tmngr1->writable_block(test_addr2_seg1, 1);
-    tresult.assert_true(block2_1.pos() != wr_block2_seg1.pos(), "Transaction must allocate new memory space for write operation");
-    try
-    { //before commit check correctness of invalid segment spec
-        tmngr1->to_far(1, wr_block_seg0.pos());  
-        tresult.fail("Exception must be raised");
-    }
-    catch (const OP::trie::Exception& e)
-    {
-        tresult.assert_true(OP::trie::er_invalid_block== e.code());
-    }
-
-    tran1->commit();
-    
-    try
-    {
-        tmngr1->to_far(0, wr_block_seg0.pos());
-        tresult.fail("Exception must be raised");
-    }
-    catch (const OP::trie::Exception& e){
-        tresult.assert_true(e.code() == OP::trie::er_invalid_block);
-    }
-}
-!!!!!!!!!==>*/
 void test_TransactedSegmentGenericMemoryAlloc(OP::utest::TestRuntime &tresult)
 {
     const char seg_file_name[] = "t-segementation.test";
     GenericMemoryTest::test_MemoryManager<TransactedSegmentManager>(seg_file_name, tresult);
 
 }
+
 void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "test Transacted Memory Allocation..." << std::endl;

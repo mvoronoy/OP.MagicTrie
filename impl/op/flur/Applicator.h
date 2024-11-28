@@ -92,7 +92,7 @@ namespace OP::flur
     template <class OutputIterator>
     struct Drain : ApplicatorBase
     {
-        Drain(OutputIterator out_iter) noexcept
+        explicit Drain(OutputIterator out_iter) noexcept
             : _out_iter(std::move(out_iter))
         {
         }
@@ -137,7 +137,7 @@ namespace OP::flur
                 , _action{}
             {}
 
-            constexpr Collector(TSum& dest, Op<std::decay_t<TSum>> action = {})
+            explicit constexpr Collector(TSum& dest, Op<std::decay_t<TSum>> action = {}) noexcept
                 : _dest{ dest }
                 , _action(std::move(action))
             {}
@@ -156,7 +156,7 @@ namespace OP::flur
 
         constexpr Sum() = default;
 
-        constexpr Sum(T dest)
+        explicit constexpr Sum(T dest)
             : _dest(dest)
         {
         }
@@ -181,7 +181,7 @@ namespace OP::flur
     template <class T>
     struct Count : ApplicatorBase
     {
-        constexpr Count(T counter) noexcept
+        explicit constexpr Count(T counter) noexcept
             : _counter(counter)
         {}
 
@@ -240,7 +240,7 @@ namespace OP::flur
     template <class TUnaryFunction>
     struct ForEach : ApplicatorBase
     {
-        constexpr ForEach(TUnaryFunction f) noexcept
+        explicit constexpr ForEach(TUnaryFunction f) noexcept
             : _f(std::move(f))
         {
         }
@@ -266,7 +266,7 @@ namespace OP::flur
         template <class TSeq>
         struct Collect
         {
-            Collect(TSeq& origin)
+            explicit Collect(TSeq& origin) noexcept
                 : _origin(origin) //keep reference
             {
             }
@@ -291,14 +291,6 @@ namespace OP::flur
         [[nodiscard]] decltype(auto) operator()(T&& flur_obj) const
         {
             return collect_result(std::forward<T>(flur_obj), *this);
-            //auto seq = details::get_reference(flur_obj).compound();
-            //auto& ref_seq = details::get_reference(seq);
-            //ref_seq.start();
-            //if (!ref_seq.in_range())
-            //{
-            //    throw std::out_of_range("taking `first` of empty lazy range");
-            //}
-            //return ref_seq.current();
         }
     };
 
@@ -448,7 +440,7 @@ namespace OP::flur
     template <class ... Lx>
     struct CartesianApplicator : ApplicatorBase
     {
-        constexpr CartesianApplicator(Lx ...lx) noexcept
+        explicit constexpr CartesianApplicator(Lx ...lx) noexcept
             : _sources(std::move(lx)...)
         {
         }
@@ -486,11 +478,11 @@ namespace OP::flur
                     );    
 
                 }, _sources);
-
+             
             for(seq.start(); seq.in_range(); seq.next())
             {//consume all
                 seq.current();
-            } 
+            }  
         }
 
     private:
@@ -503,55 +495,9 @@ namespace OP::flur
             return CartesianApplicator<Lx..., Lz>( std::get<I>(_sources)..., std::forward<Lz>(arg));
         }
         
-        template <size_t... I>
-        bool do_next(std::index_sequence<I...>)
-        {
-            bool sequence_failed = false;
-            bool result = (do_step<I>(sequence_failed) || ...);
-            return !sequence_failed && result;
-        }
-
-        template <size_t I>
-        bool do_step(bool& sequence_failed)
-        {
-            auto &seq = std::get<I>(_sources);
-            
-            if(!seq.in_range()) //indication of empty sequence stop all
-            {
-                sequence_failed = true;
-                return true; //don't propagate
-            }
-            seq.next();    
-            if( seq.in_range() )
-                return true; //stop other sequences propagation
-            seq.start(); //restart 
-            if( !seq.in_range() )
-            {
-                sequence_failed = true;
-                return true; //don't propagate
-            }
-            return false; //propagate sequences enumeration
-        }
-
-        template <class F, size_t... I>
-        void do_call(F& applicator, std::index_sequence<I...>)
-        {
-            //func(args.template pop< typename traits::template arg_i<I> >()...);
-            applicator(std::get<I>(_sources).current()...);
-        }
-        
         std::tuple<Lx...> _sources;
     };
 
 } //ns: OP::flur
-
-//
-// global ns
-//
-
-//
-// end global ns
-//
-
 
 #endif //_OP_FLUR_APPLICATOR__H_

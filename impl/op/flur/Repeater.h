@@ -29,6 +29,7 @@ namespace flur
             container.at(n) = std::move(r);
         }
     }
+
     /**
     * Repeater is sequence that uses iteration over source only once, all another iteration 
     * are taken from internal container.
@@ -49,6 +50,7 @@ namespace flur
         Container _container;
         size_t _generation = 0;
         size_t _current = -1;
+        
         void peek()
         {
             auto& rsrc = OP::flur::details::get_reference(_src);
@@ -57,11 +59,13 @@ namespace flur
                    _container, _current, std::move(rsrc.current())
                 );
         }
+
     public:
+
         using element_t = typename base_t::element_t;
         using this_t = Repeater<Base, Src, Container>;
 
-        constexpr Repeater(Src&& src) noexcept
+        explicit constexpr Repeater(Src&& src) noexcept
             : _src(std::move(src))
         {}
 

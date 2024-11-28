@@ -72,14 +72,17 @@ void test_ThenOrderedDistinct(OP::utest::TestRuntime& tresult)
 struct TestPair 
 {
     std::pair<int, int> _v;
+    
     constexpr TestPair()
         :_v(0, 0)
     {
     }
-    constexpr TestPair(int v)
+    
+    explicit constexpr TestPair(int v) noexcept
         :_v(v, v / 2)
     {
     }
+
     constexpr operator int() const
     {
         return _v.second;
@@ -90,7 +93,7 @@ namespace std
 {
     template<> struct hash<TestPair >
     {
-        std::size_t operator()(TestPair  const& n) const noexcept
+        std::size_t operator()(TestPair const& n) const noexcept
         {
             return static_cast<std::size_t>(n._v.second );
         }

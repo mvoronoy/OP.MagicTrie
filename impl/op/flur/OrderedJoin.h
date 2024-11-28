@@ -44,6 +44,7 @@ namespace OP::flur
             : _left(std::move(left))
             , _right(std::move(right))
             , _join_key_cmp(join_key_cmp)
+            , _optimize_right_forward(false)
         {
             //"Join algorithm assumes ordering"
             assert(details::get_reference(_left).is_sequence_ordered() 
@@ -192,7 +193,7 @@ namespace OP::flur
     public:
 
         template <class U>
-        constexpr OrderedJoinFactory(U&& right, Comp comp = {}) noexcept
+        explicit constexpr OrderedJoinFactory(U&& right, Comp comp = {}) noexcept
             : _right(std::forward<U>(right))
             , _comp(std::move(comp))
         {

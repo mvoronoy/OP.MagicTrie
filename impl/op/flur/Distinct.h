@@ -20,17 +20,18 @@ namespace OP::flur
 
     /**
     *   Implement functor to apply Distinct for ordered sequences. It has minimal 
-    *   complexity and memory footprint (in compare with unordered implementation
+    *   complexity and memory footprint in compare with unordered implementation
     */
     template <class Seq, class KeyEqual = std::equal_to< details::sequence_element_type_t <Seq> >>
     struct SkipOrdered
     {
         using decay_element_t = std::decay_t<
             details::sequence_element_type_t <Seq> >;
-        constexpr SkipOrdered(KeyEqual cmp = KeyEqual{}) noexcept
+
+        explicit constexpr SkipOrdered(KeyEqual cmp = KeyEqual{}) noexcept
             : _cmp(std::move(cmp)){}
         
-        bool operator()(SequenceState &attrs, const Seq& seq) const
+        bool operator()(const SequenceState &attrs, const Seq& seq) const
         {
             if( attrs.step() == 0)
             {// first entry to sequence
@@ -40,6 +41,7 @@ namespace OP::flur
             }
             return conditional_emplace(details::get_reference(seq).current());
         }
+
     private:
         /** @return true if element was not a duplicate 
         * @param element - really needs && since `seq.current()` may return as lref as a value
@@ -54,6 +56,7 @@ namespace OP::flur
             }
             return false;
         }
+
         mutable std::optional<decay_element_t> _bypass;
         KeyEqual _cmp;
     };
@@ -61,7 +64,7 @@ namespace OP::flur
 
     /**
     *   Implement functor to apply Distinct for unordered sequences using std::unordered_set.  
-    *   It brings memory footprint proportional to the source sequence length
+    *   It brings memory footprint proportional to the source sequence length.
     */
     template <class Seq, 
         class Hash = std::hash<std::decay_t<details::sequence_element_type_t <Seq>>>,
@@ -69,12 +72,12 @@ namespace OP::flur
         >
     struct SkipUnordered
     {
-        SkipUnordered(Hash hash = Hash{}, KeyEqual cmp = KeyEqual{})
+        explicit SkipUnordered(Hash hash = Hash{}, KeyEqual cmp = KeyEqual{})
             : _bypass(16, std::move(hash), std::move(cmp))
         {
         }
 
-        bool operator()(SequenceState &attrs, const Seq& seq) const
+        bool operator()(const SequenceState &attrs, const Seq& seq) const
         {
             if( attrs.step().current() == 0)
             {
@@ -191,15 +194,18 @@ namespace OP::flur
         template <class Seq>
         using policy_t = SkipOrdered<Seq, Eq>;
 
-        constexpr OrderedDistinctPolicyWithCustomComparator(Eq eq) noexcept
+        explicit constexpr OrderedDistinctPolicyWithCustomComparator(Eq eq) noexcept
             : _eq(std::move(eq))
-            {}
+        {
+        }
         
         template <class Seq>
         constexpr auto construct() const noexcept
         {
             return SkipOrdered<Seq, Eq>(_eq);
         }
+
+    private:
         Eq _eq;
     }; 
     
@@ -220,9 +226,10 @@ namespace OP::flur
         template <class Seq>
         using policy_t = SkipOrdered<Seq, Eq>;
 
-        constexpr UnorderedDistinctPolicyWithCustomComparator(Eq eq) noexcept
+        explicit constexpr UnorderedDistinctPolicyWithCustomComparator(Eq eq) noexcept
             : _eq(std::move(eq))
-            {}
+        {
+        }
         
         template <class Seq>
         constexpr auto construct() const
@@ -231,6 +238,8 @@ namespace OP::flur
 
             return SkipUnordered<Seq, hash_t, Eq>(hash_t{}, _eq);
         }
+
+    private:
         Eq _eq;
     }; 
 
@@ -260,7 +269,7 @@ namespace OP::flur
     struct DistinctFactory : FactoryBase
     {
 
-        constexpr DistinctFactory(Policy policy) noexcept
+        explicit constexpr DistinctFactory(Policy policy) noexcept
             : _policy(std::move(policy))
         {
         }
@@ -275,6 +284,8 @@ namespace OP::flur
             return DistinctSequence<element_t, effective_policy_t, std::decay_t<Src>>(
                 std::forward<Src>(src), _policy.template construct<Src>());
         }
+
+    private:
         Policy _policy;
     };
 
@@ -309,6 +320,7 @@ namespace OP::flur
             }
         }
 
+    private:
         D1 _ordered_distinct_factory;
         D2 _unordered_distinct_factory;
     };

@@ -45,27 +45,31 @@ namespace OP::flur
 
     */
     template <class T>
-    struct QueueSequence : OP::flur::Sequence<const T&>
+    struct QueueSequence : OP::flur::Sequence<T>
     {
         using element_t = T;
-
-        std::deque<T> _queue;
-        mutable std::mutex _m;
+        using container_t = std::deque<T>;
         using guard_t = std::unique_lock<std::mutex>;
+
+        container_t _queue;
+        mutable std::mutex _m;
         mutable std::condition_variable _access_condition;
         std::atomic_bool _stop = false;
+        std::atomic<size_t> _count_cache = 0;
         
         /**
         *   Thread safe method to push element to queue from any thread
         * \param v value to add
         */
-        void push(T v)
+        template <class ...Tx>
+        void push(Tx&& ...values)
         {
             if (_stop)
                 throw std::logic_error("push data after 'stop' has been invoked");
 
             guard_t g(_m);
-            _queue.emplace_back(std::move(v));
+            ((_queue.emplace_back(std::forward<Tx>(values))), ...);
+            _count_cache = _queue.size();
             g.unlock();
             _access_condition.notify_one();
         }
@@ -78,16 +82,16 @@ namespace OP::flur
         }
 
         /** Do nothing */
-        virtual void start()
+        virtual void start() override
         {
         }
 
         /** Check if Sequence is in valid position and may call `next` safely */
-        virtual bool in_range() const
+        virtual bool in_range() const override
         {
-            guard_t g(_m);
-            if (_queue.empty())
+            if (_count_cache.load() == 0)
             {
+                guard_t g(_m);
                 _access_condition.wait(g, [this] {return _stop || !_queue.empty(); });
                 return !_queue.empty();
             }
@@ -95,32 +99,51 @@ namespace OP::flur
                 return true;
         }
         
-        /** Return current item */
-        virtual const element_t& current() const
+        /** Return copy of item on front of queue*/
+        virtual element_t current() const override
         {
             guard_t g(_m);
-            if (_queue.empty())
+            if (_count_cache.load() == 0)
             {
                 _access_condition.wait(g, [this] {return _stop || !_queue.empty(); });
-                return _queue.front();
             }
-            else
-                return _queue.front();
+            if (_stop && _queue.empty())
+                throw std::out_of_range("queue is empty and stop flag been used");
+            return _queue.front();
         }
         
         /** Position iterable to the next step */
-        virtual void next()
+        virtual void next() override
         {
             guard_t g(_m);
-            if (_queue.empty())
-            {
-                _access_condition.wait(g, [this] {return _stop || !_queue.empty(); });
-                _queue.pop_front();
-            }
-            else
-                _queue.pop_front();
+            _queue.pop_front();
+            _count_cache = _queue.size();
+            g.unlock();
+            _access_condition.notify_one();
         }
+
+    private:
+        struct PopGuard : guard_t
+        {
+            container_t& _queue;
+            bool _must_pop;
+
+            PopGuard(std::mutex& m, container_t& queue)
+                : guard_t(m)
+                , _queue(queue)
+                , _must_pop(true)
+            {
+            }
+
+            ~PopGuard()
+            {
+                if (_must_pop)
+                    _queue.pop_front();
+            }
+        };
+
     };
+
     /** namespace for function that are source of LazyRange */
     namespace src
     {

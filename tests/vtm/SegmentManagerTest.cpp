@@ -15,6 +15,6 @@ void test_SegmentManager(OP::utest::TestRuntime& result)
               
 
 //using std::placeholders;
-static auto& module_suite = OP::utest::default_test_suite("SegmentManager")
-.declare("HeapManagerSlot", test_SegmentManager)
+static auto& module_suite = OP::utest::default_test_suite("vtm.SegmentManager")
+    .declare("HeapManagerSlot", test_SegmentManager)
 ;

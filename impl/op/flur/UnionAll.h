@@ -13,6 +13,7 @@ namespace OP::flur
 {
     /**
     *   Implement sequence to unite compile time defined tuple of input sequences.
+    *    Sequence doesn't support ordering.
     */
     template <class Elm, class ...Rx>
     struct UnionAllSequence : public Sequence<Elm>
@@ -30,16 +31,10 @@ namespace OP::flur
         using ptr_holder_t = std::array<getter_t, sizeof ... (Rx)>;
 
         template <class Tupl>
-        constexpr UnionAllSequence(Tupl&& rx) noexcept
+        explicit constexpr UnionAllSequence(Tupl&& rx) noexcept
             : _scope( std::move(rx) )
             , _index(sizeof...(Rx)) //mark EOS status
         {
-        }
-
-        /** Union all doesn't support ordering */
-        OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
-        {
-            return false;
         }
 
         void start() override
@@ -118,7 +113,7 @@ namespace OP::flur
     struct UnionAllSequenceFactory : FactoryBase
     {
         template <class ...Ux>
-        constexpr UnionAllSequenceFactory( Ux&& ... rx ) noexcept
+        explicit constexpr UnionAllSequenceFactory( Ux&& ... rx ) noexcept
             : _right(std::make_tuple(std::forward<Ux>(rx)...)) //make_tuple is important to get rid-off any references 
         {
         }

@@ -125,7 +125,7 @@ namespace flur
         template <class TSrc>
         using result_sequence_t = MaF<target_sequence_base_t, TSrc, F, options_c ...>;
 
-        constexpr MapAndFilterFactory(F f) noexcept
+        explicit constexpr MapAndFilterFactory(F f) noexcept
             : _applicator(f)
         {
         }
@@ -138,6 +138,7 @@ namespace flur
                 _applicator);
         }
 
+    private:
         F _applicator;
     };
 

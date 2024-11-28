@@ -14,7 +14,7 @@ namespace OP::flur
     template < class Poly >
     struct OfReversePolymorphFactory : FactoryBase
     {
-        constexpr OfReversePolymorphFactory(Poly factory) noexcept
+        explicit constexpr OfReversePolymorphFactory(Poly factory) noexcept
             : _polymorph_factory(std::move(factory))
         {
         }
@@ -26,6 +26,7 @@ namespace OP::flur
             return proxy_t(std::move(seq));
         }
 
+    private:
         Poly _polymorph_factory;
     };
 

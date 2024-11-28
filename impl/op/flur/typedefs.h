@@ -82,9 +82,18 @@ namespace OP::flur::details
     U& get_reference(std::shared_ptr<U>&& u) noexcept 
     {
         //invoking this code means very-very bad lost control, used only for type-deduction only
-        assert(false);
+        static_assert(false, "lost contol over pointer owning");
         return *u.get();
     }
+
+    template <typename U, typename ... Ux>
+    U& get_reference(std::unique_ptr<U, Ux...>&& u) noexcept 
+    {
+        //invoking this code means very-very bad lost control, used only for type-deduction only
+        static_assert(false, "lost contol over pointer owning");
+        return *u.get();
+    }
+
 
     template <class Value>
     using dereference_t = std::decay_t <

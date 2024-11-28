@@ -89,9 +89,13 @@ void test_Map(OP::utest::TestRuntime& tresult)
     using element_t = typename tst_map_t::value_type;
     tst_map_t source1{ {'a', 1.f}, {'b', 1.2f} };
     auto r = src::of_container(std::cref(source1));
-    tresult.assert_true(r.compound().ordered_c, "Map must produce ordered sequence");
+    tresult.assert_true(
+        r.compound().is_sequence_ordered(), 
+        "Map must produce ordered sequence");
     //just check generic form works
-    tresult.assert_true(src::of_container(std::cref(source1)).compound().ordered_c, "Set must support simple construction");
+    tresult.assert_true(
+        src::of_container(std::cref(source1)).compound().is_sequence_ordered(), 
+        "Set must support simple construction");
 
     tresult.assert_that<equals>(2.2f,
         OP::flur::reduce(r >> then::mapping([](const element_t& i) -> float {return i.second; }), 0.f),
@@ -103,9 +107,11 @@ void test_Set(OP::utest::TestRuntime& tresult)
 {
     using tst_set_t = std::set<std::string>;
     auto r = src::of_container(tst_set_t{ "a"s, "ab"s, ""s });
-    tresult.assert_true(r.compound().ordered_c, "Set must produce ordered sequence");
+    tresult.assert_true(r.compound().is_sequence_ordered(), "Set must produce ordered sequence");
     //just check generic form works
-    tresult.assert_true(src::of(tst_set_t{ ""s }).compound().ordered_c, "Set must support simple construction");
+    tresult.assert_true(
+        src::of(tst_set_t{ ""s }).compound().is_sequence_ordered(), 
+        "Set must support simple construction");
     //count summary str length
     tresult.assert_that<equals>(3,
         OP::flur::reduce(r >> then::mapping([](const auto& s) { return s.size(); }), size_t{}),
@@ -176,11 +182,7 @@ void test_Iterate(OP::utest::TestRuntime& tresult)
             return &l == &k;
             });
     };
-    auto test_method = [&](Sequence<const std::string>& cont)
-    {
-        for (auto i : cont)
-            tresult.assert_true(term(i));
-    };
+    
     std::for_each(
         check_ref >> then::mapping([&](const auto& i)->const std::string& {
             tresult.debug() << i << ", is same:" << term(i) << "\n";
@@ -190,7 +192,6 @@ void test_Iterate(OP::utest::TestRuntime& tresult)
     {
         tresult.debug() << "\t"  << t << ", is same:" << term(t) << "\n";
     });
-    //test_method((check_ref ).compound());
 }
 
 static auto& module_suite = OP::utest::default_test_suite("flur.stl")

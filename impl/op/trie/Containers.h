@@ -380,21 +380,21 @@ namespace OP
             *   Get value placeholder for the key
             *   *@throws std::out_of_range exception if key is not exists
             */
-            payload_t& value(atom_t key)  override
+            payload_t& value(atom_t key) override
             {
                 auto i = find(key);
                 if (i == end())
-                    std::out_of_range("no such key");
+                    throw std::out_of_range("no such key");
                 return value(i);
             }
             /** Erase the entry associated with key
             *   *@throws std::out_of_range exception if key is not exists
             */
-            void remove(atom_t key)  override
+            void remove(atom_t key) override
             {
                 auto n = erase(key);
                 if (n == 0)
-                    std::out_of_range("no such key");
+                    throw std::out_of_range("no such key");
             }
 
         private:

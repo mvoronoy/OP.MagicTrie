@@ -22,12 +22,14 @@ namespace flur
     struct OfOptional : public OrderedSequence<const T&>
     {
         using container_t = std::optional<T>;
-        constexpr OfOptional(container_t&& src) noexcept
+
+        explicit constexpr OfOptional(container_t&& src) noexcept
             :_src(std::forward<container_t>(src))
             , _retrieved(false)
         {
         }
-        constexpr OfOptional(const container_t& src) noexcept
+
+        explicit constexpr OfOptional(const container_t& src) noexcept
             :_src(src)
             , _retrieved(false)
         {

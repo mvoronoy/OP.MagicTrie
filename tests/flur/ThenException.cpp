@@ -61,7 +61,8 @@ namespace {
 
         struct LocalSeq : Sequence<int>
         {
-            LocalSeq(int) {}
+            explicit LocalSeq(int) noexcept {}
+
             void start() override {};
 
             bool in_range() const override 
@@ -75,7 +76,7 @@ namespace {
             void next() override {};
         };
 
-        auto pipeline = make_lazy_range(SimpleFactory<int, LocalSeq>())
+        auto pipeline = make_lazy_range(SimpleFactory<LocalSeq, int>(0))
             >> then::on_exception<std::runtime_error>(src::of_value(57))
             ;
         size_t n = 0;
@@ -112,7 +113,6 @@ namespace {
     {
         tresult.info() << "check multi exceptions handler...\n";
 
-        int invocked = 0;
         auto pipeline = mk_generator<std::logic_error>(0, 1)
             >> then::on_exception<std::logic_error>(src::of_value(42)) //intercept only std::logic_error, but not std::runtime_error
             >> then::mapping([](auto n) ->int {throw std::runtime_error("re-raise error"); })

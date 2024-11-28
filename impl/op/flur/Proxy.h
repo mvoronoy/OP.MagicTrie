@@ -44,51 +44,55 @@ namespace OP::flur
         using element_t = typename base_t::element_t;
 
         template <class T>
-        constexpr SequenceProxy(T&& t) noexcept
+        explicit constexpr SequenceProxy(T&& t) noexcept
             : _instance(std::forward<T>(t))
-        {}
+        {
+        }
 
         OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
         {
             return std::visit(
-                [](auto& inst) { 
-                    return details::get_reference(inst).is_sequence_ordered(); },
-                _instance);
+                [](const auto& inst) { 
+                    return details::get_reference(inst).is_sequence_ordered(); 
+                }, _instance);
         }
 
         void start() override
         {
             std::visit(
+                // cppcheck-suppress constParameterReference
                 [](auto& inst) { 
-                    details::get_reference(inst).start(); },
-                _instance);
+                    details::get_reference(inst).start(); 
+                }, _instance);
         }
 
         bool in_range() const override
         {
             return std::visit(
                 [](const auto& inst) { 
-                    return details::get_reference(inst).in_range(); },
-                _instance);
+                    return details::get_reference(inst).in_range(); 
+                }, _instance);
         }
 
         element_t current() const override
         {
             return std::visit(
                 [](const auto& inst) -> element_t {
-                    return details::get_reference(inst).current(); },
-                _instance);
+                    return details::get_reference(inst).current(); 
+                }, _instance);
         }
 
         void next() override
         {
             std::visit(
+                // cppcheck-suppress constParameterReference
                 [](auto& inst) { 
-                    details::get_reference(inst).next(); },
-                _instance);
+                    details::get_reference(inst).next(); 
+                }, _instance);
         }
 
     private:
+        
         using possible_sequence_impl_t = std::variant<TSequence...>;
         possible_sequence_impl_t _instance;
     };
@@ -100,7 +104,7 @@ namespace OP::flur
             details::sequence_type_t<TFactory>... >;
 
         template <class TInstance>
-        constexpr ProxyFactory(TInstance instance) noexcept
+        explicit constexpr ProxyFactory(TInstance instance) noexcept
             : _factory_instance(std::move(instance))
         {
         }

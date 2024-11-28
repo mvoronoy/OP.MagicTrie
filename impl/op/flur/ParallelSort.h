@@ -61,7 +61,7 @@ namespace OP::flur
 
             future_t _future;
             
-            CollectSingleThreadFactory(future_t future)
+            explicit CollectSingleThreadFactory(future_t future) noexcept
                 : _future(std::move(future))
             {
             }
@@ -77,11 +77,13 @@ namespace OP::flur
                 storage_t result;
                 for(;;)
                 {
-                    const std::lock_guard<std::mutex> guard(source->_access_control);
+                    std::unique_lock<std::mutex> guard(source->_access_control);
                     if(source->_source.in_range())
                     {
-                        result.emplace(source->_source.current());
+                        auto taken = source->_source.current(); //copy semantic may be applied there
                         source->_source.next();
+                        guard.unlock();
+                        result.emplace(std::move(taken));
                     }
                     else
                         break;
@@ -114,7 +116,7 @@ namespace OP::flur
 
     public:
 
-        constexpr ParallelSortFactory(TThreads& pool, TCompareTraits cmp = {}) noexcept
+        explicit constexpr ParallelSortFactory(TThreads& pool, TCompareTraits cmp = {}) noexcept
             : _pool(pool)
             , _cmp(std::move(cmp))
         {

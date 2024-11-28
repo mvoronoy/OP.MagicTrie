@@ -28,7 +28,7 @@ namespace OP::flur
     public:
         using base_t::base_t;
     
-        zip_opt(T& t)
+        explicit zip_opt(T& t)
             : base_t(std::ref(t))
             {}
         
