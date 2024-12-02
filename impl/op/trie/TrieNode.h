@@ -23,12 +23,13 @@ namespace OP
         {
             using payload_manager_t = PayloadManager;
             using this_t = TrieNode<payload_manager_t>;
+            using atom_t = OP::common::atom_t;
             using payload_t = typename payload_manager_t::payload_t;
             using data_storage_t = typename payload_manager_t::data_storage_t;
             using stem_str_address_t = smm::SmartStringAddress<>;
 
             /*declare 256-bit presence bitset*/
-            using presence_t = Bitset<4, std::uint64_t> ;
+            using presence_t = Bitset<4, std::uint64_t>;
 
             struct NodeData
             {
@@ -37,11 +38,11 @@ namespace OP
                 data_storage_t _value = {};
             };
 
-            static_assert(std::is_standard_layout_v<NodeData>, 
-                    "self-control of NodeData failed - result structure is not plain");
+            static_assert(std::is_standard_layout_v<NodeData>,
+                "self-control of NodeData failed - result structure is not plain");
 
             using key_value_t = containers::KeyValueContainer< NodeData, this_t >;
-            
+
             const dim_t magic_word_c = 0x55AA;
             presence_t _child_presence, _value_presence;
             /**modification version of node*/
@@ -55,7 +56,7 @@ namespace OP
                 , _capacity(capacity)
             {
                 //capacity must be pow of 2 and lay in range [8-256]
-                assert( _capacity >= 8 && _capacity <= 256 && ((_capacity - 1) & _capacity) == 0 );
+                assert(_capacity >= 8 && _capacity <= 256 && ((_capacity - 1) & _capacity) == 0);
             }
 
             template <class TTopology>
@@ -76,27 +77,27 @@ namespace OP
                 _hash_table = {};
             }
 
-            
+
             template <class TSegmentTopology, class AtomIterator, class FProducePayload>
-            void insert(TSegmentTopology& topology, atom_t key, 
+            void insert(TSegmentTopology& topology, atom_t key,
                 AtomIterator begin, const AtomIterator end, FProducePayload&& payload_factory)
             {
-                for(;;)
+                for (;;)
                 {
                     wrap_key_value_t container;
                     kv_container(topology, container); //resolve correct instance implemented by this node
 
-                    auto [hash, success] = container->insert(key, 
+                    auto [hash, success] = container->insert(key,
                         [&](NodeData& to_construct) {
                             ::new (&to_construct)NodeData;
                             payload_manager_t::allocate(topology, to_construct._value);
                             payload_manager_t::raw(topology, to_construct._value, payload_factory);
                             _value_presence.set(key);
-                            if( begin != end )
+                            if (begin != end)
                             {
                                 StringMemoryManager str_manager(topology);
                                 auto size = end - begin;
-                                assert(size < 
+                                assert(size <
                                     std::numeric_limits<dim_t>::max() - 1);
                                 to_construct._stem = str_manager.smart_insert(begin, end);
                                 begin = end;
@@ -105,7 +106,7 @@ namespace OP
 
                     if (success)
                         break;
-                    
+
                     assert(hash == dim_nil_c);//only possible reason to be there - capacity is over
                     grow(topology, *container);
                 }
@@ -142,19 +143,19 @@ namespace OP
                 { //when value/child presented need keep sequence in this node
                     return false;
                 }
-                
-                if( !stem_addr.is_nil() )
+
+                if (!stem_addr.is_nil())
                 {
                     StringMemoryManager smm(topology);
                     smm.destroy(stem_addr);
                 }
-                    
+
                 //_value_presence.clear(key); //it may look dupplicate, but isn't
                 //@! think to reduce space of hashtable
                 return presence_first_set() == presence_t::nil_c; //erase entire node if no more entries
             }
 
-            /** 
+            /**
             *   Frees content of this node and give a caller addresses of all descendant children.
             *   So without recursion caller can destroy children afterall.
             *   Node is not destroyed.
@@ -168,23 +169,23 @@ namespace OP
                 kv_container(topology, container); //resolve correct instance implemented by this node
                 StringMemoryManager string_memory_manager(topology);
 
-                for(auto i = presence_first_set(); dim_nil_c != i; 
+                for (auto i = presence_first_set(); dim_nil_c != i;
                     i = presence_next_set(static_cast<atom_t>(i)))
                 {
                     NodeData* node = container->get(static_cast<atom_t>(i));
                     assert(node);
-                    if(_value_presence.get(i))
+                    if (_value_presence.get(i))
                     {//wipe-out data
                         payload_manager_t::destroy(topology, node->_value);
                         _value_presence.clear(i);
                         ++data_slots;
                     }
-                    if(!node->_stem.is_nil())
+                    if (!node->_stem.is_nil())
                     {
                         string_memory_manager.destroy(node->_stem);
                         node->_stem = {};
                     }
-                    if(_child_presence.get(i))
+                    if (_child_presence.get(i))
                     {//wipe children
                         assert(!node->_child.is_nil());
                         child_process.push(node->_child);
@@ -193,7 +194,7 @@ namespace OP
                 }
                 return data_slots;
             }
-            
+
             /**
             \tparam F has signature `{user-type} (const NodeData&)`
             */
@@ -270,7 +271,7 @@ namespace OP
             template <class TSegmentTopology>
             payload_t get_value(TSegmentTopology& topology, atom_t key) const
             {
-                if(!_value_presence.get(key) )
+                if (!_value_presence.get(key))
                     throw std::invalid_argument("key doesn't contain data");
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
@@ -282,7 +283,7 @@ namespace OP
             template <class TSegmentTopology, class FValueCallback>
             auto get_value(TSegmentTopology& topology, atom_t key, FValueCallback callback) const
             {
-                if(!_value_presence.get(key) )
+                if (!_value_presence.get(key))
                     throw std::invalid_argument("key doesn't contain data");
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
@@ -305,42 +306,43 @@ namespace OP
                 kv_container(topology, container); //resolve correct instance implemented by this node
                 NodeData* node_data = container->get(key);
                 assert(node_data); //there we have only valid pointers
-                set_raw_factory_value(topology, key, *node_data, [&](auto& dest){
-                    dest = std::move( value );
-                });
+                set_raw_factory_value(topology, key, *node_data, [&](auto& dest) {
+                    dest = std::move(value);
+                    });
             }
 
             /**@return first position where child or value exists, may return dim_nil_c if node empty*/
-            inline nullable_atom_t first() const
+            inline NullableAtom first() const noexcept
             {
-                return make_nullable( this->presence_first_set() );
+                return NullableAtom{ this->presence_first_set() };
             }
 
             /**@return last position where child or value exists, may return dim_nil_c if node empty*/
-            inline nullable_atom_t last() const
+            inline NullableAtom last() const noexcept
             {
-                return make_nullable(this->presence_last_set());
+                return NullableAtom{ this->presence_last_set() };
             }
-            
+
             /**@return next position where child or value exists, may return dim_nil_c if no more entries*/
-            nullable_atom_t next(atom_t previous) const
+            NullableAtom next(atom_t previous) const noexcept
             {
-                return make_nullable( this->presence_next_set(previous) );
+                return NullableAtom{ this->presence_next_set(previous) };
             }
+
             /**@return next or the same position where child or value exists, may return dim_nil_c if no more entries*/
-            nullable_atom_t next_or_this(atom_t previous) const
+            NullableAtom next_or_this(atom_t previous) const noexcept
             {
-                return make_nullable(this->presence_next_set_or_this(previous));
+                return NullableAtom{ this->presence_next_set_or_this(previous) };
             }
-            
+
             /**
-            * Move entry from this specified by 'key' node that is started on 'in_stem_pos' to another one 
+            * Move entry from this specified by 'key' node that is started on 'in_stem_pos' to another one
             * specified by 'target' address
-            * 
+            *
             * \test
-            *   - *case 1*  
-            *       given: [a->stem(bc)], 
-            *       when insert: (axy), 
+            *   - *case 1*
+            *       given: [a->stem(bc)],
+            *       when insert: (axy),
             *       expected: [a->stem(null), child[b(stem(c)), x(stem(y))]]
             *   - *case 2*
             *       given: [a->stem(bc)],
@@ -353,7 +355,7 @@ namespace OP
 
             */
             template <class TSegmentTopology>
-            void move_to(TSegmentTopology& topology, atom_t key, dim_t in_stem_pos, 
+            void move_to(TSegmentTopology& topology, atom_t key, dim_t in_stem_pos,
                 WritableAccess<this_t>& target_node)
             {
                 wrap_key_value_t src_container;
@@ -365,11 +367,11 @@ namespace OP
             }
 
             template <class TSegmentTopology>
-            void move_from_entry(TSegmentTopology& topology, atom_t source_key, NodeData& source, dim_t in_stem_pos, 
+            void move_from_entry(TSegmentTopology& topology, atom_t source_key, NodeData& source, dim_t in_stem_pos,
                 WritableAccess<this_t>& target_node)
             {
-                assert( !source._stem.is_nil()); //call move_to assumes valid stem
-                
+                assert(!source._stem.is_nil()); //call move_to assumes valid stem
+
                 wrap_key_value_t target_container;
                 target_node->kv_container(topology, target_container);
                 //take stem to memory
@@ -383,7 +385,7 @@ namespace OP
                     stem_buf.data() + in_stem_pos, stem_buf.size() - in_stem_pos);
                 str_manager.destroy(source._stem);//remove previous
                 source._stem = {};
-                if(!left_stem.empty())
+                if (!left_stem.empty())
                     source._stem = str_manager.smart_insert(left_stem);
 
                 target_container->insert(new_key,
@@ -393,7 +395,7 @@ namespace OP
                         {
                             target_data._stem = str_manager.smart_insert(cary_over_stem);
                         }
-                        
+
                         //copy data/address to target
                         target_data._child = source._child;
                         target_node->_child_presence.assign(new_key, _child_presence.get(source_key));
@@ -418,7 +420,7 @@ namespace OP
             }
             /**
             *   Taken a byte key, return index where corresponding key should reside for stem_manager and value_manager
-            *   @return reindexed key (value is in range [_8, _256) ). 
+            *   @return reindexed key (value is in range [_8, _256) ).
             */
             template <class TSegmentTopology>
             atom_t reindex(TSegmentTopology& topology, atom_t key) const
@@ -488,15 +490,15 @@ namespace OP
         private:
             using hash_table_t = containers::PersistedHashTable< NodeData, this_t >;
             using anti_hash_table_t = containers::AntiHashTable< NodeData, this_t>;
-            
+
             using wrap_key_value_t = Multiimplementation<key_value_t, hash_table_t, anti_hash_table_t>;
 
             template <class TSegmentTopology>
-            auto kv_container(TSegmentTopology& topology, wrap_key_value_t &out, dim_t capacity = dim_nil_c) const
+            auto kv_container(TSegmentTopology& topology, wrap_key_value_t& out, dim_t capacity = dim_nil_c) const
             {
-                if( capacity == dim_nil_c )
-                    capacity = _capacity; 
-                return (capacity < 256) 
+                if (capacity == dim_nil_c)
+                    capacity = _capacity;
+                return (capacity < 256)
                     ? static_cast<key_value_t*>(
                         &out.template construct<hash_table_t>(topology, *this, capacity))
                     : static_cast<key_value_t*>(
@@ -512,7 +514,7 @@ namespace OP
             void insert_stem(TSegmentTopology& topology, NodeData& node, Atom& begin, Atom end)
             {
                 assert(node._stem.is_nil());//please check that you don't override existing stem
-                if(end != begin) //first letter considered in `presence`
+                if (end != begin) //first letter considered in `presence`
                 {
                     StringMemoryManager str_manager(topology);
                     node._stem = str_manager.insert(begin, end);
@@ -523,7 +525,7 @@ namespace OP
                     node._stem = {};
                 }
             }
-            
+
             /**
             *   Detects substr contained in stem.
             * @return pair of comparison result and length of overlapped string.
@@ -553,9 +555,9 @@ namespace OP
                 _capacity = new_capacity;
                 ++_version;
             }
-            
+
         };
     } //ns:trie
 }//ns:OP
-    
+
 #endif //_OP_TRIE_TRIENODE__H_

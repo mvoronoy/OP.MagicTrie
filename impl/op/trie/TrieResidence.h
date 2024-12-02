@@ -63,21 +63,21 @@ namespace OP
             //  Overrides
             //
             /**Slot resides in zero-segment only*/
-            bool has_residence(segment_idx_t segment_idx, SegmentManager& manager) const override
+            bool has_residence(segment_idx_t segment_idx, const SegmentManager& manager) const override
             {
                 return segment_idx == 0; //true only for 0
             }
 
             /**Reserve enough to keep TrieHeader*/
-            segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const override
+            segment_pos_t byte_size(FarAddress segment_address, const SegmentManager& manager) const override
             {
-                assert(segment_address.segment == 0);
+                assert(segment_address.segment() == 0);
                 return memory_requirement<TrieHeader>::requirement;
             }
             
             void on_new_segment(FarAddress segment_address, SegmentManager& manager) override
             {
-                assert(segment_address.segment == 0);
+                assert(segment_address.segment() == 0);
                 _segment_address = segment_address;
                 _segment_manager = &manager;
                 OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
@@ -87,7 +87,7 @@ namespace OP
             }
             void open(FarAddress segment_address, SegmentManager& manager) override
             {
-                assert(segment_address.segment == 0);
+                assert(segment_address.segment() == 0);
                 _segment_manager = &manager;
                 _segment_address = segment_address;
             }

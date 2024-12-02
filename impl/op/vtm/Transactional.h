@@ -2,20 +2,22 @@
 #ifndef _OP_VTM_TRANSACTIONAL__H_
 #define _OP_VTM_TRANSACTIONAL__H_
 
+
 #include <type_traits>
 #include <iostream>
 #include <unordered_map>
 #include <string>
 #include <typeinfo>
+#include <cassert>
 
 namespace OP::vtm
 {
         /**Exception is raised when imposible to obtain lock over memory block*/
-        struct ConcurentLockException : public OP::trie::Exception
+        struct ConcurrentLockException : public OP::trie::Exception
         {
-            ConcurentLockException() :
+            ConcurrentLockException() :
                 Exception(OP::trie::er_transaction_concurent_lock){}
-            ConcurentLockException(const char* debug) :
+            ConcurrentLockException(const char* debug) :
                 Exception(OP::trie::er_transaction_concurent_lock, debug){}
         };
         /**Handler allows intercept end of transaction*/
@@ -43,10 +45,7 @@ namespace OP::vtm
             {
             }
 
-            virtual ~Transaction() noexcept
-            {
-
-            }
+            virtual ~Transaction() noexcept = default;
             
             virtual transaction_id_t transaction_id() const noexcept
             {
@@ -74,7 +73,7 @@ namespace OP::vtm
         struct NoOpTransaction : public Transaction
         {
 
-            NoOpTransaction(transaction_id_t id)
+            explicit NoOpTransaction(transaction_id_t id) noexcept
                 : Transaction(id)
             {
             }
@@ -110,12 +109,13 @@ namespace OP::vtm
 
         /**
         *   Guard wrapper that grants transaction accomplishment.
-        *   Destructor is responsible to rollback transaction if user did not commit it explictly before.
+        *   Depending on policy `commit_on_close` this RAII pattern implementation is responsible to 
+        *   automatically rollback or commit transaction at exit.
         */
         struct TransactionGuard
         {
             template <class Sh>
-            TransactionGuard(Sh && instance, bool do_commit_on_close = false) 
+            explicit TransactionGuard(Sh && instance, bool do_commit_on_close = false) 
                 : _instance(std::forward<Sh>(instance))
                 , _is_closed(!_instance)//be polite to null transactions
                 , _do_commit_on_close(do_commit_on_close)
@@ -126,18 +126,19 @@ namespace OP::vtm
 
             void commit()
             {
-                if (!!_instance)
+                if (!!_instance)//be polite to null transactions
                 {
-                    assert(!_is_closed);//be polite to null transactions
+                    assert(!_is_closed);
                     _instance->commit();
                     _is_closed = true;
                 }
             }
+
             void rollback()
             {
-                if (!!_instance)
+                if (!!_instance)//be polite to null transactions
                 {
-                    assert(!_is_closed);//be polite to null transactions
+                    assert(!_is_closed);
                     _instance->rollback();
                     _is_closed = true;
                 }
@@ -148,6 +149,7 @@ namespace OP::vtm
                 if (!_is_closed)
                     _do_commit_on_close ? _instance->commit() : _instance->rollback();
             }
+
         private:
             transaction_ptr_t _instance;
             bool _is_closed;
@@ -155,9 +157,9 @@ namespace OP::vtm
         };
 
         /**
-        *   Utility to repeat some operation after ConcurentLockException has been raised.
+        *   Utility to repeat some operation after ConcurrentLockException has been raised.
         *   Number of repeating peformed by N template parameter, after this number 
-        *   exceeding ConcurentLockException exception just propagated to caller
+        *   exceeding ConcurrentLockException exception just propagated to caller
         */
         template <auto N, typename  F, typename  ... Args>
         inline typename std::result_of<F(Args ...)>::type transactional_retry_n(F f, Args ... ax)
@@ -168,13 +170,13 @@ namespace OP::vtm
                 {
                     return f(ax...);//as soon this is a loop move/forward args must not be used
                 }
-                catch (const OP::vtm::ConcurentLockException &e)
+                catch (const OP::vtm::ConcurrentLockException &e)
                 {
                     /*ignore exception for a while*/
                     e.what();
                 }
             }
-            throw OP::vtm::ConcurentLockException("10");
+            throw OP::vtm::ConcurrentLockException("10");
         }
         template <size_t N, typename F, typename  ... Args>
         inline typename std::result_of<F(Args ...)>::type transactional_yield_retry_n(F f, Args ... ax)
@@ -186,7 +188,7 @@ namespace OP::vtm
                 {
                     return f(ax...);//as soon this is a loop move/forward args must not be used
                 }
-                catch (const OP::vtm::ConcurentLockException &)
+                catch (const OP::vtm::ConcurrentLockException &)
                 {
                     /*ignore exception for a while*/
                     if ((i+1) < limit)

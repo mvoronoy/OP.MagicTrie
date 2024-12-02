@@ -1,138 +1,32 @@
 #ifndef _OP_TRIE_SEGMENTHELPER__H_
 #define _OP_TRIE_SEGMENTHELPER__H_
 #include <op/common/Utils.h>
+
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp>
+
 // #include <boost/thread.hpp>
 #include <cassert>
-#include <op/common/typedefs.h>
+#include <op/vtm/typedefs.h>
 #include <op/common/Utils.h>
 
 namespace OP::vtm
 {
-    using namespace OP::trie;
 
-    typedef std::uint16_t dim_t;
-    typedef std::uint_fast16_t fast_dim_t;
-
-    static inline constexpr dim_t dim_nil_c = dim_t(-1);
-
-    inline nullable_atom_t make_nullable(dim_t index)
-    {
-        return index > std::numeric_limits<atom_t>::max()
-            ? std::make_pair(false, std::numeric_limits<atom_t>::max())
-            : std::make_pair(true, (atom_t)index);
-    }
-
-    typedef std::uint32_t header_idx_t;
-    typedef std::uint32_t segment_idx_t;
-    /**position inside segment*/
-    typedef std::uint32_t segment_pos_t;
-    typedef std::int32_t segment_off_t;
-    /**Combines together segment_idx_t (high part) and segment_pos_t (low part)*/
-    typedef std::uint64_t far_pos_t;
     struct SegmentDef
     {
-        constexpr static const segment_idx_t null_block_idx_c = ~0u;
-        constexpr static const segment_pos_t eos_c = ~0u;
-        constexpr static const far_pos_t far_null_c = ~0ull;
+        constexpr static const segment_idx_t null_block_idx_c = OP::vtm::null_block_idx_c;
+        constexpr static const segment_pos_t eos_c = OP::vtm::eos_c;
+        constexpr static const far_pos_t far_null_c = OP::vtm::far_null_c;
         enum
         {
             align_c = 16
         };
     };
 
-    union FarAddress
-    {
-        far_pos_t address;
-        struct
-        {
-            segment_pos_t offset;
-            segment_idx_t segment;
-        };
-        constexpr FarAddress() noexcept :
-            offset(SegmentDef::eos_c), segment(SegmentDef::eos_c) {}
-        constexpr explicit FarAddress(far_pos_t a_address) noexcept :
-            address(a_address) {}
-        constexpr FarAddress(segment_idx_t a_segment, segment_pos_t a_offset) noexcept :
-            segment(a_segment),
-            offset(a_offset) {}
-
-        constexpr operator far_pos_t() const noexcept
-        {
-            return address;
-        }
-
-        constexpr FarAddress operator + (segment_pos_t pos) const noexcept
-        {
-            assert(offset <= (~segment_pos_t(0) - pos)); //test overflow
-            return FarAddress(segment, offset + pos);
-        }
-
-        /**Signed operation*/
-        constexpr FarAddress operator + (segment_off_t a_offset) const 
-        {
-            assert(
-                ((a_offset < 0) && (static_cast<segment_pos_t>(-a_offset) < offset))
-                || ((a_offset >= 0) && (offset <= (~0u - a_offset)))
-            );
-
-            return FarAddress(segment, offset + a_offset);
-        }
-
-        FarAddress& operator += (segment_pos_t pos)
-        {
-            assert(offset <= (~0u - pos)); //test overflow
-            offset += pos;
-            return *this;
-        }
-        /**Find signable distance between to holders on condition they belong to the same segment*/
-        segment_off_t diff(const FarAddress& other) const
-        {
-            assert(segment == other.segment);
-            return offset - other.offset;
-        }
-        
-        constexpr bool is_nil() const noexcept
-        {
-            return address == SegmentDef::far_null_c;
-        }
-
-        friend constexpr bool operator == (const FarAddress& left, const FarAddress& right) noexcept
-        {
-            return left.address == right.address;
-        }
-
-        friend constexpr bool operator != (const FarAddress& left, const FarAddress& right) noexcept
-        {
-            return left.address != right.address;
-        }
-    };
-    /**get segment part from far address*/
-    constexpr inline segment_idx_t segment_of_far(far_pos_t pos) noexcept
-    {
-        return static_cast<segment_idx_t>(pos >> 32);
-    }
-
-    /**get offset part from far address*/
-    constexpr inline segment_pos_t pos_of_far(far_pos_t pos) noexcept
-    {
-        return static_cast<segment_pos_t>(pos);
-    }
-
-    template <typename ch, typename char_traits>
-    std::basic_ostream<ch, char_traits>& operator<<(std::basic_ostream<ch, char_traits>& os, FarAddress const& addr)
-    {
-        const typename std::basic_ostream<ch, char_traits>::sentry ok(os);
-        if (ok)
-        {
-            os << std::setw(8) << std::setbase(16) << std::setfill(os.widen('0')) << addr.segment << ':' << addr.offset;
-        }
-        return os;
-    }
 
     /**
-    *   Structure that resides at beggining of the each segment
+    *   Structure that resides at beginning of the each segment
     */
     struct SegmentHeader
     {
@@ -140,26 +34,38 @@ namespace OP::vtm
         {
             align_c = SegmentDef::align_c
         };
-        SegmentHeader()
-        {}
-        SegmentHeader(segment_pos_t segment_size) :
-            segment_size(segment_size)
+        
+        constexpr SegmentHeader() noexcept
+            : _segment_size{ OP::vtm::eos_c }
         {
-            //static_assert(sizeof(Segment) == 8, "Segment must be sizeof 8");
-            memcpy(signature, SegmentHeader::seal(), sizeof(signature));
         }
-        bool check_signature() const
+
+        constexpr SegmentHeader(segment_pos_t segment_size) noexcept
+            : _segment_size(segment_size)
+        {
+        }
+
+        constexpr segment_pos_t segment_size() const noexcept
+        {
+            return _segment_size;
+        }
+
+        bool check_signature() const noexcept
         {
             return 0 == memcmp(signature, SegmentHeader::seal(), sizeof(signature));
         }
 
-        char signature[4];
-        segment_pos_t segment_size;
-        static const char* seal()
+        constexpr static char signature[4] = {'m', 'g', 't', 'r'};
+        
+        static const char* seal() noexcept
         {
             static const char* signature = "mgtr";
             return signature;
         }
+
+    private:
+        segment_pos_t _segment_size;
+
     };
 
     namespace details
@@ -185,11 +91,11 @@ namespace OP::vtm
                 //offset += align_on(s_i_z_e_o_f(Segment), Segment::align_c);
                 return reinterpret_cast<T*>(addr + offset);
             }
-            std::uint8_t* raw_space() const
+            std::uint8_t* raw_space() const noexcept
             {
                 return at<std::uint8_t>(OP::utils::aligned_sizeof<SegmentHeader>(SegmentHeader::align_c));
             }
-            segment_pos_t available() const
+            segment_pos_t available() const noexcept
             {
                 return this->_avail_bytes;
             }
@@ -200,22 +106,26 @@ namespace OP::vtm
                     throw trie::Exception(trie::er_invalid_block);
                 return unchecked_to_offset(memblock);
             }
-            segment_pos_t unchecked_to_offset(const void* memblock)
+
+            segment_pos_t unchecked_to_offset(const void* memblock) 
             {
                 return static_cast<segment_pos_t> (
                     reinterpret_cast<const std::uint8_t*>(memblock) - reinterpret_cast<const std::uint8_t*>(this->_mapped_region.get_address())
                     );
             }
+
             std::uint8_t* from_offset(segment_pos_t offset)
             {
                 if (offset >= this->_mapped_region.get_size())
                     throw trie::Exception(trie::er_invalid_block);
                 return reinterpret_cast<std::uint8_t*>(this->_mapped_region.get_address()) + offset;
             }
+
             void flush(bool assync = true)
             {
                 _mapped_region.flush(0, 0, assync);
             }
+
             void _check_integrity()
             {
                 //guard_t l(_free_map_lock);
@@ -278,6 +188,7 @@ namespace OP::vtm
             //    _revert_free_map_index.erase(block);
             //    _free_blocks.erase(to_erase);
             //}
+
             /** validate pointer against mapped region range*/
             bool check_pointer(const void* ptr)
             {
@@ -294,7 +205,7 @@ namespace OP::vtm
 
 namespace std
 {
-    /** Define spacialization of std::has for FarAddress */
+    /** Define specialization of std::has for FarAddress */
     template<>
     struct hash<OP::vtm::FarAddress>
     {

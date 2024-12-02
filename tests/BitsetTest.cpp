@@ -1,8 +1,6 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 #include <op/common/Bitset.h>
-#include <op/common/typedefs.h>
-
 
 template <class B>
 void generic_test(OP::utest::TestRuntime& tresult, B& container)

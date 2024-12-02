@@ -271,6 +271,6 @@ void test_Zones(TestRuntime& tresult)
 }
 
 static auto& module_suite = OP::utest::default_test_suite("Zones")
-.declare("zoneConatiner", test_ZoneContainer)
+.declare("zoneContainer", test_ZoneContainer)
 .declare("zone", test_Zones)
 ;

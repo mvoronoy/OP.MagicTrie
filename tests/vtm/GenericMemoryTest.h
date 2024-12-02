@@ -67,7 +67,7 @@ struct GenericMemoryTest{
         {       
             result.info() << "Test create new...\n";
             auto options = OP::trie::SegmentOptions().segment_size(0x110000);
-            auto mngr1 = Sm::OP_TEMPL_METH(create_new)<Sm>(seg_file_name, options);
+            auto mngr1 = Sm::template create_new<Sm>(seg_file_name, options);
             tst_size = mngr1->segment_size();
             SegmentTopology<HeapManagerSlot> mngrTopology (mngr1);
             one_byte_pos = mngrTopology.slot<HeapManagerSlot>().allocate(1);
@@ -76,7 +76,7 @@ struct GenericMemoryTest{
             mngr1->_check_integrity();
         }
         result.info() << "Test reopen existing...\n";
-        auto segmentMngr2 = Sm::OP_TEMPL_METH(open)<Sm>(seg_file_name);
+        auto segmentMngr2 = Sm::template open<Sm>(seg_file_name);
         result.assert_true(tst_size == segmentMngr2->segment_size(), OP_CODE_DETAILS());
         SegmentTopology<HeapManagerSlot>& mngr2 = *new SegmentTopology<HeapManagerSlot>(segmentMngr2);
 
@@ -134,7 +134,8 @@ struct GenericMemoryTest{
             auto b_pos = mngr2.slot<HeapManagerSlot>().allocate(sizeof(TestSeq));
 
             OP::vtm::TransactionGuard g(segmentMngr2->begin_transaction());
-            auto b = segmentMngr2->writable_block(b_pos, sizeof(TestSeq)).OP_TEMPL_METH(at)<std::uint8_t>(0);
+            auto b = segmentMngr2->writable_block(b_pos, sizeof(TestSeq))
+                .template at<std::uint8_t>(0);
             memcpy(b, TestSeq, sizeof(TestSeq));
             g.commit();
             stripes[i] = b_pos;
@@ -144,7 +145,7 @@ struct GenericMemoryTest{
         delete&mngr2;//mngr2.reset();//causes delete
         segmentMngr2.reset();
 
-        auto segmentMngr3 = Sm::OP_TEMPL_METH(open)<Sm>(seg_file_name);
+        auto segmentMngr3 = Sm::template open<Sm>(seg_file_name);
         SegmentTopology<HeapManagerSlot>* mngr3 = new SegmentTopology<HeapManagerSlot>(segmentMngr3);
         auto& mm = mngr3->slot<HeapManagerSlot>();
         /**Flag must be set if memory management allows merging of free adjacent blocks*/
@@ -162,7 +163,8 @@ struct GenericMemoryTest{
         //now test merging of adjacency blocks
         for (size_t i = 0; i < 7; i += 2)
         {
-            auto ro_ptr = segmentMngr3->readonly_block(stripes[i], sizeof(TestSeq)).OP_TEMPL_METH(at)<std::uint8_t>(0);
+            auto ro_ptr = segmentMngr3->readonly_block(stripes[i], sizeof(TestSeq))
+                .template at<std::uint8_t>(0);
             
             result.assert_true(tools::range_equals(
                 TestSeq, TestSeq + sizeof(TestSeq), ro_ptr, ro_ptr+sizeof(TestSeq)), "striped block corrupted");

@@ -6,9 +6,11 @@
 #include <set>
 #include <cassert>
 #include <iterator>
+
 using namespace OP::trie;
 using namespace OP::vtm;
 using namespace OP::utest;
+using namespace OP::common;
 
 static const char *node_file_name = "StringManager.test";
 
@@ -17,7 +19,7 @@ void test_StringManager(OP::utest::TestRuntime &tresult)
     using namespace std::string_literals;
     using str_manager_t = OP::vtm::StringMemoryManager<>;
 
-    auto tmngr1 = SegmentManager::OP_TEMPL_METH(create_new)<EventSourcingSegmentManager>(
+    auto tmngr1 = SegmentManager::template create_new<EventSourcingSegmentManager>(
         node_file_name, 
         OP::vtm::SegmentOptions()
         .segment_size(0x110000)
@@ -189,7 +191,7 @@ void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
     using namespace std::string_literals;
     using str_manager_t = OP::vtm::StringMemoryManager<>;
 
-    auto tmngr1 = SegmentManager::OP_TEMPL_METH(create_new) < EventSourcingSegmentManager > (
+    auto tmngr1 = SegmentManager::template create_new<EventSourcingSegmentManager> (
         node_file_name,
         OP::vtm::SegmentOptions()
         .segment_size(0x110000)

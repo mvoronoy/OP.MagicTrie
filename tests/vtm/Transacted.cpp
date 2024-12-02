@@ -88,7 +88,7 @@ void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t bl
         try{
             auto ro_block2 = tmanager->readonly_block(FarAddress(pos), sizeof(block_size));
         }
-        catch (const ConcurentLockException&)
+        catch (const ConcurrentLockException&)
         {
             return true;
         }
@@ -100,7 +100,7 @@ void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t bl
         try{
             auto ro_block2 = tmanager->readonly_block(FarAddress(pos), sizeof(block_size));
         }
-        catch (const ConcurentLockException&)
+        catch (const ConcurrentLockException&)
         {
             return true;
         }
@@ -448,13 +448,13 @@ void test_ReleaseReadBlock(OP::utest::TestRuntime &tresult)
             tran4->rollback();
             return false;
         }
-        catch (const ConcurentLockException&)
+        catch (const ConcurrentLockException&)
         {
         }
         tran4->commit();
         return true;
     });
-    tresult.assert_true(future3.get(), "Exception ConcurentLockException must be raised");
+    tresult.assert_true(future3.get(), "Exception ConcurrentLockException must be raised");
     tran3->commit();
     //
     //  Stacked block is deleted later than originated transaction

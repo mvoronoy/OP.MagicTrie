@@ -38,13 +38,14 @@ namespace OP::vtm
             , _segment(std::move(segment))
         {
         }
+
         MemoryChunkBase(
             segment_pos_t count, 
             FarAddress && address, 
-            details::segment_helper_p && segment) OP_NOEXCEPT
+            details::segment_helper_p && segment) noexcept
             : _pos(std::shared_ptr<std::uint8_t> (
-                segment->at<std::uint8_t>(address.offset), 
-                /*dummy deleter since memory address from segment is not allocated in a heap*/
+                segment->template at<std::uint8_t>(address.offset()), 
+                /*dummy deleter since memory address from segment is not allocated in the heap*/
                 details::dummy_deleter))
             , _count(count)
             ,_address(std::move(address))
@@ -162,7 +163,7 @@ namespace OP::vtm
         MemoryChunk() = default;
         /**
         * @return new instance that is subset of this where beginning is shifted on `offset` bytes
-        *   @param offset - how many bytes to offset from beggining, must be less than #count()
+        *   @param offset - how many bytes to offset from beginning, must be less than #count()
         */
         MemoryChunk subset(segment_pos_t offset) const
         {
@@ -420,7 +421,7 @@ namespace OP::vtm
     };
     /**
     *   Create readonly accessor to some virtual memory
-    * \tparam T some type that resides at accesed readonly memory
+    * \tparam T some type that resides at accessed readonly memory
     * \tparam SMProvider some type that either castable to SegmentManager or resolved by resolve_segment_manager() (like a SegmentToplogy)
     * \return accessor that provide readonly (const) access to instance of `T`
     */

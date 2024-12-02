@@ -134,7 +134,7 @@ namespace OP
                     if (zones::is_overlapping(found_res->first, search_range) &&
                         !found_res->second.is_exclusive_access(current->transaction_id()))
                     { //other transaction retains overlapped block
-                        throw OP::vtm::ConcurentLockException();
+                        throw OP::vtm::ConcurrentLockException();
                     }
 
                 }
@@ -154,7 +154,7 @@ namespace OP
                     }
                     //only exclusive access is permitted
                     if (!found_res->second.is_exclusive_access(current->transaction_id()))
-                        throw OP::vtm::ConcurentLockException();
+                        throw OP::vtm::ConcurrentLockException();
                     //may be block just for read
                     if (!(found_res->second.transaction_flag() & wr_c))
                     {//obtain write lock over already existing read-lock
@@ -199,7 +199,7 @@ namespace OP
                     return super_res;
                 auto include_delta = pos - found_res->first.pos();//handle case when included region queried
                 return MemoryChunk(include_delta, found_res->second.shadow_buffer(), size,
-                        std::move(pos), std::move(SegmentManager::get_segment(pos.segment)) );
+                        std::move(pos), std::move(SegmentManager::get_segment(pos.segment())) );
             }
             MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro)  override
             {
@@ -224,8 +224,8 @@ namespace OP
             /**Write explictly to segment manager*/
             void raw_write(const FarAddress& fp, const std::uint8_t *buffer, std::uint32_t size)
             {
-                auto s = get_segment(fp.segment);
-                memcpy(s->at<std::uint8_t>(fp.offset), buffer, size);
+                auto s = get_segment(fp.segment());
+                memcpy(s->at<std::uint8_t>(fp.offset()), buffer, size);
             }
             typedef OP::Range<FarAddress, segment_pos_t> RWR;
             /**Block usage flag*/
@@ -318,14 +318,14 @@ namespace OP
                 * If current transaction already has write 
                 * access, nothing happens.
                 * @return true if lock was accured, false mean that lock was already obtained before
-                * @throws ConcurentLockException if other transaction owns write-lock
+                * @throws ConcurrentLockException if other transaction owns write-lock
                 */
                 bool permit_read(Transaction::transaction_id_t current) 
                 {
                     if (_transaction_flag & wr_c)
                     {
                         if(!is_exclusive_access(current))
-                            throw ConcurentLockException();
+                            throw ConcurrentLockException();
                         return false; //transaction is already there
                     }
                     //block may be shared accross multiple RO transactions;
@@ -744,7 +744,7 @@ namespace OP
                         if (!found_res->first.is_included(search_range))// don't allow trnsactions on overlapped memory blocks
                             throw Exception(er_overlapping_block);
                         if (found_res->second.transaction_flag() & wr_c) //some write-tran already captured this block
-                            throw ConcurentLockException();
+                            throw ConcurrentLockException();
                         if (found_res->second.shadow_buffer() != nullptr)
                         {
                             /* It is impossible to have shaddow-buffer and no wr-lock simultaniusly
@@ -776,7 +776,7 @@ namespace OP
                         extend_ro_memory_block(found_res, search_range, hint, current_transaction);
                         //@@[x]current_transaction->store(found_res);
                     }
-                    //add hashcode to scope of transactions, may rise ConcurentLockException
+                    //add hashcode to scope of transactions, may rise ConcurrentLockException
                     if (found_res->second.permit_read(current_transaction->transaction_id()))
                     {//new lock was obtained, need persist to the transaction scope
                         current_transaction->store(found_res);
@@ -806,7 +806,7 @@ namespace OP
                     return SegmentManager::readonly_block(pos, size, hint);
                 auto include_delta = pos - found_res->first.pos();//handle case when included region queried
                 return ReadonlyMemoryChunk(include_delta, found_res->second.shadow_buffer(), //use shadow
-                    size, std::move(pos), std::move(SegmentManager::get_segment(pos.segment)));
+                    size, std::move(pos), std::move(SegmentManager::get_segment(pos.segment())));
             }
             using opened_transactions_t = std::unordered_map<std::thread::id, transaction_impl_ptr_t> ;
             using lock_t = std::recursive_mutex ;

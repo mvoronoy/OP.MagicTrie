@@ -1,7 +1,6 @@
 #ifndef _OP_TRIE_HASHTABLE__H_
 #define _OP_TRIE_HASHTABLE__H_
 
-#include <op/common/typedefs.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/PersistedReference.h>
 #include <op/trie/Containers.h>
@@ -12,7 +11,7 @@ namespace OP::trie::containers
 
     namespace details
     {
-       
+        using atom_t = OP::common::atom_t;
         /**
         *  Define how many steps may make hash-table algorithm with open address
         *  table before give-up to locate correct item
@@ -51,7 +50,7 @@ namespace OP::trie::containers
             }
         };
         
-        /**function forms bit-mask to evaluate hash. It is assumed that param capcity is ^2 */
+        /**function forms bit-mask to evaluate hash. It is assumed that param capacity is ^2 */
         constexpr inline dim_t bitmask(dim_t capacity) noexcept
         {
             assert(((capacity - 1) & capacity) == 0 && capacity >= 8 && capacity <= 256);
@@ -84,7 +83,7 @@ namespace OP::trie::containers
         
         /**Clear bits of the specified flag*/
         template <class HashTable>
-        bool has_flag(HashTable* ht, fast_dim_t index, atom_t flag) 
+        bool has_flag(HashTable* ht, fast_dim_t index, atom_t flag)
         {
             auto &v = ht[index];
             return (v.flag & flag) != 0;
@@ -117,7 +116,7 @@ namespace OP::trie::containers
         using this_t = PersistedHashTable<Payload, ParentInfo>;
         using base_t = KeyValueContainer<Payload, ParentInfo>;
 
-        /** Define conetent of the table, including origin key and payload*/
+        /** Define content of the table, including origin key and payload*/
         struct Content
         {
             atom_t key;
@@ -135,7 +134,7 @@ namespace OP::trie::containers
         template <class TSegmentTopology>
         PersistedHashTable(TSegmentTopology& topology, const ParentInfo& node_info, dim_t capacity)
             : _segment_manager(topology.segment_manager())
-            , _heap_manager(topology.OP_TEMPL_METH(slot)<HeapManagerSlot>())
+            , _heap_manager(topology.template slot<HeapManagerSlot>())
             , _node_info(node_info)
             , _capacity(capacity)
         {
@@ -180,7 +179,8 @@ namespace OP::trie::containers
         }
 
         /**
-        * @tparam OnMoveCallback - functor that is called if internal space of hash-table is optimized (shrinked). Argumnets (from, to)
+        * @tparam OnMoveCallback - functor that is called if internal space of hash-table is 
+        *   optimized (shrunken). Arguments (from, to)
         * @return true if key was erased
         */
         bool erase(atom_t key) override

@@ -4,6 +4,8 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 
+#include <op/common/astr.h>
+
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <op/vtm/StringMemoryManager.h>
 
@@ -14,12 +16,14 @@
 
 #include "TrieTestUtils.h"
 
-using namespace OP::trie;
-using namespace OP::utest;
+
 static const char* test_file_name = "trie.test";
 
 namespace OP::trie::store_converter
 {
+    using namespace OP::trie;
+    using namespace OP::utest;
+
     template <class ... Tx>
     inline std::ostream& operator << (std::ostream& os, const PersistedVariant<Tx...>& val)
     {
@@ -57,6 +61,10 @@ auto tfo(TTopology& topology, const V & stor)
 
 namespace
 {
+    using namespace OP::trie;
+    using namespace OP::utest;
+    using namespace OP::common;
+
     struct TestStruct
     {
         TestStruct(double a,

@@ -5,8 +5,6 @@
 
 #include <optional>
 
-
-#include <op/common/typedefs.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/PersistedReference.h>
 
@@ -16,7 +14,7 @@ namespace OP::trie::containers
     /**
     *   \tparam Payload - value that is stored by Trie, it must be plain struct (e.g.
     *       std::is_standard_layout_v<Payload> == true).
-    *   \tparam ParentInfo - information provided for internal algotithms by parent, must support:
+    *   \tparam ParentInfo - information provided for internal algorithms by parent, must support:
     *       \li `bool presence(atom_t key) const` - return true if key (not a hash) presented in node;
     *       \li `dim_t capacity() const` - max allowed items in parent node;
     *       \li `FarAddress reindex_table() const` - address of this hash-table;
@@ -25,9 +23,10 @@ namespace OP::trie::containers
     struct KeyValueContainer
     {
         static_assert(std::is_standard_layout_v<Payload>, 
-            "only standart-layout allowed in persisted hash-table");
+            "only standard-layout allowed in persisted hash-table");
         
         using base_t = KeyValueContainer<Payload, ParentInfo>;
+        using atom_t = OP::common::atom_t;
 
         virtual ~KeyValueContainer() = default;
         /**
@@ -40,9 +39,9 @@ namespace OP::trie::containers
         virtual void destroy(FarAddress htbl) = 0;
 
         /** Functor interface to create payload only when it needed. Such complicated decision is needed
-        * since c++ lambda allows cast to function pointer only without capture [see standart 5.1.2].
+        * since c++ lambda allows cast to function pointer only without capture [see standard 5.1.2].
         * To make it simpler additional light-weight structure introduce 1 method interface. To make 
-        * operation transparent, this class also appends `insert` method with arbitrary template lambda also
+        * operation transparent, this class also appends `insert` method with arbitrary template lambda.
         */
         struct FPayloadFactory
         {
@@ -96,7 +95,7 @@ namespace OP::trie::containers
         
     protected:
         /** 
-        *   Simple implmentation of FPayloadFactory that leverages arbitray lambda to implement payload creation 
+        *   Simple implementation of FPayloadFactory that leverages arbitrary lambda to implement payload creation 
         *   callback
         */
         template <class F>

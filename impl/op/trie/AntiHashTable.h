@@ -1,7 +1,6 @@
 #ifndef _OP_TRIE_ANTIHASHTABLE__H_
 #define _OP_TRIE_ANTIHASHTABLE__H_
 
-#include <op/common/typedefs.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/PersistedReference.h>
 #include <op/trie/KeyValueContainer.h>
@@ -31,7 +30,7 @@ namespace OP::trie::containers
                 const ParentInfo& node_info,
                 dim_t capacity)
             : _segment_manager(topology.segment_manager())
-            , _heap_manager(topology.OP_TEMPL_METH(slot)<HeapManagerSlot>())
+            , _heap_manager(topology.template slot<HeapManagerSlot>())
             , _node_info(node_info)
         {
             assert(capacity == capacity_c);

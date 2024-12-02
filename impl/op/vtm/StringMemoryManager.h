@@ -9,7 +9,6 @@
 #include <op/common/has_member_def.h>
 #include <op/trie/Containers.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/FixedSizeMemoryManager.h>
 #include <op/vtm/HeapManager.h>
 #include <op/vtm/PersistedReference.h>
 
@@ -36,7 +35,7 @@ namespace OP::vtm
             template <size_t inline_byte_size_limit = sizeof(FarAddress)>
             struct SmartStringAddress
             {
-                /** Const used as indicator for FarAddress useage */
+                /** Const used as indicator for FarAddress usage */
                 constexpr static std::uint8_t far_use_c = ~std::uint8_t{};
                 static_assert(inline_byte_size_limit < far_use_c && inline_byte_size_limit >= sizeof(FarAddress),
                     "Invalid inlining byte_size used. The value must be in range [sizeof(FarAddress)..254]"

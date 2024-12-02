@@ -18,7 +18,7 @@ namespace OP::vtm
     /**
     @tparam Capacity number of #Payload entries in this container
     */
-    template <class Payload, size_t Capacity>
+    template <class Payload, std::uint32_t Capacity>
     struct FixedSizeMemoryManager : public Slot
     {
         static_assert(Capacity > 1, "Capacity template argument must be greater than 0");
@@ -120,7 +120,7 @@ namespace OP::vtm
                     return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
                 });
 
-            //following will raise ConcurentLockException immediatly, if 'addr' cannot be locked
+            //following will raise ConcurrentLockException immediately, if 'addr' cannot be locked
             auto entry = _segment_manager->writable_block(
                 addr, entry_size_c, WritableBlockHint::block_for_write_c);
 
@@ -137,14 +137,14 @@ namespace OP::vtm
 
         void _check_integrity(FarAddress segment_addr, SegmentManager& manager) override
         {
-            if (segment_addr.segment != 0)
+            if (segment_addr.segment() != 0)
                 return;
             std::lock_guard guard(_topology_mutex);
             //check from _zero_header_address
             auto header =
                 manager.readonly_block(
                     _zero_header_address, memory_requirement<ZeroHeader>::requirement)
-                .OP_TEMPL_METH(at)<ZeroHeader> (0);
+                    .template at<ZeroHeader>(0);
             FarAddress block_addr = FarAddress{ header->_next };
             size_t n_free_blocks = 0;
             //count all free blocks
@@ -153,12 +153,12 @@ namespace OP::vtm
                 const FreeBlockHeader* mem_block =
                     manager.readonly_block(
                         block_addr, entry_size_c)
-                    .OP_TEMPL_METH(at) < FreeBlockHeader > (0);
+                    .template at<FreeBlockHeader>(0);
                 if ((mem_block->_adjacent_count + 1) > Capacity)
                 {
                     std::ostringstream error;
                     error << typeid(this).name() << " detected block at:0x{"
-                        << std::hex << block_addr.segment << ":" << block_addr.offset
+                        << block_addr
                         << "} with invalid adjacent number="
                         << mem_block->_adjacent_count;
                     throw std::runtime_error(error.str());
@@ -187,22 +187,34 @@ namespace OP::vtm
             auto header =
                 _segment_manager->readonly_block(
                     _zero_header_address, memory_requirement<ZeroHeader>::requirement)
-                .OP_TEMPL_METH(at) < ZeroHeader > (0);
+                    .template at<ZeroHeader>(0);
             return std::make_pair(header->_in_alloc, header->_in_free);
         }
+
     private:
         /**Structure specific for 0 segment only*/
         struct ZeroHeader
         {
+            explicit ZeroHeader(far_pos_t next) noexcept
+                : _next(next)
+            {
+            }
             /**Head of forward-only linked list of free (unallocated) blocks,
             * if no free blocks left then fields contains #SegmentDef::far_null_c.
             * This value can point not only single segment.
             */
             far_pos_t _next;
-            std::uint64_t _in_free = Capacity, _in_alloc = 0;
+            std::uint32_t _in_free = Capacity, _in_alloc = 0;
         };
+
         struct FreeBlockHeader
         {
+            constexpr FreeBlockHeader(far_pos_t next, std::uint32_t adjacent_count) noexcept
+                : _next{ next }
+                , _adjacent_count{ adjacent_count }
+            {
+            }
+
             far_pos_t _next;
             /**
             * Number of free blocks adjacent one by at point addressed by _next. Valid values are in range
@@ -213,18 +225,18 @@ namespace OP::vtm
 
     protected:
 
-        bool has_residence(segment_idx_t segment_idx, SegmentManager& manager) const override
+        bool has_residence(segment_idx_t segment_idx, const SegmentManager& manager) const override
         {
             return true; //always true, has always FixedSizeMemoryManager in each segment
         }
         /**
         *   @return byte size that should be reserved inside segment.
         */
-        segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const override
+        segment_pos_t byte_size(FarAddress segment_address, const SegmentManager& manager) const override
         {
             segment_pos_t result = 0;
             auto addr_emulation = segment_address.address;
-            if (segment_address.segment == 0)
+            if (segment_address.segment() == 0)
             {  //reserve place for ZeroHeader struct in 0-segment
                 auto align_pad = //padding needed if segment_address not aligned well
                     static_cast<segment_pos_t>(
@@ -249,7 +261,7 @@ namespace OP::vtm
             FarAddress blocks_begin;
             OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
             ZeroHeader* header;
-            if (start_address.segment == 0)
+            if (start_address.segment() == 0)
             { //create special entry for ZeroHeader
 
                 blocks_begin = FarAddress(OP::utils::align_on(
@@ -288,7 +300,7 @@ namespace OP::vtm
         {
             std::lock_guard guard(_topology_mutex);
             _segment_manager = &manager;
-            if (start_address.segment == 0)
+            if (start_address.segment() == 0)
             {
                 _zero_header_address = start_address;
             }
@@ -300,11 +312,12 @@ namespace OP::vtm
         }
 
     private:
-        /**Size of entry in persistence state, must have capacity to accomodate ZeroHeader*/
+        /**Size of entry in persistence state, must have capacity to accommodate ZeroHeader*/
         constexpr static const segment_pos_t entry_size_c =
-            memory_requirement<FreeBlockHeader>::requirement > memory_requirement<Payload>::requirement ?
-            memory_requirement<FreeBlockHeader>::requirement : memory_requirement<Payload>::requirement;
-        /**When FreeBlockHeader and Payload coupied the same memory - first entry must be alligned properly*/
+            memory_requirement<FreeBlockHeader>::requirement > memory_requirement<Payload>::requirement 
+            ? memory_requirement<FreeBlockHeader>::requirement 
+            : memory_requirement<Payload>::requirement;
+        /**When FreeBlockHeader and Payload occupies the same memory - both entries must be aligned properly*/
         constexpr static const size_t max_entry_align_c =
             std::max(alignof(Payload), alignof(FreeBlockHeader));
         SegmentManager* _segment_manager = nullptr;

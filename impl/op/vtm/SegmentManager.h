@@ -51,12 +51,13 @@ namespace OP::vtm
                 _memory_alignment(SegmentHeader::align_c)
             {
                 segment_size(1);
-
             }
+
             segment_pos_t memory_alignment() const
             {
                 return _memory_alignment;
             }
+
             /**
             * Segment is a big chunk of virtual memory where the all other memory blocks are allocated.
             * @param hint allows specify value of segment, but real value will be aligned on operation-system value of page-size
@@ -66,6 +67,7 @@ namespace OP::vtm
                 _segment_size = hint;
                 return *this;
             }
+            
             /**The same as segment_size but allows specify memory basing on heuristic - how many objects of type Ta and Tb will be allocated*/
             template <class ... Tx>
             SegmentOptions& heuristic_size(Tx&& ... restarg)
@@ -73,6 +75,7 @@ namespace OP::vtm
                 eval_size(std::forward<Tx>(restarg)...);
                 return *this;
             }
+
             /**@return result size that obtained from user prefeence either of #segment_size(segment_pos_t hint) or #heuristic_size and alligned for OS-depended
             *   page size
             */
@@ -85,29 +88,35 @@ namespace OP::vtm
 
                 return r;
             }
+            
             segment_pos_t raw_size() const
             {
                 return _segment_size;
             }
+
         private:
+            
             template <class Ta>
             void eval_size(Ta&& obj)
             {
                 segment_size(_segment_size + static_cast<segment_pos_t>(obj(*this)));
             }
+            
             void eval_size()
             {
             }
+            
             template <class Ta, class ... Tx>
             void eval_size(Ta&& obj, Tx&& ... rest)
             {
                 eval_size<Ta>(std::forward<Ta>(obj));
                 eval_size(std::forward<Tx>(rest)...);
             }
+
             segment_pos_t _segment_size;
-            
             segment_pos_t _memory_alignment;
         };
+
         /**Namespace place together utilities to evaluate size of segment in heuristic way. Each item from namespace can be an argument to SegmentOptions::heuristic_size*/
         namespace size_heuristic
         {
@@ -209,16 +218,16 @@ namespace OP::vtm
                 result->do_read(&header, 1);
                 if (!header.check_signature())
                     throw trie::Exception(trie::er_invalid_signature, file_name);
-                result->_segment_size = header.segment_size;
+                result->_segment_size = header.segment_size();
                 return result;
             }
 
-            segment_pos_t segment_size() const
+            constexpr segment_pos_t segment_size() const noexcept
             {
                 return this->_segment_size;
             }
             
-            segment_pos_t header_size() const
+            constexpr segment_pos_t header_size() const noexcept
             {
                 return OP::utils::aligned_sizeof<SegmentHeader>(SegmentHeader::align_c);
             }
@@ -247,34 +256,37 @@ namespace OP::vtm
             }
             
             /**This operation does nothing, returns just null referenced wrapper*/
-            virtual transaction_ptr_t begin_transaction() 
+            [[nodiscard]] virtual transaction_ptr_t begin_transaction() 
             {
                 return transaction_ptr_t();
             }
             
             /**
             *   @param hint - default behaviour is to release lock after ReadonlyMemoryChunk destroyed.
-            * @throws ConcurentLockException if block is already locked for write
+            * @throws ConcurrentLockException if block is already locked for write
             */
-            virtual ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) 
+            [[nodiscard]] virtual ReadonlyMemoryChunk readonly_block(
+                FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) 
             {
-                assert((pos.offset + size) <= this->segment_size());
-                return ReadonlyMemoryChunk(size, std::move(pos), std::move(this->get_segment(pos.segment)));
+                assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
+                return ReadonlyMemoryChunk(
+                    size, std::move(pos), std::move(this->get_segment(pos.segment())));
             }
             
             /**
-            * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
+            * @throws ConcurrentLockException if block is already locked for concurrent write or concurrent read (by the other transaction)
             */
-            virtual MemoryChunk writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
+            [[nodiscard]] virtual MemoryChunk writable_block(
+                FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
             {
-                assert((pos.offset + size) <= this->segment_size());
-                return MemoryChunk(size, std::move(pos), std::move(this->get_segment(pos.segment)));
+                assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
+                return MemoryChunk(size, std::move(pos), std::move(this->get_segment(pos.segment())));
             }
 
             /**
-            * @throws ConcurentLockException if block is already locked for concurent write or concurent read (by the other transaction)
+            * @throws ConcurrentLockException if block is already locked for concurrent write or concurrent read (by the other transaction)
             */
-            virtual MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro)
+            [[nodiscard]] virtual MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro)
             {
                 auto addr = ro.address();
                 return MemoryChunk(ro.count(), std::move(addr), std::move(ro.segment()));
@@ -285,9 +297,12 @@ namespace OP::vtm
             \endcode
             */
             template <class T>
-            T* wr_at(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
+            inline T* wr_at(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
-                return this->writable_block(pos, OP::utils::memory_requirement<T>::requirement, hint).template at<T>(0);
+                return this
+                    ->writable_block(
+                        pos, OP::utils::memory_requirement<T>::requirement, hint)
+                    .template at<T>(0);
             }
 
             void subscribe_event_listener(SegmentEventListener *listener)
@@ -471,7 +486,7 @@ namespace OP::vtm
         /**Abstract base to construct slots. Slot is an continuous mapped memory chunk that allows statically format 
         *  existing segment of virtual memory.
         * So instead of dealing with raw memory provided by SegmentManager, you can describe memory usage-rule 
-        * at compile time by specifying SegementTopology with bunch of slots.
+        * at compile time by specifying SegmentTopology with bunch of slots.
         * For example: \code
         *   SegmentTopology<NodeManager, HeapManagerSlot> 
         * \endcode
@@ -485,33 +500,36 @@ namespace OP::vtm
             *   For example MemoryManagerSlot always returns true - to place memory manager in each segment.
             *   Some may returns true only for segment #0 - to support single residence only.
             */
-            virtual bool has_residence(segment_idx_t segment_idx, SegmentManager& manager) const = 0;
+            virtual bool has_residence(segment_idx_t segment_idx, const SegmentManager& manager) const = 0;
             /**
             *   @return byte size that should be reserved inside segment. 
             */
-            virtual segment_pos_t byte_size(FarAddress segment_address, SegmentManager& manager) const = 0;
+            virtual segment_pos_t byte_size(FarAddress segment_address, const SegmentManager& manager) const = 0;
             /**
             *   Make initialization of slot in the specified segment as specified offset
             */
             virtual void on_new_segment(FarAddress start_address, SegmentManager& manager) = 0;
             /**
-            *   Perform slot openning in the specified segment as specified offset
+            *   Perform slot opening in the specified segment as specified offset
             */
             virtual void open(FarAddress start_address, SegmentManager& manager) = 0;
-            /**Notify slot that some segement should release resources. It is not about deletion of segment, but deactivating it*/
+
+            /**Notify slot that some segment should release resources. It is not about deletion of segment, but deactivating it*/
             virtual void release_segment(segment_idx_t segment_index, SegmentManager& manager) = 0;
-            /**Allows on debug check integrity of particular segement. Default impl does nothing*/
+
+            /**Allows on debug check integrity of particular segment. Default impl does nothing.*/
             virtual void _check_integrity(FarAddress segment_addr, SegmentManager& manager)
             {
                 /*Do nothing*/
             }
         };
+
         /**
-        *   SegmentTopology is a way to declare how interrior memory of virtual memory segement will be used.
-        *   Toplogy is described as linear (one by one) applying of slots. Each slot is controled by corresponding 
+        *   SegmentTopology is a way to declare how interior memory of virtual memory segment will be used.
+        *   Topology is described as linear (one by one) applying of slots. Each slot is controlled by corresponding 
         *   Slot-inherited object that is specified as template argument.
-        *   For example SegmentTopology <FixedSizeMemoryManager, HeapMemorySlot> declares that Segment have to accomodate 
-        *   FixedSizeMemoryManager in the beggining and HeapMemory after all
+        *   For example SegmentTopology <FixedSizeMemoryManager, HeapMemorySlot> declares that Segment have to accommodate 
+        *   FixedSizeMemoryManager in the beginning and HeapMemory after all
         */
         template <class ... TSlot>
         class SegmentTopology : public SegmentEventListener
@@ -545,8 +563,11 @@ namespace OP::vtm
                 static_assert(sizeof...(TSlot) > 0, "Specify at least 1 TSlot to declare topology");
                 _segments->subscribe_event_listener(this);
                 _segments->ensure_segment(0);
-                _segments->readonly_block(FarAddress(0), 1);
+                //dummy invocation of readonly block allows iterate all slots and call `on_segment_opening`
+                //when topology already exists
+                static_cast<void>(_segments->readonly_block(FarAddress(0), 1));
             }
+
             SegmentTopology(const SegmentTopology&) = delete;
 
             template <class T>
@@ -575,19 +596,21 @@ namespace OP::vtm
                         },  _slots);
                 });
             }
+
             SegmentManager& segment_manager()
             {
                 return *_segments;
             }
+
         protected:
-            /** When new segment allocated this callback ask each Slot from tooplogy optionally
+            /** When new segment allocated this callback ask each Slot from topology optionally
                 allocate itself in new segment
             */
             void on_segment_allocated(segment_idx_t new_segment, segment_manager_t& manager)
             {
                 OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
                 segment_pos_t current_offset = manager.header_size();
-                //start write toplogy right after header
+                //start write topology right after header
                 TopologyHeader* header = manager
                     .writable_block(FarAddress(new_segment, current_offset), addres_table_size_c)
                     .template at<TopologyHeader>(0);
@@ -612,6 +635,7 @@ namespace OP::vtm
                     }, _slots);
                 op_g.commit();
             }
+            
             /** Open existing (on file level) segment */
             void on_segment_opening(segment_idx_t opening_segment, segment_manager_t& manager)
             {

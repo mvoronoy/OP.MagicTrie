@@ -17,7 +17,7 @@ static OP_CONSTEXPR(const) unsigned test_nodes_count_c = 101;
 template <class FixedSizeMemoryManager, class SegmentTopology>
 void test_Generic(OP::utest::TestRuntime &tresult, SegmentTopology& topology)
 {
-    auto &mngr = topology.OP_TEMPL_METH(slot)<FixedSizeMemoryManager>();
+    auto &mngr = topology.template slot<FixedSizeMemoryManager>();
     auto b100 = mngr.allocate();
     mngr.deallocate(b100);
     tresult.assert_true(topology.segment_manager().available_segments() == 1);
@@ -105,7 +105,7 @@ void test_NodeManager(OP::utest::TestRuntime &tresult)
 
     typedef FixedSizeMemoryManager<TestPayload, test_nodes_count_c> test_node_manager_t;
 
-    auto tmngr1 = OP::trie::SegmentManager::OP_TEMPL_METH(create_new)<EventSourcingSegmentManager>(
+    auto tmngr1 = OP::trie::SegmentManager::template create_new<EventSourcingSegmentManager>(
         node_file_name, 
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
@@ -132,12 +132,13 @@ void test_Multialloc(OP::utest::TestRuntime& tresult)
 
     typedef FixedSizeMemoryManager<TestPayload, test_nodes_count_c> test_node_manager_t;
 
-    auto tmngr1 = OP::trie::SegmentManager::OP_TEMPL_METH(create_new) < EventSourcingSegmentManager > (node_file_name,
+    auto tmngr1 = OP::trie::SegmentManager::template create_new<EventSourcingSegmentManager>(
+        node_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
     SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
-    auto &fmm = mngrToplogy.OP_TEMPL_METH(slot)< test_node_manager_t >();
+    auto &fmm = mngrToplogy.template slot<test_node_manager_t>();
     TestPayload generation(5.7, 'a', 11);
 
     OP::vtm::TransactionGuard op_g(mngrToplogy.segment_manager().begin_transaction());

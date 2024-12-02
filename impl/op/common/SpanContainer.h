@@ -15,9 +15,9 @@ namespace OP
     namespace zones
     {
         
-        /** Quick access data structure that allow efficiency ( O(Ln) on intersection algorithm) store of Span/Range data astructure 
-        with ading quick access by spatial indexing.
-        Datastructure optimized to find intersection between items.
+        /** Quick access data structure that allow efficiency ( O(Ln) on intersection algorithm) store of Span/Range data structure 
+        with adding quick access by spatial indexing.
+        Data-structure optimized to find intersection between items.
         Container may be used for conception of 'set' and 'map' (see SpanIdentityTraits and SpanMapTraits correspondingly)
         */
         template <class Span, class SpanTraits>
@@ -34,7 +34,7 @@ namespace OP
             using storage_iter_t = typename Storage::iterator;
             using next_f = std::function<void(storage_iter_t&)>;
 
-            /** Implment iterator type */
+            /** Implement iterator type */
             class Nav
             {
                 friend this_t;

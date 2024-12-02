@@ -14,7 +14,7 @@ namespace OP::trie
 {
     /** Implement predicate checking 'start-with' logic
     */
-    template <class AtomString = atom_string_t >
+    template <class AtomString = OP::common::atom_string_t >
     struct StartWithPredicate
     {
         StartWithPredicate(AtomString prefix) noexcept
@@ -66,11 +66,12 @@ namespace OP::trie
                 return trie.first_child(_iterator);
             }
         private:
-            /** Mutable since Trie can update version of iterartor */
+            /** Mutable since Trie can update version of iterator */
             mutable iterator _iterator;
         };
+
         /** Ingredient for MixAlgorithmRangeAdapter - allows range use `find(key | `first_child` method instead of `begin` */
-        template <class AtomContainer = atom_string_t>
+        template <class AtomContainer = OP::common::atom_string_t>
         struct ChildOfKeyBegin
         {
             ChildOfKeyBegin(AtomContainer key)
@@ -104,20 +105,24 @@ namespace OP::trie
         {
             template <class SharedArguments>
             PrefixedBegin(const SharedArguments& args)
-                : _prefix(std::get<atom_string_t>(args))
+                : _prefix(std::get<OP::common::atom_string_t>(args))
             {
             }
-            PrefixedBegin(atom_string_t prefix)
+
+            PrefixedBegin(OP::common::atom_string_t prefix)
                 : _prefix(std::move(prefix))
             {
             }
+
             iterator _begin(const Trie& trie) const
             {
                 return trie.prefixed_begin(std::begin(_prefix), std::end(_prefix));
             }
+
         private:
-            const atom_string_t _prefix;
+            const OP::common::atom_string_t _prefix;
         };
+
         /** Ingredient for MixAlgorithmRangeAdapter - allows start iteration from first element that 
         greater or equal than specific key. If key is not started with prefix:
             - for lexicographic less key - then lower_bound starts from prefix
@@ -127,17 +132,19 @@ namespace OP::trie
         {
             template <class SharedArguments>
             PrefixedLowerBound(const SharedArguments& args)
-                : _prefix(std::get<atom_string_t>(args))
+                : _prefix(std::get<OP::common::atom_string_t>(args))
             {
             }
-            OP_CONSTEXPR_CPP20 PrefixedLowerBound(atom_string_t prefix) noexcept
+
+            OP_CONSTEXPR_CPP20 PrefixedLowerBound(OP::common::atom_string_t prefix) noexcept
                 : _prefix(std::move(prefix))
             {
             }
+
             /** 
             * \param i - [out] result iterator
             */
-            void _lower_bound(const Trie& trie, iterator& i, const atom_string_t& key) const
+            void _lower_bound(const Trie& trie, iterator& i, const OP::common::atom_string_t& key) const
             {
                 auto kb = std::begin(key);
                 auto ke = std::end(key);
@@ -159,7 +166,7 @@ namespace OP::trie
             }
 
         private:
-            const atom_string_t _prefix;
+            const OP::common::atom_string_t _prefix;
         };
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range customize `in_range` in a way to check that 
@@ -189,7 +196,7 @@ namespace OP::trie
         */
         using ChildInRange = PrefixedInRange;
 
-        /** Ingredient for MixAlgorithmRangeAdapter - implments `in_range` with extra predicate */
+        /** Ingredient for MixAlgorithmRangeAdapter - implements `in_range` with extra predicate */
         struct TakeWhileInRange
         {
             /** extract predicate from shared argument std::tuple from */
@@ -213,10 +220,10 @@ namespace OP::trie
             const std::function< bool(const iterator&)> _predicate;
         };
 
-        /** Ingredient for MixAlgorithmRangeAdapter - implments `find` to play role of begin */
+        /** Ingredient for MixAlgorithmRangeAdapter - implements `find` to play role of begin */
         struct Find
         {
-            Find(atom_string_t key)
+            Find(OP::common::atom_string_t key)
                 : _key(std::move(key))
             {}
 
@@ -226,7 +233,7 @@ namespace OP::trie
             }
 
         private:
-            const atom_string_t _key;
+            const OP::common::atom_string_t _key;
         };
 
     };
@@ -237,13 +244,13 @@ namespace OP::trie
         leverage only begin/end pair. 
         (Of course c++20 ranges library gives a way to overcome this but using runtime capabilities only).
     Rationale: range-base for loop expects from container 2 simple idioms "give me begin of range and end of range". 
-        Programmers have several ways to implement such idioma:
+        Programmers have several ways to implement such idiom:
             \li create proxy to feed begin/end in expected way (actually c++20 ranges do it) ;
             \li overrides some method by inheritance;
             \li provide lambda/callback to invoke correct functionality.
-    Mixer gives another alternative by combining small implmentations at compile time.
+    Mixer gives another alternative by combining small implementations at compile time.
     \code
-        Mixer<Trie, Ingedient::PrefixedBegin, Ingedient::SiblingNext>
+        Mixer<Trie, Ingredient::PrefixedBegin, Ingredient::SiblingNext>
     \endcode
     Allows specify that instead of `begin` used prefixed-begin and instead of `next` used sibling-next to create result 
     range
@@ -252,7 +259,7 @@ namespace OP::trie
     template <class Trie, class ... Mx>
     struct Mixer;
 
-    /** Specialization of Mixer that provide default implmentation */
+    /** Specialization of Mixer that provide default implementation */
     template <class Trie>
     struct Mixer<Trie> 
     {
@@ -260,6 +267,7 @@ namespace OP::trie
         explicit Mixer() = default;
         template<class SharedArguments>
         explicit Mixer(const SharedArguments& arguments) noexcept{}
+
         //default impl that invoke Trie::begin
         iterator _begin(const Trie& trie) const
         {
@@ -282,12 +290,7 @@ namespace OP::trie
             return trie.end();
         }
 
-        /*iterator _lower_bound(const Trie& trie, const atom_string_t& key) const
-        {
-            return trie.lower_bound(key);
-        } */
-
-        void _lower_bound(const Trie& trie, iterator& i, const atom_string_t& k) const
+        void _lower_bound(const Trie& trie, iterator& i, const OP::common::atom_string_t& k) const
         {
             i = trie.lower_bound(i, k);
         }

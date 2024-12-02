@@ -149,7 +149,7 @@ namespace OP::flur
             { //reject empty seq
                 SequenceGreaterCmp cmp_seq(_cmp_traits.greater_factory(), this->_seq_of_seq);
                 // new elem is at the end
-                // by spec `push_heap` treate [beg, last-1] as a heap, so 
+                // by spec `push_heap` treat [beg, last-1] as a heap, so 
                 // last elem is a subject to add
                 std::push_heap(_reorder_index.begin(), _reorder_index.end(), cmp_seq);
             }

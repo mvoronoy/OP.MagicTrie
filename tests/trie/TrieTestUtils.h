@@ -30,11 +30,12 @@ void compare_containers(OP::utest::TestRuntime &tresult, const Trie& trie, const
                 <<" \"" << (const char*)(ti.key().substr(0, 16).c_str()) << "\"..."
             ));
         tresult.assert_true(
-            tools::container_equals(ti.key(), mi->first, &tools::sign_tolerant_cmp<OP::atom_t>),
+            tools::container_equals(ti.key(), mi->first, &tools::sign_tolerant_cmp<OP::common::atom_t>),
             OP_CODE_DETAILS()<<" step#"<< n << ", for key="<<(const char*)mi->first.c_str() << ", while obtained:" << (const char*)ti.key().c_str());
         tresult.assert_that<equals>(ti.value(), mi->second,
             OP_CODE_DETAILS()<<" Associated value error, has:" << ti.value() << ", expected:" << mi->second );
     }
+
     if(mi != std::end(map))
     {
         std::ostringstream os;

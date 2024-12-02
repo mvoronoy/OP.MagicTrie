@@ -5,6 +5,8 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 
+#include <op/common/astr.h>
+
 #include <op/trie/Trie.h>
 #include <op/trie/PlainValueManager.h>
 #include <op/vtm/SegmentManager.h>
@@ -14,7 +16,6 @@
 
 #include <algorithm>
 #include "../test_comparators.h"
-#include "../AtomStrLiteral.h"
 #include "TrieTestUtils.h"
 
 namespace 
@@ -22,6 +23,8 @@ namespace
     using namespace OP::trie;
     using namespace OP::utest;
     using namespace OP::flur;
+    using namespace OP::common;
+
     const char* test_file_name = "trie.test";
     using test_trie_t = Trie<EventSourcingSegmentManager, OP::trie::PlainValueManager<double>>;
 

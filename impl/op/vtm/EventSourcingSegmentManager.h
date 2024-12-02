@@ -88,7 +88,8 @@ namespace OP
                 return insres.first->second;
             }
 
-            ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
+            [[nodiscard]] ReadonlyMemoryChunk readonly_block(
+                FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
             {
                 transaction_impl_ptr_t current_transaction = 
                     std::static_pointer_cast<TransactionImpl>(get_current_transaction());
@@ -132,8 +133,8 @@ namespace OP
                                 break;
                             case ReadIsolation::Prevent:
                                 //allow caller to retry later
-                                throw ConcurentLockException(
-                                    "cannot capture RO while it is used as WR in other transaction, or no trasnsaction used");
+                                throw ConcurrentLockException(
+                                    "cannot capture RO while it is used as WR in other transaction, or no transaction used");
                             case ReadIsolation::ReadUncommitted:
                                 { //DIRTY-READ logic
                                     transaction_log.emplace(blocks_in_touch);
@@ -154,19 +155,19 @@ namespace OP
                     * 1. existing on left:\code
                     * [--existing--]
                     *       [--new--]
-                    * \endcoed
+                    * \endcode
                     * 2. existing on right:\code
                     *      [--existing--]
                     * [--new--]
-                    * \endcoed
+                    * \endcode
                     * 3. existing adsorbs new:\code
                     * [------existing------]
                     *       [--new--]
-                    * \endcoed
+                    * \endcode
                     * 4. new adsorbs existing:\code
                     *   [-existing-]
                     * [------new------]
-                    * \endcoed
+                    * \endcode
                     */
                     auto joined_zone = OP::zones::join_zones(search_range, ev_src->first);
                     auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), ev_src->first.pos());
@@ -194,11 +195,12 @@ namespace OP
                                 std::move(new_buffer),
                                 size,
                                 std::move(pos),
-                                std::move(SegmentManager::get_segment(pos.segment))
+                                std::move(SegmentManager::get_segment(pos.segment()))
                             );
             }
 
-            MemoryChunk writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
+            [[nodiscard]] MemoryChunk writable_block(
+                FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
             {
                 if( _ro_tran > 0)
                 {
@@ -231,7 +233,7 @@ namespace OP
                     // for WR any block from another transaction is a point to reject
                     if (block_profile._used_in_transaction != current_transaction->transaction_id())
                     {//cannot capture because other transaction exists
-                        throw ConcurentLockException("cannot capture WR-block while it is used in another transaction");
+                        throw ConcurrentLockException("cannot capture WR-block while it is used in another transaction");
                     }
                     // form ordered by history event log
                     if(!block_profile._is_ro) //only WR blocks contains changes
@@ -245,19 +247,19 @@ namespace OP
                     * 1. existing on left:\code
                     * [--existing--]
                     *       [--new--]
-                    * \endcoed
+                    * \endcode
                     * 2. existing on right:\code
                     *      [--existing--]
                     * [--new--]
-                    * \endcoed
+                    * \endcode
                     * 3. existing adsorbs new:\code
                     * [------existing------]
                     *       [--new--]
-                    * \endcoed
+                    * \endcode
                     * 4. new adsorbs existing:\code
                     *   [-existing-]
                     * [------new------]
-                    * \endcoed
+                    * \endcode
                     */
                     auto joined_zone = OP::zones::join_zones(search_range, ev_src->first);
                     auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), ev_src->first.pos());
@@ -281,11 +283,11 @@ namespace OP
                                 std::move(new_buffer),
                                 size,
                                 std::move(pos),
-                                std::move(SegmentManager::get_segment(pos.segment))
+                                std::move(SegmentManager::get_segment(pos.segment()))
                             );
             }
 
-            MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro)  override
+            [[nodiscard]] MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro) override
             {
                 return this->writable_block(ro.address(), ro.count());
             }
@@ -298,6 +300,7 @@ namespace OP
             {
 
             }
+
             virtual transaction_ptr_t get_current_transaction()
             {
                 //this method can be replaced if compiler supports 'thread_local' keyword
@@ -368,7 +371,7 @@ namespace OP
                 {
                     if(_tr_state >= ts_sealed_rollback_only_c)
                         throw Exception(ErrorCode::er_transaction_ghost_state);
-                    // No real commit for WR, since save point have to wait untill entire transaction complete
+                    // No real commit for WR, since save point have to wait until entire transaction complete
                     // but we can remove all read locks unless ReadonlyBlockHint::ro_keep_lock used
                     _framed_tran->_owner.apply_transaction_log(
                         begin(), _framed_tran->_transaction_log.end(),
@@ -419,7 +422,7 @@ namespace OP
                 }
 
                 /**Form transaction log*/
-                void store(typename block_in_use_t::iterator& pos)
+                void store(const typename block_in_use_t::iterator& pos)
                 {
                     if(_tr_state)
                         throw Exception(ErrorCode::er_transaction_ghost_state);

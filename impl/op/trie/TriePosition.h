@@ -2,9 +2,9 @@
 #ifndef _OP_TRIE_TRIEPOSITION__H_
 #define _OP_TRIE_TRIEPOSITION__H_
 
-#include <op/common/typedefs.h>
 #include <cstdint>
-#include <op/common/typedefs.h>
+
+#include <op/vtm/typedefs.h>
 
 namespace OP::trie
 {    
@@ -22,42 +22,46 @@ namespace OP::trie
     };
     
     /** Quick check for Terminality::term_no */
-    inline bool operator !(Terminality check)
+    constexpr inline bool operator !(Terminality check) noexcept
     {
         return check == Terminality::term_no;
     }
 
-    inline Terminality operator & (Terminality left, Terminality right)
+    constexpr inline Terminality operator & (Terminality left, Terminality right) noexcept
     {
         return static_cast<Terminality>(  static_cast<std::uint8_t>(left) & static_cast<std::uint8_t>(right) );
     }
-    inline Terminality operator | (Terminality left, Terminality right)
+
+    constexpr inline Terminality operator | (Terminality left, Terminality right) noexcept
     {
         return static_cast<Terminality>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
     }
-    inline Terminality& operator &= (Terminality& left, Terminality right)
+
+    inline Terminality& operator &= (Terminality& left, Terminality right) noexcept
     {
         left = left & right;
         return left;
     }
-    inline Terminality& operator |= (Terminality& left, Terminality right)
+    
+    inline Terminality& operator |= (Terminality& left, Terminality right) noexcept
     {
         left = left | right;
         return left;
     }
-    inline Terminality operator ~ (Terminality v)
+
+    constexpr inline Terminality operator ~ (Terminality v) noexcept
     {
         return static_cast<Terminality>(~static_cast<std::uint8_t>(v));
     }
 
     template <class T>
-    constexpr inline bool all_set(T value, Terminality test)
+    constexpr inline bool all_set(T value, Terminality test) noexcept
     {
         return (value & test) == test;
     }
 
     template <class T>
-    inline bool is_not_set(T value, Terminality test)
+    constexpr inline bool is_not_set(T value, Terminality test) noexcept
     {
         return (value & static_cast<T>(test)) != test;
     }
@@ -156,9 +160,9 @@ namespace OP::trie
     };
 
     template <>
-    struct TriePositionArg<atom_t>
+    struct TriePositionArg<OP::common::atom_t>
     {
-        atom_t _t;
+        OP::common::atom_t _t;
         void operator()(TriePosition& target){ target._key = _t; }
     };
 
@@ -177,6 +181,7 @@ namespace OP::trie
         {
             disjunct, conjunct, assign
         } _operation;
+
         void operator()(TriePosition& target) 
         {
             switch (_operation)
@@ -216,9 +221,9 @@ namespace OP::trie
     };
     
 
-    inline TriePositionArg<atom_t> key(atom_t c)
+    inline TriePositionArg<OP::common::atom_t> key(OP::common::atom_t c)
     {
-        return TriePositionArg<atom_t>{c};    
+        return TriePositionArg<OP::common::atom_t>{c};
     }
 
     inline auto address(FarAddress addr)

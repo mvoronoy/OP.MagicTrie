@@ -24,9 +24,9 @@ namespace OP::vtm
             typedef Log2SkipList<Traits, bitmask_size_c> this_t;
 
             /**
-            *   Evaluate how many bytes expected to place to the header of this datastructure.
+            *   Evaluate how many bytes expected to place to the header of this data-structure.
             */
-            OP_CONSTEXPR(OP_EMPTY_ARG) static segment_pos_t byte_size()
+            OP_CONSTEXPR(OP_EMPTY_ARG) static segment_pos_t byte_size() noexcept
             {
                 return OP::utils::align_on(
                     memory_requirement<ForwardListBase>::array_size( static_cast<segment_pos_t>(bitmask_size_c)),
@@ -71,27 +71,27 @@ namespace OP::vtm
                     FarAddress prev_pos = entry_offset_by_idx(index);
                     auto prev_block = _segment_manager.readonly_block(prev_pos, memory_requirement<ForwardListBase>::requirement);
 
-                    const ForwardListBase* prev_ent = prev_block.OP_TEMPL_METH(at)<ForwardListBase>(0);
+                    const ForwardListBase* prev_ent = prev_block.template at<ForwardListBase>(0);
                     for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos); )
                     {
                         //make 2 reads to avoid overlapped-block exception
                         auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
-                        const MemoryBlockHeader * mem_header = mem_header_block
-                            .OP_TEMPL_METH(at)<MemoryBlockHeader>(0);
+                        const MemoryBlockHeader * mem_header = 
+                            mem_header_block.template at<MemoryBlockHeader>(0);
                         auto curr_block = _segment_manager.readonly_block(FarAddress(pos), memory_requirement<ForwardListBase>::requirement);
-                        const ForwardListBase* curr = curr_block
-                            .OP_TEMPL_METH(at)<ForwardListBase>(0);
+                        const ForwardListBase* curr = 
+                            curr_block.template at<ForwardListBase>(0);
 
                         if (!traits.less(mem_header->size(), key))
                         {
                             try
                             {
                                 auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
-                                auto ent = wr_prev_block.OP_TEMPL_METH(at)< ForwardListBase >(0);
+                                auto ent = wr_prev_block.template at<ForwardListBase>(0);
                                 ent->next = curr->next;
                                 return pos;
                             }
-                            catch (const OP::vtm::ConcurentLockException&)
+                            catch (const OP::vtm::ConcurrentLockException&)
                             {
                                 //just ignore and go further
                             }
@@ -107,7 +107,7 @@ namespace OP::vtm
                     if (result != SegmentDef::far_null_c)
                         return result;
                 }
-                catch (const OP::vtm::ConcurentLockException&)
+                catch (const OP::vtm::ConcurrentLockException&)
                 {
                     //just continue on bigger indexes
                 }
@@ -120,7 +120,7 @@ namespace OP::vtm
                         if (result != SegmentDef::far_null_c)
                             return result;
                     }
-                    catch (const OP::vtm::ConcurentLockException&)
+                    catch (const OP::vtm::ConcurrentLockException&)
                     {
                         //just continue on smaller indexes
                     }
@@ -136,33 +136,27 @@ namespace OP::vtm
                 
                 FarAddress prev_pos = entry_offset_by_idx(index);
                 auto prev_block = _segment_manager.readonly_block(prev_pos, memory_requirement<ForwardListBase>::requirement);
-                const ForwardListBase* prev_ent = prev_block.OP_TEMPL_METH(at)<ForwardListBase>(0);
-                auto list_insert = [&](){
-                        auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
-                        auto wr_prev_ent = wr_prev_block.OP_TEMPL_METH(at)< ForwardListBase >(0);
-                        ref->next = wr_prev_ent->next;
-                        wr_prev_ent->next = t;
-                };
+                const ForwardListBase* prev_ent = prev_block.template at<ForwardListBase>(0);
+
                 for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos);)
                 {
                     auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
-                    const MemoryBlockHeader * mem_header = mem_header_block.OP_TEMPL_METH(at)<MemoryBlockHeader>(0);
+                    const MemoryBlockHeader * mem_header = 
+                        mem_header_block.template at<MemoryBlockHeader>(0);
 
                     auto curr_block = _segment_manager.readonly_block(
                         FarAddress(pos), 
                         memory_requirement<typename traits_t::target_t>::requirement );
-                    typename traits_t::const_ptr_t curr = curr_block.OP_TEMPL_METH(at)<typename traits_t::target_t>(0);
+                    typename traits_t::const_ptr_t curr = 
+                        curr_block.template at<typename traits_t::target_t>(0);
 
                     if (!traits.less(mem_header->size(), key))
-                    {
-                        list_insert();
-                        return;
-                    }
+                        break; //ready to insert
                     pos = curr->next;
                     prev_block = std::move(curr_block);
                 }
-                //there since no entries yet
-                list_insert();
+                //there since no entries yet or found correct pos
+                insert_sinlge(prev_block, ref, t);
             }
 
         private:
@@ -174,6 +168,14 @@ namespace OP::vtm
             {
                 FarAddress r(_list_pos);
                 return r += memory_requirement<ForwardListBase>::array_size(static_cast<segment_pos_t>(index));
+            }
+
+            void insert_sinlge(ReadonlyMemoryChunk& prev_block, ForwardListBase* ref, typename traits_t::pos_t t)
+            {
+                auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
+                auto wr_prev_ent = wr_prev_block.template at<ForwardListBase>(0);
+                ref->next = wr_prev_ent->next;
+                wr_prev_ent->next = t;
             }
         };
     

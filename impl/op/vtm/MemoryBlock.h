@@ -9,38 +9,41 @@ namespace OP::vtm
 
     struct FreeMemoryBlockTraits
     {
-        typedef FreeMemoryBlock target_t;
-        typedef size_t key_t;
-        typedef far_pos_t pos_t;
-        typedef FreeMemoryBlock& reference_t;
-        typedef FreeMemoryBlock* ptr_t;
-        typedef const FreeMemoryBlock* const_ptr_t;
-        typedef const FreeMemoryBlock& const_reference_t;
+        using target_t = FreeMemoryBlock ;
+        using key_t = size_t ;
+        using pos_t = far_pos_t ;
+        using reference_t = FreeMemoryBlock& ;
+        using ptr_t = FreeMemoryBlock* ;
+        using const_ptr_t = const FreeMemoryBlock* ;
+        using const_reference_t = const FreeMemoryBlock& ;
 
         /**
         * @param entry_list_pos position that points to skip-list root
         */
-        FreeMemoryBlockTraits(SegmentManager* segment_manager) :
-            _segment_manager(segment_manager),
-            _low(32),//smallest block 
-            _high(segment_manager->segment_size())
+        explicit FreeMemoryBlockTraits(SegmentManager* segment_manager) noexcept
+            : _segment_manager(segment_manager),
+            _smallest(slots_c),//smallest block = 32
+            _largest(segment_manager->segment_size())
         {
         }
-        static inline constexpr pos_t eos()
+
+        constexpr static inline pos_t eos() noexcept
         {
             return SegmentDef::far_null_c;
         }
-        static bool is_eos(pos_t pt)
+
+        constexpr static bool is_eos(pos_t pt) noexcept
         {
             return pt == eos();
         }
+
         /**Compare 2 FreeMemoryBlock by the size*/
-        static bool less(key_t left, key_t right)
+        constexpr static bool less(key_t left, key_t right) noexcept
         {
             return left < right;
         }
 
-        constexpr size_t entry_index(key_t key) const
+        constexpr size_t entry_index(key_t key) const noexcept
         {
             size_t base = 0;
             const size_t low_strat = 256;
@@ -50,24 +53,25 @@ namespace OP::vtm
             key -= low_strat;
             const size_t mid_strat = 4096;
             if (key < mid_strat)/*Just an assumption about biggest payload stored in virtual memory*/
-                return base + ((key * (slots_c / 2/*aka 16*/)) / (mid_strat));
-            base += slots_c / 2;
+                return base + ((key * (_smallest / 2/*aka 16*/)) / (mid_strat));
+            base += _smallest / 2;
             key -= mid_strat;
-            size_t result = base + (key * (slots_c - 3 - slots_c / 2/*aka 13*/)) / _high;
-            if (result >= slots_c)
-                return slots_c - 1;
+            size_t result = base + (key * (_smallest - 3 - _smallest / 2/*aka 13*/)) / _largest;
+            if (result >= _smallest)
+                return _smallest - 1;
             return result;
         }
 
-        static const pos_t& next(const_reference_t ref)
+        static const pos_t& next(const_reference_t ref) noexcept
         {
             return ref.next;
         }
-        static pos_t& next(reference_t ref)
+        static pos_t& next(reference_t ref) noexcept
         {
             return ref.next;
         }
-        void set_next(reference_t mutate, pos_t next)
+
+        void set_next(reference_t mutate, pos_t next) noexcept
         {
             mutate.next = next;
         }
@@ -76,12 +80,13 @@ namespace OP::vtm
         {
             return *_segment_manager->wr_at<FreeMemoryBlock>(FarAddress(n));
         }
-    private:
-        static OP_CONSTEXPR(const) size_t slots_c = sizeof(std::uint32_t) << 3;
-        SegmentManager* _segment_manager;
 
-        const size_t _low;
-        const size_t _high;
+    private:
+        constexpr static const size_t slots_c = sizeof(std::uint32_t) << 3;
+
+        SegmentManager* _segment_manager;
+        const size_t _smallest;
+        const size_t _largest;
     };
 
 } //endof OP::vtm

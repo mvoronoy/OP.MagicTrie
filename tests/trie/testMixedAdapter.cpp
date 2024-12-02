@@ -14,15 +14,16 @@
 
 #include <op/trie/MixedAdapter.h>
 #include <op/common/NamedArgs.h>
+#include <op/common/astr.h>
 #include <op/trie/JoinGenerator.h>
 
 #include <algorithm>
 #include "../test_comparators.h"
-#include "../AtomStrLiteral.h"
 #include "TrieTestUtils.h"
 
 using namespace OP::trie;
 using namespace OP::utest;
+using namespace OP::common;
 static const char* test_file_name = "trie.test";
 
 void testDefault(OP::utest::TestRuntime& tresult)
@@ -343,7 +344,7 @@ void test_UnorderedOrderFlatMap(TestRuntime& tresult)
         >> then::ordering_flat_mapping([&](const auto& iter) {
                 return trie->children_range(iter) 
                 >> then::keep_order_mapping([prefix_len = iter.size()](const auto& i) {
-                        return OP::trie::atom_string_view_t(i.key()).substr(prefix_len);
+                        return OP::common::atom_string_view_t(i.key()).substr(prefix_len);
                     });
             }, g_custom_compare)
         ;

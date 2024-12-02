@@ -3,6 +3,7 @@
 #define _OP_FLUR_ORDEREDJOIN__H_
 
 #include <functional>
+#include <cassert>
 #include <memory>
 #include <optional>
 

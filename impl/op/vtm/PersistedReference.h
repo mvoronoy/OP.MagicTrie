@@ -1,7 +1,6 @@
 #ifndef _OP_TRIE_TYPEHELPER__H_
 #define _OP_TRIE_TYPEHELPER__H_
 
-#include <op/common/typedefs.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/SegmentHelper.h>
 
@@ -12,51 +11,57 @@ namespace OP
         using namespace OP::vtm;
         /** 
         *   Wraps operations to de-reference plain (std::is_standard_layout_v == true) object from FarAddress.
-        * Since this type is plain too it can be helpfull to have this filed instead of explicit FarAddress
+        * Since this type is plain too it can be helpful to have this filed instead of explicit FarAddress
         */
         template <class T>
         struct PersistedReference
         {
-            static_assert(std::is_standard_layout_v<T>, "only  standart-layout alllowed in persisted hash-table");
+            static_assert(std::is_standard_layout_v<T>, "only  standard-layout allowed in persisted hash-table");
 
             using element_t = T;
             FarAddress address;
 
-            explicit PersistedReference(FarAddress aadr)
+            constexpr explicit PersistedReference(FarAddress aadr) noexcept
                 : address(aadr)
             {}
-            PersistedReference()
+            
+            constexpr PersistedReference() noexcept
                 : address{}
             {}
+            
             template <class TSegmentManager>
             T* ref(TSegmentManager& manager)
             {
-                return manager.OP_TEMPL_METH(wr_at)<T>(address);
+                return manager.template wr_at<T>(address);
             }
+            
             bool is_null() const
             {
                 return address == SegmentDef::far_null_c;
             }
+
             template <class TSegmentManager, class ... Args>
             T* construct(TSegmentManager& manager, Args&& ... args)
             {
-                return new (manager.OP_TEMPL_METH(wr_at)<T>(address)) T(std::forward<Args>(args)...);
+                return new (manager.template wr_at<T>(address)) T(std::forward<Args>(args)...);
             }
         };
+
         template <class T>
         struct PersistedArray
         {
             using element_t = T;
             FarAddress address;
             
-            explicit PersistedArray(FarAddress aadr)
+            explicit PersistedArray(FarAddress aadr) noexcept
                 : address(aadr)
             {}
-            PersistedArray()
+
+            constexpr PersistedArray() noexcept
                 : address{}
             {}
             
-            constexpr static segment_pos_t memory_requirement(segment_pos_t expected_size)
+            constexpr static segment_pos_t memory_requirement(segment_pos_t expected_size) noexcept
             {
                 return OP::utils::memory_requirement<element_t>::requirement * (expected_size );
             }
@@ -84,7 +89,7 @@ namespace OP
             element_t& ref_element(TSegmentManager& manager, segment_pos_t at) const
             {
                 segment_pos_t offset = OP::utils::memory_requirement<element_t>::requirement * at;
-                return *resolve_segment_manager(manager).OP_TEMPL_METH(wr_at)<element_t>(address + offset);
+                return *resolve_segment_manager(manager).template wr_at<element_t>(address + offset);
             }
 
         };
@@ -182,7 +187,7 @@ namespace OP
 
             Size& size_ref(SegmentManager& manager) const
             {
-                return manager.OP_TEMPL_METH(wr_at)<Container>(address).size;
+                return manager.template wr_at<Container>(address).size;
             }
 
             Container& ref(SegmentManager& manager) const

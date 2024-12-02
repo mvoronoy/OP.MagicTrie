@@ -56,7 +56,7 @@ namespace OP
             using value_type = typename payload_manager_t::source_payload_t;
             using node_t = TrieNode<payload_manager_t>;
             using position_t = TriePosition;
-            using key_t = atom_string_t;
+            using key_t = OP::common::atom_string_t;
             using insert_result_t = std::pair<iterator, bool>;
             using storage_converter_t = typename payload_manager_t::storage_converter_t;
 
@@ -75,7 +75,7 @@ namespace OP
                 // otherwise creates different version writable_block
                 new_trie->_root = new_trie->new_node(0);
                 
-                new_trie->_topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                new_trie->_topology->template slot<TrieResidence> ()
                     .update([root_addr = new_trie->_root](auto& header){
                         header._root = root_addr;
                     });
@@ -88,7 +88,7 @@ namespace OP
             {
                 auto existing_trie = std::shared_ptr<this_t>(new this_t(segment_manager));
                 auto header =
-                    existing_trie->_topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                    existing_trie->_topology->template slot<TrieResidence> ()
                     .get_header();
                 existing_trie->_version = header._version;
                 existing_trie->_root = header._root;
@@ -104,14 +104,14 @@ namespace OP
             /**Total number of items*/
             std::uint64_t size() const
             {
-                auto h = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                auto h = _topology->template slot<TrieResidence>()
                     .get_header();
                 return h._count;
             }
 
             node_version_t version() const
             {
-                auto h = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                auto h = _topology->template slot<TrieResidence>()
                     .get_header();
                 return this->_version;
             }
@@ -119,8 +119,7 @@ namespace OP
             /**Number of allocated nodes*/
             std::uint64_t nodes_count()
             {
-                auto h = _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
-                    .get_header();
+                auto h = _topology->template slot<TrieResidence>().get_header();
                 return h._nodes_allocated;
             }
 
@@ -147,7 +146,7 @@ namespace OP
             {
                 return iterator(this, typename iterator::end_marker_t{});
             }
-            /** check if iteratoris not end() */
+            /** check if iterator is not end() */
             bool in_range(const iterator& check) const
             {
                 return check != end();
@@ -261,7 +260,7 @@ namespace OP
                 { //correct string at the back of iterator
                     auto [ok, child] = load_iterator(i_beg.rat().address(), i_beg,
                         [&i](ReadonlyAccess<node_t>&) {
-                            return make_nullable(i.rat().key());
+                            return NullableAtom{ i.rat().key() };
                         },
                         &iterator::update_back);
                     assert(ok);//tail must exists
@@ -316,7 +315,7 @@ namespace OP
             iterator lower_bound(iterator& of_prefix, Atom& begin, Atom aend) const
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), false); //place all RO operations to atomic scope
-                atom_string_t lookup_key;
+                OP::common::atom_string_t lookup_key;
                 auto succeeded = sync_iterator(of_prefix, &lookup_key);
                 if (succeeded)
                 {
@@ -483,7 +482,7 @@ namespace OP
             template <class IterateAtom>
             auto prefixed_range(IterateAtom begin, IterateAtom aend) const
             {
-                atom_string_t prefix(begin, aend);
+                OP::common::atom_string_t prefix(begin, aend);
                 return prefixed_range(prefix);
             }
             /**
@@ -529,7 +528,7 @@ namespace OP
             }
 
             /**Return range that allows iterate all siblings of specified prefix*/
-            auto sibling_range(const atom_string_t& key) const
+            auto sibling_range(const OP::common::atom_string_t& key) const
             {
                 return OP::flur::make_lazy_range(make_mixed_sequence_factory(
                     std::const_pointer_cast<const this_t>(this->shared_from_this()),
@@ -649,7 +648,7 @@ namespace OP
                     return std::make_pair(end(), false); //empty string is not operatable
 
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true/*commit automatically*/);
-                atom_string_t fallback_key;
+                OP::common::atom_string_t fallback_key;
                 auto sync_res = sync_iterator(of_prefix, &fallback_key);
                 if (!sync_res)
                 { //no entry for previous iterator
@@ -759,7 +758,7 @@ namespace OP
                 if (begin == aend)
                     return std::make_pair(end(), false); //empty string is not operatable
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true/*commit automatically*/);
-                atom_string_t fallback_key;
+                OP::common::atom_string_t fallback_key;
                 
                 if (!sync_iterator(of_prefix, &fallback_key))
                 { //no entry for previous iterator, just insert
@@ -827,7 +826,7 @@ namespace OP
                     }
                 }
                 const std::uint64_t new_ver = ++this->_version;
-                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                _topology->template slot<TrieResidence>()
                     .update([&](auto& header){
                         --header._count; //number of terminals
                         header._version = new_ver; // version of trie
@@ -893,7 +892,7 @@ namespace OP
                     erased_terminals += counter;
                 }
 
-                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                _topology->template slot<TrieResidence>()
                     .update([&](auto& header){
                         header._count += effective_decrease_number; //number of terminals
                         header._version = ++this->_version; // version of trie
@@ -1005,7 +1004,7 @@ namespace OP
             std::atomic<std::uint64_t> _version = 0;
             
             /** Cached result of root node to avoid often referencing to 
-            * persisted TrieResidence::TrieHeade::_root
+            * persisted TrieResidence::TrieHeader::_root
             */ 
             FarAddress _root = {};
 
@@ -1023,13 +1022,13 @@ namespace OP
             */
             FarAddress new_node(size_t level = 1)
             {
-                TrieOptions options; //@! temp - just default impl. Need add euristic to allocate mem according to level
-                auto node_addr = _topology->OP_TEMPL_METH(slot) < node_manager_t > ().allocate(
-                    options.init_node_size(level)
-                );
+                TrieOptions options; //@! temp - just default impl. Need add heuristic to allocate mem according to level
+                auto node_addr = _topology->template slot<node_manager_t> ()
+                    .allocate(options.init_node_size(level));
+
                 auto wr_node = accessor<node_t>(*_topology, node_addr);
                 wr_node->create_interior(*_topology);
-                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                _topology->template slot<TrieResidence>()
                     .update([this](auto& header) {
                         ++header._nodes_allocated;
                     });
@@ -1039,9 +1038,9 @@ namespace OP
             void remove_node(WritableAccess<node_t>& wr_node)
             {
                 wr_node->destroy_interior(*_topology);
-                _topology->OP_TEMPL_METH(slot) < node_manager_t > ().deallocate(
+                _topology->template slot<node_manager_t>().deallocate(
                     wr_node.address());
-                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                _topology->template slot<TrieResidence>()
                     .update([this](auto& header) {
                         --header._nodes_allocated;
                     });
@@ -1090,15 +1089,9 @@ namespace OP
                     node_version(wr_node->_version),
                     terminality_or(Terminality::term_has_data)
                 );
-                // THIS impl version (with arbitrary stem length) never meet condition begin == end
-                //if (begin != end) //not fully fit to this node
-                //{
-                //    //some suffix have to be accomodated yet
-                //    node_addr = new_node(result.deep());
-                //    wr_node->set_child(*_topology, key, node_addr);
-                //}
+                // condition `begin == end` is never happens
                 std::uint64_t version = ++this->_version; // version of trie
-                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                _topology->template slot<TrieResidence>()
                     .update([&](auto& header){
                         ++header._count; //number of terminals
                         header._version = version;
@@ -1234,7 +1227,7 @@ namespace OP
                     node_version(wr_node->_version)
                 );
 
-                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                _topology->template slot<TrieResidence>()
                     .update([new_ver = ++this->_version](auto& header){
                         ++header._count; //number of terminals
                         header._version = new_ver; // version of trie
@@ -1255,7 +1248,7 @@ namespace OP
                 });
 
                 pos.rat(node_version(wr_node->_version));
-                _topology->OP_TEMPL_METH(slot) < TrieResidence > ()
+                _topology->template slot<TrieResidence>()
                     .update([&](auto& header){
                         header._version = this->_version;
                         pos._version = header._version;// version of trie
@@ -1485,7 +1478,7 @@ namespace OP
                     auto [ok, child] = load_iterator(
                         prefix.rat().address(), prefix,
                         [&](ReadonlyAccess<node_t>& ro_node) {
-                            return make_nullable(prefix.rat().key());
+                            return NullableAtom{ prefix.rat().key() };
                         },
                         &iterator::update_back);
                     assert(ok); //empty node is impossible there
@@ -1514,7 +1507,7 @@ namespace OP
             * \param fallback atomic_string_t that set overall result false origin key of iterator, because on
             *       unsuccessful sync at exit iterator is damaged. Pointer may be ommitted if you don't need recovery
             */
-            bool sync_iterator(iterator& it, atom_string_t* fallback = nullptr) const
+            bool sync_iterator(iterator& it, OP::common::atom_string_t* fallback = nullptr) const
             {
                 const std::uint64_t this_ver = this->version();
 
@@ -1559,7 +1552,7 @@ namespace OP
             }
 
             /**
-            * \tparam FFindEntry - function `nullable_atom_t (ReadonlyAccess<node_t>&)` 
+            * \tparam FFindEntry - function `NullableAtom (ReadonlyAccess<node_t>&)` 
             *           that resolve index inside node;
             * \tparam FIteratorUpdate - pointer to one of iterator members - either to 
             *           update 'back' position or insert new one to iterator;
@@ -1572,7 +1565,7 @@ namespace OP
                 FFindEntry pos_locator, FIteratorUpdate iterator_update) const
             {
                 auto ro_node = view<node_t>(*_topology, node_addr);
-                nullable_atom_t pos = pos_locator(ro_node);
+                NullableAtom pos = pos_locator(ro_node);
                 if (!pos)
                 { //no first
                     return std::make_pair(false, FarAddress());
@@ -1580,15 +1573,15 @@ namespace OP
 
                 position_t root_pos(
                     address(node_addr),
-                    key(pos.second),
+                    key(pos.value()),
                     node_version(ro_node->_version)
                 );
-                return ro_node->rawc(*_topology, pos.second,
+                return ro_node->rawc(*_topology, pos.value(),
                     [&](const auto& node_data) {
                         if (!node_data._stem.is_nil())
                         {//if stem exists should be placed to iterator
                             StringMemoryManager smm(*_topology);
-                            atom_string_t buffer;
+                            OP::common::atom_string_t buffer;
                             smm.get(node_data._stem, std::back_inserter(buffer));
                             (dest.*iterator_update)(std::move(root_pos),
                                 buffer.data(), buffer.data() + buffer.size());
@@ -1599,8 +1592,8 @@ namespace OP
                         }
                         dest.rat(
                             terminality(
-                                (ro_node->has_value(pos.second) ? Terminality::term_has_data : Terminality::term_no)
-                                | (ro_node->has_child(pos.second) ? Terminality::term_has_child : Terminality::term_no)
+                                (ro_node->has_value(pos.value()) ? Terminality::term_has_data : Terminality::term_no)
+                                | (ro_node->has_child(pos.value()) ? Terminality::term_has_child : Terminality::term_no)
                             )
                         );
                         return std::make_pair(true, node_data._child);
