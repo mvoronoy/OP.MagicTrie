@@ -9,9 +9,8 @@
 #include <iomanip>
 #include <op/trie/Trie.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/CacheManager.h>
-#include <op/vtm/TransactedSegmentManager.h>
 #include <op/vtm/MemoryChunks.h>
+#include <op/vtm/TransactedSegmentManager.h>
 #include "GenericMemoryTest.h"
 
 using namespace OP::trie;

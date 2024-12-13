@@ -1,5 +1,7 @@
-#ifndef _OP_TRIE_MEMORYBLOCKHEADER__H_
-#define _OP_TRIE_MEMORYBLOCKHEADER__H_
+#pragma once
+
+#ifndef _OP_VTM_MEMORYBLOCKHEADER__H_
+#define _OP_VTM_MEMORYBLOCKHEADER__H_
 
 #include <op/vtm/SegmentManager.h>
 
@@ -18,7 +20,7 @@ namespace OP::vtm
         MemoryBlockHeader(const MemoryBlockHeader&) = delete;
 
         /** Special constructor for placement new */
-        explicit constexpr MemoryBlockHeader(emplaced_t) noexcept
+        explicit constexpr MemoryBlockHeader(std::in_place_t) noexcept
             : _free(1)
             , _has_next(0)
             , _signature(signature_c)
@@ -29,7 +31,7 @@ namespace OP::vtm
         
         /** Constructor for find purpose only*/
         explicit constexpr MemoryBlockHeader(segment_pos_t user_size) noexcept
-            : MemoryBlockHeader(emplaced_t{})
+            : MemoryBlockHeader(std::in_place_t{})
         {
             nav._size = user_size;
         }
@@ -125,7 +127,7 @@ namespace OP::vtm
                     mbh_size_align/*byte_size - don't need write entire block*/, 
                     WritableBlockHint::new_c);
 
-            MemoryBlockHeader* result = new (access.pos()) MemoryBlockHeader(emplaced_t{});
+            MemoryBlockHeader* result = new (access.pos()) MemoryBlockHeader(std::in_place_t{});
             result
                 ->size(byte_size)
                 ->prev_block_offset(FarAddress(this_pos).diff(access_pos))
@@ -190,7 +192,7 @@ namespace OP::vtm
     struct FreeMemoryBlock : public OP::vtm::ForwardListBase
     {
         /**Special constructor for objects allocated in existing memory*/
-        explicit FreeMemoryBlock(emplaced_t) noexcept
+        explicit FreeMemoryBlock(std::in_place_t) noexcept
         {
         }
 
@@ -212,4 +214,5 @@ namespace OP::vtm
     };
 
 } //endof OP
-#endif //_OP_TRIE_MEMORYBLOCKHEADER__H_
+
+#endif //_OP_VTM_MEMORYBLOCKHEADER__H_

@@ -9,7 +9,6 @@
 #include <op/trie/PlainValueManager.h>
 
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/CacheManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
 
 #include <op/trie/MixedAdapter.h>

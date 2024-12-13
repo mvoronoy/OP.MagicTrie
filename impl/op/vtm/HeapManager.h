@@ -1,7 +1,7 @@
-#ifndef _OP_TRIE_MEMORYMANAGER__H_
-#define _OP_TRIE_MEMORYMANAGER__H_
+#pragma once
+#ifndef _OP_VTM_MEMORYMANAGER__H_
+#define _OP_VTM_MEMORYMANAGER__H_
 
-#include <unordered_map>
 #include <vector>
 
 #include <op/vtm/SegmentManager.h>
@@ -186,8 +186,7 @@ namespace OP::vtm
                         auto prev_pos = first_block_pos + first->prev_block_offset();
                         auto check_prev_block = manager.readonly_block(prev_pos, mbh);
                         auto check_prev = check_prev_block.at<MemoryBlockHeader>(0);
-                        assert(prev == check_prev);
-                        assert(prev->my_segement() == first->my_segement());
+                        assert(check_prev->my_segement() == first->my_segement());
                     }
 
                     prev = first;
@@ -266,7 +265,7 @@ namespace OP::vtm
                     first_block_pos, 
                     mbh_size_align + memory_requirement<FreeMemoryBlock>::requirement, 
                     WritableBlockHint::new_c);
-                MemoryBlockHeader * block = new (zero_header.pos()) MemoryBlockHeader(emplaced_t());
+                MemoryBlockHeader * block = new (zero_header.pos()) MemoryBlockHeader(std::in_place_t{});
                 block
                     ->size(byte_size - mbh_size_align)
                     ->set_free(true)
@@ -274,7 +273,7 @@ namespace OP::vtm
                     ->my_segement(start_address.segment())
                     ;
                 //just created block is free, so place FreeMemoryBlock info inside it
-                FreeMemoryBlock* span_of_free = new (block->memory()) FreeMemoryBlock(emplaced_t{});
+                FreeMemoryBlock* span_of_free = new (block->memory()) FreeMemoryBlock(std::in_place_t{});
                 FarAddress user_memory_pos = zero_header.address() + mbh_size_align;
                 
                 _free_blocks->insert(
@@ -402,7 +401,7 @@ namespace OP::vtm
                 auto free_marker = _segment_manager->wr_at<FreeMemoryBlock>(address, 
                     WritableBlockHint::block_for_write_c | WritableBlockHint::allow_block_realloc);
 
-                FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(emplaced_t());
+                FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(std::in_place_t{});
                 auto deposited = header->size();
                 
                 _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), address, span_of_free, header);
@@ -436,4 +435,5 @@ namespace OP::vtm
 
     
 }//ns: OP:vtm
-#endif //_OP_TRIE_MEMORYMANAGER__H_
+
+#endif //_OP_VTM_MEMORYMANAGER__H_

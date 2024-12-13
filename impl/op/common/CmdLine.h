@@ -45,7 +45,7 @@ namespace OP::console
     /**
     * Ingredient to OP::console::Arg declaration to define mandatory argument. Usage:
     *   \code
-    *   CommandLineParser cml(
+    *   CommandLineParser clp(
     *       arg(key("--test"), required(), assign(&x.v))
     *   ); \endcode
     * 
@@ -94,9 +94,9 @@ namespace OP::console
 
     /**
     * Ingredient to OP::console::Arg declaration to declare matching key. You can specify
-    *  more than one `key`
+    *  more than one `key` for the single parameter.
     * Usage:  \code
-    *       CommandLineParser cml(
+    *       CommandLineParser clp(
     *    arg(key("-t"), key("--test"), desc("define test argument"), assign(&x.v))
     *   ); \endcode
     * 
@@ -131,7 +131,7 @@ namespace OP::console
     * Ingredient to OP::console::Arg declaration to declare handler of free (stroll) parameter
     * without `key.
     * Usage:  \code
-    *       CommandLineParser cml(
+    *       CommandLineParser clp(
     *    arg( desc("define argument without a key"), stroll{}, assign(&x.v))
     *   ); \endcode
     * 
@@ -164,7 +164,7 @@ namespace OP::console
     * Ingredient to OP::console::Arg declaration to declare callback
     * when argument matches.
     * Usage:  \code
-    *       CommandLineParser cml(
+    *       CommandLineParser clp(
     *    arg( key("-t"), 'action([](auto& value){ std::cout << value << "\n";}))
     *   ); \endcode
     * 
@@ -197,7 +197,7 @@ namespace OP::console
     *   ); \endcode
     * 
     * States that `--test` or `-t` assigns variable value `&x.v`.
-    * This class has specialzation for 'bool' type allowing parse keys without values:
+    * This class has specialization for 'bool' type allowing parse keys without values:
     * Usage:  \code
     *   bool is_set = false;
     *   CommandLineParser cml(

@@ -204,9 +204,9 @@ void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
 void test_StringManagerEdgeCaseNoTran(OP::utest::TestRuntime& tresult)
 {
 
-    auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(
+    auto tmngr1 = OP::vtm::SegmentManager::create_new<SegmentManager>(
         node_file_name,
-        OP::trie::SegmentOptions()
+        OP::vtm::SegmentOptions()
         .segment_size(0x110000));
 
     SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
@@ -215,9 +215,9 @@ void test_StringManagerEdgeCaseNoTran(OP::utest::TestRuntime& tresult)
 
 void test_SmartStr(OP::utest::TestRuntime& tresult)
 {
-    auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(
+    auto tmngr1 = OP::vtm::SegmentManager::create_new<SegmentManager>(
         node_file_name,
-        OP::trie::SegmentOptions()
+        OP::vtm::SegmentOptions()
         .segment_size(0x110000));
 
     SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);

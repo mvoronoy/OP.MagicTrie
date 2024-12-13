@@ -2,7 +2,6 @@
 #include <op/utest/unit_test_is.h>
 #include <op/trie/Trie.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/CacheManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <set>
 #include <cassert>

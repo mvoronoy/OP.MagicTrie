@@ -1,12 +1,13 @@
-#ifndef _OP_TRIE_SEGMENTHELPER__H_
-#define _OP_TRIE_SEGMENTHELPER__H_
-#include <op/common/Utils.h>
+#pragma once
+
+#ifndef _OP_VTM_SEGMENTHELPER__H_
+#define _OP_VTM_SEGMENTHELPER__H_
+
+#include <cassert>
 
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 
-// #include <boost/thread.hpp>
-#include <cassert>
 #include <op/vtm/typedefs.h>
 #include <op/common/Utils.h>
 
@@ -75,15 +76,18 @@ namespace OP::vtm
         struct SegmentHelper
         {
             friend struct SegmentManager;
+
             SegmentHelper(file_mapping& mapping, offset_t offset, std::size_t size) :
                 _mapped_region(mapping, read_write, offset, size),
                 _avail_bytes(0)
             {
             }
-            SegmentHeader& get_segment() const
+
+            SegmentHeader& get_header() const
             {
                 return *at<SegmentHeader>(0);
             }
+            
             template <class T>
             T* at(segment_pos_t offset) const
             {
@@ -91,10 +95,12 @@ namespace OP::vtm
                 //offset += align_on(s_i_z_e_o_f(Segment), Segment::align_c);
                 return reinterpret_cast<T*>(addr + offset);
             }
+
             std::uint8_t* raw_space() const noexcept
             {
                 return at<std::uint8_t>(OP::utils::aligned_sizeof<SegmentHeader>(SegmentHeader::align_c));
             }
+            
             segment_pos_t available() const noexcept
             {
                 return this->_avail_bytes;
@@ -107,7 +113,7 @@ namespace OP::vtm
                 return unchecked_to_offset(memblock);
             }
 
-            segment_pos_t unchecked_to_offset(const void* memblock) 
+            segment_pos_t unchecked_to_offset(const void* memblock) noexcept
             {
                 return static_cast<segment_pos_t> (
                     reinterpret_cast<const std::uint8_t*>(memblock) - reinterpret_cast<const std::uint8_t*>(this->_mapped_region.get_address())
@@ -165,29 +171,6 @@ namespace OP::vtm
             mapped_region _mapped_region;
 
             segment_pos_t _avail_bytes;
-            /**Because free_map_t is ordered by block size there is no explicit way to find by pointer,
-            this method just provide better than O(N) improvement*/
-            //free_set_t::const_iterator find_by_ptr(MemoryBlockHeader* block) const
-            //{
-            //    auto result = _revert_free_map_index.find(block);
-            //    if (result == _revert_free_map_index.end())
-            //        return _free_blocks.end();
-            //    return result->second;
-            //    
-            //}
-            //void free_block_insert(MemoryBlockHeader* block)
-            //{
-            //    free_set_t::const_iterator ins = _free_blocks.insert(block);
-            //    auto result = _revert_free_map_index.insert(revert_index_t::value_type(block, ins));
-            //    assert(result.second); //value have to be unique
-            //}
-            //template <class It>
-            //void free_block_erase(It&to_erase)
-            //{
-            //    auto block = *to_erase;
-            //    _revert_free_map_index.erase(block);
-            //    _free_blocks.erase(to_erase);
-            //}
 
             /** validate pointer against mapped region range*/
             bool check_pointer(const void* ptr)
@@ -198,7 +181,6 @@ namespace OP::vtm
                     && byte_ptr < (base + _mapped_region.get_size());
             }
         };
-        typedef std::shared_ptr<SegmentHelper> segment_helper_p;
 
     }//ns::details
 }   //ns: OP::vtm
@@ -216,5 +198,5 @@ namespace std
     };
 
 } //ns: std
-#endif //_OP_TRIE_SEGMENTHELPER__H_
+#endif //_OP_VTM_SEGMENTHELPER__H_
 

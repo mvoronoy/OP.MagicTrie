@@ -1,8 +1,10 @@
 #include <op/utest/unit_test.h>
 #include <op/common/StackAlloc.h>
 
-using namespace OP::utest;
-namespace {
+namespace 
+{
+    using namespace OP::utest;
+
     constexpr int is_called_from_const = 0x8000;
     constexpr int is_impl1 = 0x10000;
     constexpr int is_impl2 = 0x20000;

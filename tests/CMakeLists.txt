@@ -44,6 +44,7 @@ add_executable (trie_test
     "common/ThreadPool.cpp"
     "common/Currying.cpp"
     "common/Multiimplementation.cpp"
+    "common/PreallocCache.cpp"
     "common/basic.cpp"
 
     "vtm/ContainersTest.cpp"

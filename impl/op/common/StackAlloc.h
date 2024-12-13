@@ -289,7 +289,7 @@ namespace OP
 
         using this_t = Multiimplementation<TInterface, Tx...>;
         
-        /** Create unitialized in memory buffer (no heap operations is involved) */
+        /** Create uninitialized in memory buffer (no heap operations is involved) */
         constexpr Multiimplementation() noexcept = default;
         
         /** \brief Copy constructor */

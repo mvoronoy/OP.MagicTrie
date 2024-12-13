@@ -33,13 +33,13 @@ namespace OP::trie
         node_stack_t _position_stack;
         const Container* _container = nullptr;
         prefix_string_t _prefix;
-        node_version_t _version;
+        node_version_t _version = { 0 };
         struct end_marker_t {};
         TrieIterator(const Container* container, const end_marker_t&) noexcept
             : _container(container)
-            , _version(0)
         {
         }
+
     public:
 
         explicit TrieIterator(const Container* container) noexcept
@@ -48,7 +48,7 @@ namespace OP::trie
         {
         }
 
-        TrieIterator() = default;
+        TrieIterator() noexcept = default;
 
         inline this_t& operator ++ ()
         {
@@ -184,7 +184,7 @@ namespace OP::trie
             _prefix.append(1, (atom_t)position.key());
             update_stem(begin, end);
         }
-        /**Upsert (insert or update) */
+        /** Upsert (insert or update) */
         void upsert_back(TriePosition&& position, const atom_t* begin, const atom_t* end)
         {
             assert(position.key() <= std::numeric_limits<atom_t>::max());
@@ -211,9 +211,11 @@ namespace OP::trie
             _prefix.resize(_prefix.length() - cut_len);
             _position_stack.pop_back();
         }
-        /** by poping back shrinks current iterator until it not bigger than `desired` (may be less with respect to allign to node's stem length)
+
+        /** by poping back shrinks current iterator until it not bigger than `desired` (may be less with 
+        *   respect to align to node's stem length)
         @param desired number of chars to leave.
-        @return desired alligned that was really shrinked (alligned on deep value of last node)
+        @return desired aligned that was really shrunk (aligned on deep value of last node)
         */
         void pop_until_fit(dim_t desired)
         {
@@ -234,6 +236,7 @@ namespace OP::trie
         {
             return _position_stack.size();
         }
+
         /**Snapshot version of trie modification when iterator was created*/
         node_version_t version() const
         {

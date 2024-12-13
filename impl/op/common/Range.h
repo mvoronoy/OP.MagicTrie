@@ -86,7 +86,7 @@ namespace OP
             return right(a) == pos(other);
         }
 
-        /**Operation is true if eaither right or left ajusted*/
+        /**Operation is true if either right or left adjusted */
         template <class R1, class R2>
         constexpr bool is_adjacent(const R1& a, const R2& other) noexcept
         {

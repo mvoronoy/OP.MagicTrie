@@ -127,8 +127,8 @@ namespace OP
                 {
                     assert(presence(key));
                     NodeData* node = container->get(key);
-                    stem_addr = node->_stem;
                     assert(node);
+                    stem_addr = node->_stem;
 
                     payload_manager_t::destroy(topology, node->_value);
                     if (!_child_presence.get(key))
@@ -150,7 +150,7 @@ namespace OP
                     smm.destroy(stem_addr);
                 }
 
-                //_value_presence.clear(key); //it may look dupplicate, but isn't
+                //_value_presence.clear(key); //it may look duplicate, but isn't
                 //@! think to reduce space of hashtable
                 return presence_first_set() == presence_t::nil_c; //erase entire node if no more entries
             }

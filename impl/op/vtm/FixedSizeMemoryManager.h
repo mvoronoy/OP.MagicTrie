@@ -9,14 +9,16 @@
 #include <memory>
 #include <future>
 #include <fstream>
-#include <op/trie/Containers.h>
-#include <op/vtm/SegmentManager.h>
+
 #include <op/common/Range.h>
+
+#include <op/vtm/SegmentManager.h>
+
 namespace OP::vtm
 {
     using namespace OP::utils;
     /**
-    @tparam Capacity number of #Payload entries in this container
+    * @tparam Capacity number of #Payload entries in this container
     */
     template <class Payload, std::uint32_t Capacity>
     struct FixedSizeMemoryManager : public Slot
@@ -250,6 +252,7 @@ namespace OP::vtm
             result += align_pad2 + entry_size_c * Capacity;
             return result;
         }
+
         /**
         *   Make initialization of slot in the specified segment as specified offset
         */
@@ -293,8 +296,9 @@ namespace OP::vtm
 
             op_g.commit();
         }
+
         /**
-        *   Perform slot openning in the specified segment as specified offset
+        *   Perform slot opening in the specified segment as specified offset
         */
         void open(FarAddress start_address, SegmentManager& manager) override
         {
@@ -305,7 +309,8 @@ namespace OP::vtm
                 _zero_header_address = start_address;
             }
         }
-        /**Notify slot that some segement should release resources. It is not about deletion of segment, but deactivating it*/
+        
+        /**Notify slot that some segment should release resources. It is not about deletion of segment, but deactivating it*/
         void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
         {
 
@@ -324,6 +329,7 @@ namespace OP::vtm
         FarAddress _zero_header_address;
         std::mutex _topology_mutex;
     };
+
 }//ns:OP::vtm
 
 #endif //_OP_VTM_FIXEDSIZEMEMORYMANAGER__H_

@@ -1,15 +1,18 @@
 #pragma once
-#ifndef _OP_TRIE_EVENTSOURCINGSEGMENTMANAGER__H_
-#define _OP_TRIE_EVENTSOURCINGSEGMENTMANAGER__H_
+#ifndef _OP_VTM_EVENTSOURCINGSEGMENTMANAGER__H_
+#define _OP_VTM_EVENTSOURCINGSEGMENTMANAGER__H_
 
-#include <op/vtm/SegmentManager.h>
-#include <op/vtm/Transactional.h>
-#include <op/common/Exceptions.h>
-#include <op/common/SpanContainer.h>
-#include <op/common/Unsigned.h>
 #include <thread>
 #include <shared_mutex>
 #include <queue>
+
+#include <op/common/Exceptions.h>
+#include <op/common/SpanContainer.h>
+#include <op/common/Unsigned.h>
+
+#include <op/vtm/SegmentManager.h>
+#include <op/vtm/Transactional.h>
+#include <op/vtm/ShadowBufferCache.h>
 
 namespace OP
 {
@@ -92,7 +95,7 @@ namespace OP
                 FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
             {
                 transaction_impl_ptr_t current_transaction = 
-                    std::static_pointer_cast<TransactionImpl>(get_current_transaction());
+                    get_current_transaction().static_pointer_cast<TransactionImpl>();
 
                 auto result = SegmentManager::readonly_block(pos, size, hint);
                 if (_ro_tran)
@@ -146,7 +149,7 @@ namespace OP
                     }
                 }
                 //apply all event sourced to `new_buffer`
-                shadow_buffer_t new_buffer = shadow_buffer_t{new std::uint8_t[result.count()], [](std::uint8_t *p) {delete[]p; } };
+                shadow_buffer_t new_buffer = _shadow_buffer_cache.get(result.count());
                 memcpy(new_buffer.get(), result.at<std::uint8_t>(0), result.count()); //first copy origin from disk
                 for (; !transaction_log.empty(); transaction_log.pop())
                 {// iterate transaction log from oldest to newest and apply changes on result memory block
@@ -183,20 +186,16 @@ namespace OP
                     return result; //just default impl
                 // at last add history record
                 // Note: if there is exactly matched block it will be also appended to multimap
+                auto buffer_weak = new_buffer.ghost();
                 auto iter = _captured.emplace(search_range,
                     BlockProfile{true/*RO*/, 
                     current_transaction->next_history_id(), 
                     current_transaction->transaction_id(),
-                    new_buffer,
+                    std::move(new_buffer),
                     static_cast<std::uint8_t>(hint)
                     });
                 current_transaction->store(iter);
-                return ReadonlyMemoryChunk(0,
-                                std::move(new_buffer),
-                                size,
-                                std::move(pos),
-                                std::move(SegmentManager::get_segment(pos.segment()))
-                            );
+                return ReadonlyMemoryChunk(std::move(buffer_weak), size, pos);
             }
 
             [[nodiscard]] MemoryChunk writable_block(
@@ -207,15 +206,13 @@ namespace OP
                     throw Exception(er_ro_transaction_started);
                 }
                 transaction_impl_ptr_t current_transaction = 
-                    std::static_pointer_cast<TransactionImpl>(get_current_transaction());
+                    get_current_transaction().static_pointer_cast<TransactionImpl>();
                 if( !current_transaction ) //write is permitted in transaction scope only
                     throw Exception(er_transaction_not_started);
                 
                 auto result = SegmentManager::readonly_block(
                     pos, size, ReadonlyBlockHint::ro_no_hint_c); //it is not a mistake to use readonly(!)
-                shadow_buffer_t new_buffer = shadow_buffer_t{
-                    new std::uint8_t[result.count()], 
-                    [](std::uint8_t *p) {delete[]p; } };
+                shadow_buffer_t new_buffer = _shadow_buffer_cache.get(result.count()); //try reuse existing buffer
                 //first copy origin from disk
                 memcpy(
                     new_buffer.get(), result.at<std::uint8_t>(0), result.count()); 
@@ -227,6 +224,8 @@ namespace OP
                 // to check if readonly block is allowed
                 const std::unique_lock acc_captured(_captured_lock);
                 auto blocks_in_touch = _captured.intersect_with(search_range);
+                //do some optimization, if exists wide enough block that already includes queried
+
                 for(; blocks_in_touch != _captured.end(); ++blocks_in_touch)
                 {
                     auto& block_profile = blocks_in_touch->second;
@@ -270,21 +269,20 @@ namespace OP
                         ev_src->second._shadow.get() + offset_in_src, 
                         joined_zone.count()); 
                 }
+                shadow_buffer_t buffer_weak = new_buffer.ghost();
                 // at last add history record
                 // Note: if there is exactly matched block it will be also appended to multimap
-                auto iter = _captured.emplace(std::make_pair(search_range,
-                    BlockProfile{false/*WR*/, 
-                    current_transaction->next_history_id(), 
-                    current_transaction->transaction_id(),
-                    new_buffer,
-                    static_cast<std::uint8_t>(hint) }));
+                auto iter = _captured.emplace(
+                    std::make_pair(
+                        search_range,
+                        BlockProfile{false/*WR*/, 
+                            current_transaction->next_history_id(), 
+                            current_transaction->transaction_id(),
+                            std::move(new_buffer),
+                            static_cast<std::uint8_t>(hint) 
+                        }));
                 current_transaction->store(iter);
-                return MemoryChunk(
-                                std::move(new_buffer),
-                                size,
-                                std::move(pos),
-                                std::move(SegmentManager::get_segment(pos.segment()))
-                            );
+                return MemoryChunk(std::move(buffer_weak), size, pos);
             }
 
             [[nodiscard]] MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro) override
@@ -306,7 +304,7 @@ namespace OP
                 //this method can be replaced if compiler supports 'thread_local' keyword
                 const ro_guard_t g(_opened_transactions_lock);
                 auto found = _opened_transactions.find(std::this_thread::get_id());
-                return found == _opened_transactions.end() ? std::shared_ptr<Transaction>() : found->second;
+                return found == _opened_transactions.end() ? transaction_ptr_t{} : found->second;
             }
             
         private:
@@ -317,7 +315,7 @@ namespace OP
             /** Must use 64 * 64 instead of 'segment_pos_t' as a size because merge of 2 segment_pos_t may produce 
             overflow of segment_pos_t */
             using RWR = OP::Range<far_pos_t, far_pos_t>;
-            using shadow_buffer_t = std::shared_ptr<std::uint8_t>;
+            using shadow_buffer_t = ShadowBuffer;
 
             /**Properties of captured block in particular transaction*/
             struct BlockProfile
@@ -325,7 +323,7 @@ namespace OP
                 bool _is_ro;
                 std::uint64_t _order;
                 Transaction::transaction_id_t _used_in_transaction;
-                shadow_buffer_t _shadow;
+                ShadowBuffer _shadow;
                 std::uint8_t _flag;  //either ReadonlyBlockHint or WritableBlockHint
             };
             using block_in_use_t = OP::zones::SpanMap<RWR, BlockProfile>;
@@ -357,7 +355,8 @@ namespace OP
             static constexpr transaction_state_t ts_sealed_noop_c = ts_sealed_rollback_only_c+1;
 
             struct TransactionImpl;
-            struct SavePoint : public Transaction, std::enable_shared_from_this<SavePoint>
+
+            struct SavePoint : public Transaction
             {
                 using iterator = typename linear_log_t::iterator;
 
@@ -367,6 +366,7 @@ namespace OP
                 {
                     _from = _framed_tran->_transaction_log.size();
                 }
+
                 void commit() override
                 {
                     if(_tr_state >= ts_sealed_rollback_only_c)
@@ -381,6 +381,7 @@ namespace OP
                         });
                     ++_tr_state;
                 }
+
                 void rollback() override
                 {
                     if(_tr_state >= ts_sealed_noop_c)
@@ -389,6 +390,7 @@ namespace OP
                         [](const auto& ){return true;/* on rollback remove all used blocks*/});
                     ++_tr_state;
                 }
+
                 iterator begin() const
                 {
                     return _framed_tran->_transaction_log.begin() + _from;
@@ -405,20 +407,21 @@ namespace OP
                 transaction_state_t _tr_state = ts_active_c;
             };
             
-            /**Implement Transaction interface*/
-            struct TransactionImpl : public Transaction, std::enable_shared_from_this<TransactionImpl>
+            /** Implement Transaction interface */
+            struct TransactionImpl : public Transaction
             {
                 TransactionImpl(transaction_id_t id, EventSourcingSegmentManager& owner) noexcept
                     : Transaction(id)
                     , _owner(owner)
                 {
                 }
+
                 /**Client code may claim nested transaction. Instead of real transaction just provide save-point
                 * @return new instance of SavePoint with the same transaction-id as current one
                 */
                 transaction_ptr_t recursive()
                 {
-                    return std::make_shared<SavePoint>(this);
+                    return transaction_ptr_t{ new SavePoint{this} };
                 }
 
                 /**Form transaction log*/
@@ -443,17 +446,16 @@ namespace OP
                     {
                         ev->on_rollback();
                     }
-                    _garbage_collect.reserve(_garbage_collect.size() + _transaction_log.size());
 
                     _owner.apply_transaction_log(_transaction_log.begin(), _transaction_log.end(), 
-                            [this](const auto& map_iter){
+                            [this]( auto& map_iter){
                                 //let's postpone real memory dealloc for background worker
-                                _garbage_collect.emplace_back(map_iter->second._shadow);
+                                _owner._shadow_buffer_cache.utilize(std::move(map_iter->second._shadow));
                                 return true; /*unconditionally erase all blocks*/
                     });
                     
                     //notify background worker to dispose this tran
-                    _owner.dispose_transaction(shared_from_this());
+                    _owner.dispose_transaction(transaction_ptr_t{ TransactionShareMode{}, this });
                 }
 
                 void commit() override
@@ -465,10 +467,10 @@ namespace OP
                     {
                         ev->on_commit();
                     }
-                    _garbage_collect.reserve(_garbage_collect.size() + _transaction_log.size());
+
                     //iterate all save-points in direct order and apply commit
                     _owner.apply_transaction_log(_transaction_log.begin(), _transaction_log.end(), 
-                            [&, this](const auto&map_iter){
+                            [&, this](auto&map_iter){
                                 if( !map_iter->second._is_ro )
                                 {//copy shadow buffer to disk
                                     //block must not exceed segment size
@@ -480,12 +482,12 @@ namespace OP
                                             (WritableBlockHint)map_iter->second._flag );
                                     mb.byte_copy(map_iter->second._shadow.get(), byte_size);
                                 }
-                                _garbage_collect.emplace_back(map_iter->second._shadow);
+                                _owner._shadow_buffer_cache.utilize(std::move(map_iter->second._shadow));
                                 return true; //ask owner remove all references
                             });
                     
                     //notify background worker to dispose this tran
-                    _owner.dispose_transaction(shared_from_this());
+                    _owner.dispose_transaction(transaction_ptr_t(TransactionShareMode{}, this));
                 }
                 
                 /**Allows discover state if transaction still exists (not in ghost state) */
@@ -502,16 +504,13 @@ namespace OP
                 EventSourcingSegmentManager& _owner;
                 std::atomic_uint64_t _gen_block_history{0};
 
-
-                using address_lookup_t = std::unordered_map<const std::uint8_t*, far_pos_t>;
                 using transaction_end_listener_t = std::vector<std::unique_ptr<BeforeTransactionEnd>>;
-                using shadow_buffer_array_t = std::vector<shadow_buffer_t>;
 
                 transaction_state_t _tr_state = ts_active_c;
                 linear_log_t _transaction_log;
                 size_t _max_save_point_size = 0; //just for heuristic
                 transaction_end_listener_t _end_listener;
-                shadow_buffer_array_t _garbage_collect;
+                
             };
 
             struct ReadOnlyTransaction : public Transaction
@@ -557,7 +556,7 @@ namespace OP
                 EventSourcingSegmentManager& _owner;
             };
 
-            using transaction_impl_ptr_t = std::shared_ptr<TransactionImpl>;
+            using transaction_impl_ptr_t = TransactionPtr<TransactionImpl>;
 
             /*just provide access to parent's writable-block*/
             MemoryChunk raw_writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
@@ -631,7 +630,6 @@ namespace OP
                     _ready_to_dispose.pop_back();
                     //can unlock since no more operations with queue 
                     acc_job.unlock();                                                                          
-                    wipe_tran->_garbage_collect.clear();
                     //dispose all save-points
                     wipe_tran->_transaction_log.clear();//nobody uses this tran anymore - so no locks
                 }
@@ -640,6 +638,7 @@ namespace OP
             using opened_transactions_t = std::unordered_map<std::thread::id, transaction_ptr_t> ;
 
             block_in_use_t _captured;
+            ShadowBufferCache _shadow_buffer_cache = {};
             mutable std::mutex _captured_lock;
             mutable shared_lock_t _opened_transactions_lock;
             opened_transactions_t _opened_transactions;
@@ -660,4 +659,4 @@ namespace OP
     } //ns::trie
 }//ns::OP
 
-#endif //_OP_TRIE_EVENTSOURCINGSEGMENTMANAGER__H_
+#endif //_OP_VTM_EVENTSOURCINGSEGMENTMANAGER__H_

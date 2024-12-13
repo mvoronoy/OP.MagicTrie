@@ -10,7 +10,6 @@
 #include <op/trie/Trie.h>
 #include <op/trie/PlainValueManager.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/CacheManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <op/trie/JoinGenerator.h>
 
@@ -1147,23 +1146,9 @@ namespace
                 })) != test_values.end();
             test_values.erase(wi++));
 
-        auto deb_print = [&](const auto& range) {
-            //auto& out = tresult.debug();
-            //out << "-------\n" << "Trie size:" << trie->size() << "\n";
-            //size_t n = 0;
-            //for (const auto& i : range)
-            //{
-            //    out << '"' << (const char*)i.key().c_str() << "\"=" << *i << "\n";
-            //    ++n;
-            //}
-            //out << "Trie effective size:" << n << "\n";
-        };
-
-        deb_print(trie->range());
         f2_copy = f2;
         auto deb_count = trie->prefixed_erase_all(f2_copy);
 
-        deb_print(trie->range());
         tresult.assert_that<equals>(4, deb_count, OP_UTEST_DETAILS());
         f2_copy = f2;
         tresult.assert_that<equals>(0, trie->prefixed_erase_all(f2_copy), 
@@ -1173,10 +1158,8 @@ namespace
         tresult.assert_that<equals>(*upsert_ptr, 57.75);
         tresult.assert_that<eq_sets>(trie->find(en2).key(), en2);
 
-        deb_print(trie->range());
         tresult.assert_that<equals>(1, trie->prefixed_erase_all(upsert_ptr), OP_UTEST_DETAILS());
 
-        deb_print(trie->range());
         tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
         compare_containers(tresult, *trie, test_values);
 
@@ -1189,7 +1172,6 @@ namespace
 
         test_values.emplace("bc"_astr, 1.);
         tresult.debug() << "*)========\n";
-        deb_print(trie->range());
 
         f2 = trie->find(en2); //repeat search
         tresult.assert_that<equals>(4, trie->prefixed_erase_all(f2, false));

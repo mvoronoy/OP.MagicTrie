@@ -69,7 +69,7 @@ namespace {
             return invocked < 10 ? std::optional<size_t>{invocked} : std::optional<size_t>{};
             }))
         {
-            tresult.assert_that<equals>(r, control_seq++, "Sequence vioaltion");
+            tresult.assert_that<equals>(r, control_seq++, "Sequence violation");
         }
         tresult.assert_that<equals>(10, invocked, "wrong invocation number");
     }
@@ -82,7 +82,7 @@ namespace {
             {
                 throw std::runtime_error("generation fail emulation");
             }
-            return std::optional<int>{};
+            return std::optional<int>{++i3}; //next call will raise an exception
             });
 
         tresult.assert_exception<std::runtime_error>([&]() {
@@ -93,23 +93,23 @@ namespace {
     void test_ptr_gen(OP::utest::TestRuntime& tresult)
     {
         using set_t = std::set <std::string >;
-        using target_set_t = std::set <std::string_view >;
+        using target_set_t = std::set<std::string_view >;
         set_t subset{ "aaa", "bbb", "ccc" };
         target_set_t result;
         using cstr_ptr = const std::string*;
-        size_t invocked = 0;
+
         typename set_t::iterator current{};
-        for (const auto& r : OP::flur::src::generator([&](const SequenceState& attrs) -> cstr_ptr {
-            current = attrs.step() == 0 ? subset.begin() : std::next(current);
-            ++invocked;
-            return current == subset.end() ? nullptr : &*current;
+        for (const auto& r : OP::flur::src::generator(
+            [&](const SequenceState& attrs) -> cstr_ptr {
+                current = attrs.step() == 0 ? subset.begin() : std::next(current);
+                return current == subset.end() ? nullptr : &*current;
             }))
         {
             //tresult.debug() << "gen:" << r << "\n";
             result.insert(r);
         }
         tresult.assert_that<eq_sets>(subset, result, "generator doesn't produce expected result");
-        tresult.assert_that<equals>(invocked, 3);
+        tresult.assert_that<equals>(result.size(), 3);
     }
 
     static auto& module_suite = OP::utest::default_test_suite("flur.generator")

@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef _OP_VTM_TYPEDEFS__H_
 #define _OP_VTM_TYPEDEFS__H_
 
@@ -64,7 +66,7 @@ namespace OP::vtm
         constexpr atom_t value() const noexcept
         {
             assert(!operator!());
-            return static_cast<atom_t>(_value & ~bit_empty_c);
+            return static_cast<atom_t>(_value & (bit_empty_c-1));
         }
 
         void reset() noexcept

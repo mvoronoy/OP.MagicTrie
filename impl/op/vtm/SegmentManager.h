@@ -1,10 +1,7 @@
-#ifndef _OP_TR_SEGMENTMANAGER__H_
-#define _OP_TR_SEGMENTMANAGER__H_
-
-#ifdef _MSC_VER
 #pragma once
-#endif //_MSC_VER
 
+#ifndef _OP_VTM_SEGMENTMANAGER__H_
+#define _OP_VTM_SEGMENTMANAGER__H_
 
 #include <type_traits>
 #include <cstdint>
@@ -21,7 +18,8 @@
 #include <op/common/Range.h>
 #include <op/common/ThreadPool.h>
 
-#include <op/vtm/CacheManager.h>
+#include <op/vtm/typedefs.h>
+#include <op/vtm/SegmentHelperCache.h>
 #include <op/vtm/Transactional.h>
 #include <op/vtm/MemoryChunks.h>
 #include <op/vtm/SegmentHelper.h>
@@ -30,21 +28,18 @@ namespace OP::vtm
 {
         using namespace boost::interprocess;
         
-        /**Special marker to construct objects inplace*/
-        struct emplaced_t{};
-
         struct SegmentManager;
 
         struct SegmentEventListener
         {
-            typedef SegmentManager segment_manager_t;
-            virtual void on_segment_allocated(segment_idx_t new_segment, segment_manager_t& manager){}
-            virtual void on_segment_opening(segment_idx_t new_segment, segment_manager_t& manager){}
+            virtual void on_segment_allocated(segment_idx_t new_segment, SegmentManager& manager){}
+            virtual void on_segment_opening(segment_idx_t new_segment, SegmentManager& manager){}
             /**
             *   Event is raised when segment is released (not deleted)
             */
-            virtual void on_segment_releasing(segment_idx_t new_segment, segment_manager_t& manager){}
+            virtual void on_segment_releasing(segment_idx_t new_segment, SegmentManager& manager){}
         };
+
         struct SegmentOptions
         {
             SegmentOptions() :
@@ -192,7 +187,7 @@ namespace OP::vtm
         struct SegmentManager 
         {
             friend struct SegmentOptions;
-            typedef OP::vtm::transaction_ptr_t transaction_ptr_t;
+            using transaction_ptr_t = OP::vtm::transaction_ptr_t;
 
             virtual ~SegmentManager() = default;
 
@@ -269,8 +264,7 @@ namespace OP::vtm
                 FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) 
             {
                 assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
-                return ReadonlyMemoryChunk(
-                    size, std::move(pos), std::move(this->get_segment(pos.segment())));
+                return ReadonlyMemoryChunk(0, make_buffer(pos, size), size, pos);
             }
             
             /**
@@ -280,7 +274,7 @@ namespace OP::vtm
                 FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
             {
                 assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
-                return MemoryChunk(size, std::move(pos), std::move(this->get_segment(pos.segment())));
+                return MemoryChunk(make_buffer(pos, size), size, pos);
             }
 
             /**
@@ -288,8 +282,7 @@ namespace OP::vtm
             */
             [[nodiscard]] virtual MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro)
             {
-                auto addr = ro.address();
-                return MemoryChunk(ro.count(), std::move(addr), std::move(ro.segment()));
+                return MemoryChunk(make_buffer(ro.address(), ro.count()), ro.count(), ro.address());
             }
             
             /** Shorthand for \code
@@ -321,7 +314,6 @@ namespace OP::vtm
                 for (size_t p = 0; p < end; p += _segment_size)
                 {
                     segment_idx_t idx = static_cast<segment_idx_t>(p / _segment_size);
-                    details::segment_helper_p segment = get_segment(idx);
                     f(idx, *this);
                 }
             }
@@ -337,6 +329,7 @@ namespace OP::vtm
                 : _file_name(file_name)
                 , _cached_segments(10)
                 , _listener(nullptr)
+                , _segment_size{ 0 }//just temp assignment, is overriden on crete/open static methods
             {
                 //file is opened always in RW mode
                 std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary;
@@ -357,7 +350,17 @@ namespace OP::vtm
                     throw trie::Exception(trie::er_memory_mapping, e.what());
                 }
             }
-        
+            /** Create memory buffer on raw memory, so associated deleter does nothing. */
+            ShadowBuffer make_buffer(FarAddress address, size_t size)
+            {
+                return ShadowBuffer{
+                    this->get_segment(address.segment()).at<std::uint8_t>(address.offset()),
+                    size,
+                    /*dummy deleter since memory address from segment is not allocated in a heap*/
+                    false
+                };
+            }
+
             template <class T>
             inline SegmentManager& do_write(const T& t)
             {
@@ -409,21 +412,20 @@ namespace OP::vtm
             {
                 return (static_cast<far_pos_t>(segment_idx) << 32) | offset;
             }
-            details::segment_helper_p get_segment(segment_idx_t index)
+
+            details::SegmentHelper& get_segment(segment_idx_t index)
             {
                 bool render_new = false;
-                details::segment_helper_p region = _cached_segments.get(
+                details::SegmentHelper& region = _cached_segments.get(
                     index,
                     [&](segment_idx_t key)
                     {
                         render_new = true;
                         auto offset = key * this->_segment_size;
-                        auto result = std::make_shared<details::SegmentHelper>(
+                        return details::SegmentHelper{
                             this->_mapping,
                             offset,
-                            this->_segment_size);
-                    
-                        return result;
+                            this->_segment_size};
                     }
                 );
                 if (render_new)
@@ -452,8 +454,8 @@ namespace OP::vtm
             file_lock_t _file_lock;
             mutable file_mapping _mapping;
 
-            typedef SparseCache<details::SegmentHelper, segment_idx_t> cache_region_t;
-            typedef Range<const std::uint8_t*, segment_pos_t> slot_address_range_t;
+            using cache_region_t = SegmentHelperCache<details::SegmentHelper, segment_idx_t>;
+            using slot_address_range_t = Range<const std::uint8_t*, segment_pos_t>;
 
             mutable cache_region_t _cached_segments;
 
@@ -473,10 +475,10 @@ namespace OP::vtm
                 _fbuf.seekp(new_pos + std::streamoff(_segment_size - 1), std::ios_base::beg);
                 _fbuf.put(0);
                 file_flush();
-                _cached_segments.put(result, std::make_shared<details::SegmentHelper>(
+                _cached_segments.put(result, details::SegmentHelper{
                     this->_mapping,
                     segment_offset,
-                    this->_segment_size));
+                    this->_segment_size });
                 if (_listener)
                     _listener->on_segment_allocated(result, *this);
                 return result;
@@ -553,6 +555,7 @@ namespace OP::vtm
             /** Small reservation of memory for explicit addresses of existing slots*/
             constexpr static size_t addres_table_size_c = 
                 OP::utils::memory_requirement<TopologyHeader>::requirement + 
+                    //(-1) because TopologyHeader::array already preservers 1 item of segment_pos_t
                     OP::utils::memory_requirement<segment_pos_t>::array_size(slots_count_c-1);
 
             template <class TSegmentManager>
@@ -581,7 +584,7 @@ namespace OP::vtm
                 _segments->_check_integrity();
                 _segments->foreach_segment([this](segment_idx_t idx, SegmentManager& segments){
                     segment_pos_t current_offset = segments.header_size();
-                    //start write toplogy right after header
+                    //start write topology right after header
                     ReadonlyMemoryChunk topology_address = segments.readonly_block(FarAddress(idx, current_offset), 
                         addres_table_size_c);
                     current_offset += addres_table_size_c;
@@ -611,27 +614,14 @@ namespace OP::vtm
                 OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
                 segment_pos_t current_offset = manager.header_size();
                 //start write topology right after header
-                TopologyHeader* header = manager
-                    .writable_block(FarAddress(new_segment, current_offset), addres_table_size_c)
-                    .template at<TopologyHeader>(0);
+                auto topology_block = manager
+                    .writable_block(FarAddress(new_segment, current_offset), addres_table_size_c);
+                TopologyHeader* header = topology_block.template at<TopologyHeader>(0);
                 current_offset += addres_table_size_c;
                 header->_slots_count = 0;
-                auto new_slot = [&](Slot& slot) {
-                    if (!slot.has_residence(new_segment, manager))
-                    {//slot is not used for this segment
-                        header->_address[header->_slots_count] = SegmentDef::eos_c;
-                    }
-                    else 
-                    {
-                        header->_address[header->_slots_count] = current_offset;
-                        FarAddress segment_address(new_segment, current_offset);
-                        slot.on_new_segment(segment_address, manager);
-                        current_offset += slot.byte_size(segment_address, manager);
-                    }
-                    ++header->_slots_count;
-                };
+
                 std::apply([&](auto& ... slot)->void {
-                    (new_slot(slot), ...);
+                    ((current_offset += slot_on_segment_allocated(new_segment, manager, slot, header, current_offset)), ...);
                     }, _slots);
                 op_g.commit();
             }
@@ -648,20 +638,42 @@ namespace OP::vtm
                 const TopologyHeader* header = topology_address.at<TopologyHeader>(0);
                 assert(header->_slots_count == slots_count_c);
                  
-                auto open_slot = [&](size_t i, Slot& slot) {
-                    if (SegmentDef::eos_c != header->_address[i])
-                    {
-                        slot.open(FarAddress(opening_segment, header->_address[i]), manager);
-                    }
-                };
                 std::apply([&](auto& ...slot)->void{
                     size_t i = 0;
-                    (open_slot(i++, slot), ...);
+                    (slot_on_segment_opening(opening_segment, manager, header->_address[i++], slot), ...);
                 }, _slots);
 
                 op_g.commit();
             }
         private:
+            segment_pos_t slot_on_segment_allocated(
+                segment_idx_t new_segment, segment_manager_t& manager, Slot& slot, TopologyHeader* header, segment_pos_t current_offset)
+            {
+                auto current_slot_index = header->_slots_count++;
+                if (!slot.has_residence(new_segment, manager))
+                {//slot is not used for this segment
+                    header->_address[current_slot_index] = SegmentDef::eos_c;
+                    return 0; //empty size required
+                }
+                else
+                {
+                    header->_address[current_slot_index] = current_offset;
+                    FarAddress segment_address(new_segment, current_offset);
+                    slot.on_new_segment(segment_address, manager);
+                    return slot.byte_size(segment_address, manager); //precise number of bytes to reserve
+                }
+            }
+            
+            void slot_on_segment_opening(
+                segment_idx_t opening_segment,
+                segment_manager_t& manager, segment_pos_t in_slot_address, Slot& slot)
+            {
+                if (SegmentDef::eos_c != in_slot_address)
+                {
+                    slot.open(FarAddress(opening_segment, in_slot_address), manager);
+                }
+            }
+
             slots_arr_t _slots;
             segments_ptr_t _segments;
         };
@@ -683,7 +695,7 @@ namespace OP::vtm
         /**Resolver of SegmentManager */
         inline SegmentManager& resolve_segment_manager(SegmentManager& t)
         {
-            return ((SegmentManager&)t);
+            return t;
         }
         template <class T>
         inline std::enable_if_t< std::is_invocable_v<decltype(&T::segment_manager), T& >, SegmentManager&> resolve_segment_manager(T& t)
@@ -695,4 +707,4 @@ namespace OP::vtm
     
 }//endof namespace OP::vtm
 
-#endif //_OP_TR_SEGMENTMANAGER__H_
+#endif //_OP_VTM_SEGMENTMANAGER__H_

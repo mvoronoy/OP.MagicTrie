@@ -1,11 +1,15 @@
-#ifndef _OP_TRIE_SKPLST__H_
-#define _OP_TRIE_SKPLST__H_
+#pragma once
+
+#ifndef _OP_VTM_SKPLST__H_
+#define _OP_VTM_SKPLST__H_
 
 #include <assert.h>
 #include <array>
 #include <numeric>
 #include <memory>
+
 #include <op/common/Utils.h>
+
 #include <op/vtm/Transactional.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryBlockHeader.h>
@@ -19,9 +23,12 @@ namespace OP::vtm
         template <class Traits, size_t bitmask_size_c = 32>
         struct Log2SkipList
         {
-            typedef Traits traits_t;
-            typedef typename traits_t::pos_t entry_pos_t;
-            typedef Log2SkipList<Traits, bitmask_size_c> this_t;
+            using traits_t = Traits;
+            static_assert(std::is_base_of_v<ForwardListBase, typename traits_t::target_t>,
+                "To use skip-list you need inherit T from ForwardListBase");
+
+            using entry_pos_t = typename traits_t::pos_t;
+            using this_t = Log2SkipList<Traits, bitmask_size_c>;
 
             /**
             *   Evaluate how many bytes expected to place to the header of this data-structure.
@@ -60,8 +67,6 @@ namespace OP::vtm
                 _segment_manager(manager),
                 _list_pos(start)
             {
-                static_assert(std::is_base_of_v<ForwardListBase, typename traits_t::target_t>, 
-                    "To use skip-list you need inherit T from ForwardListBase");
             }
 
             far_pos_t pull_not_less(traits_t& traits, typename Traits::key_t key)
@@ -180,4 +185,4 @@ namespace OP::vtm
         };
     
 }//ns: OP::vtm
-#endif //_OP_TRIE_SKPLST__H_
+#endif //_OP_VTM_SKPLST__H_

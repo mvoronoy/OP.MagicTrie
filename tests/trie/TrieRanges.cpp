@@ -13,7 +13,6 @@
 #include <op/common/astr.h>
 
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/CacheManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
 
 #include <algorithm>
@@ -61,9 +60,8 @@ namespace
 
     void test_TrieSubtree(OP::utest::TestRuntime& tresult)
     {
-
-        std::random_device rd;
-        std::mt19937 random_gen(rd());
+        //take randomizer configured by test engine
+        auto& random_gen = tools::RandomGenerator::instance().generator();
 
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
@@ -98,7 +96,6 @@ namespace
                 tresult.assert_true(tools::container_equals(ins_res.first.key(), test, &tools::sign_tolerant_cmp<atom_t>));
                 test_values[test] = (double)test.length();
             }
-            //std::cout << std::setfill('0') << std::setbase(16) << std::setw(2) << (unsigned)i << "\n";
         }
         compare_containers(tresult, *trie, test_values);
         trie.reset();
@@ -106,11 +103,6 @@ namespace
         trie = trie_t::open(tmngr1);
         //
         compare_containers(tresult, *trie, test_values);
-        //std::cout << "trie:\n";
-        //for (const auto& i : trie->range())
-        //{
-        //    print_hex(std::cout << "\t", i.key().substr(0, 48));
-        //}
         std::set<atom_string_t> sorted_checks(std::begin(stems), std::end(stems));
         for (auto i : rand_idx)
         {
@@ -118,17 +110,6 @@ namespace
 
             auto container_range = trie->prefixed_range(test);
 
-            //std::cout << "querying:";
-            //print_hex(std::cout, test);
-            //std::cout << "@@>\n";
-            //auto ix = container_range.compound();
-            //for (ix.start(); ix.in_range(); ix.next())
-            //{
-            //    const auto& k = ix.current().key();
-            //    print_hex(std::cout << "\t", k);
-            //    std::cout << '=' << ix.current().value() << '\n';
-            //}
-            //std::cout <<"<@@\n";
             auto begin_test = container_range.compound();
 
             begin_test.start();
@@ -439,110 +420,6 @@ namespace
             fres2, strain_fm, OP_CODE_DETAILS());
 
     }
-
-    //void test_TrieSectionRange(OP::utest::TestRuntime& tresult)
-    //{
-    //
-    //    auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-    //        OP::trie::SegmentOptions()
-    //        .segment_size(0x110000));
-    //
-    //    typedef Trie<EventSourcingSegmentManager, double> trie_t;
-    //    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
-    //
-    //    typedef std::pair<atom_string_t, double> p_t;
-    //
-    //    const p_t ini_data[] = {
-    //        p_t("1.abc"_astr, 1.0),
-    //        p_t("1.abc.1"_astr, 1.1),
-    //        p_t("1.abc.2"_astr, 1.2),
-    //        p_t("1.abc.3"_astr, 1.3),
-    //        p_t("1.def.1"_astr, 1.4),
-    //        p_t("1.def"_astr, 1.5),
-    //        p_t("1."_astr, 1.5),
-    //
-    //        p_t("2.abc"_astr, 2.0),
-    //        p_t("2.abc.1"_astr, 2.0),
-    //        p_t("2."_astr, 2.0),
-    //
-    //        p_t("3.abc"_astr, 3.1),
-    //        p_t("3.abc.3"_astr, 3.2),
-    //        p_t("3."_astr, 3.0),
-    //
-    //        p_t("4."_astr, 4.0)
-    //    };
-    //
-    //    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
-    //        trie->insert(s.first, s.second);
-    //        });
-    //
-    //    tresult.debug() << "Test no suffixes with terminal string without branching\n";
-    //    auto _1r = trie->section_range("4."_astr);
-    //    tresult.assert_false(_1r->in_range(_1r->begin()), "Suffix of terminal string without branching must be empty");
-    //
-    //    tresult.debug() << "Test base scenario\n";
-    //    auto _2r = trie->section_range("1."_astr);
-    //    std::map<atom_string_t, double> strain1 = {
-    //        p_t("abc"_astr, 1.0),
-    //        p_t("abc.1"_astr, 1.1),
-    //        p_t("abc.2"_astr, 1.2),
-    //        p_t("abc.3"_astr, 1.3),
-    //        p_t("def.1"_astr, 1.4),
-    //        p_t("def"_astr, 1.5),
-    //    };
-    //    //_2r->for_each([](const auto& i) {
-    //    //    std::cout << "{" << (const char*)i.key().c_str() << ", " << *i << "}\n";
-    //    //});
-    //    tresult.assert_true(
-    //        OP::ranges::utils::map_equals(*_2r, strain1), OP_CODE_DETAILS(<< "Simple section failed"));
-    //
-    //    std::map<atom_string_t, double> strain2 = {
-    //        p_t(".1"_astr, 1.1),
-    //        p_t(".2"_astr, 1.2),
-    //        p_t(".3"_astr, 1.3)
-    //
-    //    };
-    //    auto _3r = trie->section_range("1.abc"_astr);
-    //    tresult.assert_true(
-    //        OP::ranges::utils::map_equals(*_3r, strain2), OP_CODE_DETAILS(<< "Narrowed section failed"));
-    //
-    //    tresult.debug() << "Test flatten-range scenario\n";
-    //    auto lookup = trie->sibling_range("1."_astr);
-    //    lookup->for_each([](const auto& i) {
-    //        std::cout << "////" << (const char*)i.key().c_str() << ", " << i.value() << "}\n";
-    //        });
-    //    auto _4r = trie->sibling_range("1."_astr)->flatten([&](auto const& i) {
-    //        return trie->section_range(i.key());
-    //        });
-    //    std::map<atom_string_t, std::set<double>> strain4 = {
-    //        {"abc"_astr, {1, 2, 3.1}},
-    //        {"abc.1"_astr, {1.1, 2}},
-    //        {"abc.2"_astr, {1.2}},
-    //        {"abc.3"_astr, {3.2, 1.3}},
-    //        {"def"_astr, {1.5}},
-    //        {"def.1"_astr, {1.4}}
-    //    };
-    //    size_t n = 0;
-    //    const size_t n4r = _4r->count();
-    //    tresult.assert_that<greater>(n4r, 0, OP_CODE_DETAILS(<< "Flatten range must not be empty"));
-    //    _4r->for_each([&](const auto& i) {
-    //        std::cout << "{" << (const char*)i.key().c_str() << "=" << i.value() << "}\n";
-    //        //need manually compare
-    //        auto& key = i.key();
-    //        auto value = i.value();
-    //        auto found = strain4.find(key);
-    //        tresult.assert_that<logical_not<equals>>(strain4.end(), found, OP_CODE_DETAILS(<< "Key not found:" << (const char*)key.c_str()));
-    //        auto& value_set = found->second;
-    //        tresult.assert_that<equals>(key, found->first, OP_CODE_DETAILS(<< "Key compare failed:" << (const char*)key.c_str()));
-    //        tresult.assert_that<logical_not<equals>>(value_set.end(), value_set.find(value),
-    //            OP_CODE_DETAILS(<< "Value compare failed:" << value << " of key:" << (const char*)key.c_str()));
-    //        ++n;
-    //        value_set.erase(value);
-    //        if (value_set.empty())
-    //            strain4.erase(found);
-    //        });
-    //    tresult.assert_that<equals>(n, n4r, OP_CODE_DETAILS(<< "Result sets are not equal size:" << n << " vs " << n4r));
-    //}
 
 
     void test_ChildSelector(OP::utest::TestRuntime& tresult)

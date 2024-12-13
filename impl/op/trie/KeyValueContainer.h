@@ -10,7 +10,7 @@
 
 namespace OP::trie::containers
 {
-
+    using namespace OP::vtm;
     /**
     *   \tparam Payload - value that is stored by Trie, it must be plain struct (e.g.
     *       std::is_standard_layout_v<Payload> == true).

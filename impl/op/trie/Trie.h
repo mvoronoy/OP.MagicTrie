@@ -157,11 +157,11 @@ namespace OP
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 if (sync_iterator(i))
                 {
-                    _next(true, i);
+                    _next(i);
                 }
             }
             /**
-            * Iterate next item that is not prefixed by current (`i`). In other words selct right of this or parent. In compare with
+            * Iterate next item that is not prefixed by current (`i`). In other words select right of this or parent. In compare with
             * regular `next` doesn't enter to child way of current iterator (`i`).
             * For example:
             * Given prefixes:
@@ -236,8 +236,6 @@ namespace OP
                     auto iend = end();
                     lower_bound_impl(kbeg, key.end(), iend);
                 }
-                //if (exact_match)//when equals need re-position to the next
-                //    _next(true, i);
             }
 
             /** return first entry that contains prefix specified by string [begin, aend)
@@ -431,12 +429,14 @@ namespace OP
             }
 
             /**
-            *   Get first child element resided below position specified by @param `of_this`. Since all keys in Trie are lexicographically
-            *   ordred the return iterator indicate smallest immediate children
+            *   Get first child element resided below position specified by parameter `of_this`. Since all keys 
+            *   in Trie are lexicographically
+            *   ordered the return iterator indicate smallest immediate children
             *   For example having entries in trie: \code
             *       abc, abc.1, abc.123, abc.2, abc.3
             *   \endcode
-            *   you may use `first_child(find("abc"))` to locate entry "abc.1" (compare with lower_bound that have to return "abc.123")
+            *   you may use `first_child(find("abc"))` to locate entry "abc.1" (compare with #lower_bound 
+            *   that have to return "abc.123")
             *   \see last_child
             *   @return iterator to some child of_this or `end()` if no entry.
             */
@@ -447,8 +447,9 @@ namespace OP
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
             }
             /**
-            *   Get last child element resided below position specified by `of_this`. Since all keys in Trie are lexicographically
-            *   ordred the return iterator indicate largest immediate children
+            *   Get last child element resided below position specified by `of_this`. Since all keys 
+            *   in Trie are lexicographically
+            *   ordered the return iterator indicate largest immediate children
             *   For example having entries in trie: \code
             *       abc, abc.1, abc.2, abc.3, abc.333
             *   \endcode
@@ -464,7 +465,7 @@ namespace OP
                     [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
             }
             /**
-            *   @return sequence-factory that embrace all records by pair [ begin(), end() )
+            *   @return sequence-factory that embrace all records by pair `[ begin(), end() )` but in more effecient way.
             */
             auto range() const
             {
@@ -485,6 +486,7 @@ namespace OP
                 OP::common::atom_string_t prefix(begin, aend);
                 return prefixed_range(prefix);
             }
+
             /**
             *   Construct a range that contains all strings started with specified prefix
             * @param prefix is any string of bytes that supports std::begin / std::end iteration
@@ -788,54 +790,17 @@ namespace OP
             iterator erase(iterator& pos, size_t* count = nullptr)
             {
                 if (count) { *count = 0; }
+
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager()
                     .begin_transaction(), true);
 
                 if (!sync_iterator(pos) || pos.is_end())
                     return end();
 
-                auto result{ pos };
-                ++result;
-                bool erase_child_and_exit = false; //flag mean stop iteration
-
-                for (bool first = true; pos.node_count(); pos.pop(), first = false)
-                {
-                    const auto& back = pos.rat();
-                    auto wr_node = accessor<node_t>(*_topology, back.address());
-                    if (erase_child_and_exit)
-                    {//previous node may leave reference to child
-                        wr_node->remove_child(*_topology, static_cast<atom_t>(back.key()));
-                        pos.rat(
-                            terminality_and(~Terminality::term_has_child),
-                            node_version(wr_node->_version)
-                            );
-                    }
-
-                    if (!wr_node->erase(*_topology, static_cast<atom_t>(back.key()), first))
-                    { //don't continue if exists a child node
-                        pos.rat(
-                            terminality_and(~Terminality::term_has_data),
-                            node_version(wr_node->_version));
-                        break;
-                    }
-                    //remove entire node if it is not a root
-                    if (back.address() != this->_root)
-                    {
-                        remove_node(wr_node);
-                        erase_child_and_exit = true;
-                    }
-                }
-                const std::uint64_t new_ver = ++this->_version;
-                _topology->template slot<TrieResidence>()
-                    .update([&](auto& header){
-                        --header._count; //number of terminals
-                        header._version = new_ver; // version of trie
-                    });
-                if (count) { *count = 1; }
-                return result;
+                return erase_impl(pos, count);
             }
 
-            /**Simplfied form of erase(iterator&, size_t*)*/
+            /**Simplified form of erase(iterator&, size_t*)*/
             iterator erase(iterator&& pos)
             {
                 iterator snapshot = std::move(pos);
@@ -844,7 +809,7 @@ namespace OP
 
             /**
             * Erase element pointed by iterator `prefix` and every children entries below. 
-            * \param prefx iterator pointing to the valid position, at exit it point to the next 
+            * \param prefix iterator pointing to the valid position, at exit it point to the next 
             *       lowest existing element or `end()` if no such one.
             * \return number of erased items
             */
@@ -858,19 +823,19 @@ namespace OP
 
                 auto rat = prefix.rat();//not a ref!
                 if (erase_prefix && is_not_set(rat.terminality(), Terminality::term_has_child))
-                { //no child below, so only 1 erase
+                { //no child below, so only 1 to erase
                     size_t counter = 0;
-                    prefix = erase(prefix, &counter);
+                    prefix = erase_impl(prefix, &counter);
                     return counter;
                 }
-                // here iterator definetly has a child
+                // here iterator definitely has a child
                 auto parent_wr_node = accessor<node_t>(*_topology, rat.address());
 
                 std::stack<FarAddress> to_process;
                 to_process.push(parent_wr_node->get_child(
                     *_topology, static_cast<atom_t>(rat.key())));
                 parent_wr_node->remove_child(*_topology, static_cast<atom_t>(rat.key()));
-                size_t erased_terminals = 0; //encount one referencing 
+                size_t erased_terminals = 0; //includes one referencing 
                 while (!to_process.empty())
                 {
                     auto node_addr = to_process.top();
@@ -887,7 +852,7 @@ namespace OP
                 if (erase_prefix && all_set(new_back.terminality(), Terminality::term_has_data))
                 {
                     size_t counter = 0;
-                    prefix = erase(prefix, &counter);
+                    prefix = erase_impl(prefix, &counter);
                     assert(counter);//otherwise terminality flag must be altered
                     erased_terminals += counter;
                 }
@@ -928,7 +893,7 @@ namespace OP
                         auto key_end = std::end(it.key());
                         if (std::mismatch(key_beg, key_end, std::begin(prefix), prefix_end).first == key_end) //case when key contained in prefix => just skip
                         {
-                            ++it;
+                            _next(it);
                             continue;
                         }
                         break; //all other prefixes doesn't match and lexically bigger
@@ -985,6 +950,7 @@ namespace OP
             }
 
         private:
+
             typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
             using topology_t = SegmentTopology<
                 TrieResidence,
@@ -992,7 +958,7 @@ namespace OP
                 HeapManagerSlot/*Memory manager must go last*/>;
             std::unique_ptr<topology_t> _topology;
 
-            /** This varibale is a global version indicator, since 
+            /** This variable is a global version indicator, since 
             * this is a trie-global resource it cannot rely on 
             * transaction mechanism. For example what if 2 parallel
             * transactions increase the version, after one transaction 
@@ -1191,7 +1157,7 @@ namespace OP
             }
             /**
             * it is always about to insert, since if need to update 
-            * smthng - then `this->mismatch` should return `equals`
+            * something - then `this->mismatch` should return `equals`
             */
             template <class FValueEval>
             void insert_mismatch_string_end(
@@ -1257,7 +1223,7 @@ namespace OP
             }
 
             /**Insert or update value associated with key specified by pair [begin, end). 
-            * The value is passed as 2 spearate functors evaluated on demand - one for 
+            * The value is passed as 2 separate functors evaluated on demand - one for 
             * insert other for update result.
             * \param iter - iterator to start, note it MUST be already synced. At exit
             *               it contains valid and actual points to just updated/inserted
@@ -1332,6 +1298,49 @@ namespace OP
                 iter._version = unconditional_insert(iter, std::move(value_factory));
                 return false;//brand new entry
             }
+            
+            iterator erase_impl(iterator& pos, size_t* count = nullptr)
+            {
+                auto result{ pos };
+                _next(result);
+                bool erase_child_and_exit = false; //flag mean stop iteration
+
+                for (bool first = true; pos.node_count(); pos.pop(), first = false)
+                {
+                    const auto& back = pos.rat();
+                    auto wr_node = accessor<node_t>(*_topology, back.address());
+                    if (erase_child_and_exit)
+                    {//previous node may leave reference to child
+                        wr_node->remove_child(*_topology, static_cast<atom_t>(back.key()));
+                        pos.rat(
+                            terminality_and(~Terminality::term_has_child),
+                            node_version(wr_node->_version)
+                        );
+                    }
+
+                    if (!wr_node->erase(*_topology, static_cast<atom_t>(back.key()), first))
+                    { //don't continue if exists a child node
+                        pos.rat(
+                            terminality_and(~Terminality::term_has_data),
+                            node_version(wr_node->_version));
+                        break;
+                    }
+                    //remove entire node if it is not a root
+                    if (back.address() != this->_root)
+                    {
+                        remove_node(wr_node);
+                        erase_child_and_exit = true;
+                    }
+                }
+                const std::uint64_t new_ver = ++this->_version;
+                _topology->template slot<TrieResidence>()
+                    .update([&](auto& header) {
+                    --header._count; //number of terminals
+                    header._version = new_ver; // version of trie
+                        });
+                if (count) { ++*count; }
+                return result;
+            }
 
             /** Prepares `result_iter` to further navigation deep, if it is empty 
             * method prepares navigation from root node
@@ -1381,7 +1390,7 @@ namespace OP
                 }
             }
             /**Return not fully valid iterator that matches common part specified by [begin, end)
-            * \return reason why iterator unmacthes to query string
+            * \return reason why iterator unmatches to query string
             */
             template <class Atom>
             StemCompareResult common_prefix(Atom& begin, Atom end, iterator& result_iter) const
@@ -1431,7 +1440,7 @@ namespace OP
                 if (!navigation_mode(prefix))
                 {
                     //prefix.pop();
-                    _next(true, prefix);
+                    _next(prefix);
                     return false;
                 }
                 auto unmatch_result = mismatch(prefix, begin, aend);
@@ -1444,7 +1453,7 @@ namespace OP
                 {
                     if (!prefix.is_end())
                     {
-                        _next(true, prefix);
+                        _next(prefix);
                     }
                     return false; //not an exact match
                 }
@@ -1462,7 +1471,7 @@ namespace OP
                     if (!ok)
                     {
                         prefix.pop();
-                        _next(false/*no reason to enter deep*/, prefix);
+                        _next(prefix, false/*no reason to enter deep*/);
                         return false; //no an exact match
                     }
 
@@ -1505,7 +1514,7 @@ namespace OP
             * \return bool where true means success sync (or no sync was needed) and second string has no sense,
             *         while false means inability to sync (entry was erased);
             * \param fallback atomic_string_t that set overall result false origin key of iterator, because on
-            *       unsuccessful sync at exit iterator is damaged. Pointer may be ommitted if you don't need recovery
+            *       unsuccessful sync at exit iterator is damaged. Pointer may be omitted if you don't need recovery
             */
             bool sync_iterator(iterator& it, OP::common::atom_string_t* fallback = nullptr) const
             {
@@ -1521,7 +1530,7 @@ namespace OP
                 {
                     auto node = view<node_t>(*_topology, i.address());
                     if (node->_hash_table.is_nil())
-                    {//may be iterator so old, so node been removed
+                    {//may be iterator so old, so node have been removed
                         it = end();
                         return false;
                     }
@@ -1601,7 +1610,7 @@ namespace OP
 
             }
 
-            void _next(bool way_down, iterator& i) const
+            void _next(iterator& i, bool way_down = true) const
             {
                 while (!i.is_end())
                 {
@@ -1613,7 +1622,9 @@ namespace OP
                         auto child_addr = ro_node->get_child(
                             *_topology, static_cast<atom_t>(back.key()));
                         enter_deep_until_terminal(child_addr, i, 
-                            [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                            [](ReadonlyAccess<node_t>& ro_node) { 
+                                return ro_node->first(); 
+                            });
                         return;
                     }
                     //try navigate right from current position
@@ -1639,8 +1650,9 @@ namespace OP
                     i.pop();
                 }
             }
+
             /** Enters deep to child hierarchy until first terminal entry found
-            \tparam FChildLocator - lambda to locate first meangful position inside child
+            \tparam FChildLocator - lambda to locate first meaningful position inside child
                 signature must match `void (ReadonlyAccess<node_t>& )`
                 for example to seek first child-or-value entry use: \code
                 [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); }

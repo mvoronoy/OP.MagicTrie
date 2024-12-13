@@ -45,7 +45,7 @@ namespace OP
         private:
             
             FarAddress _segment_address;
-            SegmentManager* _segment_manager;
+            SegmentManager* _segment_manager = {}; //suppose later assignment either on `on_new_segment` or `open`
         protected:
             /**
             *   Set new root node for Trie

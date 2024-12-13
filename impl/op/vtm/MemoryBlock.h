@@ -1,9 +1,12 @@
-#ifndef _OP_TRIE_MEMORYBLOCK__H_
-#define _OP_TRIE_MEMORYBLOCK__H_
+#pragma once
+
+#ifndef _OP_VTM_MEMORYBLOCK__H_
+#define _OP_VTM_MEMORYBLOCK__H_
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryBlockHeader.h>
 #include <op/vtm/Skplst.h>
+
 namespace OP::vtm
 {
 
@@ -90,4 +93,5 @@ namespace OP::vtm
     };
 
 } //endof OP::vtm
-#endif //_OP_TRIE_MEMORYBLOCK__H_
+
+#endif //_OP_VTM_MEMORYBLOCK__H_

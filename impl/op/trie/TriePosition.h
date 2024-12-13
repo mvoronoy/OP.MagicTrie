@@ -8,7 +8,7 @@
 
 namespace OP::trie
 {    
-        
+    using namespace OP::vtm;
     /** Decodes if TriePosition points to value, children or combination of this or nothing of this
     */
     enum class Terminality : std::uint8_t

@@ -84,16 +84,14 @@ namespace OP::utest::cmdline
             ),
             arg(
                 key("-s"),
-                desc("Set seed number for the internal random generator to make tests reproducable. Without this paramater the seed is inititalized with current time."),
+                desc("Set seed number for the internal random generator to make tests reproducible. Without this paramater the seed is initialized with current time."),
                 action([&opts](std::uint64_t seed) {opts.random_seed(seed); })
             ),
             arg( key("-f"),
                 desc("Fail fast. Stop test process on unhandled exception or first failed test. By default this option is off - test engine tries to execute rest of the cases."),
-                stroll{}, 
                 assign(&fail_fast)
-                )
             )
-            ;
+        );
 
         show_usage = [&]() {
             processor.usage(std::cout); 

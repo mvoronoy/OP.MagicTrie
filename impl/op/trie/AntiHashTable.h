@@ -38,7 +38,7 @@ namespace OP::trie::containers
 
         FarAddress create() override
         {
-            auto byte_size = persisted_table_t::memory_requirement(capacity_c);
+            constexpr auto byte_size = persisted_table_t::memory_requirement(capacity_c);
 
             persisted_table_t result { _heap_manager.allocate(byte_size) };
             auto* container = result.ref(_segment_manager, capacity_c);

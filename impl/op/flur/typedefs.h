@@ -82,7 +82,7 @@ namespace OP::flur::details
     U& get_reference(std::shared_ptr<U>&& u) noexcept 
     {
         //invoking this code means very-very bad lost control, used only for type-deduction only
-        static_assert(false, "lost contol over pointer owning");
+        static_assert(false, "lost control over pointer owning");
         return *u.get();
     }
 

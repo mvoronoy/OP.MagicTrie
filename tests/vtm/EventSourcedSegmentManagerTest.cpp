@@ -9,7 +9,6 @@
 #include <iomanip>
 #include <op/trie/Trie.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/CacheManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <op/vtm/MemoryChunks.h>
 #include "GenericMemoryTest.h"

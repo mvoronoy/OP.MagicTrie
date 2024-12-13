@@ -61,7 +61,7 @@ namespace OP::trie::containers
         {
             //table_size must be pow of 2 and in the range [8..256]
             assert(((table_size-1) & table_size) == 0 && table_size >=8 && table_size <= 256);
-            return static_cast<atom_t>((static_cast<dim_t>(101*k) ^ k) & bitmask(table_size));
+            return static_cast<atom_t>((101 * static_cast<dim_t>(k)) & bitmask(table_size));
         }
 
 
@@ -353,7 +353,7 @@ namespace OP::trie::containers
         }
 
         /** Optimize space before some item is removed
-        * @tparam OnMoveCallback - functor that is called if internal space of hash-table is optimized (shrinked). Argumnets (from, to)
+        * @tparam OnMoveCallback - functor that is called if internal space of hash-table is optimized (shrunken). 
         * @return - during optimization this method may change origin param 'erase_pos', so to real erase use index returned
         */
         
@@ -380,14 +380,15 @@ namespace OP::trie::containers
                     hash_data[erase_pos] = std::move(local_item);
                     erase_pos = i;
                     erased_hash = local_hash;
-                    limit = (erase_pos + max_hash_neighbors(_capacity)) % _capacity;
+                    //need reset `limit` since erasure can cascade neighbor items
+                    limit = max_hash_neighbors(_capacity);
                 }
             }
             hash_data[erase_pos].presence = false;
             return erase_pos;
         }
 
-        /** test if tst_min is less than tst_max on condition of cyclyng nature of hash buffer, :
+        /** test if tst_min is less than tst_max on condition of cycling nature of hash buffer, :
             For page-size = 16:
             less(0xF, 0x1) == true
             less(0x1, 0x2) == true

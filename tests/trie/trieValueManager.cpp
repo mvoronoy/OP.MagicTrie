@@ -348,10 +348,8 @@ namespace
             std::string rstr;
             test_variant_t new_var{ tools::RandomGenerator::instance().next_alpha_num(rstr, 0xFF) };
             trie->insert(rstr, new_var);
-            //if (!rstr.empty() && rstr[0] == '4')
-            //    tresult.debug() << rstr << "\n";
         }
-        //tresult.debug() << "4='" << *trie->find("4"_astr) << "'\n";
+
         for (std::uint16_t a = 0; a < 256; ++a)
         {
             atom_string_t k(1, (atom_t)a);
