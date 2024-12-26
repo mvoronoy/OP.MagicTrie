@@ -593,7 +593,7 @@ namespace OP
             /**Allows extend memory block in case of overlapped exception
             * @param to_extend - iterator in `_captured_blocks` with overlapped block, at exit this parameter contains valid
             *                    position of just recreate item
-            * @throws Exception with code `er_overlapping_block` if extnsion of block 'touches' neighbour blocks from
+            * @throws Exception with code `er_overlapping_block` if extension of block 'touches' neighbour blocks from
             *                   `_captured_blocks` map
             */
             template <class Iterator, class MemBlock>
@@ -629,7 +629,7 @@ namespace OP
                 //current_tran->on_shadow_buffer_created(new_val.shadow_buffer(), real_mem.address());
                 current_tran->erase(to_extend);
                 auto erased = _captured_blocks.erase(to_extend);
-                to_extend = _captured_blocks.emplace_hint(erased, //use erasure pos as ahint  
+                to_extend = _captured_blocks.emplace_hint(erased, //use erasure pos as a hint  
                     RWR(new_range.pos(), new_range.count()),
                     std::move(new_val));
             }
@@ -724,8 +724,8 @@ namespace OP
 
 
             /**
-            * @param current_transaction - output paramter, may be nullptr at exit if no current transaction started
-            * @param found_res - output paramter, iterator to map of captures
+            * @param current_transaction - output parameter, may be nullptr at exit if no current transaction started
+            * @param found_res - output parameter, iterator to map of captures
             */
             ReadonlyMemoryChunk do_readonly_block(
                 FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint,
@@ -756,13 +756,13 @@ namespace OP
                     if (found_res != _captured_blocks.end() && !(_captured_blocks.key_comp()(search_range, found_res->first)))
                     {
                         // range exists. 
-                        if (!found_res->first.is_included(search_range))// don't allow trnsactions on overlapped memory blocks
+                        if (!found_res->first.is_included(search_range))// don't allow transactions on overlapped memory blocks
                             throw Exception(er_overlapping_block);
                         if (found_res->second.transaction_flag() & wr_c) //some write-tran already captured this block
                             throw ConcurrentLockException();
                         if (found_res->second.shadow_buffer() != nullptr)
                         {
-                            /* It is impossible to have shadow-buffer and no wr-lock simultaniusly
+                            /* It is impossible to have shadow-buffer and no wr-lock simultaneously
                             auto dif_off = pos.diff(found_res->first.pos());
                             return ReadonlyMemoryChunk(
                                 found_res->second.shadow_buffer() + dif_off,
@@ -791,7 +791,7 @@ namespace OP
                         extend_ro_memory_block(found_res, search_range, hint, current_transaction);
                         //@@[x]current_transaction->store(found_res);
                     }
-                    //add hashcode to scope of transactions, may rise ConcurrentLockException
+                    //add hash-code to scope of transactions, may rise ConcurrentLockException
                     if (found_res->second.permit_read(current_transaction->transaction_id()))
                     {//new lock was obtained, need persist to the transaction scope
                         current_transaction->store(found_res);

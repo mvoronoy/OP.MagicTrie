@@ -87,8 +87,9 @@ namespace OP::trie
             {
                 auto& heap_manager = topology.template slot<HeapManagerSlot>();
                 auto& address = *std::launder(reinterpret_cast<FarAddress*>(storage._data));
-                auto& val = *resolve_segment_manager(topology).writable_block(address,
-                    memory_requirement<payload_t>::requirement).template at<payload_t>(0);
+                auto wr_block = resolve_segment_manager(topology).writable_block(address,
+                                        memory_requirement<payload_t>::requirement);
+                auto& val = *wr_block.template at<payload_t>(0);
                 storage_converter_t::destroy(topology, val);
                 heap_manager.deallocate(address);
             }

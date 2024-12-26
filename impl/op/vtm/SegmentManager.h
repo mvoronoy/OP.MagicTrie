@@ -226,7 +226,12 @@ namespace OP::vtm
             {
                 return OP::utils::aligned_sizeof<SegmentHeader>(SegmentHeader::align_c);
             }
-            
+            /** @return address of segment beginning */
+            constexpr FarAddress start_address(segment_idx_t index) const noexcept
+            {
+                return FarAddress{ index, 0 };
+            }
+
             /**create new segment if needed*/
             void ensure_segment(segment_idx_t index)
             {
@@ -267,6 +272,22 @@ namespace OP::vtm
                 return ReadonlyMemoryChunk(0, make_buffer(pos, size), size, pos);
             }
             
+            template <class T>
+            ReadonlyAccess<T> view(FarAddress pos, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c)
+            {
+                return ReadonlyAccess<T>(
+                            std::move(readonly_block(pos, OP::utils::memory_requirement<T>::requirement, hint))
+                       );
+            }
+            
+            template <class T>
+            WritableAccess<T> accessor(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
+            {
+                return WritableAccess<T>(
+                        writable_block(pos, OP::utils::memory_requirement<T>::requirement, hint)
+                );
+            }
+
             /**
             * @throws ConcurrentLockException if block is already locked for concurrent write or concurrent read (by the other transaction)
             */
@@ -304,7 +325,7 @@ namespace OP::vtm
             }
             
             /**Invoke functor 'f' for each segment.
-            * @tparam F functor that accept 2 arguments of type ( segment_idx_t index_of segement, SegmentManager& segment_manager )
+            * @tparam F functor that accept 2 arguments of type ( segment_idx_t index_of segment, SegmentManager& segment_manager )
             */
             template <class F>
             void foreach_segment(F f)
@@ -494,36 +515,54 @@ namespace OP::vtm
         * \endcode
         *   This example specifies that we place 2 slots into each segment processed by SegmentManager. 
         */
-        struct Slot
+        class Slot
         {
+        protected:
+            explicit Slot(SegmentManager& manager) noexcept
+                : _manager(&manager)
+            {
+            }
+
+            Slot(Slot&&) noexcept = default;
+            Slot(const Slot&) = delete;
+            
+            SegmentManager& segment_manager() const noexcept
+            { return *_manager; }
+
+        public:
             virtual ~Slot() = default;
             /**
             *   Check if slot should be placed to specific segment. This used to organize some specific behaviour.
             *   For example MemoryManagerSlot always returns true - to place memory manager in each segment.
             *   Some may returns true only for segment #0 - to support single residence only.
             */
-            virtual bool has_residence(segment_idx_t segment_idx, const SegmentManager& manager) const = 0;
+            virtual bool has_residence(segment_idx_t segment_idx) const = 0;
             /**
             *   @return byte size that should be reserved inside segment. 
             */
-            virtual segment_pos_t byte_size(FarAddress segment_address, const SegmentManager& manager) const = 0;
+            virtual segment_pos_t byte_size(FarAddress segment_address) const = 0;
             /**
             *   Make initialization of slot in the specified segment as specified offset
             */
-            virtual void on_new_segment(FarAddress start_address, SegmentManager& manager) = 0;
+            virtual void on_new_segment(FarAddress start_address) = 0;
             /**
             *   Perform slot opening in the specified segment as specified offset
             */
-            virtual void open(FarAddress start_address, SegmentManager& manager) = 0;
+            virtual void open(FarAddress start_address) = 0;
 
             /**Notify slot that some segment should release resources. It is not about deletion of segment, but deactivating it*/
-            virtual void release_segment(segment_idx_t segment_index, SegmentManager& manager) = 0;
+            virtual void release_segment(segment_idx_t segment_index) = 0;
 
-            /**Allows on debug check integrity of particular segment. Default impl does nothing.*/
-            virtual void _check_integrity(FarAddress segment_addr, SegmentManager& manager)
+            /**Allows on debug check integrity of particular segment. Default impl does nothing.
+            *   Implementation can use exception or `assert` (in debug mode) to discover failures in contracted structures.
+            */
+            virtual void _check_integrity(FarAddress segment_addr)
             {
                 /*Do nothing*/
             }
+
+        private:
+            SegmentManager* _manager;
         };
 
         /**
@@ -542,7 +581,7 @@ namespace OP::vtm
                 segment_pos_t _address[1];
             };
 
-            using slots_arr_t = std::tuple<TSlot...>;
+            using slots_t = std::tuple<std::unique_ptr<TSlot>...>;
             
         public:
             typedef SegmentManager segment_manager_t;
@@ -553,22 +592,27 @@ namespace OP::vtm
             /** Total number of slots in this topology */
             constexpr static size_t slots_count_c = (sizeof...(TSlot));
             /** Small reservation of memory for explicit addresses of existing slots*/
-            constexpr static size_t addres_table_size_c = 
+            constexpr static size_t addres_table_size_c = OP::utils::align_on(
                 OP::utils::memory_requirement<TopologyHeader>::requirement + 
                     //(-1) because TopologyHeader::array already preservers 1 item of segment_pos_t
-                    OP::utils::memory_requirement<segment_pos_t>::array_size(slots_count_c-1);
+                OP::utils::memory_requirement<segment_pos_t>::array_size(slots_count_c-1),
+                    //payload inside segments start aligned 
+                SegmentDef::align_c
+                );
 
             template <class TSegmentManager>
-            SegmentTopology(std::shared_ptr<TSegmentManager> segments) :
-                _slots(),
-                _segments(std::move(segments))
+            SegmentTopology(std::shared_ptr<TSegmentManager> segments) 
+                : _slots{std::make_unique<TSlot>(*segments)...}
+                , _segments(std::move(segments))
             {
                 static_assert(sizeof...(TSlot) > 0, "Specify at least 1 TSlot to declare topology");
                 _segments->subscribe_event_listener(this);
+                
+                _segments->foreach_segment([this](segment_idx_t segment_idx, SegmentManager& segment_manager){
+                    on_segment_opening(segment_idx, segment_manager);
+                });
+                //force to have at least 1 segment
                 _segments->ensure_segment(0);
-                //dummy invocation of readonly block allows iterate all slots and call `on_segment_opening`
-                //when topology already exists
-                static_cast<void>(_segments->readonly_block(FarAddress(0), 1));
             }
 
             SegmentTopology(const SegmentTopology&) = delete;
@@ -576,7 +620,7 @@ namespace OP::vtm
             template <class T>
             T& slot()
             {
-                return std::get<T>(_slots);
+                return *std::get<std::unique_ptr<T>>(_slots);
             }
 
             void _check_integrity()
@@ -589,12 +633,14 @@ namespace OP::vtm
                         addres_table_size_c);
                     current_offset += addres_table_size_c;
                     std::apply(
-                        [&](Slot& slot){
-                            if (slot.has_residence(idx, segments))
+                        [&](auto& slot_ptr){
+
+                            auto& slot = static_cast<Slot&>(*slot_ptr);
+                            if (slot.has_residence(idx))
                             {
                                 FarAddress addr(idx, current_offset);
-                                slot._check_integrity(addr, segments);
-                                current_offset += slot.byte_size(addr, segments);
+                                slot._check_integrity(addr);
+                                current_offset += slot.byte_size(addr);
                             }
                         },  _slots);
                 });
@@ -620,8 +666,8 @@ namespace OP::vtm
                 current_offset += addres_table_size_c;
                 header->_slots_count = 0;
 
-                std::apply([&](auto& ... slot)->void {
-                    ((current_offset += slot_on_segment_allocated(new_segment, manager, slot, header, current_offset)), ...);
+                std::apply([&](auto& ... slot_ptr)->void {
+                    ((current_offset += slot_on_segment_allocated(new_segment, manager, *slot_ptr, header, current_offset)), ...);
                     }, _slots);
                 op_g.commit();
             }
@@ -638,9 +684,9 @@ namespace OP::vtm
                 const TopologyHeader* header = topology_address.at<TopologyHeader>(0);
                 assert(header->_slots_count == slots_count_c);
                  
-                std::apply([&](auto& ...slot)->void{
+                std::apply([&](auto& ...slot_ptr)->void{
                     size_t i = 0;
-                    (slot_on_segment_opening(opening_segment, manager, header->_address[i++], slot), ...);
+                    (slot_on_segment_opening(opening_segment, manager, header->_address[i++], *slot_ptr), ...);
                 }, _slots);
 
                 op_g.commit();
@@ -650,17 +696,17 @@ namespace OP::vtm
                 segment_idx_t new_segment, segment_manager_t& manager, Slot& slot, TopologyHeader* header, segment_pos_t current_offset)
             {
                 auto current_slot_index = header->_slots_count++;
-                if (!slot.has_residence(new_segment, manager))
-                {//slot is not used for this segment
-                    header->_address[current_slot_index] = SegmentDef::eos_c;
-                    return 0; //empty size required
-                }
-                else
+                if(slot.has_residence(new_segment))
                 {
                     header->_address[current_slot_index] = current_offset;
                     FarAddress segment_address(new_segment, current_offset);
-                    slot.on_new_segment(segment_address, manager);
-                    return slot.byte_size(segment_address, manager); //precise number of bytes to reserve
+                    slot.on_new_segment(segment_address);
+                    return slot.byte_size(segment_address); //precise number of bytes to reserve
+                } 
+                else
+                {//slot is not used for this segment
+                    header->_address[current_slot_index] = SegmentDef::eos_c;
+                    return 0; //empty size required
                 }
             }
             
@@ -670,11 +716,11 @@ namespace OP::vtm
             {
                 if (SegmentDef::eos_c != in_slot_address)
                 {
-                    slot.open(FarAddress(opening_segment, in_slot_address), manager);
+                    slot.open(FarAddress(opening_segment, in_slot_address));
                 }
             }
 
-            slots_arr_t _slots;
+            slots_t _slots;
             segments_ptr_t _segments;
         };
         /** Helper SFINAE to discover if target `T` has member method segment_manager() to resolve SegmentManager. 

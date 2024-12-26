@@ -73,7 +73,7 @@ struct GenericMemoryTest{
             one_byte_pos = mngrTopology.slot<HeapManagerSlot>().allocate(1);
             auto one_byte_block = mngr1->readonly_block(one_byte_pos, 1);
             one_byte_block.template at<std::uint8_t>(0);
-            mngr1->_check_integrity();
+            mngrTopology._check_integrity();
         }
         result.info() << "Test reopen existing...\n";
         auto segmentMngr2 = Sm::template open<Sm>(seg_file_name);
@@ -134,14 +134,14 @@ struct GenericMemoryTest{
             auto b_pos = mngr2.slot<HeapManagerSlot>().allocate(sizeof(TestSeq));
 
             OP::vtm::TransactionGuard g(segmentMngr2->begin_transaction());
-            auto b = segmentMngr2->writable_block(b_pos, sizeof(TestSeq))
-                .template at<std::uint8_t>(0);
+            auto b_block = segmentMngr2->writable_block(b_pos, sizeof(TestSeq));
+            auto b = b_block.template at<std::uint8_t>(0);
             memcpy(b, TestSeq, sizeof(TestSeq));
             g.commit();
             stripes[i] = b_pos;
         }
         mngr2._check_integrity();
-        //check closing and reopenning
+        //check closing and reopening
         delete&mngr2;//mngr2.reset();//causes delete
         segmentMngr2.reset();
 
@@ -156,21 +156,21 @@ struct GenericMemoryTest{
         for (size_t i = 1; i < 7; i += 2)
         {
             if (!has_block_compression)
-                test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);
+                test_size -= aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
             mm.forcible_deallocate(stripes[i]);
         }
         mngr3->_check_integrity();
         //now test merging of adjacency blocks
         for (size_t i = 0; i < 7; i += 2)
         {
-            auto ro_ptr = segmentMngr3->readonly_block(stripes[i], sizeof(TestSeq))
-                .template at<std::uint8_t>(0);
+            auto ro_block = segmentMngr3->readonly_block(stripes[i], sizeof(TestSeq));
+            auto ro_ptr = ro_block.template at<std::uint8_t>(0);
             
             result.assert_true(tools::range_equals(
                 TestSeq, TestSeq + sizeof(TestSeq), ro_ptr, ro_ptr+sizeof(TestSeq)), "striped block corrupted");
 
             if (!has_block_compression)
-                test_size -= aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c);
+                test_size -= aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
             mm.forcible_deallocate(stripes[i]);
             mngr3->_check_integrity();
         }
@@ -201,10 +201,7 @@ struct GenericMemoryTest{
                 rand_buf[i] = mm.make_new<TestMemAlloc1>();
         }
 
-        std::random_device rd;
-        std::mt19937 g(rd());
-
-        std::shuffle(std::begin(rnd_indexes), std::end(rnd_indexes), g);
+        std::shuffle(std::begin(rnd_indexes), std::end(rnd_indexes), tools::RandomGenerator::instance().generator());
 
         mngr3->_check_integrity();
         auto now = std::chrono::steady_clock::now();

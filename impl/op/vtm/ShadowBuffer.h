@@ -105,7 +105,11 @@ namespace OP::vtm
         void destroy()
         {
             if(_owner && _buffer)
+            {
+                _owner = false;
                 delete []_buffer;
+                _buffer = nullptr;
+            }
         }
 
         std::uint8_t* _buffer;

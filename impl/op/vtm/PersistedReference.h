@@ -18,7 +18,6 @@ namespace OP::vtm
         static_assert(std::is_standard_layout_v<T>, "only  standard-layout allowed in persisted hash-table");
 
         using element_t = T;
-        FarAddress address;
 
         constexpr explicit PersistedReference(FarAddress aadr) noexcept
             : address(aadr)
@@ -34,16 +33,30 @@ namespace OP::vtm
             return manager.template wr_at<T>(address);
         }
         
-        bool is_null() const
+        constexpr bool is_nil() const noexcept
         {
-            return address == SegmentDef::far_null_c;
+            return address.is_nil();
         }
 
         template <class TSegmentManager, class ... Args>
-        T* construct(TSegmentManager& manager, Args&& ... args)
+        T* construct(TSegmentManager& manager, Args&& ... args) const
         {
             return new (manager.template wr_at<T>(address)) T(std::forward<Args>(args)...);
         }
+        
+        constexpr FarAddress address() const noexcept
+        {
+            return _address;
+        }
+
+        void address(FarAddress new_addr) noexcept
+        {
+            _address = new_addr
+        }
+
+    private:
+        FarAddress _address;
+
     };
 
     template <class T>
@@ -87,10 +100,15 @@ namespace OP::vtm
         template <class TSegmentManager>
         element_t& ref_element(TSegmentManager& manager, segment_pos_t at) const
         {
-            segment_pos_t offset = OP::utils::memory_requirement<element_t>::requirement * at;
-            return *resolve_segment_manager(manager).template wr_at<element_t>(address + offset);
+            return *resolve_segment_manager(manager).template wr_at<element_t>(
+                element_address(at));
         }
 
+        FarAddress element_address(segment_pos_t at) const
+        {
+            segment_pos_t offset = OP::utils::memory_requirement<element_t>::requirement * at;
+            return address + offset;
+        }
     };
     // Same as prev but Read-Only mode supposed
     template <class T>

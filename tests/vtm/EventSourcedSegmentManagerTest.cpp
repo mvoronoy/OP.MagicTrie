@@ -93,7 +93,7 @@ namespace
 
         std::future<bool> future_block1_read_cmmitted = std::async(std::launch::async, [&]() {
             //another tran with ReadCommitted isolation must see previous state
-            auto ro_block2 = tmanager->readonly_block(FarAddress(pos), sizeof(block_size));
+            auto ro_block2 = tmanager->readonly_block(FarAddress(pos), block_size);
             OP_UTEST_ASSERT(0 == memcmp(origin, ro_block2.pos(), block_size));
             return true;
             });
@@ -103,7 +103,7 @@ namespace
             tmanager->read_isolation(OP::trie::ReadIsolation::Prevent);
         std::future<bool> future_block1_t2 = std::async(std::launch::async, [&]() {
             try {
-                auto ro_block2 = tmanager->readonly_block(FarAddress(pos), sizeof(block_size));
+                auto ro_block2 = tmanager->readonly_block(FarAddress(pos), block_size);
             }
             catch (const ConcurrentLockException&)
             {
@@ -115,7 +115,7 @@ namespace
         std::future<bool> future_block2_t2 = std::async(std::launch::async, [&]() {
             TransactionGuard g(tmanager->begin_transaction());
             try {
-                auto ro_block2 = tmanager->readonly_block(FarAddress(pos), sizeof(block_size));
+                auto ro_block2 = tmanager->readonly_block(FarAddress(pos), block_size);
             }
             catch (const ConcurrentLockException&)
             {
@@ -186,22 +186,26 @@ namespace
         std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
         tresult.assert_true(fdata_acc.good());
 
-        //read out of tran must be permitted
-        ReadonlyMemoryChunk ro_block1 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
         //check ro have same view
         fdata_acc.seekp(read_only_data_fpos);
         fdata_acc.write(tst_seq, sizeof(tst_seq));
         fdata_acc.seekp(writable_data_fpos);
         fdata_acc.write((const char*)write_fill_seq1, sizeof(write_fill_seq1));
         fdata_acc.flush();
+        //read out of tran must be permitted
+        ReadonlyMemoryChunk ro_block1 = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
         //check data has appeared
-        tresult.assert_true(0 == memcmp(tst_seq, ro_block1.pos(), sizeof(tst_seq)), OP_CODE_DETAILS(<< "External file changes must be seen by RO block"));
+        tresult.assert_true(
+            0 == memcmp(tst_seq, ro_block1.pos(), sizeof(tst_seq)), 
+            OP_CODE_DETAILS(<< "External file changes must be seen by RO block"));
         //the same should be returned for another thread
         std::future<ReadonlyMemoryChunk> future_block1_t1 = std::async(std::launch::async, [tmngr1]() {
             return tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq));
             });
         auto ro_block1_t1 = future_block1_t1.get();
-        tresult.assert_true(0 == memcmp(ro_block1.at<char>(0), ro_block1_t1.at<char>(0), sizeof(ReadonlyMemoryChunk)), "RO memory block from different thread must return same bytes");
+        tresult.assert_true(
+            0 == memcmp(ro_block1.template at<char>(0), ro_block1_t1.template at<char>(0), sizeof(tst_seq)), 
+            "RO memory block from different thread must return same bytes");
 
         //Test rollback without keeping locks
         if (1 == 1)
@@ -228,8 +232,10 @@ namespace
             OP_CODE_DETAILS(<< "RO block inside transaction must point the same memory"));
 
         //test brand new region write
-        auto range1_origin = tmngr1->readonly_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq2));
-        auto wr_range1 = tmngr1->writable_block(FarAddress(writable_data_fpos), sizeof(write_fill_seq2));
+        auto range1_origin = tmngr1->readonly_block(
+            FarAddress(writable_data_fpos), sizeof(write_fill_seq2));
+        auto wr_range1 = tmngr1->writable_block(
+            FarAddress(writable_data_fpos), sizeof(write_fill_seq2));
         memcpy(wr_range1.pos(), write_fill_seq2, sizeof(write_fill_seq2));
         test_TransactionIsolation(
             tmngr1, writable_data_fpos, sizeof(write_fill_seq1), write_fill_seq2, range1_origin.pos());
@@ -251,14 +257,18 @@ namespace
         }
         //when all transaction closed, no overlapped exception anymore
         auto overlapped_block = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq) + 10);
-        tresult.assert_true(0 == memcmp(tst_seq, overlapped_block.pos(), sizeof(tst_seq)), OP_CODE_DETAILS(<< "part of overlaped is not correct"));
+        tresult.assert_true(
+            0 == memcmp(tst_seq, overlapped_block.pos(), sizeof(tst_seq)), 
+            OP_CODE_DETAILS(<< "part of overlapped is not correct"));
         //test block inclusion
     }
 
     void test_EvSrcSegmentGenericMemoryAlloc(OP::utest::TestRuntime& tresult)
     {
         const char seg_file_name[] = "t-segmentation.test";
+        //uncomment to debug...> auto& prev_os = OP::vtm::integrity::Stream::os(tresult.info()); 
         GenericMemoryTest::test_MemoryManager<EventSourcingSegmentManager>(seg_file_name, tresult);
+        //uncomment to debug...> OP::vtm::integrity::Stream::os(prev_os);//restore
     }
 
     void test_EvSrcSegmentManagerMultithreadMemoryAllocator(OP::utest::TestRuntime& tresult)
@@ -466,7 +476,7 @@ namespace
             tran3->commit();
             return true;
             });
-        OP_UTEST_ASSERT(future2.get(), << "Wrong data in writable block");
+        tresult.assert_true(future2.get(), OP_CODE_DETAILS() << "Wrong data in writable block");
         //check that current transaction sees changes
         auto ro1t2 =
             tmngr1->readonly_block(FarAddress(0, read_block_pos), wide_write_block_size); //big overlapped chunk

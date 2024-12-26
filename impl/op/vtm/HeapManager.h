@@ -3,437 +3,329 @@
 #define _OP_VTM_MEMORYMANAGER__H_
 
 #include <vector>
+#include <op/common/IoFlagGuard.h>
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryBlock.h>
 #include <op/vtm/Skplst.h>
 
+#include <op/vtm/integrity/Stream.h>
+
 namespace OP::vtm
 {
-        struct HeapManagerSlot : public Slot
+    /**
+    * \brief Heap management for dynamic memory allocations
+    *  Has following structure (heap always resides at the end of each segment): \code
+    * [Segment 0: ..{other slots}..., [Log2SkipList of ForwardListBase ordered by size] [HeapHeader]{HeapBlockHeader......}
+    * [Segment 1: ..{other slots}..., [HeapHeader]{HeapBlockHeader......}
+    * [Segment 2: ..{other slots}..., [HeapHeader]{HeapBlockHeader......}
+    * ...
+    * \endcode
+    */ 
+    struct HeapManagerSlot : public Slot
+    {
+        explicit HeapManagerSlot(SegmentManager& manager) noexcept
+            :Slot(manager)
         {
-            constexpr HeapManagerSlot() = default;
+        }
 
-            /**
-            * Allocate memory block without initialization that can accommodate `sizeof(T)*count` bytes. As usual result block little bigger (on allignment of Segment::align_c)
-            * @throw trie::Exception When there is no memory on 2 possible reasons:
-            * \li er_memory_need_compression - manager owns by too small chunks, that can be optimized by block movement
-            * \li er_no_memory - there is no enough memory, so new segment must be allocated
-            * @param size - byte size to allocate
-            * @return memory position
-            */
-            virtual FarAddress allocate(segment_pos_t size)
-            {
-                size = OP::utils::align_on(size, SegmentHeader::align_c);
+        ~HeapManagerSlot() override
+        {
+        }
 
-                FreeMemoryBlockTraits free_traits(_segment_manager);
-                OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
-                //try do without locking
-                
-                far_pos_t free_block_pos = OP::vtm::template transactional_yield_retry_n<10>([&](){
-                        return _free_blocks->pull_not_less(free_traits, size);
-                    });
-                if (free_traits.is_eos(free_block_pos))
-                { //need lock - because may need allocate new segment
-                    guard_t l(_segments_map_lock);
-                    //check again
-                    free_block_pos = _free_blocks->pull_not_less(free_traits, size);
-                    if (free_traits.is_eos(free_block_pos))
-                    {
-                        auto avail_segments = _segment_manager->available_segments(); //ask for number
-                        _segment_manager->ensure_segment(avail_segments); //used number-of-segmnts as an index so don't need +1
-                        free_block_pos = _free_blocks->pull_not_less(free_traits, size);
-                        if (free_traits.is_eos(free_block_pos))
-                            throw OP::trie::Exception(OP::trie::er_no_memory);
-                    }
-                }
-                segment_idx_t segment_idx = segment_of_far(free_block_pos); 
-                
-                auto current_mem_pos = FarAddress(FreeMemoryBlock::get_header_addr(free_block_pos));
-                auto current_mem_block = _segment_manager->writable_block(
-                    current_mem_pos, OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c));
-                auto current_mem = current_mem_block.at<MemoryBlockHeader>(0);
-                
-                OP_CONSTEXPR(const) segment_pos_t mbh = memory_requirement<MemoryBlockHeader>::requirement;
-                auto free_addr = FarAddress(free_block_pos);
-                segment_pos_t deposited_size = current_mem->real_size();
-                FarAddress retval;
-                if (current_mem->size() <= (size + mbh)) //existing block can fit only queried bytes
-                {
-                    current_mem->set_free(false);
-                    //when existing block is used it is not needed to use 'real_size' - because header alredy counted
-                    deposited_size -= mbh;
-                    MemoryChunk result = 
-                        _segment_manager->writable_block(
-                            free_addr, 
-                            size, 
-                            WritableBlockHint::new_c | WritableBlockHint::allow_block_realloc
-                        );
-                    retval = result.address();
-                }
-                else
-                { //existing block too big, so place some memory back
-                    retval = current_mem->split_this(*_segment_manager, current_mem_pos, size);
-                    
-                    //old block was splitted, so place the rest back to free list
-                    FreeMemoryBlock *free_block = _segment_manager->wr_at< FreeMemoryBlock >(free_addr);
-                    
-                    _free_blocks->insert(free_traits, free_block_pos, free_block, current_mem);
-                    deposited_size -= current_mem->real_size();
-                }
-                
-                get_available_bytes(segment_idx) -= deposited_size;
-                /*If transaction started inside this method then after commit 
-                memory will be changed. */
-                g.commit();
-                return retval;
+        /**
+        * Allocate memory block without initialization that can accommodate `sizeof(T)*count` bytes. As usual result block little bigger (on allignment of Segment::align_c)
+        * @throw trie::Exception When there is no memory on 2 possible reasons:
+        * \li er_memory_need_compression - manager owns by too small chunks, that can be optimized by block movement
+        * \li er_no_memory - there is no enough memory, so new segment must be allocated
+        * @param size - byte size to allocate
+        * @return memory position
+        */
+        virtual FarAddress allocate(segment_pos_t size)
+        {
+            size = OP::utils::align_on(size, SegmentHeader::align_c);
+
+            OP::vtm::TransactionGuard tguard(segment_manager().begin_transaction());
+            //try pull existing blocks
+
+            auto [header_pos, user_size] =
+                _free_blocks->pull_not_less(size);
+
+            if (header_pos.is_nil())
+            { //no available free memory block, ask segment manager to allocate new                    
+                auto avail_segments = segment_manager().available_segments(); //ask for number
+                segment_manager().ensure_segment(avail_segments); //used number-of-segments as an index so don't need +1
+                std::tie(header_pos, user_size) = _free_blocks->pull_not_less(size);
+                if (header_pos.is_nil())
+                    throw OP::trie::Exception(OP::trie::er_no_memory);
             }
-
-            /** @return true if merge two adjacent block during deallocation is allowed */
-            virtual bool has_block_merging() const
-            {
-                return false;
-            }
-
-            /**\return number of bytes available for specific segment*/
-            segment_pos_t available(segment_idx_t segment_idx) const
-            {
-                guard_t l(_segments_map_lock);
-                auto const& found = _opened_segments[segment_idx]; //should already exists
-                assert(!found.is_null()); 
-                FarAddress pos(segment_idx, found.avail_bytes_offset());
-                //no need in lock anymore
-                l.unlock();
-                auto ro_block = _segment_manager->readonly_block(pos, memory_requirement<segment_pos_t>::requirement);
-                return *ro_block.at<segment_pos_t>(0);
-            }
-
-            /**
-            *   Deallocate memory block previously obtained by #allocate method.
-            *  
-            */
-            void deallocate(FarAddress address)
-            {
-                forcible_deallocate(address);
-            }
-            
-            void forcible_deallocate(FarAddress address)
-            {
-                if (!OP::utils::is_aligned(address.offset(), SegmentHeader::align_c)
-                    //|| !check_pointer(memblock)
-                    )
-                    throw trie::Exception(trie::er_invalid_block);
-
-                OP_CONSTEXPR(const) segment_pos_t mbh = 
-                    OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                FarAddress header_far (FreeMemoryBlock::get_header_addr(address));
-                OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
-
-                auto header_block = _segment_manager->writable_block(header_far, mbh);
-                MemoryBlockHeader* header = header_block.at<MemoryBlockHeader>(0);
-                if (!header->check_signature() || header->is_free())
-                    throw trie::Exception(trie::er_invalid_block);
-
-                do_deallocate(header_block);
-                g.commit();
-            }
-
-            /**Allocate memory and create object of specified type
-            *@return far-offset, to get real pointer use #from_far<T>()
-            */
-            template<class T, class... Types>
-            FarAddress make_new(Types&&... args)
-            {
-                OP::vtm::TransactionGuard g(_segment_manager->begin_transaction());
-                auto result = allocate(memory_requirement<T>::requirement );
-                auto mem = this->_segment_manager->writable_block(result, memory_requirement<T>::requirement, WritableBlockHint::new_c);
-                new (mem.pos()) T(std::forward<Types>(args)...);
-                g.commit();
-                return result;
-            }
-
-            void _check_integrity(FarAddress segment_addr, SegmentManager& manager) override
-            {
-                FarAddress first_block_pos = segment_addr;
-                if (segment_addr.segment() == 0)
-                {//only single instance of free-space list
-                    first_block_pos += free_blocks_t::byte_size();
-                    //for zero segment check also table of free blocks
-                    //@tbd
-                }
-                first_block_pos.set_offset(
-                    OP::utils::align_on(first_block_pos.offset(), SegmentDef::align_c));
-                //skip reserved 4bytes for segment size
-                FarAddress avail_bytes_offset = first_block_pos;
-
-                first_block_pos.set_offset( 
-                    OP::utils::align_on(
-                        first_block_pos.offset() + static_cast<segment_pos_t>(memory_requirement<segment_pos_t>::requirement), 
-                        SegmentHeader::align_c)
-                );
-                constexpr segment_pos_t mbh = OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                auto first_ro_block = manager.readonly_block(first_block_pos, mbh);
-                const MemoryBlockHeader* first = first_ro_block.at<MemoryBlockHeader>(0);
-                size_t avail = 0, occupied = 0;
-                size_t free_block_count = 0;
-                
-                const MemoryBlockHeader *prev = nullptr;
-                for (;;)
-                {
-                    assert(first->prev_block_offset() < 0);
-                    if (SegmentDef::eos_c != first->prev_block_offset())
-                    {
-                        auto prev_pos = first_block_pos + first->prev_block_offset();
-                        auto check_prev_block = manager.readonly_block(prev_pos, mbh);
-                        auto check_prev = check_prev_block.at<MemoryBlockHeader>(0);
-                        assert(check_prev->my_segement() == first->my_segement());
-                    }
-
-                    prev = first;
-                    first->_check_integrity();
-                    if (first->is_free())
-                    {
-                        avail += first->size();
-                        //assert(_free_blocks.end() != find_by_ptr(first));
-                        free_block_count++;
-                    }
-                    else
-                    {
-                        occupied += first->size();
-                        //assert(_free_blocks.end() == find_by_ptr(first));
-                    }
-                    if (first->has_next())
-                    {
-                        first_block_pos += first->real_size();
-                        first_ro_block = manager.readonly_block(first_block_pos, mbh);
-                        first = first_ro_block.at<MemoryBlockHeader>(0);
-                    }
-                    else break;
-                }
-                auto avail_space_mem = manager.readonly_block(avail_bytes_offset, memory_requirement<segment_pos_t>::requirement);
-                assert(avail == *avail_space_mem.at<segment_pos_t>(0));
-                //assert(free_block_count == _free_blocks.size());
-                //occupied???
-            }
-        protected:
-            /**
-            *   Memory manager always have residence in any segment
-            */
-            bool has_residence(segment_idx_t segment_idx, const SegmentManager& manager) const override
-            {
-                return true;
-            }
-            /**
-            *   @return all available memory after `offset` inside segment
-            */
-            segment_pos_t byte_size(FarAddress segment_address, const SegmentManager& manager) const override
-            {
-                assert(segment_address.offset() < manager.segment_size());
-                return manager.segment_size() - segment_address.offset();
-            }
-            /**
-            *   Make initialization of slot in the specified segment as specified offset
-            */
-            void on_new_segment(FarAddress start_address, SegmentManager& manager) override
-            {
-                OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
-                _segment_manager = &manager;
-                FarAddress first_block_pos (start_address);
-                if (start_address.segment() == 0)
-                {//only single instance of free-space list
-                    _free_blocks = free_blocks_t::create_new(manager, first_block_pos);
-                    first_block_pos += free_blocks_t::byte_size();
-                }
-
-                first_block_pos.set_offset(
-                    OP::utils::align_on(first_block_pos.offset(), SegmentDef::align_c));
-                //reserve 4bytes for segment size
-                FarAddress avail_bytes_offset = first_block_pos;
-                auto avail_space_mem = accessor<segment_pos_t>(*_segment_manager, avail_bytes_offset, WritableBlockHint::new_c);
-                first_block_pos.set_offset(
-                    OP::utils::align_on(
-                        first_block_pos.offset() + static_cast<segment_pos_t>(memory_requirement<segment_pos_t>::requirement), 
-                        SegmentHeader::align_c
-                    ));
-
-                //byte_size will contain number of bytes that can fit into segment aligned on SegmentHeader::align_c
-                segment_pos_t byte_size = 
-                    ((_segment_manager->segment_size() - first_block_pos.offset())/ SegmentHeader::align_c) * SegmentHeader::align_c;
-                OP_CONSTEXPR(const) segment_pos_t mbh_size_align = 
-                    OP::utils::aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                MemoryChunk zero_header = _segment_manager->writable_block(
-                    first_block_pos, 
-                    mbh_size_align + memory_requirement<FreeMemoryBlock>::requirement, 
-                    WritableBlockHint::new_c);
-                MemoryBlockHeader * block = new (zero_header.pos()) MemoryBlockHeader(std::in_place_t{});
-                block
-                    ->size(byte_size - mbh_size_align)
+            constexpr segment_pos_t mbh = OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c);
+            segment_pos_t deposit = user_size;
+            if(user_size > (size + HeapBlockHeader::minimal_space_c))
+            { //block can be split onto 2 smaller
+                HeapBlockHeader* to_spilt = segment_manager().wr_at<HeapBlockHeader>(header_pos);
+                    //alloc new block at the end of current
+                segment_pos_t offset = user_size - size - mbh; //offcut
+                assert(offset >= HeapBlockHeader::minimal_space_c);
+                //make available to alloc
+                to_spilt
+                    ->size(offset)
                     ->set_free(true)
-                    ->set_has_next(false)
-                    ->my_segement(start_address.segment())
                     ;
-                //just created block is free, so place FreeMemoryBlock info inside it
-                FreeMemoryBlock* span_of_free = new (block->memory()) FreeMemoryBlock(std::in_place_t{});
-                FarAddress user_memory_pos = zero_header.address() + mbh_size_align;
-                
-                _free_blocks->insert(
-                    FreeMemoryBlockTraits(_segment_manager), 
-                    user_memory_pos,
-                    span_of_free, block);
-                *avail_space_mem = block->size();
-                
-                guard_t l(_segments_map_lock);
-                ensure_index(start_address.segment());
-                auto &entry = _opened_segments[start_address.segment()];
-                assert(entry.is_null()); //should not exists such segment yet
-                entry.avail_bytes_offset(avail_bytes_offset.offset());
-                 
-                op_g.commit();
+                _free_blocks->insert(header_pos, to_spilt);
+
+                //allocate new block inside this memory but mark this as a free
+                header_pos += offset + mbh;//(+mbh) since offset calculated inside user memory
+
+                HeapBlockHeader* result = segment_manager().wr_at<HeapBlockHeader>(
+                    header_pos, WritableBlockHint::new_c);
+
+                ::new (result) HeapBlockHeader(std::in_place_t{});
+
+                result
+                    ->size(size)
+                    ->set_free(false)
+                    ;
+
+                deposit = size + mbh;
             }
-            void open(FarAddress start_address, SegmentManager& manager) override
+
+            std::lock_guard g(_segments_map_lock);
+            auto& segment_info = _opened_segments[header_pos.segment()];
+            auto heap_acc = segment_manager().wr_at<HeapHeader>(segment_info._heap_start);
+            heap_acc->_size -= deposit;
+            assert(heap_acc->_size < segment_manager().segment_size() ); //note works with unsigned
+            segment_info._size = heap_acc->_size;
+
+            tguard.commit();
+            return HeapBlockHeader::get_addr_by_header(header_pos);
+        }
+
+        /** @return true if merge two adjacent block during deallocation is allowed */
+        virtual bool has_block_merging() const
+        {
+            return false;
+        }
+
+        /**\return number of bytes available for specific segment*/
+        segment_pos_t available(segment_idx_t segment_idx) const
+        {
+            std::lock_guard l(_segments_map_lock);
+            auto const& found = _opened_segments[segment_idx]; //should already exists
+            assert(!found._heap_start.is_nil());
+            return found._size;
+        }
+
+        /**
+        *   Deallocate memory block previously obtained by #allocate method.
+        *
+        */
+        void deallocate(FarAddress address)
+        {
+            forcible_deallocate(address);
+        }
+
+        void forcible_deallocate(FarAddress address)
+        {
+            if (!OP::utils::is_aligned(address.offset(), SegmentHeader::align_c)
+                //|| !check_pointer(memblock)
+                )
+                throw trie::Exception(trie::er_invalid_block);
+
+            FarAddress header(HeapBlockHeader::get_header_addr(address));
+            OP::vtm::TransactionGuard g(segment_manager().begin_transaction());
+
+            auto header_block = segment_manager().accessor<HeapBlockHeader>(header);
+            if (!header_block->check_signature() || header_block->is_free())
+                throw trie::Exception(trie::er_invalid_block);
+
+            do_deallocate(header_block);
+            g.commit();
+        }
+
+        /**Allocate memory and create object of specified type
+        *@return far-offset, to get real pointer use #from_far<T>()
+        */
+        template<class T, class... Types>
+        FarAddress make_new(Types&&... args)
+        {
+            OP::vtm::TransactionGuard g(segment_manager().begin_transaction());
+            auto result = allocate(memory_requirement<T>::requirement);
+            auto mem = segment_manager().writable_block(
+                result, memory_requirement<T>::requirement, WritableBlockHint::new_c);
+            new (mem.pos()) T(std::forward<Types>(args)...);
+            g.commit();
+            return result;
+        }
+
+        void _check_integrity(FarAddress segment_addr) override
+        {
+            auto& integrity = integrity::Stream::os();
+            IoFlagGuard g(integrity);
+            integrity << std::hex << std::boolalpha;
+            integrity << "HeapManager at segment: 0x" << segment_addr.segment() << ", offset: 0x" << segment_addr.offset() <<"\n";
+            if(segment_addr.segment() == 0 )
             {
-                OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
-                _segment_manager = &manager;
-                segment_pos_t avail_bytes_offset = start_address.offset();
-                
-                if (start_address.segment() == 0)
-                {//only single instance of free-space list
-                    auto free_blocks_pos = start_address;
-                    _free_blocks = free_blocks_t::open(manager, free_blocks_pos);
-                    avail_bytes_offset += free_blocks_t::byte_size();
-                }
-                avail_bytes_offset = 
-                    OP::utils::align_on(avail_bytes_offset, SegmentDef::align_c);
-                guard_t l(_segments_map_lock);
-                ensure_index(start_address.segment());
-                auto &entry = _opened_segments[start_address.segment()];
-                assert(entry.is_null()); //should not exists such segment yet
-                entry.avail_bytes_offset(avail_bytes_offset);
-                op_g.commit();
+                integrity << "\tSkip-list size = 0x" << _free_blocks->byte_size() << "\n";
+                segment_addr += _free_blocks->byte_size();
             }
-            void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
+            auto heap_header = segment_manager().view<HeapHeader>(segment_addr);
+            integrity << "\tSegment-header:{ _size = 0x" << heap_header->_size 
+                << ", _total = 0x"<< heap_header->_total << "}\n";
+            segment_addr += OP::utils::aligned_sizeof<HeapHeader>(SegmentHeader::align_c);
+            size_t i = 0;
+            for(auto offset = segment_addr.offset(); offset < heap_header->_total; ++i)
             {
-                guard_t l(_segments_map_lock);
-                _opened_segments[segment_index].erase();
+                FarAddress mbh_addr{segment_addr.segment(), offset};
+                integrity << "\tmbh #" << i << " (at: " << mbh_addr << "){";
+                auto block_header = segment_manager().view<HeapBlockHeader>(mbh_addr);
+                integrity << "free = " << static_cast<bool>(block_header->_free) 
+                    << ", signature = 0x" << block_header->_signature 
+                    << ", _size = 0x" << block_header->_size 
+                    << ", _next = ";
+                if( block_header->_next.is_nil() )
+                    integrity << "(nil)";
+                else
+                    integrity << block_header->_next;
+                integrity << "}\n";
+                if( !block_header->check_signature() )
+                    throw std::runtime_error("mbh signature check failed");
+                offset += block_header->_size + OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c);
             }
-        private:
-            typedef std::recursive_mutex map_lock_t;
-            typedef std::unique_lock<map_lock_t> guard_t;
+        }
 
-            struct Description
-            {
-                constexpr Description() noexcept
-                    : _avail_bytes_offset(SegmentDef::eos_c)
-                {
-                }
-
-                constexpr Description(Description && other) noexcept
-                    : _avail_bytes_offset(other._avail_bytes_offset)
-                {
-                }
-
-                Description(const Description&) = delete;
-
-                /**Offset where 'available-bytes' variable begins*/
-                Description& avail_bytes_offset(segment_pos_t v) noexcept
-                {
-                    _avail_bytes_offset = v;
-                    return *this;
-                }
-                
-                segment_pos_t avail_bytes_offset() const noexcept
-                {
-                    return _avail_bytes_offset;
-                }
-
-                bool is_null() const noexcept
-                {
-                    return _avail_bytes_offset == SegmentDef::eos_c;
-                }
-                
-                void erase() noexcept
-                {
-                    _avail_bytes_offset = SegmentDef::eos_c;
-                }
-
-            private:
-                segment_pos_t _avail_bytes_offset;
-            };
-
-            using opened_segment_t = std::vector<Description>;
-            using free_blocks_t = Log2SkipList<FreeMemoryBlockTraits>;
-
-            mutable map_lock_t _segments_map_lock;
-            opened_segment_t _opened_segments;
-            std::unique_ptr<free_blocks_t> _free_blocks;
-            SegmentManager* _segment_manager = nullptr;
-
-        private:
+    protected:
+        /**
+        *   Memory manager always have residence in any segment
+        */
+        bool has_residence(segment_idx_t segment_idx) const override
+        {
+            return true;
+        }
+        /**
+        *   @return all available memory after `offset` inside segment
+        */
+        segment_pos_t byte_size(FarAddress segment_address) const override
+        {
+            assert(segment_address.offset() < segment_manager().segment_size());
+            return segment_manager().segment_size() - segment_address.offset();
+        }
+        /**
+        *   Make initialization of slot in the specified segment as specified offset
+        */
+        void on_new_segment(FarAddress start_address) override
+        {
+            OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction()); //invoke begin/end write-op
             
-            /** Return modifiable reference to variable that keeps available memory in segment */
-            segment_pos_t& get_available_bytes(segment_idx_t segment)
-            {
-                guard_t l(_segments_map_lock);
-                auto& found = _opened_segments[segment];
-                assert(!found.is_null()); //should already exists
-                FarAddress pos(segment, found.avail_bytes_offset());
-                //no need in lock anymore
-                l.unlock();
-                return *accessor<segment_pos_t>(*_segment_manager, pos);
-            }
-
-            /**Ensure that _opened_segments contains specific index. Must be called under the lock _segments_map_lock*/
-            void ensure_index(segment_idx_t segment)
-            {
-                if (segment < _opened_segments.size())
-                    return;
-                _opened_segments.resize(segment + 1);
+            FarAddress first_block_pos = start_address;
+            if (start_address.segment() == 0)
+            {//only single instance of free-space list
+                _free_blocks = free_blocks_t::create_new(segment_manager(), first_block_pos);
+                first_block_pos += free_blocks_t::byte_size();
             }
             
-            void do_deallocate(MemoryChunk& header_block)
-            {
-                //Mark segment and memory for FreeMemoryBlock as available for write
-                auto header = header_block.at<MemoryBlockHeader>(0);
-                assert(!header->is_free());
-                header->set_free(true);
-                //from header address evaluate address of memory block
-                FarAddress address (FreeMemoryBlock::get_addr_by_header(header_block.address())); 
-                auto free_marker = _segment_manager->wr_at<FreeMemoryBlock>(address, 
-                    WritableBlockHint::block_for_write_c | WritableBlockHint::allow_block_realloc);
+            std::lock_guard g(_segments_map_lock);
+            auto& segment_presence = ensure_index( start_address.segment() );
+            segment_presence._heap_start = first_block_pos; //points to HeapHeader
+            //Each segment has HeapHeader
+            auto heap_header = segment_manager().accessor<HeapHeader>(first_block_pos, WritableBlockHint::new_c);
+            first_block_pos += OP::utils::aligned_sizeof<HeapHeader>(SegmentHeader::align_c);
+            //make first big memory block for this segment
+            auto first_block = segment_manager().accessor<HeapBlockHeader>(first_block_pos, WritableBlockHint::new_c);
+            
+            segment_presence._size = //free size as the new block without header size
+                segment_manager().segment_size() - 
+                OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c) - 
+                first_block_pos.offset();
+            heap_header->_total = heap_header->_size = segment_presence._size;
+            ::new (first_block.pos()) HeapBlockHeader{ segment_presence._size };
+            //after allocation block is free, so add this to skiplist
+            _free_blocks->insert(first_block.address(), &first_block);
+            
+            op_g.commit();
+        }
 
-                FreeMemoryBlock *span_of_free = new (free_marker) FreeMemoryBlock(std::in_place_t{});
-                auto deposited = header->size();
-                
-                _free_blocks->insert(FreeMemoryBlockTraits(_segment_manager), address, span_of_free, header);
-                get_available_bytes(address.segment()) += deposited;
+        void open(FarAddress start_address) override
+        {
+            std::lock_guard g(_segments_map_lock);
+            auto& segment_presence = ensure_index(start_address.segment());
+            auto blocks_pos = start_address;
+
+            OP::vtm::TransactionGuard gtran(segment_manager().begin_transaction()); //invoke begin/end write-op
+            if (start_address.segment() == 0)
+            {//only first segment has an instance of free-space list
+                _free_blocks = free_blocks_t::open(segment_manager(), blocks_pos);
+                blocks_pos += free_blocks_t::byte_size();
             }
+            //Each segment has HeapHeader
+            auto heap_header = segment_manager().view<HeapHeader>(blocks_pos);
 
-            /**Postpone delete of memory block until Transaction commit,*/
-            struct PostponDeallocToTransactionEnd : public OP::vtm::BeforeTransactionEnd
-            {
-                PostponDeallocToTransactionEnd(HeapManagerSlot * memory_manager, ReadonlyMemoryChunk memory_block)
-                    : _memory_manager(memory_manager)
-                    , _memory_block(std::move(memory_block))
-                {
+            segment_presence._heap_start = blocks_pos;
+            segment_presence._size = heap_header->_size;
 
-                }
-                void on_commit() override
-                {
-                    auto header = _memory_manager->_segment_manager->upgrade_to_writable_block(_memory_block);
-                    _memory_manager->do_deallocate(header);
-                }
-                void on_rollback() override
-                {
+            gtran.commit();
+        }
 
-                }
-            private:
-                HeapManagerSlot * _memory_manager;
-                ReadonlyMemoryChunk _memory_block;
-            };
+        void release_segment(segment_idx_t segment_index) override
+        {
+            std::lock_guard l(_segments_map_lock);
+            _opened_segments[segment_index]._heap_start = {}; //indicate no info
+        }
+
+    private:
+
+        /** In each segment this structure allows store number of bytes available */
+        struct HeapHeader
+        {
+            segment_pos_t _total;
+            segment_pos_t _size;
         };
 
+        struct SegmentPresenceInfo
+        {
+            FarAddress _heap_start = {}; //nil indicates segment not opened
+            segment_pos_t _size = 0; // just cache of HeapHeader
+        };
 
-    
+        using opened_segment_t = std::vector<SegmentPresenceInfo>;
+        using free_blocks_t = Log2SkipList<(sizeof(std::uint32_t) << 3)>;
+
+        mutable std::recursive_mutex _segments_map_lock;
+        opened_segment_t _opened_segments;
+        std::unique_ptr<free_blocks_t> _free_blocks;
+
+    private:
+
+        /**Ensure that _opened_segments contains specific index. Call must be locked vefore with _segments_map_lock*/
+        [[nodiscard]] SegmentPresenceInfo& ensure_index(segment_idx_t segment)
+        {
+            if (segment >= _opened_segments.size())
+            {
+                _opened_segments.resize(segment + 1);
+            }
+            return _opened_segments[segment];
+        }
+
+        void do_deallocate(WritableAccess<HeapBlockHeader>& block_header)
+        {
+            //Mark segment and memory for FreeMemoryBlock as available for write
+            auto deposit = block_header->size();
+            block_header->set_free(true);
+            //from header address evaluate address of memory block
+            _free_blocks->insert(block_header.address(), &block_header);
+
+            std::lock_guard g(_segments_map_lock);
+            auto& segment_info = _opened_segments[block_header.address().segment()];
+            auto header_wr = segment_manager().accessor<HeapHeader>(segment_info._heap_start);
+            assert(header_wr->_size <= segment_manager().segment_size());
+            header_wr->_size += deposit;
+            segment_info._size = header_wr->_size;
+        }
+
+    };
+
+
+
 }//ns: OP:vtm
 
 #endif //_OP_VTM_MEMORYMANAGER__H_

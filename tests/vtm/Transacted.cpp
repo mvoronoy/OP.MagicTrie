@@ -112,7 +112,7 @@ void test_TransactedSegmentManager(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "test Transacted Segment Manager..." << std::endl;
 
-    const char seg_file_name[] = "t-segementation.test";
+    const char seg_file_name[] = "t-segmentation.test";
 
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
         OP::trie::SegmentOptions()
@@ -207,7 +207,7 @@ void test_TransactedSegmentManager(OP::utest::TestRuntime &tresult)
 
 void test_TransactedSegmentGenericMemoryAlloc(OP::utest::TestRuntime &tresult)
 {
-    const char seg_file_name[] = "t-segementation.test";
+    const char seg_file_name[] = "t-segmentation.test";
     GenericMemoryTest::test_MemoryManager<TransactedSegmentManager>(seg_file_name, tresult);
 
 }
@@ -215,7 +215,7 @@ void test_TransactedSegmentGenericMemoryAlloc(OP::utest::TestRuntime &tresult)
 void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "test Transacted Memory Allocation..." << std::endl;
-    const char seg_file_name[] = "t-segementation.test";
+    const char seg_file_name[] = "t-segmentation.test";
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name, 
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
@@ -329,7 +329,7 @@ void test_TransactedSegmentManagerMultithreadMemoryAllocator(OP::utest::TestRunt
 void test_TransactedMemmngrAllocDealloc(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "Reproduce issue with dealloc-alloc in single transaction..." << std::endl;
-    const char seg_file_name[] = "t-segementation.test";
+    const char seg_file_name[] = "t-segmentation.test";
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name, 
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
@@ -360,7 +360,7 @@ void test_TransactedMemmngrAllocDealloc(OP::utest::TestRuntime &tresult)
     mm.allocate(50);  //no overlapped exception there
     tran3->commit();
     //following 16 bytes are consumed by allocation new MemoryHeader, so include this to calc
-    tresult.assert_true((test_avail- aligned_sizeof<MemoryBlockHeader>(SegmentDef::align_c)) == mm.available(0));
+    tresult.assert_true((test_avail- aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c)) == mm.available(0));
     
     tmngr1->_check_integrity();
     tmngr1.reset();
@@ -368,7 +368,7 @@ void test_TransactedMemmngrAllocDealloc(OP::utest::TestRuntime &tresult)
 void test_ReleaseReadBlock(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "Generic positive tests...\n";
-    const char seg_file_name[] = "t-segementation.test";
+    const char seg_file_name[] = "t-segmentation.test";
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name, 
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
@@ -471,7 +471,7 @@ void test_ReleaseReadBlock(OP::utest::TestRuntime &tresult)
 void test_NestedTransactions(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "Nesting transactions...\n";
-    const char seg_file_name[] = "t-segementation.test";
+    const char seg_file_name[] = "t-segmentation.test";
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
@@ -637,7 +637,7 @@ void test_TransactedBlockInclude(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "test Transacted Segment Manager..." << std::endl;
 
-    const char seg_file_name[] = "t-segementation.test";
+    const char seg_file_name[] = "t-segmentation.test";
 
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
         OP::trie::SegmentOptions()
@@ -681,7 +681,7 @@ void test_TransactedBlockIncludeOnRead(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "test Transacted Segment Manager..." << std::endl;
 
-    const char seg_file_name[] = "t-segementation.test";
+    const char seg_file_name[] = "t-segmentation.test";
 
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
         OP::trie::SegmentOptions()
@@ -709,7 +709,7 @@ void test_TransactedBlockOverlapOnRead(OP::utest::TestRuntime &tresult)
 {
     tresult.info() << "Overalapped block inside read-only transactions..." << std::endl;
 
-    const char seg_file_name[] = "t-segementation.test";
+    const char seg_file_name[] = "t-segmentation.test";
 
     auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
         OP::trie::SegmentOptions()
@@ -824,7 +824,7 @@ void test_TransactedBlockOverlapOnRead(OP::utest::TestRuntime &tresult)
 //{
 //    tresult.info() << "test Transacted Segment Manager..." << std::endl;
 //
-//    const char seg_file_name[] = "t-segementation.test";
+//    const char seg_file_name[] = "t-segmentation.test";
 //
 //    auto tmngr1 = OP::trie::SegmentManager::create_new<TransactedSegmentManager>(seg_file_name,
 //        OP::trie::SegmentOptions()

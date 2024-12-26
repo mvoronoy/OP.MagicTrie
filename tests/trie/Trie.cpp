@@ -663,6 +663,7 @@ namespace
         test_values.erase(std::string((const char*)short_key.c_str()));
 
         compare_containers(tresult, *trie, test_values);
+        
         //do random test
         constexpr int str_limit = 513;
         for (auto i = 0; i < 1024; ++i)
@@ -681,6 +682,7 @@ namespace
 
             for(const atom_string_t& pref: chunks) 
             {
+                auto c = ((const char*)pref.c_str())[0];
                 auto t = trie->insert(pref, pref.length() + 0.0);
                 std::string signed_str(pref.begin(), pref.end());
                 auto m = test_values.emplace(signed_str, pref.length() + 0.0);
@@ -714,6 +716,7 @@ namespace
         }
         tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
         compare_containers(tresult, *trie, test_values);
+        trie.reset();
     }
     void test_Siblings(OP::utest::TestRuntime& tresult)
     {

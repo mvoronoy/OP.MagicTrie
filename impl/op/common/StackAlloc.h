@@ -12,7 +12,7 @@ namespace OP
     {
     public:
         not_initialized_error() 
-            : std::runtime_error("using memory buffer with unitialized object, construct it first.")
+            : std::runtime_error("using memory buffer with uninitialized object, construct it first.")
         {}
     };
 
@@ -297,7 +297,7 @@ namespace OP
         {
             if(other.has_value())
             {
-                //no wories const_cast isn't for object change
+                //no worries const_cast isn't for object change
                 const_cast<this_t&>(other)
                     .apply_by_index_impl(
                         other._type_index, 
@@ -317,7 +317,7 @@ namespace OP
         {
             if(other.has_value())
             {
-                //no wories const_cast isn't for object change
+                //no worries const_cast isn't for object change
                 other
                     .apply_by_index_impl(
                         other._type_index, 
@@ -332,7 +332,7 @@ namespace OP
             }
         }
 
-        /** \brief Constructor creates instance from implmentation `U` on condition U is the same as one of Tx... */
+        /** \brief Constructor creates instance from implementation `U` on condition U is the same as one of Tx... */
         template <class U>
         explicit Multiimplementation(const U& instance) 
         {
@@ -343,7 +343,7 @@ namespace OP
             _type_index = type_to_index<U>(std::index_sequence_for <Tx...>{});
         }
 
-        /** \brief Constructor creates instance from implmentation `U` with move semantic 
+        /** \brief Constructor creates instance from implementation `U` with move semantic 
         *   on condition U is the same as one of Tx... 
         */
         template <class U>
@@ -367,7 +367,7 @@ namespace OP
         {
             if (t.has_value())
             {
-                //no wories `t` used as const 
+                //no worries `t` used as const 
                 const_cast<this_t&>(t).apply_by_index_impl(
                     t._type_index,
                     [this](auto* v) {
@@ -388,7 +388,7 @@ namespace OP
         {
             if (t.has_value())
             {
-                //no wories `t` used as const 
+                //no worries `t` used as const 
                 t.apply_by_index_impl(
                     t._type_index,
                     [this](auto* v) {
@@ -449,8 +449,8 @@ namespace OP
             return !has_value();
         }
         
-        /** Construct inplace type `U` on condition `U` is one of the `Tx`...
-         * \tparam inplace type `U` must be one of enumerated in this class declarations.
+        /** Construct in-place type `U` on condition `U` is one of the `Tx`...
+         * \tparam in-place type `U` must be one of enumerated in this class declarations.
          * \tparam Args argument of constructor `U`
          * \throws std::runtime_error when container already owns an instance (#destroy it first).
          * \return instance of U& that can be ignored or used to after-construction access to 
@@ -579,7 +579,7 @@ namespace OP
         static constexpr size_t bigest_align_c = std::max( {alignof(TInterface), alignof(Tx)...} );
         static constexpr size_t bigest_sizeof_c = std::max( {sizeof(TInterface), sizeof(Tx)...} );
 
-        alignas(bigest_align_c) std::byte _data[bigest_sizeof_c];
+        alignas(bigest_align_c) std::byte _data[bigest_sizeof_c]={};
         
     };
 

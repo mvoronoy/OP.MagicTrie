@@ -134,38 +134,6 @@ namespace OP::vtm
 
             void _check_integrity()
             {
-                //guard_t l(_free_map_lock);
-                //MemoryBlockHeader *first = at<MemoryBlockHeader>(aligned_sizeof<Segment>(Segment::align_c));
-                //size_t avail = 0, occupied = 0;
-                //size_t free_block_count = 0;
-                //MemoryBlockHeader *prev = nullptr;
-                //for (;;)
-                //{
-                //    assert(first->prev_block_offset() < 0);
-                //    if (prev)
-                //        assert(prev == first->prev());
-                //    else
-                //        assert(SegmentDef::eos_c == first->prev_block_offset());
-                //    prev = first;
-                //    first->_check_integrity();
-                //    if (first->is_free())
-                //    {
-                //        avail += first->size();
-                //        assert(_free_blocks.end() != find_by_ptr(first));
-                //        free_block_count++;
-                //    }
-                //    else
-                //    {
-                //        occupied += first->size();
-                //        assert(_free_blocks.end() == find_by_ptr(first));
-                //    }
-                //    if (first->has_next())
-                //        first = first->next();
-                //    else break;
-                //}
-                //assert(avail == this->_avail_bytes);
-                //assert(free_block_count == _free_blocks.size());
-                ////occupied???
             }
         private:
             mapped_region _mapped_region;

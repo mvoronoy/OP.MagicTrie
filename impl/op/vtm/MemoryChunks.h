@@ -205,6 +205,11 @@ namespace OP::vtm
             return MemoryChunk::at<T>(0);
         }
 
+        T* operator & () 
+        {
+            return MemoryChunk::at<T>(0);
+        }
+
         T& operator *()
         {
             return *MemoryChunk::at<T>(0);
@@ -260,7 +265,7 @@ namespace OP::vtm
         /**Block already contains some information and will be used for r/w operations*/
         update_c = block_for_read_c | block_for_write_c,
 
-        /**Block is used only for write purpose and doesn't contain usefull information yet*/
+        /**Block is used only for write purpose and doesn't contain useful information yet*/
         new_c = block_for_write_c
     };
     constexpr inline WritableBlockHint operator & (WritableBlockHint left, WritableBlockHint right) noexcept
@@ -390,7 +395,7 @@ namespace OP::vtm
     };
 
     /**Helper that provides readonly access to virtual memory occupied by single instance or array of 
-    * alligned instances of `T`
+    * aligned instances of `T`
     * \tparam T - "standard layout types" (see http://www.stroustrup.com/C++11FAQ.html#PODs)
     */
     template <class T>
@@ -406,7 +411,9 @@ namespace OP::vtm
             : ReadonlyMemoryChunk(std::move(right))
         {
         }
-        
+        using ReadonlyMemoryChunk::ReadonlyMemoryChunk;
+        using ReadonlyMemoryChunk::operator =;
+
         operator const T* () const
         {
             return ReadonlyMemoryChunk::at<T>(0);

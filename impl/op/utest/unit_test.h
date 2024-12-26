@@ -31,6 +31,7 @@
 #include <op/common/Console.h>
 #include <op/common/has_member_def.h>
 #include <op/common/Currying.h>
+#include <op/common/NullStream.h>
 
 #if defined( _MSC_VER ) 
 #if defined(max)
@@ -202,12 +203,7 @@ namespace OP::utest
         inline bool _unconditional_exception_raise(const std::string& x);
 
         /** Do nothing buffer */
-        class null_buffer : public std::streambuf
-        {
-        public:
-            int overflow(int c) final { return c; }
-        };
-
+        using null_buffer = OP::NullStreamBuffer;
 
     } //inner namespace
 

@@ -7,12 +7,14 @@
 #include <array>
 #include <numeric>
 #include <memory>
+#include <mutex>
 
 #include <op/common/Utils.h>
 
 #include <op/vtm/Transactional.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/MemoryBlockHeader.h>
+#include <op/vtm/HeapBlockHeader.h>
+#include <op/vtm/PersistedReference.h>
 
 namespace OP::vtm
 {
@@ -20,41 +22,59 @@ namespace OP::vtm
 
 
         /***/
-        template <class Traits, size_t bitmask_size_c = 32>
+        template <segment_pos_t bitmask_size_c = 32>
         struct Log2SkipList
         {
-            using traits_t = Traits;
-            static_assert(std::is_base_of_v<ForwardListBase, typename traits_t::target_t>,
-                "To use skip-list you need inherit T from ForwardListBase");
-
-            using entry_pos_t = typename traits_t::pos_t;
-            using this_t = Log2SkipList<Traits, bitmask_size_c>;
+            using this_t = Log2SkipList<bitmask_size_c>;
+            
+            constexpr static size_t smallest_c = sizeof(std::uint32_t) << 3;//smallest block = 32
 
             /**
             *   Evaluate how many bytes expected to place to the header of this data-structure.
             */
-            OP_CONSTEXPR(OP_EMPTY_ARG) static segment_pos_t byte_size() noexcept
+            constexpr static segment_pos_t byte_size() noexcept
             {
                 return OP::utils::align_on(
-                    memory_requirement<ForwardListBase>::array_size( static_cast<segment_pos_t>(bitmask_size_c)),
+                    memory_requirement<ForwardListBase>::array_size( bitmask_size_c ),
                     SegmentHeader::align_c);
             }
-            /**Format memory starting from param `start` for skip-list header
+
+            constexpr size_t entry_index(size_t key) const noexcept
+            {
+                size_t base = 0;
+                const size_t low_strat = 256;
+                if (key < low_strat)
+                    return key * 3 / low_strat;
+                base = 3;
+                key -= low_strat;
+                const size_t mid_strat = 4096;
+                if (key < mid_strat)/*Just an assumption about biggest payload stored in virtual memory*/
+                    return base + ((key * (smallest_c / 2/*aka 16*/)) / (mid_strat));
+                base += smallest_c / 2;
+                key -= mid_strat;
+                size_t result = base + (key * (smallest_c - 3 - smallest_c / 2/*aka 13*/)) / _largest;
+                if (result >= smallest_c)
+                    return smallest_c - 1;
+                return result;
+            }
+
+            /**Format memory starting from `start` for skip-list header
             *@return new instance of Log2SkipList
             */
-            static std::unique_ptr<this_t> create_new(SegmentManager& manager, OP::vtm::far_pos_t start)
+            static std::unique_ptr<this_t> create_new(SegmentManager& manager, FarAddress start)
             {
-                auto wr = manager.writable_block(FarAddress(start), byte_size(), WritableBlockHint::new_c);
+                auto wr = manager.writable_block(start, byte_size(), WritableBlockHint::new_c);
                 
                 //make formatting for all bunches
                 new (wr.pos())ForwardListBase[bitmask_size_c];
                 
                 return std::make_unique<this_t>(manager, start);
             }
+
             /**Open existing list from starting point 'start'
             *@return new instance of Log2SkipList
             */
-            static std::unique_ptr<this_t> open(SegmentManager& manager, OP::vtm::far_pos_t start)
+            static std::unique_ptr<this_t> open(SegmentManager& manager, FarAddress start)
             {
                 return std::make_unique<this_t>(manager, start);
             }
@@ -63,126 +83,150 @@ namespace OP::vtm
             * \param start position where header will be placed. After this position header will occupy
             memory block of #byte_size() length
             */
-            Log2SkipList(SegmentManager& manager, OP::vtm::far_pos_t start) :
-                _segment_manager(manager),
-                _list_pos(start)
+            Log2SkipList(SegmentManager& manager, FarAddress start) 
+                : _segment_manager(manager)
+                , _list_pos(start)
+                , _largest(_segment_manager.segment_size())
             {
             }
 
-            far_pos_t pull_not_less(traits_t& traits, typename Traits::key_t key)
+            ~Log2SkipList()
             {
-                static OP_CONSTEXPR(const) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-                auto pull_op = [this, &traits, key](size_t index){
-                    FarAddress prev_pos = entry_offset_by_idx(index);
-                    auto prev_block = _segment_manager.readonly_block(prev_pos, memory_requirement<ForwardListBase>::requirement);
+            }
 
-                    const ForwardListBase* prev_ent = prev_block.template at<ForwardListBase>(0);
-                    for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos); )
-                    {
-                        //make 2 reads to avoid overlapped-block exception
-                        auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
-                        const MemoryBlockHeader * mem_header = 
-                            mem_header_block.template at<MemoryBlockHeader>(0);
-                        auto curr_block = _segment_manager.readonly_block(FarAddress(pos), memory_requirement<ForwardListBase>::requirement);
-                        const ForwardListBase* curr = 
-                            curr_block.template at<ForwardListBase>(0);
-
-                        if (!traits.less(mem_header->size(), key))
-                        {
-                            try
-                            {
-                                auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
-                                auto ent = wr_prev_block.template at<ForwardListBase>(0);
-                                ent->next = curr->next;
-                                return pos;
-                            }
-                            catch (const OP::vtm::ConcurrentLockException&)
-                            {
-                                //just ignore and go further
-                            }
-                        }
-                        pos = curr->next;
-                    }
-                    return SegmentDef::far_null_c;
-                };
-                auto index = traits.entry_index(key);
-                try{
-                    //try to pull block from origin slot provided
-                    far_pos_t result = OP::vtm::template transactional_yield_retry_n<3>(pull_op, index);
-                    if (result != SegmentDef::far_null_c)
+            /**
+            * Finds through contained memory blocks as HeapBlockHeader and return first one not less than size specified by key.
+            * Returned block is automatically removed.
+            * 
+            * \return std::pair: first is FarAddress of HeapBlockHeader (may be nil if list has no big enough block) and second 
+            *   is size of result block.
+            */
+            std::pair<FarAddress, segment_pos_t> pull_not_less(size_t key)
+            {
+                //trick to use additional mutex that grants that ro-access is enough to 
+                //find matched block then upgrade to wr
+                std::lock_guard g(_list_acc);
+                ConstantPersistedArray<ForwardListBase> list(_list_pos);
+                auto index = entry_index(key);
+                //try to pull from correct bucket, if fails start from biggest to smallest
+                //such way big chunk is split ASAP
+                ReadonlyAccess<ForwardListBase> ro_entry =
+                    list.ref_element(_segment_manager, index);
+                std::pair<FarAddress, segment_pos_t> result{};
+                if(pull_from_bucket(key, ro_entry, result.first, result.second))
+                    return result;
+                for(auto i = bitmask_size_c; i > index; --i)
+                {//start from biggest
+                    auto ro_entry2 =
+                        list.ref_element(_segment_manager, i-1);
+                    if (pull_from_bucket(key, ro_entry2, result.first, result.second))
                         return result;
                 }
-                catch (const OP::vtm::ConcurrentLockException&)
+
+                return result;
+            }
+
+            void insert(FarAddress memory_block_addr, HeapBlockHeader* memory_block)
+            {
+                std::lock_guard g(_list_acc); //trick to avoid complex retry logic when upgrading list from read to write
+                auto key = memory_block->size();
+                auto index = entry_index(key);
+                PersistedArray<ForwardListBase> list(_list_pos);
+
+                auto entry = _segment_manager.accessor<ForwardListBase>(list.element_address(index));
+                if(entry->_next.is_nil()) //first time uses this bucket
                 {
-                    //just continue on bigger indexes
+                    entry->_next = memory_block_addr;
+                    memory_block->_next = FarAddress{};
                 }
-                //let's start from biggest index
-                for (size_t i = bitmask_size_c-1; i > index; --i)
+                else
                 {
-                    try{
-                        //try to pull block from origin slot provided
-                        far_pos_t result = OP::vtm::template transactional_yield_retry_n<3>(pull_op, i);
-                        if (result != SegmentDef::far_null_c)
-                            return result;
+                    FarAddress previous{ entry.address() }, current{ entry->_next };
+                    void(*upgrade_previous)(SegmentManager&, FarAddress, FarAddress) = 
+                        update_header_next<ForwardListBase>;
+
+                    while(!current.is_nil())
+                    { // support ordering of same `index` block by size
+                        auto header = _segment_manager.view<HeapBlockHeader>(current);
+
+                        if (!less(header->size(), key))
+                        {//ready to insert
+
+                            memory_block
+                                ->next(current); //point to header
+                            upgrade_previous(_segment_manager, previous, memory_block_addr);
+                            break;
+                        }
+                        previous = current;
+                        current = header->_next;
                     }
-                    catch (const OP::vtm::ConcurrentLockException&)
+                }
+                memory_block
+                    ->set_free(true)
+                    ;
+            }
+
+        private:
+            /**Compare 2 FreeMemoryBlock by the size*/
+            constexpr static bool less(size_t left, size_t right) noexcept
+            {
+                return left < right;
+            }
+
+            //used together with `update_header_next` to support forward-list update 
+            //of previous item in `pull_from_bucket`
+            static void update_list_next(SegmentManager& segment_manager, ReadonlyMemoryChunk& ro, FarAddress address) {
+                WritableAccess<ForwardListBase> wr{
+                        segment_manager.upgrade_to_writable_block(ro)
+                };
+                wr->_next = address;
+            }
+
+            //used together with `update_list_next` to support forward-list update 
+            //of previous item in `pull_from_bucket`
+            template <class T>
+            static void update_header_next(SegmentManager& segment_manager, FarAddress previous, FarAddress address) {
+                segment_manager.wr_at<T>(previous)->_next = address;
+            };
+
+            /** pull single free block from bucket started at 'start_from'. 
+            * \param result [out] on success points to HeapBlockHeader that is not less queried block size `key`
+            * \return true if such block exists in bucket, false mean caller should retry with bigger bucket
+            */
+            bool pull_from_bucket(size_t key, ReadonlyAccess<ForwardListBase>& start_from, FarAddress& result, segment_pos_t& result_size)
+            {
+                //when starting need keep track of previous element, but it can be either ForwardList or HeapBlockHeader
+                //so make 2 lambdas to update 'previous'
+                void(*upgrade_previous)(SegmentManager&, FarAddress, FarAddress) = update_header_next<ForwardListBase>;
+                FarAddress previous{ start_from.address() }, current{start_from->_next};
+                while(!current.is_nil())
+                {
+                    auto ro_header = _segment_manager.view<HeapBlockHeader>(current);
+                    if (!less(ro_header->size(), key))
                     {
-                        //just continue on smaller indexes
+                        auto header = WritableAccess<HeapBlockHeader>(
+                            _segment_manager.upgrade_to_writable_block(ro_header));
+                        //remove from list
+                        upgrade_previous(_segment_manager, previous, header->_next);
+                        header->set_free(false);
+                        header->next(FarAddress{}); //just for case
+                        result = header.address();
+                        result_size = header->_size;
+                        return true;
                     }
+                    previous = current;
+                    upgrade_previous = update_header_next<HeapBlockHeader>; //the rest of the list consist of HeapBlockHeader so ready to update _next
+                    current = ro_header->_next;
                 }
-                return SegmentDef::far_null_c;
+                return false;
             }
-            void insert(const traits_t& traits, typename traits_t::pos_t t, ForwardListBase* ref, const MemoryBlockHeader* ref_memory_block)
-            {
-                OP_CONSTEXPR(const static) segment_pos_t mbh = aligned_sizeof<MemoryBlockHeader>(SegmentHeader::align_c);
-
-                auto key = ref_memory_block->size();
-                auto index = traits.entry_index(key);
-                
-                FarAddress prev_pos = entry_offset_by_idx(index);
-                auto prev_block = _segment_manager.readonly_block(prev_pos, memory_requirement<ForwardListBase>::requirement);
-                const ForwardListBase* prev_ent = prev_block.template at<ForwardListBase>(0);
-
-                for (far_pos_t pos = prev_ent->next; !Traits::is_eos(pos);)
-                {
-                    auto mem_header_block = _segment_manager.readonly_block(FarAddress(FreeMemoryBlock::get_header_addr(pos)), mbh);
-                    const MemoryBlockHeader * mem_header = 
-                        mem_header_block.template at<MemoryBlockHeader>(0);
-
-                    auto curr_block = _segment_manager.readonly_block(
-                        FarAddress(pos), 
-                        memory_requirement<typename traits_t::target_t>::requirement );
-                    typename traits_t::const_ptr_t curr = 
-                        curr_block.template at<typename traits_t::target_t>(0);
-
-                    if (!traits.less(mem_header->size(), key))
-                        break; //ready to insert
-                    pos = curr->next;
-                    prev_block = std::move(curr_block);
-                }
-                //there since no entries yet or found correct pos
-                insert_sinlge(prev_block, ref, t);
-            }
-
-        private:
             SegmentManager& _segment_manager;
-            OP::vtm::far_pos_t _list_pos;
-        private:
+            FarAddress _list_pos;
+            //use recursive since `pull` can consequentially call `insert`
+            std::recursive_mutex _list_acc;
+            const size_t _largest;
 
-            FarAddress entry_offset_by_idx(size_t index) const
-            {
-                FarAddress r(_list_pos);
-                return r += memory_requirement<ForwardListBase>::array_size(static_cast<segment_pos_t>(index));
-            }
-
-            void insert_sinlge(ReadonlyMemoryChunk& prev_block, ForwardListBase* ref, typename traits_t::pos_t t)
-            {
-                auto wr_prev_block = _segment_manager.upgrade_to_writable_block(prev_block);
-                auto wr_prev_ent = wr_prev_block.template at<ForwardListBase>(0);
-                ref->next = wr_prev_ent->next;
-                wr_prev_ent->next = t;
-            }
-        };
+    };
     
 }//ns: OP::vtm
 #endif //_OP_VTM_SKPLST__H_

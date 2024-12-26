@@ -35,17 +35,21 @@ namespace OP
             template <class TSegmentManager, class Payload, std::uint32_t initial_node_count>
             friend struct Trie;
         
-            /**Snapshot of Trie current state*/
+            explicit TrieResidence(SegmentManager& manager) noexcept
+                : Slot(manager)
+            {
+            }
+
+            /** Snapshot of Trie current state */
             TrieHeader get_header() const
             {
                 return
-                    *view<TrieHeader>(*_segment_manager, _segment_address);
+                    *view<TrieHeader>(segment_manager(), _segment_address);
             }
 
         private:
             
             FarAddress _segment_address;
-            SegmentManager* _segment_manager = {}; //suppose later assignment either on `on_new_segment` or `open`
         protected:
             /**
             *   Set new root node for Trie
@@ -55,7 +59,7 @@ namespace OP
             template <class F>
             void update(F callback)
             {
-                auto wr = accessor<TrieHeader>(*_segment_manager, _segment_address);
+                auto wr = accessor<TrieHeader>(segment_manager(), _segment_address);
                 callback(*wr);
             }
 
@@ -63,35 +67,36 @@ namespace OP
             //  Overrides
             //
             /**Slot resides in zero-segment only*/
-            bool has_residence(segment_idx_t segment_idx, const SegmentManager& manager) const override
+            bool has_residence(segment_idx_t segment_idx) const override
             {
                 return segment_idx == 0; //true only for 0
             }
 
             /**Reserve enough to keep TrieHeader*/
-            segment_pos_t byte_size(FarAddress segment_address, const SegmentManager& manager) const override
+            segment_pos_t byte_size(FarAddress segment_address) const override
             {
                 assert(segment_address.segment() == 0);
                 return memory_requirement<TrieHeader>::requirement;
             }
             
-            void on_new_segment(FarAddress segment_address, SegmentManager& manager) override
+            void on_new_segment(FarAddress segment_address) override
             {
                 assert(segment_address.segment() == 0);
                 _segment_address = segment_address;
-                _segment_manager = &manager;
-                OP::vtm::TransactionGuard op_g(manager.begin_transaction()); //invoke begin/end write-op
-                *manager.wr_at<TrieHeader>(segment_address, OP::trie::WritableBlockHint::new_c)
+                OP::vtm::TransactionGuard op_g(
+                    segment_manager().begin_transaction()); //invoke begin/end write-op
+                *segment_manager().wr_at<TrieHeader>(segment_address, OP::trie::WritableBlockHint::new_c)
                     = TrieHeader(); //init with null
                 op_g.commit();
             }
-            void open(FarAddress segment_address, SegmentManager& manager) override
+
+            void open(FarAddress segment_address) override
             {
                 assert(segment_address.segment() == 0);
-                _segment_manager = &manager;
                 _segment_address = segment_address;
             }
-            void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
+
+            void release_segment(segment_idx_t segment_index) override
             {
                 /* do nothing */
             }

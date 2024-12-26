@@ -10,6 +10,8 @@
 #include <op/common/SpanContainer.h>
 #include <op/common/Unsigned.h>
 
+#include <op/flur/flur.h>
+
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/Transactional.h>
 #include <op/vtm/ShadowBufferCache.h>
@@ -38,13 +40,13 @@ namespace OP
 
             ~EventSourcingSegmentManager()
             {
-                _done_captured_worker.store(true);
+                _stop_garbage_collector.store(true);
                 if (1 == 1) 
                 {
                     std::unique_lock acc(_dispose_lock);
                     _cv_disposer.notify_one();
                 }
-                _captured_worker.join();
+                _garbage_collector.join();
             }
 
             /** Change behavior of read, what to do on detection conflict with write blocks of another transaction.
@@ -94,6 +96,7 @@ namespace OP
             [[nodiscard]] ReadonlyMemoryChunk readonly_block(
                 FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
             {
+                assert(pos.segment() == (pos + size).segment());//block must not exceed segment size
                 transaction_impl_ptr_t current_transaction = 
                     get_current_transaction().static_pointer_cast<TransactionImpl>();
 
@@ -101,106 +104,51 @@ namespace OP
                 if (_ro_tran)
                     return result;
                 RWR search_range(pos, size);
-                history_ordered_log_t transaction_log;
-
-                // find all previously used block that have any intersection with query
-                // to check if readonly block is allowed
-                const std::unique_lock acc_captured(_captured_lock);
-                auto blocks_in_touch = _captured.intersect_with(search_range);
-                if(blocks_in_touch == _captured.end() //no prev blocks at all
-                    && (hint & ReadonlyBlockHint::ro_keep_lock) != ReadonlyBlockHint::ro_keep_lock //block has no retain policy
-                    )
-                {
-                    return result;
-                }
-                auto current_isolation = _read_isolation.load();
-                for(; blocks_in_touch != _captured.end(); ++blocks_in_touch)
-                {
-                    auto& block_profile = blocks_in_touch->second;
-                    if(!block_profile._is_ro) 
-                    {// writable block
-                        //combine write & read allowed only in the same tran
-                        //check tran is the same
-                        if (current_transaction
-                            && block_profile._used_in_transaction == current_transaction->transaction_id())
-                        {// form event log ordered by history 
-                            transaction_log.emplace(blocks_in_touch);
-                        }
-                        else
-                        {//cannot capture because other WR- tran exists over this block
-                            switch( current_isolation )
-                            {
-                            default:
-                            case ReadIsolation::ReadCommitted:
-                                //do nothing, Ignore this WR block, proceed with origin RO memory. 
-                                break;
-                            case ReadIsolation::Prevent:
-                                //allow caller to retry later
-                                throw ConcurrentLockException(
-                                    "cannot capture RO while it is used as WR in other transaction, or no transaction used");
-                            case ReadIsolation::ReadUncommitted:
-                                { //DIRTY-READ logic
-                                    transaction_log.emplace(blocks_in_touch);
-                                    break;
-                                }
-                            }
-                        }
-                        
-                    }
-                }
+                if( !current_transaction )
+                    return readonly_block_no_retain(search_range, std::move(result));
+                
                 //apply all event sourced to `new_buffer`
                 shadow_buffer_t new_buffer = _shadow_buffer_cache.get(result.count());
                 memcpy(new_buffer.get(), result.at<std::uint8_t>(0), result.count()); //first copy origin from disk
-                for (; !transaction_log.empty(); transaction_log.pop())
-                {// iterate transaction log from oldest to newest and apply changes on result memory block
-                    auto& ev_src = transaction_log.top();
-                    /** there are 4 relative positions of intersection existing block and new one:
-                    * 1. existing on left:\code
-                    * [--existing--]
-                    *       [--new--]
-                    * \endcode
-                    * 2. existing on right:\code
-                    *      [--existing--]
-                    * [--new--]
-                    * \endcode
-                    * 3. existing adsorbs new:\code
-                    * [------existing------]
-                    *       [--new--]
-                    * \endcode
-                    * 4. new adsorbs existing:\code
-                    *   [-existing-]
-                    * [------new------]
-                    * \endcode
-                    */
-                    auto joined_zone = OP::zones::join_zones(search_range, ev_src->first);
-                    auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), ev_src->first.pos());
-                    assert(offset_in_src >= 0);
-                    auto offset_in_dest = OP::utils::uint_diff_int(joined_zone.pos(), pos.address);
-                    assert(offset_in_dest >= 0);
-                    memcpy(new_buffer.get() + offset_in_dest, 
-                        ev_src->second._shadow.get() + offset_in_src, 
-                        joined_zone.count()); 
+
+                if((hint & ReadonlyBlockHint::ro_keep_lock) == ReadonlyBlockHint::ro_keep_lock)
+                { //need to retain RO block
+
+                    std::unique_lock guard_history_wr(_global_history_acc);
+                    auto new_block_iter = add_global_history(
+                        search_range,
+                        BlockType::ro,
+                        current_transaction->transaction_id(),
+                        std::move(new_buffer),
+                        static_cast<std::uint8_t>(hint)
+                    );
+                    
+                    //guard that BlockType::init will be altered
+                    RAIIBlockGuard block_leaking_guard(*new_block_iter);
+
+                    current_transaction->store(new_block_iter);
+                    guard_history_wr.unlock(); // no more changes of global history list are needed
+                    auto buffer_weak = new_block_iter->_shadow.ghost();
+                    ReadonlyMemoryChunk result(std::move(buffer_weak), size, pos);
+                    std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
+                    poulate_ro_block(search_range, new_block_iter, result, current_transaction->transaction_id());
+                    block_leaking_guard.exchange(BlockType::ro); //ensure block will not be erased until tran end
+                    return result;
                 }
-                // at this point it is possible that no-tran at the outer scope, but we sure no intersection with other WR blocks
-                if(!current_transaction)
-                    return result; //just default impl
-                // at last add history record
-                // Note: if there is exactly matched block it will be also appended to multimap
-                auto buffer_weak = new_buffer.ghost();
-                auto iter = _captured.emplace(search_range,
-                    BlockProfile{true/*RO*/, 
-                    current_transaction->next_history_id(), 
-                    current_transaction->transaction_id(),
-                    std::move(new_buffer),
-                    static_cast<std::uint8_t>(hint)
-                    });
-                current_transaction->store(iter);
-                return ReadonlyMemoryChunk(std::move(buffer_weak), size, pos);
+                else // no retains, just populate buffer with intersected blocks
+                {
+                    std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
+                    ReadonlyMemoryChunk result(std::move(new_buffer), size, pos);
+                    poulate_ro_block(search_range, _global_history.end(), result, current_transaction->transaction_id());
+                    return result;
+                }
             }
+
 
             [[nodiscard]] MemoryChunk writable_block(
                 FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
             {
+                assert(pos.segment() == (pos + size).segment());//block must not exceed segment size
                 if( _ro_tran > 0)
                 {
                     throw Exception(er_ro_transaction_started);
@@ -213,35 +161,51 @@ namespace OP
                 auto result = SegmentManager::readonly_block(
                     pos, size, ReadonlyBlockHint::ro_no_hint_c); //it is not a mistake to use readonly(!)
                 shadow_buffer_t new_buffer = _shadow_buffer_cache.get(result.count()); //try reuse existing buffer
-                //first copy origin from disk
-                memcpy(
-                    new_buffer.get(), result.at<std::uint8_t>(0), result.count()); 
-                RWR search_range(pos, size);
-                //temp ordered sequence that is populated and used as a transaction log
-                history_ordered_log_t transaction_log;
-
-                // find all previously used block that have any intersection with query
-                // to check if readonly block is allowed
-                const std::unique_lock acc_captured(_captured_lock);
-                auto blocks_in_touch = _captured.intersect_with(search_range);
-                //do some optimization, if exists wide enough block that already includes queried
-
-                for(; blocks_in_touch != _captured.end(); ++blocks_in_touch)
+                if( hint != WritableBlockHint::new_c)
                 {
-                    auto& block_profile = blocks_in_touch->second;
-                    // for WR any block from another transaction is a point to reject
-                    if (block_profile._used_in_transaction != current_transaction->transaction_id())
-                    {//cannot capture because other transaction exists
+                    //first copy origin from disk
+                    memcpy(
+                        new_buffer.get(), result.at<std::uint8_t>(0), result.count()); 
+                }
+                RWR search_range(pos, size);
+
+                // Add to global history WR block
+                std::unique_lock guard_history_wr(_global_history_acc);
+                auto new_block_iter = add_global_history(
+                        search_range,
+                        BlockType::wr,
+                        current_transaction->transaction_id(),
+                        std::move(new_buffer),
+                        static_cast<std::uint8_t>(hint)
+                    );
+                //guard that BlockType::init will be altered to garbage
+                RAIIBlockGuard block_leaking_guard(*new_block_iter);
+
+                current_transaction->store(new_block_iter);
+                guard_history_wr.unlock(); // no more changes of global history list are needed
+
+                std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
+                auto [h_beg, h_end] = narrow_history_log(new_block_iter);
+                // find all previously used block that have any intersection with query
+                // to check if wr- block is allowed
+                for (auto all_iter = h_beg; all_iter != h_end; ++all_iter)
+                {
+                    const auto& block = *all_iter;
+                    if (block._type == BlockType::garbage) //only WR blocks contains changes
+                        continue;
+
+                    auto joined_zone = OP::zones::join_zones(search_range, block._range);
+                    if (joined_zone.empty())
+                        continue;
+                    // existence of ro/wr block type from another transaction is a point to reject
+                    if (block._used_in_transaction != current_transaction->transaction_id())
+                    {//cannot capture because other transaction exists and retain
                         throw ConcurrentLockException("cannot capture WR-block while it is used in another transaction");
                     }
-                    // form ordered by history event log
-                    if(!block_profile._is_ro) //only WR blocks contains changes
-                        transaction_log.emplace(blocks_in_touch);
-                }
-                //apply all event sourced to `new_buffer`
-                for (;!transaction_log.empty(); transaction_log.pop())
-                {// iterate transaction log from oldest to newest and apply changes on result memory block
-                    auto& ev_src = transaction_log.top();
+                    //same-tran ro blocks can have retain policy, just ignore
+                    if(block._type != BlockType::wr)
+                        continue;
+                    //apply event sourced to `new_buffer`
                     /** there are 4 relative positions of intersection existing block and new one:
                     * 1. existing on left:\code
                     * [--existing--]
@@ -260,28 +224,20 @@ namespace OP
                     * [------new------]
                     * \endcode
                     */
-                    auto joined_zone = OP::zones::join_zones(search_range, ev_src->first);
-                    auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), ev_src->first.pos());
-                    assert(offset_in_src >= 0);
-                    auto offset_in_dest = OP::utils::uint_diff_int(joined_zone.pos(), pos.address);
-                    assert(offset_in_dest >= 0);
-                    memcpy(new_buffer.get() + offset_in_dest, 
-                        ev_src->second._shadow.get() + offset_in_src, 
-                        joined_zone.count()); 
+                    if (hint != WritableBlockHint::new_c)
+                    {
+                        auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), block._range.pos());
+                        assert(offset_in_src >= 0);
+                        auto offset_in_dest = OP::utils::uint_diff_int(joined_zone.pos(), pos.address);
+                        assert(offset_in_dest >= 0);
+                        memcpy(new_block_iter->_shadow.get() + offset_in_dest,
+                               block._shadow.get() + offset_in_src,
+                               joined_zone.count());
+                    }
                 }
-                shadow_buffer_t buffer_weak = new_buffer.ghost();
-                // at last add history record
-                // Note: if there is exactly matched block it will be also appended to multimap
-                auto iter = _captured.emplace(
-                    std::make_pair(
-                        search_range,
-                        BlockProfile{false/*WR*/, 
-                            current_transaction->next_history_id(), 
-                            current_transaction->transaction_id(),
-                            std::move(new_buffer),
-                            static_cast<std::uint8_t>(hint) 
-                        }));
-                current_transaction->store(iter);
+                block_leaking_guard.exchange(BlockType::wr); //ensure block will not be erased until tran end
+
+                shadow_buffer_t buffer_weak = new_block_iter->_shadow.ghost();
                 return MemoryChunk(std::move(buffer_weak), size, pos);
             }
 
@@ -294,7 +250,7 @@ namespace OP
             EventSourcingSegmentManager(const char * file_name, bool create_new, bool readonly) 
                 : SegmentManager(file_name, create_new, readonly)
                 , _transaction_uid_gen(121)//just a magic number, actually it can be any number
-                , _captured_worker(&EventSourcingSegmentManager::release_captured_worker, this)
+                , _garbage_collector(&EventSourcingSegmentManager::collect_garbage, this)
             {
 
             }
@@ -308,59 +264,121 @@ namespace OP
             }
             
         private:
-            using shared_lock_t = std::shared_mutex;
-            using wr_guard_t = std::lock_guard<shared_lock_t>;
-            using ro_guard_t = std::shared_lock<shared_lock_t>;
+
+            using wr_guard_t = std::lock_guard<std::shared_mutex>;
+            using ro_guard_t = std::shared_lock<std::shared_mutex>;
 
             /** Must use 64 * 64 instead of 'segment_pos_t' as a size because merge of 2 segment_pos_t may produce 
             overflow of segment_pos_t */
             using RWR = OP::Range<far_pos_t, far_pos_t>;
             using shadow_buffer_t = ShadowBuffer;
 
+            enum class BlockType : std::uint_fast8_t
+            {
+                /** block allocated but not usable yet*/
+                init = 0,
+                ro,
+                wr,
+                garbage
+            };
             /**Properties of captured block in particular transaction*/
             struct BlockProfile
             {
-                bool _is_ro;
-                std::uint64_t _order;
-                Transaction::transaction_id_t _used_in_transaction;
-                ShadowBuffer _shadow;
-                std::uint8_t _flag;  //either ReadonlyBlockHint or WritableBlockHint
-            };
-            using block_in_use_t = OP::zones::SpanMap<RWR, BlockProfile>;
-
-            /** impl std::greater to order priority_queue in reverse order
-             from `block_in_use_t` by second._order */
-            struct comp_by_order_t 
-            {
-                bool operator ()(const typename block_in_use_t::iterator& left, const typename block_in_use_t::iterator& right) const
-                { 
-                    return left->second._order > right->second._order; 
+                BlockProfile(
+                    RWR range, 
+                    BlockType type,
+                    Transaction::transaction_id_t used_in_transaction,
+                    std::uint64_t epoch,
+                    shadow_buffer_t shadow,
+                    std::uint8_t flag
+                )
+                    : _range(range)
+                    , _type(type)
+                    , _used_in_transaction(used_in_transaction)
+                    , _epoch(epoch)
+                    , _shadow(std::move(shadow))
+                    , _flag(flag)
+                {
                 }
+
+                /** position/size of block */
+                const RWR _range;
+                /** type of retain readonly/writable (and init state) */ 
+                std::atomic<BlockType> _type = BlockType::init;
+                /** what transaction retains the block */
+                const Transaction::transaction_id_t _used_in_transaction;
+                const std::uint64_t _epoch;
+                /** shadow memory of changes */
+                shadow_buffer_t _shadow;
+                /**additional to _type optional flags either ReadonlyBlockHint or WritableBlockHint */
+                const std::uint8_t _flag;  
             };
 
-            /** temp history-ordered sequence that is populated and used as a transaction log */
-            using history_ordered_log_t = std::priority_queue<
-                typename block_in_use_t::iterator, 
-                std::vector<typename block_in_use_t::iterator>, 
-                comp_by_order_t>;
-            /** history naturally ordered sequence of events, since std::map::iterator is stable can store it.*/
-            using linear_log_t = std::vector<block_in_use_t::iterator>;
+            /** Allows guard just created BlockProfile from memory leaks. If explicit #exchange is not
+            * called block automatically marked to #BlockType::garbage at guard scope exit.
+            */
+            struct RAIIBlockGuard
+            {
+                explicit RAIIBlockGuard(BlockProfile& block)
+                    : _block(block)
+                    , _origin_type(_block._type.load())
+                {
+                }
+
+                ~RAIIBlockGuard()
+                {
+                    if (_origin_type != BlockType::garbage)
+                    {
+                        _block._type = BlockType::garbage;
+                    }
+                }
+
+                /** @return previous block type value. */
+                [[maybe_unused]] BlockType exchange(BlockType new_type)
+                {
+                    auto result = _block._type.exchange(new_type);
+                    _origin_type = BlockType::garbage; //prevent destroying at destructor
+                    return result;
+                }
+
+                BlockProfile& _block;
+                BlockType _origin_type;
+            };
+
+            using history_t = std::list<BlockProfile>;
+            using history_iterator_t = typename history_t::iterator;
+
+            history_t _global_history;
+            std::atomic<std::uint64_t> _epoch{0};
+            mutable std::shared_mutex _global_history_acc;
+
+            enum class TransactionState : std::uint8_t
+            {
+                /** Transaction state when commit/rollbacks are possible and allowed */
+                active = 0,
+                /** Transaction state when only rollbacks are allowed (1) */
+                sealed_rollback_only,
+                /** Transaction state when no other operations are allowed (2) */
+                sealed_noop
+            };
             
-            using transaction_state_t = std::uint8_t;
-            /**Transaction state when only rollbacks are allowed*/
-            static constexpr transaction_state_t ts_active_c = 0;
-            /**Transaction state when only rollbacks are allowed*/
-            static constexpr transaction_state_t ts_sealed_rollback_only_c = ts_active_c + 1;
-            /**Transaction state when no other operations are allowed*/
-            static constexpr transaction_state_t ts_sealed_noop_c = ts_sealed_rollback_only_c+1;
+            /** support evolution of TransactionState when commit/rollback happens */
+            static TransactionState& next_state(TransactionState& state) noexcept
+            {
+                return reinterpret_cast<TransactionState&>(
+                    ++reinterpret_cast<std::uint8_t&>(state));
+            }
 
-            struct TransactionImpl;
-
+            /** Soft implementation of Transaction when caller tries create nested transactions. Mostly
+            * delegates all implementation to the parent `TImpl
+            */ 
+            template <class TImpl>
             struct SavePoint : public Transaction
             {
-                using iterator = typename linear_log_t::iterator;
+                using transaction_log_t = decltype(TImpl::_transaction_log); //aka std::vector<history_iterator_t>
+                using log_iterator_t = typename transaction_log_t::iterator;
 
-                SavePoint(TransactionImpl* framed_tran)
+                SavePoint(TImpl* framed_tran)
                     : Transaction(framed_tran->transaction_id())
                     , _framed_tran(framed_tran)
                 {
@@ -369,42 +387,64 @@ namespace OP
 
                 void commit() override
                 {
-                    if(_tr_state >= ts_sealed_rollback_only_c)
+                    if(_tr_state >= TransactionState::sealed_rollback_only)
                         throw Exception(ErrorCode::er_transaction_ghost_state);
+                    bool has_something_to_erase = false;
                     // No real commit for WR, since save point have to wait until entire transaction complete
                     // but we can remove all read locks unless ReadonlyBlockHint::ro_keep_lock used
-                    _framed_tran->_owner.apply_transaction_log(
-                        begin(), _framed_tran->_transaction_log.end(),
-                        [](const auto& map_iter){
-                            return map_iter->second._is_ro //block for read
-                             && !(map_iter->second._flag & (std::uint8_t)ReadonlyBlockHint::ro_keep_lock); //keep lock in tran
-                        });
-                    ++_tr_state;
+                    for(auto i = begin(), iend = end(); i != iend; ++i)
+                    {
+                        auto& block = **i;
+                        if(block._type == BlockType::ro //block for read
+                             && !(block._flag & (std::uint8_t)ReadonlyBlockHint::ro_keep_lock) //keep lock in tran
+                           )
+                        {
+                            block._type = BlockType::garbage; //mark block as garbage for future wipe
+                            has_something_to_erase = true;
+                        }
+                    }
+                    if(has_something_to_erase)
+                        _framed_tran->_owner._cv_disposer.notify_one();
+                    next_state(_tr_state); //disable changes in this
                 }
 
                 void rollback() override
                 {
-                    if(_tr_state >= ts_sealed_noop_c)
+                    if(_tr_state >= TransactionState::sealed_noop)
                         throw Exception(ErrorCode::er_transaction_ghost_state);
-                    _framed_tran->_owner.apply_transaction_log(begin(), _framed_tran->_transaction_log.end(),
-                        [](const auto& ){return true;/* on rollback remove all used blocks*/});
-                    ++_tr_state;
+                    bool has_something_to_erase = false;
+                    for (auto i = begin(), iend = end(); i != iend; ++i)
+                    {
+                        auto& block = **i;
+                        /* on rollback remove all collected in this scope blocks*/
+                        block._type = BlockType::garbage; //mark block as garbage for future wipe
+                        has_something_to_erase = true;
+                    }
+
+                    if (has_something_to_erase)
+                        _framed_tran->_owner._cv_disposer.notify_one();
+                    next_state(_tr_state);
                 }
 
-                iterator begin() const
+                log_iterator_t begin() const
                 {
                     return _framed_tran->_transaction_log.begin() + _from;
                 }
-                
+
+                log_iterator_t end() const
+                {
+                    return _framed_tran->_transaction_log.end();
+                }
+                /** delegate call to the framed transaction */
                 void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
                 {
                     _framed_tran->register_handle(std::move(handler));
                 }
                 
-                TransactionImpl* _framed_tran;
+                TImpl* _framed_tran;
                 size_t _from;
                 /**After commit/rollback SavePoint must not be used anymore*/
-                transaction_state_t _tr_state = ts_active_c;
+                TransactionState _tr_state = TransactionState::active;
             };
             
             /** Implement Transaction interface */
@@ -425,11 +465,11 @@ namespace OP
                 }
 
                 /**Form transaction log*/
-                void store(const typename block_in_use_t::iterator& pos)
+                void store(history_iterator_t block)
                 {
-                    if(_tr_state)
+                    if(_tr_state != TransactionState::active)
                         throw Exception(ErrorCode::er_transaction_ghost_state);
-                    _transaction_log.emplace_back(pos);
+                    _transaction_log.emplace_back(std::move(block));
                 }
                 
                 virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
@@ -439,7 +479,7 @@ namespace OP
                 
                 void rollback() override
                 {
-                    if(_tr_state >= ts_sealed_noop_c)
+                    if(_tr_state >= TransactionState::sealed_noop)
                         throw Exception(ErrorCode::er_transaction_ghost_state);
                     //invoke events on transaction end
                     for (auto& ev : _end_listener)
@@ -447,20 +487,19 @@ namespace OP
                         ev->on_rollback();
                     }
 
-                    _owner.apply_transaction_log(_transaction_log.begin(), _transaction_log.end(), 
-                            [this]( auto& map_iter){
-                                //let's postpone real memory dealloc for background worker
-                                _owner._shadow_buffer_cache.utilize(std::move(map_iter->second._shadow));
-                                return true; /*unconditionally erase all blocks*/
-                    });
-                    
+                    for(auto& block_iter: _transaction_log)
+                    {
+                        auto& block = *block_iter;
+                        block._type = BlockType::garbage;
+                    }
+
                     //notify background worker to dispose this tran
                     _owner.dispose_transaction(transaction_ptr_t{ TransactionShareMode{}, this });
                 }
 
                 void commit() override
                 {
-                    if(_tr_state >= ts_sealed_rollback_only_c)
+                    if(_tr_state >= TransactionState::sealed_rollback_only)
                         throw Exception(ErrorCode::er_transaction_ghost_state);
                     //invoke events on transaction end
                     for (auto& ev : _end_listener)
@@ -468,47 +507,39 @@ namespace OP
                         ev->on_commit();
                     }
 
-                    //iterate all save-points in direct order and apply commit
-                    _owner.apply_transaction_log(_transaction_log.begin(), _transaction_log.end(), 
-                            [&, this](auto&map_iter){
-                                if( !map_iter->second._is_ro )
-                                {//copy shadow buffer to disk
-                                    //block must not exceed segment size
-                                    assert(map_iter->first.count() < std::numeric_limits<segment_pos_t>::max());
-                                    segment_pos_t byte_size = static_cast<segment_pos_t>(map_iter->first.count());
-                                    auto mb = _owner.raw_writable_block(
-                                            FarAddress(map_iter->first.pos()), 
-                                            byte_size,
-                                            (WritableBlockHint)map_iter->second._flag );
-                                    mb.byte_copy(map_iter->second._shadow.get(), byte_size);
-                                }
-                                _owner._shadow_buffer_cache.utilize(std::move(map_iter->second._shadow));
-                                return true; //ask owner remove all references
-                            });
-                    
+                    for (auto& block_iter : _transaction_log)
+                    {
+                        auto& block = *block_iter;
+                        if(block._type == BlockType::wr)
+                        { //write-out changes
+                            segment_pos_t byte_size = static_cast<segment_pos_t>(block._range.count());
+                            auto mb = _owner.raw_writable_block(
+                                FarAddress(block._range.pos()),
+                                byte_size,
+                                (WritableBlockHint)block._flag);
+                            mb.byte_copy(block._shadow.get(), byte_size);
+                        }
+                        block._type = BlockType::garbage;
+                    }
+
                     //notify background worker to dispose this tran
-                    _owner.dispose_transaction(transaction_ptr_t(TransactionShareMode{}, this));
+                    _owner.dispose_transaction(transaction_ptr_t{ TransactionShareMode{}, this });
+
                 }
                 
                 /**Allows discover state if transaction still exists (not in ghost state) */
                 bool is_active() const
                 {
-                    return _tr_state == ts_active_c;
+                    return _tr_state == TransactionState::active;
                 }
-
-                std::uint64_t next_history_id()
-                {
-                    return _gen_block_history.fetch_add(1, std::memory_order_relaxed);
-                }
-
+                
                 EventSourcingSegmentManager& _owner;
-                std::atomic_uint64_t _gen_block_history{0};
 
                 using transaction_end_listener_t = std::vector<std::unique_ptr<BeforeTransactionEnd>>;
 
-                transaction_state_t _tr_state = ts_active_c;
-                linear_log_t _transaction_log;
-                size_t _max_save_point_size = 0; //just for heuristic
+                TransactionState _tr_state = TransactionState::active;
+
+                std::vector<history_iterator_t> _transaction_log;
                 transaction_end_listener_t _end_listener;
                 
             };
@@ -563,18 +594,141 @@ namespace OP
             {
                 return SegmentManager::writable_block(pos, size, hint);
             }
+
+            /** Just take already existing block and check how it intersects with existing captured WR blocks */
+            ReadonlyMemoryChunk readonly_block_no_retain(
+                RWR search_range, ReadonlyMemoryChunk&& raw)
+            {
+                auto current_isolation = _read_isolation.load();
+                //apply all event sourced to `new_buffer`
+                
+                shadow_buffer_t new_buffer = _shadow_buffer_cache.get(raw.count());//note: recycle of this buffer in future is impossible
+                memcpy(new_buffer.get(), raw.at<std::uint8_t>(0), raw.count()); //copy origin persisted memory from disk
+
+                std::shared_lock guard_history_ro(_global_history_acc);
+                auto [all_iter, h_end] = narrow_history_log(_global_history.end());
+                // find all previously used block that have any intersection with query
+                // to check if readonly block is allowed
+                for (; all_iter != h_end; ++all_iter)
+                {
+                    const auto& block = *all_iter;
+                    // iterate transaction log from oldest to newest and apply changes on 'raw' memory block                    
+                    if (block._type != BlockType::wr)
+                        continue;
+                    auto joined_zone = OP::zones::join_zones(search_range, block._range);
+
+                    if (joined_zone.empty())
+                        continue;
+
+                    //cannot capture because other WR- tran exists over this block
+                    switch (current_isolation)
+                    {
+                        case ReadIsolation::Prevent:
+                            //allow caller to retry later
+                            throw ConcurrentLockException(
+                                "cannot capture RO while it is used as WR in other transaction, or no transaction used");
+                        case ReadIsolation::ReadUncommitted:
+                        { //DIRTY-READ logic
+                            auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), block._range.pos());
+                            assert(offset_in_src >= 0);
+                            auto offset_in_dest = OP::utils::uint_diff_int(joined_zone.pos(), search_range.pos());
+                            assert(offset_in_dest >= 0);
+                            memcpy(new_buffer.get() + offset_in_dest,
+                                    block._shadow.get() + offset_in_src,
+                                    joined_zone.count());
+                            break;
+                        }
+                        case ReadIsolation::ReadCommitted:
+                            [[fallthrough]];
+                        default:
+                            break; //jump to next of for
+                    }
+                    //do nothing, Ignore this WR block, proceed with origin RO memory. 
+                }
+                return ReadonlyMemoryChunk(std::move(new_buffer), raw.count(), raw.address());
+            }
+
+            void poulate_ro_block(const RWR& search_range, history_iterator_t end, 
+                ReadonlyMemoryChunk& memory, Transaction::transaction_id_t current_tran)
+            {
+                auto current_isolation = _read_isolation.load();
+                auto [all_iter, h_end] = narrow_history_log(std::move(end));
+                // find all previously used block that have any intersection with query
+                // to check if readonly block is allowed
+                for (; all_iter != h_end; ++all_iter)
+                {
+                    const auto& block = *all_iter;
+                    // iterate transaction log from oldest to newest and apply changes on result memory block                    
+                    if (block._type != BlockType::wr)
+                        continue;
+                    auto joined_zone = OP::zones::join_zones(search_range, block._range);
+                    if (joined_zone.empty())
+                        continue;
+                    if (block._used_in_transaction != current_tran)
+                    {//another WR- tran exists over this block
+                        switch (current_isolation)
+                        {
+                        case ReadIsolation::Prevent:
+                        {
+                            //block_leaking_guard ensures that: `new_block_iter->_type = garbage`
+                            //exception, but caller may retry later
+                            throw ConcurrentLockException(
+                                "cannot capture RO while it is used as WR in other transaction, or no transaction used");
+                        }
+                        case ReadIsolation::ReadUncommitted:
+                        { //DIRTY-READ logic, further code will copy this dirty chunk
+                            break;
+                        }
+                        case ReadIsolation::ReadCommitted:
+                            [[fallthrough]];
+                        default:
+                            //do nothing, Ignore this WR block, proceed with origin RO memory. 
+                            continue; //jump to next of for
+                        }
+                    }
+                    /** there are 4 relative positions of intersection existing block and new one:
+                    * 1. existing on left:\code
+                    * [--existing--]
+                    *       [--new--]
+                    * \endcode
+                    * 2. existing on right:\code
+                    *      [--existing--]
+                    * [--new--]
+                    * \endcode
+                    * 3. existing adsorbs new:\code
+                    * [------existing------]
+                    *       [--new--]
+                    * \endcode
+                    * 4. new adsorbs existing:\code
+                    *   [-existing-]
+                    * [------new------]
+                    * \endcode
+                    */
+                    auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), block._range.pos());
+                    assert(offset_in_src >= 0);
+                    auto offset_in_dest = OP::utils::uint_diff_int(joined_zone.pos(), search_range.pos());
+                    assert(offset_in_dest >= 0);
+
+                    memcpy(memory.pos() + offset_in_dest,
+                        block._shadow.get() + offset_in_src,
+                        joined_zone.count());
+
+                }
+            }
+
             void dispose_transaction(transaction_impl_ptr_t tran)
             {
-                {
+                auto erased_tran_id = tran->transaction_id();
+                {//block to place tran to garbage collector
                     std::unique_lock acc (_dispose_lock);
-                    _ready_to_dispose.emplace_back(tran);
+                    _ready_to_dispose.emplace_back(std::move(tran));
                     _cv_disposer.notify_one();
                 }
+                // iterate association with threads (potentially can be more than one) and erase matches with tran-id
                 const wr_guard_t acc_capt(_opened_transactions_lock);
-                
                 for(auto i = _opened_transactions.begin(); i != _opened_transactions.end(); )
                 {
-                    if (tran->transaction_id() == i->second->transaction_id())
+                    if (erased_tran_id == i->second->transaction_id())
                     {
                         i = _opened_transactions.erase(i);
                     }
@@ -583,75 +737,81 @@ namespace OP
                 }
             }
 
-            /**
-            * \tparam F - action in form `bool (const& typename block_in_use_t::iterator)` to apply to iterator from 
-            *               _captured. Method invoked under mutex, so it already thread safe.
-            *               Action must return true - to remove entry from SavePoint and _captured, false to leave as is
-            * 
-            */
-            template <class F>
-            void apply_transaction_log(typename linear_log_t::iterator from, typename linear_log_t::iterator to, F action )
+            /** Worker method to wipe from _global_history not used references*/
+            void collect_garbage()
             {
-                const std::unique_lock acc_captured(_captured_lock);
-                const auto captured_end = _captured.end();
-                for(; from != to; ++from)
+                while(!_stop_garbage_collector.load())
                 {
-                    auto& map_iter = (*from); //resolve map's iterator
-                    //to compare use property of map's iterator stability
-                    if (captured_end != map_iter && action(map_iter))
-                    { // may be safely wiped
-                        _captured.erase(map_iter);
-                        // Cannot erase iterator because deque doesn't grant stable position for 
-                        // stored references, instead place _captured.end()
-                        *from = _captured.end();
-                    }
-                }
-            }
-
-            /** Worker method to wipe from _captured not used references*/
-            void release_captured_worker()
-            {
-                while(!_done_captured_worker.load())
-                {
+                    //dispose closed transactions
                     std::unique_lock<std::mutex> acc_job(_dispose_lock);
-                    if(_ready_to_dispose.empty())
+                    if(!_ready_to_dispose.empty())
                     {
-                        //release lock and wait queue is not empty
-                        _cv_disposer.wait(acc_job, [this](){
-                                return !_ready_to_dispose.empty() || _done_captured_worker.load();
-                            });
-                        if (_ready_to_dispose.empty())
+                        //take one to destroy
+                        auto tran = std::move(_ready_to_dispose.back());
+                        _ready_to_dispose.pop_back();
+                        acc_job.unlock(); //allow contribute from another thread
+
+                        //utilize all shadow buffers and wipe entry from global history
+                        for (auto& block_iter : tran->_transaction_log)
                         {
-                            acc_job.unlock();
-                            continue;  //still empty just retry
+                            auto& block = *block_iter;
+                            _shadow_buffer_cache.utilize(std::move(block._shadow)); //allow shadow memory reuse
+                            std::lock_guard g(_global_history_acc);//short lock to remove item from global history
+                            _global_history.erase(block_iter);
                         }
                     }
-                    auto wipe_tran = _ready_to_dispose.back();
-                    _ready_to_dispose.pop_back();
-                    //can unlock since no more operations with queue 
-                    acc_job.unlock();                                                                          
-                    //dispose all save-points
-                    wipe_tran->_transaction_log.clear();//nobody uses this tran anymore - so no locks
+                    else //put on wait until something appear or full GC stop
+                        _cv_disposer.wait(acc_job, [this](){
+                            return _stop_garbage_collector || !_ready_to_dispose.empty();
+                        });
                 }
             }
 
-            using opened_transactions_t = std::unordered_map<std::thread::id, transaction_ptr_t> ;
+            /** \return position in _global_history where item has been added. 
+            *   \pre `_global_history_acc` is unique locked
+            */
+            history_iterator_t add_global_history(
+                RWR search_range, BlockType type, Transaction::transaction_id_t transaction_id,
+                ShadowBuffer buffer, std::uint8_t flag)
+            {
+                _global_history.emplace_back(
+                    search_range,
+                    type,
+                    transaction_id,
+                    ++ _epoch,
+                    std::move(buffer),
+                    flag
+                );
+                
+                auto new_block_iter = _global_history.end();
+                --new_block_iter;
+                return new_block_iter;
+            }
 
-            block_in_use_t _captured;
+            /** \brief Tries to improve (narrow) heuristic of scanning _global_history
+            *   \pre `_global_history_acc` at least is share locked
+            */
+            std::pair<history_iterator_t, history_iterator_t> narrow_history_log(history_iterator_t end) 
+            {
+                return std::pair{ _global_history.begin(), std::move(end) };
+            }
+
             ShadowBufferCache _shadow_buffer_cache = {};
-            mutable std::mutex _captured_lock;
-            mutable shared_lock_t _opened_transactions_lock;
+
+            using opened_transactions_t = std::unordered_map<std::thread::id, transaction_ptr_t>;
             opened_transactions_t _opened_transactions;
+            mutable std::shared_mutex _opened_transactions_lock;
+
             std::atomic<Transaction::transaction_id_t> _transaction_uid_gen;
 
             /**Allows notify background worker to check for some job*/
             std::condition_variable _cv_disposer;
-            std::atomic<bool> _done_captured_worker = false;
+            std::atomic<bool> _stop_garbage_collector = false;
             std::atomic<size_t> _ro_tran = 0;
             mutable std::mutex _dispose_lock;
             std::deque<transaction_impl_ptr_t> _ready_to_dispose;
-            /**background worker to release redundant records from _captured*/
-            std::thread _captured_worker;
+            /**background worker to release redundant records from history */
+            std::thread _garbage_collector;
             std::atomic<ReadIsolation> _read_isolation = ReadIsolation::ReadCommitted;
         };
         

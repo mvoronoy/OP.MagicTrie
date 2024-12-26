@@ -186,7 +186,7 @@ namespace OP::vtm
     };
 
     template <typename ch, typename char_traits>
-    std::basic_ostream<ch, char_traits>& operator<<(std::basic_ostream<ch, char_traits>& os, FarAddress const& addr)
+    std::basic_ostream<ch, char_traits>& operator <<(std::basic_ostream<ch, char_traits>& os, FarAddress const& addr)
     {
         auto old_flags = os.flags(); 
         os << std::setw(8) << std::setbase(16) << std::setfill(os.widen('0')) 

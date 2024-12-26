@@ -18,16 +18,29 @@ namespace OP::vtm
 {
     using namespace OP::utils;
     /**
+    * Data structure for persistent layer supports allocate/deallocate methods for fixed size blocks. It is 
+    * more efficient than service provided by #HeapManager that deals with arbitrary size memory blocks.
+    * 
+    * @tparam Payload regular (POJO) structure that should be allocated/deallocated by this manager.
     * @tparam Capacity number of #Payload entries in this container
     */
     template <class Payload, std::uint32_t Capacity>
     struct FixedSizeMemoryManager : public Slot
     {
         static_assert(Capacity > 1, "Capacity template argument must be greater than 0");
+        static_assert(std::is_standard_layout_v<Payload>, "parameter Payload must be standard layout to be persisted correctly");
 
         typedef Payload payload_t;
         typedef FixedSizeMemoryManager<Payload, Capacity> this_t;
+
+        explicit FixedSizeMemoryManager(SegmentManager& manager)
+            : Slot(manager)
+        {
+        }
+
         /**
+        * Allocate and construct in-place Payload.
+        * 
         *   \tparam Args - optional argument of Payload constructor.
         */
         template <class ... Args>
@@ -51,25 +64,25 @@ namespace OP::vtm
         {
             if (n < 1)
                 return;
-            OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
-            auto avail_segments = _segment_manager->available_segments();
+            OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction()); //invoke begin/end write-op
+            auto avail_segments = segment_manager().available_segments();
             //capture ZeroHeader for write during 10 tries
             ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<60>([this]()
                 {
-                    return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
+                    return segment_manager().wr_at<ZeroHeader>(_zero_header_address);
                 });
             size_t i = 0;
             for (FarAddress* result = out_allocs; n; --n, ++result, ++i)
             {
                 if (header->_next == SegmentDef::far_null_c)
                 {  //need allocate new segment
-                    _segment_manager->ensure_segment(avail_segments);
+                    segment_manager().ensure_segment(avail_segments);
                 }
                 //just to ensure last version of block. No locks required - since previous WR already captured
-                header = _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
+                header = segment_manager().wr_at<ZeroHeader>(_zero_header_address);
                 //`writable_block` used instead of `wr_at` to capture full block to improve transaction speed
-                auto void_block = _segment_manager->writable_block(
-                    FarAddress(header->_next), entry_size_c, WritableBlockHint::block_for_write_c);
+                auto void_block = segment_manager().writable_block(
+                    FarAddress(header->_next), entry_size_c, WritableBlockHint::update_c);
 
                 auto* block = void_block.at<FreeBlockHeader>(0);
 
@@ -97,7 +110,7 @@ namespace OP::vtm
                     //        _segment_manager, avail_segments);
                     //}
                 }
-                constr(i, _segment_manager->wr_at<payload_t>(*result));
+                constr(i, segment_manager().wr_at<payload_t>(*result));
                 --header->_in_free;
                 ++header->_in_alloc;
             }
@@ -115,15 +128,15 @@ namespace OP::vtm
                 using namespace std::string_literals;
                 throw std::runtime_error("Address doesn't belong to "s + typeid(*this).name());
             }
-            OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
+            OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction()); //invoke begin/end write-op
             //capture ZeroHeader for write during 10 tries
             auto header = OP::vtm::template transactional_yield_retry_n<10>([this]()
                 {
-                    return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
+                    return segment_manager().wr_at<ZeroHeader>(_zero_header_address);
                 });
 
             //following will raise ConcurrentLockException immediately, if 'addr' cannot be locked
-            auto entry = _segment_manager->writable_block(
+            auto entry = segment_manager().writable_block(
                 addr, entry_size_c, WritableBlockHint::block_for_write_c);
 
             payload_t* to_free = entry.template at<payload_t>(0);
@@ -137,25 +150,23 @@ namespace OP::vtm
             op_g.commit();
         }
 
-        void _check_integrity(FarAddress segment_addr, SegmentManager& manager) override
+        void _check_integrity(FarAddress segment_addr) override
         {
             if (segment_addr.segment() != 0)
                 return;
             std::lock_guard guard(_topology_mutex);
+            auto ro_block = segment_manager().readonly_block(
+                _zero_header_address, memory_requirement<ZeroHeader>::requirement);
             //check from _zero_header_address
             auto header =
-                manager.readonly_block(
-                    _zero_header_address, memory_requirement<ZeroHeader>::requirement)
-                    .template at<ZeroHeader>(0);
+                    ro_block.template at<ZeroHeader>(0);
             FarAddress block_addr = FarAddress{ header->_next };
             size_t n_free_blocks = 0;
             //count all free blocks
             while (block_addr != SegmentDef::far_null_c)
             {
-                const FreeBlockHeader* mem_block =
-                    manager.readonly_block(
-                        block_addr, entry_size_c)
-                    .template at<FreeBlockHeader>(0);
+                auto ro_block = segment_manager().readonly_block(block_addr, entry_size_c);
+                const FreeBlockHeader* mem_block = ro_block.template at<FreeBlockHeader>(0);
                 if ((mem_block->_adjacent_count + 1) > Capacity)
                 {
                     std::ostringstream error;
@@ -170,7 +181,7 @@ namespace OP::vtm
                 block_addr =
                     FarAddress(mem_block->_next);
             }
-            if (manager.available_segments() * Capacity < n_free_blocks)
+            if (segment_manager().available_segments() * Capacity < n_free_blocks)
             {
                 std::ostringstream error;
                 error << typeid(this).name()
@@ -185,11 +196,10 @@ namespace OP::vtm
         */
         std::pair<size_t, size_t> usage_info() const
         {
+            auto ro_block = segment_manager().readonly_block(
+                _zero_header_address, memory_requirement<ZeroHeader>::requirement);
             //check from _zero_header_address
-            auto header =
-                _segment_manager->readonly_block(
-                    _zero_header_address, memory_requirement<ZeroHeader>::requirement)
-                    .template at<ZeroHeader>(0);
+            auto header = ro_block.template at<ZeroHeader>(0);
             return std::make_pair(header->_in_alloc, header->_in_free);
         }
 
@@ -227,14 +237,14 @@ namespace OP::vtm
 
     protected:
 
-        bool has_residence(segment_idx_t segment_idx, const SegmentManager& manager) const override
+        bool has_residence(segment_idx_t segment_idx) const override
         {
             return true; //always true, has always FixedSizeMemoryManager in each segment
         }
         /**
         *   @return byte size that should be reserved inside segment.
         */
-        segment_pos_t byte_size(FarAddress segment_address, const SegmentManager& manager) const override
+        segment_pos_t byte_size(FarAddress segment_address) const override
         {
             segment_pos_t result = 0;
             auto addr_emulation = segment_address.address;
@@ -256,13 +266,12 @@ namespace OP::vtm
         /**
         *   Make initialization of slot in the specified segment as specified offset
         */
-        void on_new_segment(FarAddress start_address, SegmentManager& manager) override
+        void on_new_segment(FarAddress start_address) override
         {
             std::lock_guard guard(_topology_mutex);
 
-            _segment_manager = &manager;
             FarAddress blocks_begin;
-            OP::vtm::TransactionGuard op_g(_segment_manager->begin_transaction()); //invoke begin/end write-op
+            OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction()); //invoke begin/end write-op
             ZeroHeader* header;
             if (start_address.segment() == 0)
             { //create special entry for ZeroHeader
@@ -272,23 +281,23 @@ namespace OP::vtm
                 _zero_header_address = blocks_begin;
                 blocks_begin += memory_requirement<ZeroHeader>::requirement;
                 //capturing zero-block 
-                header = _segment_manager->wr_at<ZeroHeader>(
+                header = segment_manager().wr_at<ZeroHeader>(
                     _zero_header_address, WritableBlockHint::new_c);
-                *header = ZeroHeader{ SegmentDef::far_null_c };
+                new (header) ZeroHeader{ SegmentDef::far_null_c };
             }
             else
             {
                 header = OP::vtm::template transactional_yield_retry_n<10>([this]()
                     {
-                        return _segment_manager->wr_at<ZeroHeader>(_zero_header_address);
+                        return segment_manager().wr_at<ZeroHeader>(_zero_header_address);
                     });
                 header->_in_free += Capacity;
                 blocks_begin = FarAddress(
                     OP::utils::align_on(start_address.address, max_entry_align_c));
             }
             FreeBlockHeader* big_chunk =
-                _segment_manager->wr_at<FreeBlockHeader>(blocks_begin, WritableBlockHint::new_c);
-            *big_chunk = FreeBlockHeader{
+                segment_manager().wr_at<FreeBlockHeader>(blocks_begin, WritableBlockHint::new_c);
+            new (big_chunk) FreeBlockHeader{
                 header->_next,
                 Capacity - 1 // (-1) since when (adjacent == 0) we have exact 1 free block
             };
@@ -300,10 +309,9 @@ namespace OP::vtm
         /**
         *   Perform slot opening in the specified segment as specified offset
         */
-        void open(FarAddress start_address, SegmentManager& manager) override
+        void open(FarAddress start_address) override
         {
             std::lock_guard guard(_topology_mutex);
-            _segment_manager = &manager;
             if (start_address.segment() == 0)
             {
                 _zero_header_address = start_address;
@@ -311,7 +319,7 @@ namespace OP::vtm
         }
         
         /**Notify slot that some segment should release resources. It is not about deletion of segment, but deactivating it*/
-        void release_segment(segment_idx_t segment_index, SegmentManager& manager) override
+        void release_segment(segment_idx_t segment_index) override
         {
 
         }
@@ -325,7 +333,6 @@ namespace OP::vtm
         /**When FreeBlockHeader and Payload occupies the same memory - both entries must be aligned properly*/
         constexpr static const size_t max_entry_align_c =
             std::max(alignof(Payload), alignof(FreeBlockHeader));
-        SegmentManager* _segment_manager = nullptr;
         FarAddress _zero_header_address;
         std::mutex _topology_mutex;
     };
