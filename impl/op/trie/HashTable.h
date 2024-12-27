@@ -1,17 +1,20 @@
 #ifndef _OP_TRIE_HASHTABLE__H_
 #define _OP_TRIE_HASHTABLE__H_
 
+#include <op/common/astr.h>
+
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/PersistedReference.h>
+
 #include <op/trie/Containers.h>
 #include <op/trie/KeyValueContainer.h>
 
 namespace OP::trie::containers
 {
 
+    using atom_t = OP::common::atom_t;
     namespace details
     {
-        using atom_t = OP::common::atom_t;
         /**
         *  Define how many steps may make hash-table algorithm with open address
         *  table before give-up to locate correct item

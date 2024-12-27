@@ -290,7 +290,7 @@ namespace OP::currying
         {
             constexpr static decltype(auto) inject(TSource& src)
             {
-                return src.extract<TDest>();
+                return src.template extract<TDest>();
             }
 
             constexpr static bool can_handle(bool strong) noexcept
@@ -425,7 +425,7 @@ namespace OP::currying
 
         /** Invoke functor `func` with positional substitution from this tuple */
         template <typename TCallable, typename ... Ax>
-        constexpr decltype(auto) invoke(TCallable& func, Ax&&...ax) &
+        constexpr decltype(auto) invoke(TCallable func, Ax&&...ax) &
         {
             using traits_t = OP::utils::function_traits<TCallable>;
             if constexpr (sizeof...(Ax))
@@ -440,7 +440,7 @@ namespace OP::currying
         }
 
         template <typename TCallable, typename ... Ax>
-        constexpr decltype(auto) invoke(TCallable& func, Ax&&...ax) &&
+        constexpr decltype(auto) invoke(TCallable func, Ax&&...ax) &&
         {
             using traits_t = OP::utils::function_traits<TCallable>;
             if constexpr (sizeof...(Ax))

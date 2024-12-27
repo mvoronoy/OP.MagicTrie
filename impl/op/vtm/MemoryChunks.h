@@ -3,6 +3,7 @@
 #define _OP_VTM_MEMORYCHUNKS__H_
 
 #include <cstdint>
+#include <string.h>
 #include <memory>
 
 #include <op/vtm/typedefs.h>

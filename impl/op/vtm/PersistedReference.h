@@ -15,33 +15,33 @@ namespace OP::vtm
     template <class T>
     struct PersistedReference
     {
-        static_assert(std::is_standard_layout_v<T>, "only  standard-layout allowed in persisted hash-table");
+        static_assert(std::is_standard_layout_v<T>, "only standard-layout allowed in persisted hash-table");
 
         using element_t = T;
 
         constexpr explicit PersistedReference(FarAddress aadr) noexcept
-            : address(aadr)
+            : _address(aadr)
         {}
         
         constexpr PersistedReference() noexcept
-            : address{}
+            : _address{}
         {}
         
         template <class TSegmentManager>
         T* ref(TSegmentManager& manager)
         {
-            return manager.template wr_at<T>(address);
+            return manager.template wr_at<T>(_address);
         }
         
         constexpr bool is_nil() const noexcept
         {
-            return address.is_nil();
+            return _address.is_nil();
         }
 
         template <class TSegmentManager, class ... Args>
         T* construct(TSegmentManager& manager, Args&& ... args) const
         {
-            return new (manager.template wr_at<T>(address)) T(std::forward<Args>(args)...);
+            return new (manager.template wr_at<T>(_address)) T(std::forward<Args>(args)...);
         }
         
         constexpr FarAddress address() const noexcept
@@ -51,7 +51,7 @@ namespace OP::vtm
 
         void address(FarAddress new_addr) noexcept
         {
-            _address = new_addr
+            _address = new_addr;
         }
 
     private:

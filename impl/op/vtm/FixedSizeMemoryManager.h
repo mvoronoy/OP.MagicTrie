@@ -69,7 +69,7 @@ namespace OP::vtm
             //capture ZeroHeader for write during 10 tries
             ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<60>([this]()
                 {
-                    return segment_manager().wr_at<ZeroHeader>(_zero_header_address);
+                    return segment_manager().template wr_at<ZeroHeader>(_zero_header_address);
                 });
             size_t i = 0;
             for (FarAddress* result = out_allocs; n; --n, ++result, ++i)
@@ -79,12 +79,12 @@ namespace OP::vtm
                     segment_manager().ensure_segment(avail_segments);
                 }
                 //just to ensure last version of block. No locks required - since previous WR already captured
-                header = segment_manager().wr_at<ZeroHeader>(_zero_header_address);
+                header = segment_manager().template wr_at<ZeroHeader>(_zero_header_address);
                 //`writable_block` used instead of `wr_at` to capture full block to improve transaction speed
                 auto void_block = segment_manager().writable_block(
                     FarAddress(header->_next), entry_size_c, WritableBlockHint::update_c);
 
-                auto* block = void_block.at<FreeBlockHeader>(0);
+                auto* block = void_block.template at<FreeBlockHeader>(0);
 
                 if (block->_adjacent_count > 0)
                 {//there are adjacent blocks more than one, so don't care about following list of other
@@ -110,7 +110,7 @@ namespace OP::vtm
                     //        _segment_manager, avail_segments);
                     //}
                 }
-                constr(i, segment_manager().wr_at<payload_t>(*result));
+                constr(i, segment_manager().template wr_at<payload_t>(*result));
                 --header->_in_free;
                 ++header->_in_alloc;
             }
@@ -132,7 +132,7 @@ namespace OP::vtm
             //capture ZeroHeader for write during 10 tries
             auto header = OP::vtm::template transactional_yield_retry_n<10>([this]()
                 {
-                    return segment_manager().wr_at<ZeroHeader>(_zero_header_address);
+                    return segment_manager().template wr_at<ZeroHeader>(_zero_header_address);
                 });
 
             //following will raise ConcurrentLockException immediately, if 'addr' cannot be locked
@@ -281,7 +281,7 @@ namespace OP::vtm
                 _zero_header_address = blocks_begin;
                 blocks_begin += memory_requirement<ZeroHeader>::requirement;
                 //capturing zero-block 
-                header = segment_manager().wr_at<ZeroHeader>(
+                header = segment_manager().template wr_at<ZeroHeader>(
                     _zero_header_address, WritableBlockHint::new_c);
                 new (header) ZeroHeader{ SegmentDef::far_null_c };
             }
@@ -289,14 +289,14 @@ namespace OP::vtm
             {
                 header = OP::vtm::template transactional_yield_retry_n<10>([this]()
                     {
-                        return segment_manager().wr_at<ZeroHeader>(_zero_header_address);
+                        return segment_manager().template wr_at<ZeroHeader>(_zero_header_address);
                     });
                 header->_in_free += Capacity;
                 blocks_begin = FarAddress(
                     OP::utils::align_on(start_address.address, max_entry_align_c));
             }
             FreeBlockHeader* big_chunk =
-                segment_manager().wr_at<FreeBlockHeader>(blocks_begin, WritableBlockHint::new_c);
+                segment_manager().template wr_at<FreeBlockHeader>(blocks_begin, WritableBlockHint::new_c);
             new (big_chunk) FreeBlockHeader{
                 header->_next,
                 Capacity - 1 // (-1) since when (adjacent == 0) we have exact 1 free block

@@ -753,7 +753,7 @@ namespace OP::utest
                 _init_suite =
                     OP::currying::arguments(
                         std::ref(*this), of_unpackable(this->_suite_shared_state))
-                    .tdef(std::move(init_function));
+                    .def(std::move(init_function));
 
             }
             else 

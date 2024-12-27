@@ -24,6 +24,8 @@ namespace OP
             using payload_manager_t = PayloadManager;
             using this_t = TrieNode<payload_manager_t>;
             using atom_t = OP::common::atom_t;
+            using atom_string_t = OP::common::atom_string_t;
+            using atom_string_view_t = OP::common::atom_string_view_t;
             using payload_t = typename payload_manager_t::payload_t;
             using data_storage_t = typename payload_manager_t::data_storage_t;
             using stem_str_address_t = smm::SmartStringAddress<>;
