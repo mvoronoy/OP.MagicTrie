@@ -219,7 +219,7 @@ namespace OP
                 //this method can be replaced if compiler supports 'thread_local' keyword
                 guard_t g(_opened_transactions_lock);
                 auto found = _opened_transactions.find(std::this_thread::get_id());
-                return found == _opened_transactions.end() ? transaction_ptr_t{} : found->second;
+                return found == _opened_transactions.end() ? transaction_ptr_t{} : transaction_ptr_t{found->second};
             }
         private:
 

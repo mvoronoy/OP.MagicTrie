@@ -12,6 +12,7 @@
 #include <future>
 #include <stack>
 
+#include <op/common/astr.h>
 #include <op/trie/Containers.h>
 #include <op/vtm/FixedSizeMemoryManager.h>
 #include <op/vtm/SegmentManager.h>
@@ -48,6 +49,7 @@ namespace OP
         struct Trie : public std::enable_shared_from_this< Trie<TSegmentManager, TPayloadManager, initial_node_count> >
         {
         public:
+            using atom_t = OP::common::atom_t;
             using trie_t = Trie<TSegmentManager, TPayloadManager, initial_node_count>;
             using payload_manager_t = TPayloadManager;
             using payload_t = typename payload_manager_t::payload_t;

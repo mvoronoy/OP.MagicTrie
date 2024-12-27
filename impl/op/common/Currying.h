@@ -425,39 +425,39 @@ namespace OP::currying
 
         /** Invoke functor `func` with positional substitution from this tuple */
         template <typename TCallable, typename ... Ax>
-        constexpr decltype(auto) invoke(TCallable func, Ax&&...ax) &
+        constexpr decltype(auto) invoke(TCallable&& func, Ax&&...ax) &
         {
-            using traits_t = OP::utils::function_traits<TCallable>;
+            using traits_t = OP::utils::function_traits<std::decay_t<TCallable>>;
             if constexpr (sizeof...(Ax))
             {
-                return do_invoke(func, std::tuple_cat(
+                return do_invoke(std::forward<TCallable>(func), std::tuple_cat(
                     _arguments,
                     std::forward_as_tuple(std::forward<Ax>(ax)...)), 
                     std::make_index_sequence<traits_t::arity_c>{});
             }
             else
-                return do_invoke(func, _arguments, std::make_index_sequence<traits_t::arity_c>{});
+                return do_invoke(std::forward<TCallable>(func), _arguments, std::make_index_sequence<traits_t::arity_c>{});
         }
 
         template <typename TCallable, typename ... Ax>
-        constexpr decltype(auto) invoke(TCallable func, Ax&&...ax) &&
+        constexpr decltype(auto) invoke(TCallable&& func, Ax&&...ax) &&
         {
-            using traits_t = OP::utils::function_traits<TCallable>;
+            using traits_t = OP::utils::function_traits<std::decay_t<TCallable>>;
             if constexpr (sizeof...(Ax))
             {
-                return do_invoke(func, std::tuple_cat(
+                return do_invoke(std::forward<TCallable>(func), std::tuple_cat(
                     std::move(_arguments),
                     std::forward_as_tuple(std::forward<Ax>(ax)...)), std::make_index_sequence<traits_t::arity_c>{});
             }
             else
-                return do_invoke(func, std::move(_arguments), std::make_index_sequence<traits_t::arity_c>{});
+                return do_invoke(std::forward<TCallable>(func), std::move(_arguments), std::make_index_sequence<traits_t::arity_c>{});
         }
 
         template <typename TCallable, typename ... Ax>
-        decltype(auto) invoke_back(TCallable& func, Ax&&...ax)
+        decltype(auto) invoke_back(TCallable&& func, Ax&&...ax)
         {
-            using traits_t = OP::utils::function_traits<TCallable>;
-            return do_invoke(func, std::tuple_cat(std::forward_as_tuple(std::forward<Ax>(ax)...), _arguments),
+            using traits_t = OP::utils::function_traits<std::decay_t<TCallable>>;
+            return do_invoke(std::forward<TCallable>(func), std::tuple_cat(std::forward_as_tuple(std::forward<Ax>(ax)...), _arguments),
                 std::make_index_sequence<traits_t::arity_c>{});
         }
 
@@ -484,9 +484,9 @@ namespace OP::currying
         arguments_t _arguments;
 
         template <typename TCallable, typename Tuple, size_t ... I>
-        static decltype(auto) do_invoke(TCallable& func, Tuple&& args, std::index_sequence<I...>)
+        static decltype(auto) do_invoke(TCallable&& func, Tuple&& args, std::index_sequence<I...>)
         {
-            using traits_t = OP::utils::function_traits<TCallable>;
+            using traits_t = OP::utils::function_traits<std::decay_t<TCallable>>;
             return func(
                     det::as_argument<typename traits_t::template arg_i<I>>(args)
                     ...

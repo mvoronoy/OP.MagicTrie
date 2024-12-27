@@ -178,7 +178,7 @@ namespace OP::trie
         {
             using functor_t = std::decay_t<F>;
 
-            PrefixedInRange(F pred)
+            explicit PrefixedInRange(F pred) noexcept
                 : _prefix_check(std::forward<F>(pred))
                 {}
 
@@ -191,10 +191,20 @@ namespace OP::trie
             functor_t _prefix_check;
         };
 
+        template <class F> //deduction guide
+        PrefixedInRange(F) -> PrefixedInRange<F>;
+
         /** Ingredient for MixAlgorithmRangeAdapter - just alias for PrefixedInRange, but give more consistence when mixing iteration over
         * children range like: <ChildBegin, ChildInRange, SiblingNext>
         */
-        using ChildInRange = PrefixedInRange;
+        template <class F>
+        struct ChildInRange: PrefixedInRange<F>
+        {
+            using  PrefixedInRange<F>:: PrefixedInRange;
+        };
+
+        template <class F> //deduction guide
+        ChildInRange(F) -> ChildInRange<F>;
 
         /** Ingredient for MixAlgorithmRangeAdapter - implements `in_range` with extra predicate */
         struct TakeWhileInRange

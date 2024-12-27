@@ -195,11 +195,10 @@ namespace
         compare_containers(tresult, *trie, standard);
     }
 
-    void test_TrieInsertGrow(OP::utest::TestSuite& suite, OP::utest::TestRuntime& tresult)
+    void test_TrieInsertGrow(OP::utest::TestRuntime& tresult)
     {
 
-        std::random_device rd;
-        std::mt19937 random_gen(rd());
+        auto random_gen = tools::RandomGenerator::instance().generator();
 
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
@@ -227,6 +226,7 @@ namespace
         tresult.assert_that<equals>(rand_idx.size(), trie->size(), "Size is wrong");
         compare_containers(tresult, *trie, test_values);
     }
+
     void test_TrieUpdate(OP::utest::TestRuntime& tresult)
     {
         auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,

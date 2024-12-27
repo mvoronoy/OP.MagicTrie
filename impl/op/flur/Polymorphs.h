@@ -15,7 +15,7 @@ namespace OP::flur
         , std::enable_shared_from_this<AbstractPolymorphFactory<TElement>>
     {
         using element_t = TElement;
-        using sequence_t = Sequence<element_t>;
+        using sequence_t = OP::flur::Sequence<TElement>;
         using base_sequence_t = sequence_t;
         using this_t = AbstractPolymorphFactory<TElement>;
         using this_ptr = std::shared_ptr<this_t>;
@@ -24,6 +24,12 @@ namespace OP::flur
         struct SequenceDeleter
         {
             this_cptr _factory;
+            
+            explicit SequenceDeleter(this_cptr factory) noexcept
+                : _factory{factory}
+            {
+            }
+
             void operator()(sequence_t* ptr)
             { 
                 delete ptr; 
@@ -86,6 +92,7 @@ namespace OP::flur
         >;
         using sequence_ptr = typename base_t::sequence_ptr;
         using sequence_t = typename base_t::sequence_t;
+        using sequence_deleter_t = typename base_t::SequenceDeleter;
 
         explicit constexpr PolymorphFactory(base_factory_t&& rref) noexcept
             : _base_factory(std::move(rref)) 
@@ -107,7 +114,7 @@ namespace OP::flur
                     //uses move constructor
                     new result_seq_t{std::move(result)},
                     // custom deleter to keep factory captured
-                    SequenceDeleter{ this->shared_from_this() }
+                    sequence_deleter_t{ this->shared_from_this() }
                 );
             }
         }
@@ -120,7 +127,7 @@ namespace OP::flur
                     //uses move constructor
                     new result_seq_t{std::move(result)},
                     // custom deleter to keep factory captured
-                    SequenceDeleter{ this->shared_from_this() }
+                    sequence_deleter_t{ this->shared_from_this() }
                 );
         }
 

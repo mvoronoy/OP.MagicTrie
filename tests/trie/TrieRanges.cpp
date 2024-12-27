@@ -61,7 +61,7 @@ namespace
     void test_TrieSubtree(OP::utest::TestRuntime& tresult)
     {
         //take randomizer configured by test engine
-        auto& random_gen = tools::RandomGenerator::instance().generator();
+        auto random_gen = tools::RandomGenerator::instance().generator();
 
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()

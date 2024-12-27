@@ -11,6 +11,8 @@
 namespace OP::flur
 {
     
+    template <class TElement>
+    struct AbstractPolymorphFactory; //fwd
     /** 
     *   Iterator over LazyRange.
     *  This iterator exposes std::input_iterator_tag that means support forward only
@@ -101,7 +103,7 @@ namespace OP::flur
         template <class Factory, std::enable_if_t<std::is_base_of_v<FactoryBase, Factory>, int> = 0 >
         auto begin_impl(const Factory& inst)
         {
-            auto postprocess = [](auto& ptr){ ptr->start(); return ptr; };
+            auto postprocess = [](const auto& ptr){ ptr->start(); return ptr; };
             if constexpr(
                     OP::utils::is_generic<Factory, OP::flur::AbstractPolymorphFactory>::value
                 )
