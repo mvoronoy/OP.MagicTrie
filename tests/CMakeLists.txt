@@ -1,6 +1,6 @@
 ﻿# CMakeList.txt : CMake project for stand-alone test of OP
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.20)
 project(trie_test)
 
 if(MSVC)
