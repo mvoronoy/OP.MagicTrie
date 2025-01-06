@@ -211,12 +211,12 @@ namespace OP::vtm
             return !_instance;
         }
 
-        constexpr bool operator ==(nullptr_t) const noexcept
+        constexpr bool operator ==(std::nullptr_t) const noexcept
         {
             return !_instance;
         }
 
-        constexpr bool operator !=(nullptr_t) const noexcept
+        constexpr bool operator !=(std::nullptr_t) const noexcept
         {
             return operator bool();
         }
