@@ -3,6 +3,7 @@
 #define _OP_TRIE_SPANCONTAINER__H_
 
 #include <type_traits>
+#include <functional>
 #include <list>
 #include <stack>
 #include <algorithm>

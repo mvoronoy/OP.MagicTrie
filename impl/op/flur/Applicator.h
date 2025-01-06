@@ -398,7 +398,7 @@ namespace OP::flur
         *   src::of_value(57) >>= apply::first; //returns 57
         *   \endcode
         *
-        *   \throws std::out_of_range when source LazyRange produces empty sequence.
+        *   \throws std::out_of4_range when source LazyRange produces empty sequence.
         */
         constexpr static inline FirstImpl first{};
 

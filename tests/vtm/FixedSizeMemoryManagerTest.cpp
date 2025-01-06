@@ -40,7 +40,7 @@ void test_Generic(OP::utest::TestRuntime &tresult, SegmentTopology& topology)
                 OP_CODE_DETAILS(<< "There must be single segment"));
         }
     }
-    //as soon FixedSizeMemoryManager contains ThreadPool folowing line became probabilistic
+    //as soon FixedSizeMemoryManager contains ThreadPool following line became probabilistic
     //tresult.assert_true(topology.segment_manager().available_segments() == 1, 
     //    OP_CODE_DETAILS(<<"There must be single segment"));
     mngr.allocate();

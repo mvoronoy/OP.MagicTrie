@@ -116,11 +116,13 @@ namespace OP::vtm
             }
             op_g.commit();
         }
+
         bool is_valid_address(FarAddress addr)
         {
             //@! todo: validate that addr belong to FixedSizeMemoryManager
             return true;
         }
+
         void deallocate(FarAddress addr)
         {
             if( !is_valid_address(addr) )
@@ -190,6 +192,7 @@ namespace OP::vtm
                     << "} exceeds Capacity in all segments";
             }
         }
+
         /**
         * @return pair where first indicate total number of busy elements and second
         *   is about number of free (available to allocate) elements.
@@ -295,6 +298,7 @@ namespace OP::vtm
                 blocks_begin = FarAddress(
                     OP::utils::align_on(start_address.address, max_entry_align_c));
             }
+
             FreeBlockHeader* big_chunk =
                 segment_manager().template wr_at<FreeBlockHeader>(blocks_begin, WritableBlockHint::new_c);
             new (big_chunk) FreeBlockHeader{

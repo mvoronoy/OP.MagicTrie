@@ -211,6 +211,16 @@ namespace OP::vtm
             return !_instance;
         }
 
+        constexpr bool operator ==(nullptr_t) const noexcept
+        {
+            return !_instance;
+        }
+
+        constexpr bool operator !=(nullptr_t) const noexcept
+        {
+            return operator bool();
+        }
+
         template <class U>
         auto static_pointer_cast() const& noexcept
         {

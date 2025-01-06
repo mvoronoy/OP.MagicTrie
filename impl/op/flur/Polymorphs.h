@@ -142,13 +142,25 @@ namespace std
 {
     
     template <class T>
-    auto begin(std::shared_ptr<OP::flur::AbstractPolymorphFactory<T>> inst)
+    auto begin(const std::unique_ptr<OP::flur::AbstractPolymorphFactory<T>>& inst)
     {
         return inst->begin();
     }
 
     template <class T>
-    auto end(std::shared_ptr<OP::flur::AbstractPolymorphFactory<T>> inst) noexcept
+    auto end(const std::unique_ptr<OP::flur::AbstractPolymorphFactory<T>>& inst) noexcept
+    {
+        return inst->end();
+    }
+      
+    template <class T>
+    auto begin(const std::shared_ptr<OP::flur::AbstractPolymorphFactory<T>>& inst)
+    {
+        return inst->begin();
+    }
+
+    template <class T>
+    auto end(const std::shared_ptr<OP::flur::AbstractPolymorphFactory<T>>& inst) noexcept
     {
         return inst->end();
     }
