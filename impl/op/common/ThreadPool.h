@@ -99,7 +99,7 @@ namespace OP::utils
                 catch (...)
                 { // set_exception() may throw too
                     OP::utils::SysLog log;
-                    log.print("Unhandled thread exception has been hiden");
+                    log.print("Unhandled thread exception has been hidden");
                 }
             }
 

@@ -181,8 +181,15 @@ namespace OP::utils
     {//specialization for empty tuple
         using type = std::tuple<>;
     };
+    
     template <class P, class ... Tx>
     struct TypeFilter<P, std::tuple<Tx...> >
+    {//specialization to accept tuples
+        using type = typename TypeFilter<P, Tx ...>::type;
+    };
+
+    template <class P, class ... Tx>
+    struct TypeFilter<P, std::variant<Tx...> >
     {//specialization to accept tuples
         using type = typename TypeFilter<P, Tx ...>::type;
     };
@@ -200,7 +207,7 @@ namespace OP::utils
             
     };
 
-    /**Utility used with TypeFilter to allow check if type exactly match `Expected`*/
+    /** Utility used with TypeFilter to allow check if type exactly match `Expected`*/
     template <class Expected>
     struct filter_exact_match
     {
@@ -208,6 +215,14 @@ namespace OP::utils
         static constexpr bool check = std::is_same_v<Expected, T>;
     };
 
+    /** Utility used with TypeFilter to allow check if searching type exactly matches or 
+        can be convertible to `Expected`. For details see std::is_convertible. */
+    template <class Expected>
+    struct filter_convertible_match
+    {
+        template <class T>
+        static constexpr bool check = std::is_convertible_v<T, Expected>;
+    };
 
     /** compile time return true if applying TypeFilter<P, Tx ...> contains any record */
     template <class P, class ... Tx>

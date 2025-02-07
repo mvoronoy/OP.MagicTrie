@@ -442,7 +442,7 @@ namespace OP::utest
         {
             Marker m;
             //consciously don't use make_tuple to have reference to argument
-            auto pack_arg = std::tuple<Args...>(std::forward<Args>(args)...);
+            auto pack_arg = std::forward_as_tuple(std::forward<Args>(args)...);
             auto that_result = details::apply_prefix(m, pack_arg, std::make_index_sequence<Marker::args_c>());
             bool succeeded;
             if constexpr (std::is_convertible_v<std::decay_t<decltype(that_result)>, bool>)
