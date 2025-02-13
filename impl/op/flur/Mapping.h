@@ -14,17 +14,17 @@ namespace OP::flur
     namespace details
     {
         template <class F, class A, class ...Ax>
-        inline decltype(auto) map_invoke_impl(F& applicator, A&& a, Ax&& ...ax)
+        inline decltype(auto) map_invoke_impl(F applicator, A&& a, Ax&& ...ax)
         {
-            if constexpr (std::is_invocable_v<F, A>)
+            if constexpr (std::is_invocable_v<decltype(applicator), A>)
             {
                 return applicator(std::forward<A>(a));
             }
-            else if constexpr (std::is_invocable_v<F, A, Ax...>)
+            else if constexpr (std::is_invocable_v<decltype(applicator), A, Ax...>)
             {
                 return applicator(std::forward<A>(a), std::forward<Ax>(ax)...);
             }
-            else if constexpr (std::is_invocable_v<F, Ax..., A>)
+            else if constexpr (std::is_invocable_v<decltype(applicator), Ax..., A>)
             { //it is not real recombination, but for 2 it works
                 return applicator(std::forward<Ax>(ax)..., std::forward<A>(a));
             }
@@ -149,20 +149,37 @@ namespace OP::flur
         }
 
         template <class Src>
-        constexpr auto compound(Src&& src) const noexcept
+        constexpr auto compound(Src&& src) const& noexcept
         {
             using src_container_t = details::sequence_type_t< details::dereference_t<Src> >;
 
             using result_t = decltype( details::map_invoke_impl(
-                std::declval<applicator_t&>(),
-                std::declval< src_container_t& >().current(), 
-                std::declval<SequenceState&>()
+                _applicator,
+                details::get_reference(src).current(),
+                std::declval<SequenceState>()
                 )
             );
 
             return MappingSequence<result_t, Src, applicator_t, keep_order_c>(
                 std::move(src), 
                 _applicator);
+        }
+
+        template <class Src>
+        constexpr auto compound(Src&& src) && noexcept
+        {
+            using src_container_t = details::sequence_type_t< details::dereference_t<Src> >;
+
+            using result_t = decltype( details::map_invoke_impl(
+                _applicator,
+                details::get_reference(src).current(),
+                std::declval<SequenceState>()
+                )
+            );
+
+            return MappingSequence<result_t, Src, applicator_t, keep_order_c>(
+                std::move(src), 
+                std::move(_applicator));
         }
     private:
         applicator_t _applicator;
