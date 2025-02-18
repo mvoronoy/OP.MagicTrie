@@ -132,15 +132,17 @@ namespace OP::trie
             - for lexicographic less key - then lower_bound starts from prefix
             - for lexicographic greater key - then lower_bound returns end()
         */
+        template <class AtomString = OP::common::atom_string_t >
         struct PrefixedLowerBound
         {
+
             template <class SharedArguments>
             PrefixedLowerBound(const SharedArguments& args)
-                : _prefix(std::get<OP::common::atom_string_t>(args))
+                : _prefix(std::get<AtomString>(args))
             {
             }
 
-            OP_CONSTEXPR_CPP20 PrefixedLowerBound(OP::common::atom_string_t prefix) noexcept
+            OP_CONSTEXPR_CPP20 PrefixedLowerBound(AtomString prefix) noexcept
                 : _prefix(std::move(prefix))
             {
             }
@@ -148,7 +150,7 @@ namespace OP::trie
             /** 
             * \param i - [out] result iterator
             */
-            void _lower_bound(const Trie& trie, iterator& i, const OP::common::atom_string_t& key) const
+            void _lower_bound(const Trie& trie, iterator& i, const typename Trie::key_t& key) const
             {
                 auto kb = std::begin(key);
                 auto ke = std::end(key);
@@ -170,7 +172,7 @@ namespace OP::trie
             }
 
         private:
-            const OP::common::atom_string_t _prefix;
+            const AtomString _prefix;
         };
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range customize `in_range` in a way to check that 
@@ -235,9 +237,10 @@ namespace OP::trie
         };
 
         /** Ingredient for MixAlgorithmRangeAdapter - implements `find` to play role of begin */
+        
         struct Find
         {
-            Find(OP::common::atom_string_t key)
+            Find(typename Trie::key_t key)
                 : _key(std::move(key))
             {}
 
@@ -247,7 +250,7 @@ namespace OP::trie
             }
 
         private:
-            const OP::common::atom_string_t _key;
+            const typename Trie::key_t _key;
         };
 
     };
@@ -257,7 +260,7 @@ namespace OP::trie
         For example you can initialize iteration over begin, find, lower_bound... . But range-based c++ for loop allows 
         leverage only begin/end pair. 
         (Of course c++20 ranges library gives a way to overcome this but using runtime capabilities only).
-    Rationale: range-base for loop expects from container 2 simple idioms "give me begin of range and end of range". 
+    Rationale: range-base for loop expects from container 2 simple idioms "give me begin of the range and end of the range". 
         Programmers have several ways to implement such idiom:
             \li create proxy to feed begin/end in expected way (actually c++20 ranges do it) ;
             \li overrides some method by inheritance;
@@ -304,7 +307,7 @@ namespace OP::trie
             return trie.end();
         }
 
-        void _lower_bound(const Trie& trie, iterator& i, const OP::common::atom_string_t& k) const
+        void _lower_bound(const Trie& trie, iterator& i, const typename Trie::key_t& k) const
         {
             i = trie.lower_bound(i, k);
         }

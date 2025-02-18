@@ -500,7 +500,7 @@ namespace OP
                     make_mixed_sequence_factory(
                         std::const_pointer_cast<const this_t>(this->shared_from_this()),
                         typename Ingredient<this_t>::PrefixedBegin(prefix),
-                        typename Ingredient<this_t>::PrefixedLowerBound(prefix),
+                        typename Ingredient<this_t>::template PrefixedLowerBound<AtomContainer>(prefix),
                         typename Ingredient<this_t>::PrefixedInRange(StartWithPredicate(prefix))
                     )
                 );

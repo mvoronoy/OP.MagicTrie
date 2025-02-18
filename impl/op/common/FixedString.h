@@ -10,7 +10,7 @@
 #include <op/common/Unsigned.h>
 
 #ifdef _MSC_VER
-//Need suppress IntelliSense warning about +1 array
+//Need suppress IntelliSense warning about +1 array over SAL hints
 #define RANGE_SAFE_BUF(n) _Out_writes_bytes_all_(n)
 #else
 #define RANGE_SAFE_BUF(n)
@@ -485,8 +485,8 @@ namespace OP
         }
 #endif //OP_CPP20_FEATURES
 
-        template <class T, class U>
-        friend constexpr bool operator == (const StringEnforce<T>& left, const StringEnforce<U>& right) noexcept
+        template <class U>
+        friend inline constexpr bool operator == (const StringEnforce<U>& left, const FixedString& right) noexcept
         {
             auto lb = std::begin(left), le = std::end(left);
             auto rb = std::begin(right), re = std::end(right);
@@ -498,10 +498,22 @@ namespace OP
             return true;
         }
 
-        template <class T, class U>
-        friend constexpr bool operator != (const T& left, const U& right) noexcept
+        template <class T>
+        friend inline constexpr bool operator == (const FixedString& left, const StringEnforce<T>& right) noexcept
+        {
+            return (right == left);
+        }
+
+        template <class U>
+        friend inline constexpr bool operator != (const StringEnforce<U>& left, const FixedString& right) noexcept
         {
             return !(left == right);
+        }
+
+        template <class T>
+        friend inline constexpr bool operator != (const FixedString& left, const StringEnforce<T>& right) noexcept
+        {
+            return !(right == left);
         }
 
     private:
@@ -524,11 +536,12 @@ namespace std
 {
     template <class TPolicy> struct hash<OP::FixedString<TPolicy>>
     {
+        using char_t = typename OP::FixedString<TPolicy>::value_type;
         template <class T>
         size_t operator()(const T& x) const
         {
             size_t seed = 0x52dfe1397;
-            ::std::hash<TChar> h;
+            ::std::hash<char_t> h;
             for (auto c : x)
                 seed = (seed * 101) + h(c);
             return seed;
