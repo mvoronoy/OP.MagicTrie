@@ -226,6 +226,12 @@ namespace OP::flur::details
         return std::true_type{};
     }
 
+    template <class T>
+    constexpr std::true_type is_ordered(const std::array<T, 0>&) noexcept
+    {
+        return std::true_type{};
+    }
+
     /** Check if container `TContainer` is ordered. Definition just wraps reference to a
     *   custom function `constexpr std::<true/false>_type is_ordered(const TContainer&) noexcept`
     */

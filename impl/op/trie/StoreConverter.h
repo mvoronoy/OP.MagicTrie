@@ -17,7 +17,7 @@ namespace OP::trie::store_converter
      *
      *  If for some reason you need persist some type that is not std::is_standard_layout_v
      *  (for example std::string, std::variant, ...) you can introduce specialization 
-     *  of this definition. To so it you need:
+     *  of this definition. To do it you need:
      *  -# declare you specialization in the namespace `OP::trie::store_converter`:\code
      *   namespace OP::trie::store_converter{
      *   template <> struct Storage<MyType>{ ... };

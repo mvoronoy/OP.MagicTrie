@@ -46,6 +46,7 @@ add_executable (trie_test
     "common/Multiimplementation.cpp"
     "common/PreallocCache.cpp"
     "common/basic.cpp"
+    "common/FixedString.cpp"
 
     "vtm/ContainersTest.cpp"
     "vtm/FixedSizeMemoryManagerTest.cpp"

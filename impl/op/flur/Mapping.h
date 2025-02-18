@@ -117,6 +117,13 @@ namespace OP::flur
 
         explicit ReusableMapBuffer(F f)
             : _f(std::move(f)) 
+            , _entry{}
+        {
+        }
+
+        ReusableMapBuffer(to_t init_buffer, F f)
+            : _f(std::move(f)) 
+            , _entry{std::move(init_buffer)}
         {
         }
 

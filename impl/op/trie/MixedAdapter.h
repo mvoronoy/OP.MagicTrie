@@ -26,13 +26,17 @@ namespace OP::trie
         bool operator()(const Iterator& check) const
         {
             const auto & str = check.key();
-            if (str.length() < _prefix.length())
+            if (str.size() < _prefix.size())
                 return false;
             return std::equal(_prefix.begin(), _prefix.end(), str.begin());
         }
     private:
         const AtomString _prefix;
     };
+
+    // explicit deduction guide (not needed as of C++20)
+    template <class AtomString>
+    StartWithPredicate(AtomString) -> StartWithPredicate<AtomString>;
 
     namespace details
     {

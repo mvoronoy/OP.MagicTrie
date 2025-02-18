@@ -29,12 +29,13 @@ namespace OP::trie
         friend Container;
         friend typename Container::node_t;
 
-        typedef std::vector<TriePosition> node_stack_t;
+        using node_stack_t = std::vector<TriePosition>;
         node_stack_t _position_stack;
         const Container* _container = nullptr;
         prefix_string_t _prefix;
         node_version_t _version = { 0 };
         struct end_marker_t {};
+
         TrieIterator(const Container* container, const end_marker_t&) noexcept
             : _container(container)
         {
@@ -87,10 +88,10 @@ namespace OP::trie
                 return other.is_end();
             if (other.is_end())
                 return false;
-            // []
 
             return _position_stack.back() == other._position_stack.back();
         }
+
         inline bool operator < (const this_t& other) const  noexcept
         {
             if (is_end())
@@ -106,22 +107,27 @@ namespace OP::trie
         {
             return !operator == (other);
         }
+
         inline bool is_end() const  noexcept
         {
             return _position_stack.empty();
         }
+
         const prefix_string_t& key() const& noexcept
         {
             return _prefix;
         }
+
         prefix_string_t key() && noexcept
         {
             return std::move(_prefix);
         }
+        
         value_type value() const
         {
             return _container->value_of(_position_stack.back());
         }
+
     protected:
 
         template <class T>
@@ -169,6 +175,7 @@ namespace OP::trie
         {
             _emplace<decltype(begin)>(std::move(position), begin, end);
         }
+
         /**Update last entry in this iterator, then add rest tail to iterator*/
         void update_back(const TriePosition& position, const atom_t* begin, const atom_t* end)
         {
@@ -184,6 +191,7 @@ namespace OP::trie
             _prefix.append(1, (atom_t)position.key());
             update_stem(begin, end);
         }
+
         /** Upsert (insert or update) */
         void upsert_back(TriePosition&& position, const atom_t* begin, const atom_t* end)
         {

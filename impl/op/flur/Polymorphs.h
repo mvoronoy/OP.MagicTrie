@@ -47,7 +47,10 @@ namespace OP::flur
 
         virtual sequence_ptr compound_unique() const = 0;
 
-        virtual std::shared_ptr<sequence_t> compound_shared() const = 0;
+        virtual std::shared_ptr<sequence_t> compound_shared() const
+        {
+            return std::shared_ptr<sequence_t>{compound_unique()};
+        }
 
         /** 
             As a FactoryBase this abstraction must support `compound()` so 
@@ -70,6 +73,18 @@ namespace OP::flur
     
     };
     
+    struct is_abstract_polymorph_factory
+    {
+        template <class T>
+        static std::true_type test(const AbstractPolymorphFactory<T>*) noexcept;
+        
+        static std::false_type test(...) noexcept;
+        
+    };
+
+    template <class T>
+    constexpr bool is_abstract_polymorph_factory_v = 
+            decltype(is_abstract_polymorph_factory::test(static_cast<const T*>(nullptr))) :: value;
 
     /** 
     *   PolymorphFactory is a factory that allows construct other factories on the heap.
@@ -121,14 +136,7 @@ namespace OP::flur
         
         std::shared_ptr<sequence_t> compound_shared() const override
         {
-            auto result = _base_factory.compound();
-            using result_seq_t = std::decay_t<decltype(result)>;
-            return std::shared_ptr<sequence_t>(
-                    //uses move constructor
-                    new result_seq_t{std::move(result)},
-                    // custom deleter to keep factory captured
-                    sequence_deleter_t{ this->shared_from_this() }
-                );
+            return std::shared_ptr<sequence_t>(compound_unique());
         }
 
     private:
@@ -141,26 +149,26 @@ namespace OP::flur
 namespace std
 {
     
-    template <class T>
-    auto begin(const std::unique_ptr<OP::flur::AbstractPolymorphFactory<T>>& inst)
+    template <class T, std::enable_if_t<OP::flur::is_abstract_polymorph_factory_v<T>, int> = 0>
+    auto begin(const std::unique_ptr<T>& inst)
     {
         return inst->begin();
     }
 
-    template <class T>
-    auto end(const std::unique_ptr<OP::flur::AbstractPolymorphFactory<T>>& inst) noexcept
+    template <class T, std::enable_if_t<OP::flur::is_abstract_polymorph_factory_v<T>, int> = 0>
+    auto end(const std::unique_ptr<T>& inst) noexcept
     {
         return inst->end();
     }
       
-    template <class T>
-    auto begin(const std::shared_ptr<OP::flur::AbstractPolymorphFactory<T>>& inst)
+    template <class T, std::enable_if_t<OP::flur::is_abstract_polymorph_factory_v<T>, int> = 0>
+    auto begin(const std::shared_ptr<T>& inst)
     {
         return inst->begin();
     }
 
-    template <class T>
-    auto end(const std::shared_ptr<OP::flur::AbstractPolymorphFactory<T>>& inst) noexcept
+    template <class T, std::enable_if_t<OP::flur::is_abstract_polymorph_factory_v<T>, int> = 0>
+    auto end(const std::shared_ptr<T>& inst) noexcept
     {
         return inst->end();
     }

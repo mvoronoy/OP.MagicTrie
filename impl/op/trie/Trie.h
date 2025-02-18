@@ -953,7 +953,8 @@ namespace OP
 
         private:
 
-            typedef FixedSizeMemoryManager<node_t, initial_node_count> node_manager_t;
+            using node_manager_t = FixedSizeMemoryManager<node_t, initial_node_count>;
+
             using topology_t = SegmentTopology<
                 TrieResidence,
                 node_manager_t,
