@@ -117,7 +117,8 @@ namespace OP
 
         using view_t = FixedStringView<value_type>;
 
-        constexpr static size_t capacity_c = buf_capacity_c - 1;
+        constexpr static size_type capacity_c = buf_capacity_c - 1;
+        constexpr static size_type npos = ~size_type{0};
 
         constexpr FixedString() noexcept
             : _buffer{ 0 }
@@ -239,7 +240,7 @@ namespace OP
         constexpr const_reference at(size_t pos) const
         {
             if (pos >= size())
-                throw std::out_of_range("`at` out of the range");
+                throw std::out_of_range("`at` is out of the range");
             return *(cbegin() + pos);
         }
 
@@ -280,7 +281,21 @@ namespace OP
             return 0;
         }
 
-        void clear() noexcept
+        /** the same as std::string::substr(...) 
+        * \throws std::out_of_range when `pos > size()`.
+        */
+        FixedString substr( size_type pos = 0, size_type count = npos ) const
+        {
+            if( pos > size() ) //empty string is allowed
+                throw std::out_of_range("`substr` is out of the range");
+            size_type n = size() - pos;
+            if(count < n)
+                n = count;
+            return FixedString{data() + pos, n};
+        }
+
+        /** the same as std::string::clear() */
+        constexpr void clear() noexcept
         {
             _buffer[0] = 0;
         }

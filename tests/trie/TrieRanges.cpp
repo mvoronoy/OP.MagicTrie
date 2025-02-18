@@ -26,7 +26,8 @@ namespace
     using namespace OP::common;
 
     const char* test_file_name = "trie.test";
-    using test_trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
+    using test_trie_t = Trie<
+        EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
     template <class TStr = std::string>
     struct lexicographic_less {
@@ -510,7 +511,8 @@ namespace
         auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>> ;
+        using trie_t = Trie<
+            EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         typedef std::pair<atom_string_t, double> p_t;
@@ -575,7 +577,8 @@ namespace
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        using trie_t = OP::trie::Trie<OP::trie::SegmentManager, PlainValueManager<double>>;
+        using trie_t = OP::trie::Trie<
+            OP::trie::SegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         for (const auto& pair : src1) trie->insert(pair.first, pair.second);
@@ -625,7 +628,8 @@ namespace
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<size_t>> ;
+        using trie_t = Trie<
+            EventSourcingSegmentManager, PlainValueManager<size_t>, OP::common::atom_string_t> ;
         tresult.info()<<"create trie #1...\n";
         std::shared_ptr<trie_t> trie1 = trie_t::create_new(tmngr1);
 
@@ -1080,7 +1084,8 @@ namespace
         auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>> ;
+        using trie_t = Trie<
+            EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t> ;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
         const atom_string_t to_erase
@@ -1126,7 +1131,8 @@ namespace
             "10k.trie",
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        using trie_t = Trie<segment_manager_t, PlainValueManager<std::uint64_t>>;
+        using trie_t = Trie<
+            segment_manager_t, PlainValueManager<std::uint64_t>, OP::common::atom_string_t>;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
         constexpr std::uint32_t N = 0x3000;
         constexpr std::uint32_t expecting_sum_c = (N * (N - 1)) / 2;

@@ -32,7 +32,8 @@ void testDefault(OP::utest::TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>> ;
+    using trie_t = Trie<
+        EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t> ;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     using mix_ns = Ingredient<trie_t>;
 
@@ -75,7 +76,8 @@ void testChildConfig(OP::utest::TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
+    using trie_t = Trie<
+        EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     using mix_ns = Ingredient<trie_t>;
 
@@ -147,7 +149,8 @@ void test_ISSUE_0002(OP::utest::TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
+    using trie_t = Trie<
+        EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     using mix_ns = Ingredient<trie_t>;
@@ -206,7 +209,9 @@ void test_PrefixJoin(TestRuntime& tresult)
         OP::trie::SegmentOptions()
         .segment_size(0x110000));
 
-    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
+    using trie_t = Trie<
+        EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
+
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
     //empty trie intersection
     tresult.assert_true(std::empty(
@@ -285,7 +290,8 @@ template <size_t NRoots, size_t NChildrens, class TSegmentManager>
 void render_children_tree()
 {
     using namespace OP::flur;
-    using wr_trie_t = Trie<TSegmentManager, PlainValueManager<double>>;
+    using wr_trie_t = Trie<
+        TSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
     auto mngr_no_tran = TSegmentManager::template create_new<TSegmentManager>(test_file_name,
         OP::trie::SegmentOptions()
@@ -316,7 +322,8 @@ void render_children_tree()
 void test_UnorderedOrderFlatMap(TestRuntime& tresult)
 {
     using namespace OP::flur;
-    using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
+    using trie_t = Trie<
+        EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
     constexpr size_t NRoots = 500;
     constexpr size_t NChildren = 100;
     render_children_tree<NRoots, NChildren, SegmentManager>();

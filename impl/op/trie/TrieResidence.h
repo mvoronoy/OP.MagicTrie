@@ -32,7 +32,7 @@ namespace OP
                 std::uint64_t _version;
             };
 
-            template <class TSegmentManager, class Payload, std::uint32_t initial_node_count>
+            template <class TSegmentManager, class Payload, class TKeyString, std::uint32_t initial_node_count>
             friend struct Trie;
         
             explicit TrieResidence(SegmentManager& manager) noexcept

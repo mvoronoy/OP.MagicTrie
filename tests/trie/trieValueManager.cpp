@@ -119,7 +119,7 @@ namespace
         using test_payload_t = TestStruct;
 
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<test_payload_t>
+            EventSourcingSegmentManager, PlainValueManager<test_payload_t>, OP::common::atom_string_t
         >;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
@@ -161,7 +161,7 @@ namespace
             std::string
         >;
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<test_variant_t>
+            EventSourcingSegmentManager, PlainValueManager<test_variant_t>, OP::common::atom_string_t
         >;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
@@ -243,7 +243,7 @@ namespace
             std::tuple<std::uint64_t, var_t, std::string>;
 
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<test_tuple_t>
+            EventSourcingSegmentManager, PlainValueManager<test_tuple_t>, OP::common::atom_string_t
         >;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
@@ -283,7 +283,7 @@ namespace
             .segment_size(0x110000));
 
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<std::string>
+            EventSourcingSegmentManager, PlainValueManager<std::string>, OP::common::atom_string_t
         >;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
@@ -308,7 +308,9 @@ namespace
             .segment_size(0x110000));
 
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<std::string, 16>, 1ull << 9
+            EventSourcingSegmentManager, PlainValueManager<std::string, 16>, 
+            OP::common::atom_string_t,
+            1ull << 9
         >;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
@@ -338,6 +340,7 @@ namespace
         >;
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<test_variant_t, 16>,
+            OP::common::atom_string_t,
             1ull << 10
         >;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);

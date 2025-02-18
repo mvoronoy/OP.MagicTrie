@@ -179,10 +179,37 @@ namespace {
             ufstr_t{ "0123456789"s }.replace(1, 1, ""s), ufstr_t{ "023456789"s });
     }
 
+    void test_substr(OP::utest::TestRuntime& tresult)
+    {
+        using namespace std::string_literals;
+
+        tresult.assert_that<equals>(//empty
+            ufstr_t{ }.substr(), ufstr_t{});
+
+        tresult.assert_that<equals>(//full string
+            ufstr_t{ "0"s }.substr(), ufstr_t{"0"s});
+        tresult.assert_that<equals>(//one char
+            ufstr_t{ "01"s }.substr(0, 1), "0"s);
+        tresult.assert_that<equals>(//empty string behind scope
+            ufstr_t{ "01"s }.substr(2), ""s);
+        tresult.assert_that<equals>(//empty string behind scope
+            ufstr_t{ "01"s }.substr(1), "1"s);
+
+        tresult.assert_that<equals>(//count less than size
+            ufstr_t{ "012"s }.substr(1, 1), "1"s);
+        tresult.assert_that<equals>(//count less than size
+            ufstr_t{ "012"s }.substr(1), "12"s);
+
+        tresult.assert_exception<std::out_of_range>([]() {
+            ufstr_t{ }.substr(1);
+            });
+    }
+
     static auto& module_suite = OP::utest::default_test_suite("FixedString")
         .declare("basic", test_basic)
         .declare("append", test_append)
         .declare("cmp", test_compare)
         .declare("replace", test_replace)
+        .declare("substr", test_substr)
         ;
 } //ns:

@@ -35,7 +35,13 @@ namespace OP
         /**Constant definition for trie*/
         struct TrieOptions
         {
-            /**Maximal length of stem*/
+            /**
+            *   How many key entries allocate on particular node depending on trie level. Quick
+            * navigation on trie granted by algorithms of lookup particular byte on node level. Root
+            * level (0) always use 256 items to lookup, but for lower levels it can be wasting of the
+            * disk and memory space. Lower levels use hash algorithms to locate key entry, these algorithms
+            * works on 8, 32, 64 and 128 table sizes. Overriding this option you can improve heuristic behaviour.
+            */
             dim_t init_node_size(size_t level) const
             {
                 return level == 0 ? 256 : _node_size;
@@ -45,12 +51,18 @@ namespace OP
         };
 
 
-        template <class TSegmentManager, class TPayloadManager, std::uint32_t initial_node_count = 512>
-        struct Trie : public std::enable_shared_from_this< Trie<TSegmentManager, TPayloadManager, initial_node_count> >
+        template <
+            class TSegmentManager, 
+            class TPayloadManager, 
+            class TKeyString,
+            std::uint32_t initial_node_count = 512
+        >
+        struct Trie : public std::enable_shared_from_this< 
+            Trie<TSegmentManager, TPayloadManager, TKeyString, initial_node_count> >
         {
         public:
             using atom_t = OP::common::atom_t;
-            using trie_t = Trie<TSegmentManager, TPayloadManager, initial_node_count>;
+            using trie_t = Trie<TSegmentManager, TPayloadManager, TKeyString, initial_node_count>;
             using payload_manager_t = TPayloadManager;
             using payload_t = typename payload_manager_t::payload_t;
             using this_t = trie_t;
@@ -58,7 +70,8 @@ namespace OP
             using value_type = typename payload_manager_t::source_payload_t;
             using node_t = TrieNode<payload_manager_t>;
             using position_t = TriePosition;
-            using key_t = OP::common::atom_string_t;
+            using key_t = TKeyString;
+            using key_view_t = std::basic_string_view<typename key_t::value_type>;
             using insert_result_t = std::pair<iterator, bool>;
             using storage_converter_t = typename payload_manager_t::storage_converter_t;
 
@@ -315,7 +328,7 @@ namespace OP
             iterator lower_bound(iterator& of_prefix, Atom& begin, Atom aend) const
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), false); //place all RO operations to atomic scope
-                OP::common::atom_string_t lookup_key;
+                key_t lookup_key;
                 auto succeeded = sync_iterator(of_prefix, &lookup_key);
                 if (succeeded)
                 {
@@ -485,7 +498,7 @@ namespace OP
             template <class IterateAtom>
             auto prefixed_range(IterateAtom begin, IterateAtom aend) const
             {
-                OP::common::atom_string_t prefix(begin, aend);
+                key_t prefix(begin, aend);
                 return prefixed_range(prefix);
             }
 
@@ -532,7 +545,8 @@ namespace OP
             }
 
             /**Return range that allows iterate all siblings of specified prefix*/
-            auto sibling_range(const OP::common::atom_string_t& key) const
+            template <class AtomContainer>
+            auto sibling_range(const AtomContainer& key) const
             {
                 return OP::flur::make_lazy_range(make_mixed_sequence_factory(
                     std::const_pointer_cast<const this_t>(this->shared_from_this()),
@@ -542,7 +556,7 @@ namespace OP
 
             }
 
-            /** Utilize feature of Trie where all entries below the single prefix are lexicographicaly ordered.
+            /** Utilize feature of Trie where all entries below the single prefix are lexicographically ordered.
             * This range provide access to ordered sequence of suffixes. In simplified view you can think
             * about it as a cutting right part of each string from trie
             * @param begin - specifies begin iterator of prefix that will be cut-off
@@ -652,7 +666,7 @@ namespace OP
                     return std::make_pair(end(), false); //empty string is not operatable
 
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true/*commit automatically*/);
-                OP::common::atom_string_t fallback_key;
+                key_t fallback_key;
                 auto sync_res = sync_iterator(of_prefix, &fallback_key);
                 if (!sync_res)
                 { //no entry for previous iterator
@@ -676,7 +690,8 @@ namespace OP
             std::enable_if_t<std::is_invocable_v<FPayloadFactory>, insert_result_t>
                 prefixed_insert(iterator& of_prefix, const TStringLike& container, FPayloadFactory&& payload_factory)
             {
-                return prefixed_insert(of_prefix, std::begin(container), std::end(container), std::move(payload_factory));
+                return prefixed_insert(
+                    of_prefix, std::begin(container), std::end(container), std::move(payload_factory));
             }
 
             /** Same as `prefixed_insert(iterator&, AtomIterator, AtomIterator, FPayloadFactory)` but instead of 
@@ -762,7 +777,7 @@ namespace OP
                 if (begin == aend)
                     return std::make_pair(end(), false); //empty string is not operatable
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true/*commit automatically*/);
-                OP::common::atom_string_t fallback_key;
+                key_t fallback_key;
                 
                 if (!sync_iterator(of_prefix, &fallback_key))
                 { //no entry for previous iterator, just insert
@@ -1393,7 +1408,7 @@ namespace OP
                 }
             }
             /**Return not fully valid iterator that matches common part specified by [begin, end)
-            * \return reason why iterator unmatches to query string
+            * \return reason why iterator unmatched to query string
             */
             template <class Atom>
             StemCompareResult common_prefix(Atom& begin, Atom end, iterator& result_iter) const
@@ -1519,7 +1534,7 @@ namespace OP
             * \param fallback atomic_string_t that set overall result false origin key of iterator, because on
             *       unsuccessful sync at exit iterator is damaged. Pointer may be omitted if you don't need recovery
             */
-            bool sync_iterator(iterator& it, OP::common::atom_string_t* fallback = nullptr) const
+            bool sync_iterator(iterator& it, key_t* fallback = nullptr) const
             {
                 const std::uint64_t this_ver = this->version();
 
@@ -1543,7 +1558,8 @@ namespace OP
                         {
                             *fallback = it.key(); //need make copy since next instructions corrupt the iterator
                         }
-                        auto repeat_search_key = it.key().substr(prefix_length); //cut prefix str
+                        key_view_t repeat_search_key = 
+                            OP::utils::subview<key_view_t>(it.key(), prefix_length); //cut prefix str
                         it._prefix.resize(prefix_length);
                         it._position_stack.erase( //cut stack
                             it._position_stack.begin() + order, 
@@ -1593,7 +1609,7 @@ namespace OP
                         if (!node_data._stem.is_nil())
                         {//if stem exists should be placed to iterator
                             StringMemoryManager smm(*_topology);
-                            OP::common::atom_string_t buffer;
+                            key_t buffer;
                             smm.get(node_data._stem, std::back_inserter(buffer));
                             (dest.*iterator_update)(std::move(root_pos),
                                 buffer.data(), buffer.data() + buffer.size());

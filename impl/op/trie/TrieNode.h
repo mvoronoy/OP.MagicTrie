@@ -533,7 +533,6 @@ namespace OP
             * @return pair of comparison result and length of overlapped string.
             *
             */
-
             template <class TSegmentTopology>
             void grow(TSegmentTopology& topology, key_value_t& from_container)
             {

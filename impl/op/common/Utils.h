@@ -332,5 +332,20 @@ namespace OP::utils
     struct priority_tag : priority_tag<N - 1> {};
     template<> struct priority_tag<0> {};
 
+    /** Make std::basic_string_view from a generic string, with spec of `std::string::substr`.
+    * \throws std::out_of_range when `pos > size()`.
+    */
+    template <class TView, class TStr>
+    constexpr TView subview(
+        const TStr& source, typename TStr::size_type pos = 0, typename TStr::size_type count = TStr::npos)
+    {
+        if( pos > source.size() ) //empty string is allowed
+            throw std::out_of_range("`subview` is out of the range");
+        typename TStr::size_type n = source.size() - pos;
+        if(count < n)
+            n = count;
+        return TView{source.data() + pos, n};
+    }
+
 } //OP::utils
 #endif //_OP_TRIE_UTILS__H_

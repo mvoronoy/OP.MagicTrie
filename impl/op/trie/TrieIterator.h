@@ -17,7 +17,7 @@ namespace OP::trie
         using iterator_category = std::bidirectional_iterator_tag;
         using difference_type = std::ptrdiff_t;
 
-        using prefix_string_t = OP::common::atom_string_t;
+        using prefix_string_t = typename Container::key_t;
         using key_type = prefix_string_t;
         using key_t = prefix_string_t;
         using value_type = typename Container::value_type;
@@ -184,9 +184,9 @@ namespace OP::trie
             auto& back = _position_stack.back();
             dim_t prev_delta = back.stem_size() + 1; 
             dim_t next_delta = position.stem_size() + 1;
-            _prefix.reserve(_prefix.length() - prev_delta + next_delta + (end - begin));
+            _prefix.reserve(_prefix.size() - prev_delta + next_delta + (end - begin));
             //leave only common part with previous state
-            _prefix.resize(_prefix.length() - prev_delta);
+            _prefix.resize(_prefix.size() - prev_delta);
             back = position;
             _prefix.append(1, (atom_t)position.key());
             update_stem(begin, end);
@@ -216,7 +216,7 @@ namespace OP::trie
         void pop()
         {
             dim_t cut_len = _position_stack.back()._stem_size + 1; //+1 in the name of retained key
-            _prefix.resize(_prefix.length() - cut_len);
+            _prefix.resize(_prefix.size() - cut_len);
             _position_stack.pop_back();
         }
 

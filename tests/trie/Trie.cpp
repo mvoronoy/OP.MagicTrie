@@ -25,7 +25,8 @@ namespace
     using namespace OP::common;
 
     const char* test_file_name = "trie.test";
-    using test_trie_t = Trie<EventSourcingSegmentManager, OP::trie::PlainValueManager<double>>;
+    using test_trie_t = Trie<
+        EventSourcingSegmentManager, OP::trie::PlainValueManager<double>, OP::common::atom_string_t>;
 
     void test_TrieCreation(OP::utest::TestRuntime& tresult)
     {
@@ -325,6 +326,7 @@ namespace
         compare_containers(tresult, *trie, test_values);
         const std::string& upd = test_seq[std::extent<decltype(test_seq)>::value / 2];
     }
+
     void test_TrieLowerBound(OP::utest::TestRuntime& tresult)
     {
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
@@ -531,7 +533,8 @@ namespace
         auto tmngr1 = OP::trie::SegmentManager::create_new<SegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        using trie_t = Trie<SegmentManager, PlainValueManager<double>>;
+        using trie_t = Trie<
+            SegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
         std::map<std::string, double> standard;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
@@ -1295,7 +1298,9 @@ namespace
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        using trie_t = OP::trie::Trie<OP::trie::SegmentManager, PlainValueManager<double>>;
+        using trie_t = OP::trie::Trie<
+            OP::trie::SegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         for (const auto& pair : src1) trie->insert(pair.first, pair.second);
         auto g_pos = trie->find("g"_astr);
@@ -1466,7 +1471,8 @@ namespace
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
 
-        using trie_t = Trie<EventSourcingSegmentManager, OP::trie::PlainValueManager<DestroySensor>>;
+        using trie_t = Trie<
+            EventSourcingSegmentManager, OP::trie::PlainValueManager<DestroySensor>, OP::common::atom_string_t>;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
         std::map<atom_string_t, DestroySensor> test_values;
@@ -1578,7 +1584,9 @@ namespace
             "10k.trie",
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        using trie_t = Trie<EventSourcingSegmentManager, PlainValueManager<double>>;
+        using trie_t = Trie<
+            EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
         constexpr std::uint32_t N = 0x3FFF;
         auto measure = [&](auto f)->double {
