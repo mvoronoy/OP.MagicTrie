@@ -13,6 +13,7 @@
 #include <op/common/Range.h>
 
 #include <op/vtm/SegmentManager.h>
+#include <op/vtm/SegmentTopology.h>
 
 namespace OP::vtm
 {
