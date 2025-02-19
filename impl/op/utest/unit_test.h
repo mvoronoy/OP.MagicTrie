@@ -298,10 +298,23 @@ namespace OP::utest
         {
             return _status;
         }
+        
         [[nodiscard]] double ms_duration() const
         {
             return std::chrono::duration<double, std::milli>(_end_time - _start_time).count();
         }
+
+        [[nodiscard]] unsigned run_number() const
+        {
+            return _run_number;
+        }
+
+        [[nodiscard]] double avg_duration() const
+        {
+            return _run_number > 1 ? (ms_duration() / _run_number) : ms_duration();
+        }
+
+
         [[nodiscard]] static const std::string& status_to_str(Status status) 
         {
             static const std::string values[] = {
@@ -620,12 +633,21 @@ namespace OP::utest
         */
         TestResult load_execute(test_run_shared_args_t& runtime, unsigned run_number, unsigned warm_up = 10)
         {
+            auto &info_stream = runtime.eval_arg<TestRuntime>().info();
+            info_stream << "=> test is starting under loading...\n"
+                << console::esc<console::blue_t>("\twarm-up cycles:(")
+                << console::esc<console::bright_cyan_t>(warm_up)
+                << console::esc<console::blue_t>(")...\n");
             while (warm_up--)
             {
                 auto tr = single_execute(runtime);
                 if (!tr) //warm-up failed
                     return tr;
             }
+            info_stream
+                << console::esc<console::blue_t>("\tmeasurement cycles:(")
+                << console::esc<console::bright_cyan_t>(run_number)
+                << console::esc<console::blue_t>(")...\n");
             TestResult result(_name);
             result._start_time = std::chrono::steady_clock::now();
             for (; run_number; --run_number, ++result._run_number)
@@ -634,6 +656,7 @@ namespace OP::utest
             }
             result._end_time = std::chrono::steady_clock::now();
             result._status = TestResult::Status::ok;
+
             return result;
         }
         
@@ -1410,15 +1433,23 @@ namespace OP::utest
             //allow output error right after appear
             info() << "\t[" << tcase->id() << "]...\n";
             result.emplace_back( tcase->execute(runtime_vars, _options) );
-
+            auto& last_run = result.back();
+            IoFlagGuard stream_guard(info());
             info()
                     << "\t[" << tcase->id() << "] done with status:"
-                    << "-=[" << result.back().status_to_colored_str()
+                    << "-=[" << last_run.status_to_colored_str()
                     << "]=-"
                     << " in:" 
                     << std::fixed << std::setprecision(3) 
-                    << result.back().ms_duration() << "ms"
-                    << std::endl //need flush
+                    << last_run.ms_duration() << "ms"
+                ;
+            if(result.back().run_number() > 1)
+            {
+                info() << ", (avg:"
+                    << console::esc<console::bright_cyan_t>(last_run.avg_duration() ) << "ms)"
+                    ;
+            }
+            info() <<'.' << std::endl //need flush
                 ;
             if (_options.fail_fast() && result.back().status() != TestResult::Status::ok)
                 break;

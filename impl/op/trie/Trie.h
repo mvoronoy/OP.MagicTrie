@@ -608,11 +608,12 @@ namespace OP
                 if (begin == aend)
                     return std::make_pair(iterator(this), false); //empty string cannot be inserted
 
-                OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true);
+                OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction());
                 
                 auto result = std::make_pair(end(), true);
                 result.second = !insert_impl(
                     result.first, begin, aend, std::move(value_assigner));
+                op_g.commit();
 
                 return result;
             }
@@ -1558,8 +1559,8 @@ namespace OP
                         {
                             *fallback = it.key(); //need make copy since next instructions corrupt the iterator
                         }
-                        key_view_t repeat_search_key = 
-                            OP::utils::subview<key_view_t>(it.key(), prefix_length); //cut prefix str
+                        auto repeat_search_key = 
+                            it.key().substr(prefix_length); //cut prefix str (make copy)
                         it._prefix.resize(prefix_length);
                         it._position_stack.erase( //cut stack
                             it._position_stack.begin() + order, 

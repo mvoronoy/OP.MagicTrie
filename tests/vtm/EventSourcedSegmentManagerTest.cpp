@@ -279,7 +279,6 @@ namespace
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
         auto aa1 = tmngr1->segment_size();
-        //tmngr1->ensure_segment(0);
         SegmentTopology<HeapManagerSlot> mngrToplogy(tmngr1);
 
         struct TestAbc
@@ -296,7 +295,11 @@ namespace
         };
         auto& mm = mngrToplogy.slot<HeapManagerSlot>();
         auto test_avail = mm.available(0);
+        
+        OP::vtm::TransactionGuard tvoid1(tmngr1->begin_transaction());
         auto abc1_off = mm.make_new<TestAbc>(1, 1.01, "abc");
+        tvoid1.commit();
+
         auto abc1_block = tmngr1->readonly_block(abc1_off, sizeof(TestAbc));
         auto abc1_ptr = abc1_block.at<TestAbc>(0);
         tresult.assert_true(strcmp(abc1_ptr->c, "abc") == 0, "wrong assign");

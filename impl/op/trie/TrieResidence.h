@@ -83,11 +83,9 @@ namespace OP
             {
                 assert(segment_address.segment() == 0);
                 _segment_address = segment_address;
-                OP::vtm::TransactionGuard op_g(
-                    segment_manager().begin_transaction()); //invoke begin/end write-op
+
                 *segment_manager().wr_at<TrieHeader>(segment_address, OP::trie::WritableBlockHint::new_c)
                     = TrieHeader(); //init with null
-                op_g.commit();
             }
 
             void open(FarAddress segment_address) override

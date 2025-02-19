@@ -77,9 +77,9 @@ namespace OP::utest::cmdline
                 key("-b"),
                 desc("<N> - Run test in bulk mode N times."),
                 action([&opts](std::uint64_t runs) {
-                    LoadRunOptions opt;
-                    opt._runs = runs;
-                    opts.load_run(opt);
+                    LoadRunOptions local;
+                    local._runs = runs;
+                    opts.load_run(local);
                     })
             ),
             arg(

@@ -81,7 +81,7 @@ namespace OP::vtm
         }
 
         /**
-        * Allocate new persisted string.
+        * Allocate new persisted string. Must be called in the transaction scope.
         * \tparam StringLike - any type supporting size(), data() methods
         * \throws std::out_of_range - when string size exceeds segment capacity
         * \return FarAddress allocated by HeapManagerSlot
@@ -104,9 +104,6 @@ namespace OP::vtm
             auto alloc_size = persisted_char_array_t::memory_requirement(
                 segment_adjusted_size);
 
-            OP::vtm::TransactionGuard op_g(
-                _segment_manager.begin_transaction()); //invoke begin/end write-op
-            //
             persisted_char_array_t result (_heap_mngr.allocate(alloc_size));
             auto& content = result.ref(_segment_manager, segment_adjusted_size);
 
@@ -114,7 +111,6 @@ namespace OP::vtm
             for(auto *p = content.data; begin != end; ++begin, ++p) 
                 *p = *begin;
 
-            op_g.commit();
             return result.address;
         }                                          
         
@@ -142,13 +138,12 @@ namespace OP::vtm
         }
 
         /**
-        *   \tparam Args - optional argument of Payload constructor.
+        * Desrtoy string persisted by #insert. Must be called in transaction.
+        * \tparam Args - optional argument of Payload constructor.
         */
         void destroy(FarAddress str)
         {
-            OP::vtm::TransactionGuard op_g(_segment_manager.begin_transaction()); //invoke begin/end write-op
             _heap_mngr.deallocate(str);
-            op_g.commit();
         }
         
         void destroy(const smart_str_address_t& str)
@@ -196,8 +191,6 @@ namespace OP::vtm
             segment_pos_t offset = 0, 
             segment_pos_t length = std::numeric_limits<segment_pos_t>::max())
         {
-            OP::vtm::TransactionGuard op_g(
-                _segment_manager.begin_transaction()); //invoke begin/end read-op
             auto head = view< smm::StringHead >(_segment_manager, str_addr);
             if (offset >= head->_size)
                 return 0;

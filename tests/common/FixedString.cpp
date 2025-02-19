@@ -104,20 +104,54 @@ namespace {
         using namespace std::string_literals;
 
         using extrm1_str_t = FixedString<fix_str_policy_throw_exception<std::uint8_t, 1>>;
-        tresult.assert_exception<std::runtime_error>([](){
+        tresult.assert_exception<std::runtime_error>([](){ //zero size buffer cannot fit the string
             extrm1_str_t s1;
             s1.push_back('a');
             });
-        tresult.assert_exception<std::runtime_error>([]() {
+        tresult.assert_exception<std::runtime_error>([]() {  //zero size buffer cannot fit the string
             extrm1_str_t s1;
             s1 + "a"s;
             });
 
         tresult.assert_that<equals>(ufstr_t{}.push_back('1'), "1"s);
+        tresult.assert_that<equals>(ufstr_t{1, '0'}.push_back('1'), "01"s);
 
         using one_char_t = FixedString<fix_str_policy_throw_exception<char, 2>>;
-        tresult.assert_that<equals>(
+        tresult.assert_that<equals>( //1-capacity string succeeded
             one_char_t{} + "1"s, one_char_t{"1", 1});
+
+        tresult.assert_that<equals>(
+            ufstr_t{}.append(3, 'x'), "xxx"s);
+        tresult.assert_that<equals>(
+            ufstr_t{}.append(0, 'x'), ufstr_t{});
+
+        const char arr[] = {'0', '1', '2'};
+        tresult.assert_that<equals>(
+            ufstr_t{}.append(std::begin(arr), std::end(arr)), "012"s);
+        tresult.assert_that<equals>(//zero length from iterator
+            ufstr_t{}.append(std::begin(arr), std::begin(arr)), ufstr_t{});
+        tresult.assert_that<equals>(//zero length from iterator
+            ufstr_t{}.append(arr, 2), "01"s);
+
+        tresult.assert_that<equals>(
+            ufstr_t{1, 'y'}.append(3, 'x'), "yxxx"s);
+
+        ufstr_t mut1;
+        mut1.assign(""s);
+        tresult.assert_that<equals>(mut1, ""s);
+        mut1.assign("abc"s);
+        tresult.assert_that<equals>(mut1, "abc"s);
+        mut1.assign(""s);
+        tresult.assert_that<equals>(mut1, ""s);
+        mut1.assign("012"s).assign("x"s);
+        tresult.assert_that<equals>(mut1, "x"s);
+
+        using short_str_t = FixedString<fix_str_policy_throw_exception<std::uint8_t, 10>>;
+        short_str_t ss0;
+        std::string extra_len(ss0.capacity() * 2, '#');
+        tresult.assert_exception<std::runtime_error>([&]() {
+            ss0.assign(extra_len);
+            });
     }
     
     void test_compare(OP::utest::TestRuntime& tresult)

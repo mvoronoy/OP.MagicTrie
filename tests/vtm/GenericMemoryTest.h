@@ -70,7 +70,11 @@ struct GenericMemoryTest{
             auto mngr1 = Sm::template create_new<Sm>(seg_file_name, options);
             tst_size = mngr1->segment_size();
             SegmentTopology<HeapManagerSlot> mngrTopology (mngr1);
+
+            OP::vtm::TransactionGuard g(mngr1->begin_transaction());
             one_byte_pos = mngrTopology.slot<HeapManagerSlot>().allocate(1);
+            g.commit();
+
             auto one_byte_block = mngr1->readonly_block(one_byte_pos, 1);
             one_byte_block.template at<std::uint8_t>(0);
             mngrTopology._check_integrity();
@@ -80,12 +84,18 @@ struct GenericMemoryTest{
         result.assert_true(tst_size == segmentMngr2->segment_size(), OP_CODE_DETAILS());
         SegmentTopology<HeapManagerSlot>& mngr2 = *new SegmentTopology<HeapManagerSlot>(segmentMngr2);
 
+        OP::vtm::TransactionGuard g2(segmentMngr2->begin_transaction());
         auto half_block = mngr2.slot<HeapManagerSlot>().allocate(tst_size / 2);
+        g2.commit();
+
         mngr2._check_integrity();
         //try consume bigger than available
         //try
         {
+            OP::vtm::TransactionGuard g3(segmentMngr2->begin_transaction());
             mngr2.slot<HeapManagerSlot>().allocate(mngr2.slot<HeapManagerSlot>().available(0) + 1);
+            g3.commit();
+
             //new segment must be allocated
             result.assert_true(segmentMngr2->available_segments() == 2, OP_CODE_DETAILS());
         }
@@ -94,11 +104,15 @@ struct GenericMemoryTest{
         //    result.assert_true(e.code() == OP::trie::er_no_memory);
         //}
         mngr2._check_integrity();
-        //consume allmost all
+        //consume almost all
+        OP::vtm::TransactionGuard g4(segmentMngr2->begin_transaction());
         auto rest = mngr2.slot<HeapManagerSlot>().allocate( mngr2.slot<HeapManagerSlot>().available(0) - SegmentDef::align_c );
+        g4.commit();
+
         mngr2._check_integrity();
         try
         {
+            OP::vtm::TransactionGuard g5(segmentMngr2->begin_transaction());
             mngr2.slot<HeapManagerSlot>().forcible_deallocate(rest + 1);
             result.assert_true(false, OP_CODE_DETAILS(<<"exception must be raised"));
         }
@@ -118,20 +132,34 @@ struct GenericMemoryTest{
         //{
         //    result.assert_true(e.code() == OP::trie::er_invalid_block);
         //}
+        
+        OP::vtm::TransactionGuard g6(segmentMngr2->begin_transaction());
         mngr2.slot<HeapManagerSlot>().forcible_deallocate(one_byte_pos);
+        g6.commit();
         mngr2._check_integrity();
+
+        OP::vtm::TransactionGuard g7(segmentMngr2->begin_transaction());
         mngr2.slot<HeapManagerSlot>().forcible_deallocate(rest);
+        g7.commit();
         mngr2._check_integrity();
+
+        OP::vtm::TransactionGuard g8(segmentMngr2->begin_transaction());
         mngr2.slot<HeapManagerSlot>().forcible_deallocate(half_block);
+        g8.commit();
         mngr2._check_integrity();
+
+        OP::vtm::TransactionGuard g9(segmentMngr2->begin_transaction());
         auto bl_control = mngr2.slot<HeapManagerSlot>().allocate(100);
         auto test_size = mngr2.slot<HeapManagerSlot>().available(0);
+        g9.commit();
 
         //make striped blocks
         FarAddress stripes[7];
         for (size_t i = 0; i < 7; ++i)
         {
+            OP::vtm::TransactionGuard g10(segmentMngr2->begin_transaction());
             auto b_pos = mngr2.slot<HeapManagerSlot>().allocate(sizeof(TestSeq));
+            g10.commit();
 
             OP::vtm::TransactionGuard g(segmentMngr2->begin_transaction());
             auto b_block = segmentMngr2->writable_block(b_pos, sizeof(TestSeq));
@@ -157,7 +185,10 @@ struct GenericMemoryTest{
         {
             if (!has_block_compression)
                 test_size -= aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
+
+            OP::vtm::TransactionGuard g(segmentMngr3->begin_transaction());
             mm.forcible_deallocate(stripes[i]);
+            g.commit();
         }
         mngr3->_check_integrity();
         //now test merging of adjacency blocks
@@ -171,19 +202,35 @@ struct GenericMemoryTest{
 
             if (!has_block_compression)
                 test_size -= aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
+            
+            OP::vtm::TransactionGuard g(segmentMngr3->begin_transaction());
             mm.forcible_deallocate(stripes[i]);
+            g.commit();
+
             mngr3->_check_integrity();
         }
         result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
         //repeat prev test on condition of releasing even blocks
         for (size_t i = 0; i < 7; ++i)
+        {
+            OP::vtm::TransactionGuard g(segmentMngr3->begin_transaction());
             stripes[i] = mm.allocate(sizeof(TestSeq));
+            g.commit();
+        }
+        
         for (size_t i = 0; i < 7; i+=2)
+        {
+            OP::vtm::TransactionGuard g(segmentMngr3->begin_transaction());
             mm.forcible_deallocate(stripes[i]);
+            g.commit();
+        }
+
         mngr3->_check_integrity();
         for (size_t i = 1; i < 7; i += 2)
         {
+            OP::vtm::TransactionGuard g(segmentMngr3->begin_transaction());
             mm.forcible_deallocate(stripes[i]);
+            g.commit();
             mngr3->_check_integrity();
         }
         result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
@@ -193,12 +240,14 @@ struct GenericMemoryTest{
         std::vector<size_t> rnd_indexes(1000);//make unique vector and randomize access over it
         for (size_t i = 0; i < 1000; ++i)
         {
+            OP::vtm::TransactionGuard g(segmentMngr3->begin_transaction());
             rnd_indexes[i] = i;
             auto r = rand();
             if (r & 1)
                 rand_buf[i] = mm.make_new<TestMemAlloc2>();
             else
                 rand_buf[i] = mm.make_new<TestMemAlloc1>();
+            g.commit();
         }
 
         std::shuffle(std::begin(rnd_indexes), std::end(rnd_indexes), tools::RandomGenerator::instance().generator());
@@ -208,7 +257,9 @@ struct GenericMemoryTest{
         for (size_t i = 0; i < 1000; ++i)
         {
             auto p = rand_buf[rnd_indexes[i]];
+            OP::vtm::TransactionGuard g(segmentMngr3->begin_transaction());
             mm.forcible_deallocate( p );
+            g.commit();
             //mngr3->_check_integrity();
         }
         std::cout << "\tTook:" 

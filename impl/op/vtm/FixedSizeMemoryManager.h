@@ -64,7 +64,7 @@ namespace OP::vtm
         {
             if (n < 1)
                 return;
-            OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction()); //invoke begin/end write-op
+
             auto avail_segments = segment_manager().available_segments();
             //capture ZeroHeader for write during 10 tries
             ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<60>([this]()
@@ -114,7 +114,6 @@ namespace OP::vtm
                 --header->_in_free;
                 ++header->_in_alloc;
             }
-            op_g.commit();
         }
 
         bool is_valid_address(FarAddress addr)
@@ -130,7 +129,7 @@ namespace OP::vtm
                 using namespace std::string_literals;
                 throw std::runtime_error("Address doesn't belong to "s + typeid(*this).name());
             }
-            OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction()); //invoke begin/end write-op
+
             //capture ZeroHeader for write during 10 tries
             auto header = OP::vtm::template transactional_yield_retry_n<10>([this]()
                 {
@@ -149,7 +148,6 @@ namespace OP::vtm
             header->_next = addr;
             ++header->_in_free;
             --header->_in_alloc;
-            op_g.commit();
         }
 
         void _check_integrity(FarAddress segment_addr) override
@@ -274,7 +272,7 @@ namespace OP::vtm
             std::lock_guard guard(_topology_mutex);
 
             FarAddress blocks_begin;
-            OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction()); //invoke begin/end write-op
+
             ZeroHeader* header;
             if (start_address.segment() == 0)
             { //create special entry for ZeroHeader
@@ -306,8 +304,6 @@ namespace OP::vtm
                 Capacity - 1 // (-1) since when (adjacent == 0) we have exact 1 free block
             };
             header->_next = blocks_begin;
-
-            op_g.commit();
         }
 
         /**

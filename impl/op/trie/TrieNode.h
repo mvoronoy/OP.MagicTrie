@@ -380,11 +380,11 @@ namespace OP
                 StringMemoryManager str_manager(topology);
                 atom_string_t stem_buf;
                 str_manager.get(source._stem, std::back_inserter(stem_buf));
-                assert(in_stem_pos < stem_buf.size());
+                assert(in_stem_pos <= stem_buf.size());
                 atom_string_view_t left_stem(stem_buf.data(), in_stem_pos);
                 atom_t new_key = stem_buf[in_stem_pos++];
-                atom_string_view_t cary_over_stem(
-                    stem_buf.data() + in_stem_pos, stem_buf.size() - in_stem_pos);
+                atom_string_view_t cary_over_stem = OP::utils::subview<atom_string_view_t>(
+                    stem_buf, in_stem_pos/*, till the end */);
                 str_manager.destroy(source._stem);//remove previous
                 source._stem = {};
                 if (!left_stem.empty())

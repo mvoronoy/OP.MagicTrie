@@ -6,6 +6,7 @@
 #include <op/common/IoFlagGuard.h>
 
 #include <op/vtm/SegmentManager.h>
+#include <op/vtm/SegmentTopology.h>
 #include <op/vtm/MemoryBlock.h>
 #include <op/vtm/Skplst.h>
 
@@ -45,7 +46,6 @@ namespace OP::vtm
         {
             size = OP::utils::align_on(size, SegmentHeader::align_c);
 
-            OP::vtm::TransactionGuard tguard(segment_manager().begin_transaction());
             //try pull existing blocks
 
             auto [header_pos, user_size] =
@@ -97,7 +97,6 @@ namespace OP::vtm
             assert(heap_acc->_size < segment_manager().segment_size() ); //note works with unsigned
             segment_info._size = heap_acc->_size;
 
-            tguard.commit();
             return HeapBlockHeader::get_addr_by_header(header_pos);
         }
 
@@ -133,14 +132,12 @@ namespace OP::vtm
                 throw trie::Exception(trie::er_invalid_block);
 
             FarAddress header(HeapBlockHeader::get_header_addr(address));
-            OP::vtm::TransactionGuard g(segment_manager().begin_transaction());
 
             auto header_block = segment_manager().accessor<HeapBlockHeader>(header);
             if (!header_block->check_signature() || header_block->is_free())
                 throw trie::Exception(trie::er_invalid_block);
 
             do_deallocate(header_block);
-            g.commit();
         }
 
         /**Allocate memory and create object of specified type
@@ -149,12 +146,10 @@ namespace OP::vtm
         template<class T, class... Types>
         FarAddress make_new(Types&&... args)
         {
-            OP::vtm::TransactionGuard g(segment_manager().begin_transaction());
             auto result = allocate(memory_requirement<T>::requirement);
             auto mem = segment_manager().writable_block(
                 result, memory_requirement<T>::requirement, WritableBlockHint::new_c);
             new (mem.pos()) T(std::forward<Types>(args)...);
-            g.commit();
             return result;
         }
 
@@ -215,8 +210,6 @@ namespace OP::vtm
         */
         void on_new_segment(FarAddress start_address) override
         {
-            OP::vtm::TransactionGuard op_g(segment_manager().begin_transaction()); //invoke begin/end write-op
-            
             FarAddress first_block_pos = start_address;
             if (start_address.segment() == 0)
             {//only single instance of free-space list
@@ -241,8 +234,6 @@ namespace OP::vtm
             ::new (first_block.pos()) HeapBlockHeader{ segment_presence._size };
             //after allocation block is free, so add this to skiplist
             _free_blocks->insert(first_block.address(), &first_block);
-            
-            op_g.commit();
         }
 
         void open(FarAddress start_address) override
@@ -251,7 +242,6 @@ namespace OP::vtm
             auto& segment_presence = ensure_index(start_address.segment());
             auto blocks_pos = start_address;
 
-            OP::vtm::TransactionGuard gtran(segment_manager().begin_transaction()); //invoke begin/end write-op
             if (start_address.segment() == 0)
             {//only first segment has an instance of free-space list
                 _free_blocks = free_blocks_t::open(segment_manager(), blocks_pos);
@@ -262,8 +252,6 @@ namespace OP::vtm
 
             segment_presence._heap_start = blocks_pos;
             segment_presence._size = heap_header->_size;
-
-            gtran.commit();
         }
 
         void release_segment(segment_idx_t segment_index) override

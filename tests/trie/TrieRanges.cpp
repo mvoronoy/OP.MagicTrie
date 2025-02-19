@@ -37,14 +37,7 @@ namespace
         }
     };
 
-    template <class O, class T>
-    void print_hex(O& os, const T& t)
-    {
-        auto b = std::begin(t), e = std::end(t);
-        for (; b != e; ++b)
-            os << std::setbase(16) << std::setw(2) << std::setfill('0') << (unsigned int)(unsigned char)*b;
-        os << '\n';
-    }
+
     template <class Stream, class Co>
     inline void print_co(Stream& os, const Co& co)
     {

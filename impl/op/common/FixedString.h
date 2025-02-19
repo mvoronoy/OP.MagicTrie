@@ -360,9 +360,10 @@ namespace OP
         constexpr FixedString& append(size_t n, LiteralEnforce<T> symbol) noexcept(use_noexcept_c)
         {
             enforce((size() + n) <= capacity_c, err_exceed_limit);
-            for (auto p = end(); n; ++p, --n)
-                *p = static_cast<value_type>(symbol);
+            auto p = end(); //before change of size
             _buffer[0] += static_cast<value_type>(n);
+            for (; n; ++p, --n)
+                *p = static_cast<value_type>(symbol);
             return *this;
         }
 
