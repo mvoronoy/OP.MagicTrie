@@ -16,6 +16,8 @@ namespace {
 
     void test_basic(OP::utest::TestRuntime& tresult)
     {
+        using namespace std::string_literals;
+
         ufstr_t k1;
         assert(k1.capacity() == ufstr_t::capacity_c);
         assert(k1.empty());
@@ -23,7 +25,7 @@ namespace {
         assert(k1.begin() == k1.end());
         assert(k1.cbegin() == k1.cend());
         try { k1.at(0); assert(false); }
-        catch (std::out_of_range) { std::cout << "catched as expected\n"; }
+        catch (std::out_of_range) { tresult.debug() << "caught as expected\n"; }
         assert(k1 == k1);
 
         ufstr_t k2{ 1, 'x' };
@@ -35,7 +37,7 @@ namespace {
         assert(k2[0] == 'x');
         assert(memcmp(k2.data(), "x", k2.size()) == 0);
         try { k2.at(1); assert(false); }
-        catch (std::out_of_range) { std::cout << "catched as expected\n"; }
+        catch (std::out_of_range) { tresult.debug() << "caught as expected\n"; }
         assert(k2 == k2);
         assert(k2 != k1);
         assert(k1 != k2);
@@ -97,6 +99,17 @@ namespace {
 
         ufstr_t k4{ {'a', 'b', 'c'} };
         assert(k4 == "abc"_astr);
+        ///
+        ufstr_t k5{"012345"s, 1, 3};
+        assert(k5 == "123"_astr);
+
+        k5 = ufstr_t{ "012345"s, 3};
+        assert(k5 == "345"_astr);
+
+        ufstr_t src_rr{"012345"s};
+        ufstr_t rr_target(std::move(src_rr));
+        assert(rr_target == "012345"_astr);
+
     }
     
     void test_append(OP::utest::TestRuntime& tresult)
@@ -151,6 +164,16 @@ namespace {
         std::string extra_len(ss0.capacity() * 2, '#');
         tresult.assert_exception<std::runtime_error>([&]() {
             ss0.assign(extra_len);
+            });
+
+        tresult.assert_that<equals>(
+            ss0.assign(extra_len, extra_len.size()-3), extra_len.substr(extra_len.size() - 3));
+
+        tresult.assert_that<equals>(
+            ss0.assign(extra_len, extra_len.size() - 3, 2), extra_len.substr(extra_len.size() - 3, 2));
+
+        tresult.assert_exception<std::runtime_error>([&]() {
+            ss0.assign(extra_len, 1);
             });
     }
     

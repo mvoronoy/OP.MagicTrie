@@ -84,10 +84,11 @@ namespace
         tresult.assert_true(std::empty(test_range0), "Wrong empty case");
 
         _insert_tes(tresult, *trie, workload);
-
+        
+        using trie_iter_t = typename trie_t::iterator;
         auto range_default = (
             OP::trie::make_mixed_sequence_factory(std::const_pointer_cast<const trie_t>(trie))
-            >> then::mapping([](const auto& i) {
+            >> then::mapping([](const /*trie_iter_t*/auto& i) -> decltype(auto) {
                 return std::pair<const ufstr_t, double>(i.key(), i.value());
                 })
             );

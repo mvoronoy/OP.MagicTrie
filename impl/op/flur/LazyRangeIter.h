@@ -26,7 +26,7 @@ namespace OP::flur
 
         using iterator_category [[maybe_unused]] = std::input_iterator_tag;
         using value_type        =
-            decltype(details::get_reference(details::get_reference(std::declval<target_t&>())).current());
+            decltype(details::get_reference(details::get_reference(std::declval<target_t>())).current());
         using difference_type   = std::ptrdiff_t;
         using reference         = value_type&;
         using pointer           = void;

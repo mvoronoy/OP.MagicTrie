@@ -5,9 +5,11 @@
 #include <string>
 #include <set>
 #include <memory>
+#include <cassert>
 #include <cstring>
 #include <cstdint>
 #include <op/common/Unsigned.h>
+#include <op/common/Utils.h>
 
 #ifdef _MSC_VER
 //Need suppress IntelliSense warning about +1 array over SAL hints
@@ -70,7 +72,9 @@ namespace OP
             std::is_convertible_v<std::decay_t<T>, inner_char_t> > >
         using LiteralEnforce = T;
 
-        static std::true_type _is_compatible(const FixedString&) noexcept;
+        //template <class T, 
+        //    std::enable_if_t<std::is_convertible_v<typename FixedString<T>::value_type, inner_char_t>, int> = 0>
+        //static std::true_type _is_compatible(const FixedString<T>&) noexcept;
         
         template <class T, std::enable_if_t<std::is_convertible_v<T, inner_char_t>, int> = 0>
         static std::true_type _is_compatible(const std::basic_string_view<T>&) noexcept;
@@ -151,8 +155,19 @@ namespace OP
         {
         }
 
-        template <class T>
-        constexpr FixedString(const std::initializer_list<LiteralEnforce<T>> init) noexcept(use_noexcept_c)
+        /**
+        * 
+        * \throws std::out_of_range when pos is invalid for sv string.
+        */ 
+        template <class StringLike>
+        explicit constexpr FixedString(
+            const StringEnforce<StringLike>& sv, size_type pos, size_type count = npos) 
+            : FixedString{ OP::utils::subview<FixedStringView<typename StringLike::value_type>>(sv, pos, count) }
+        {
+        }
+
+        template <class T, std::enable_if_t<std::is_convertible_v<T, value_type>, int> = 0>
+        explicit constexpr FixedString(const std::initializer_list<T> init) noexcept(use_noexcept_c)
             : _buffer{ 0 }
         {
             enforce(init.size() <= capacity_c, err_exceed_limit);
@@ -162,6 +177,17 @@ namespace OP
             {
                 *p = *first;
             }
+        }
+        
+        template <class TPolicy,
+            std::enable_if_t<std::is_convertible_v<typename FixedString<TPolicy>::value_type, inner_char_t>, int> = 0
+        >
+        explicit constexpr FixedString(const FixedString<TPolicy>& other) noexcept(use_noexcept_c)
+            : FixedString{
+                sv.data(),
+                enforce_value(sv.size() <= capacity_c, sv.size(), err_exceed_limit)
+            }
+        {
         }
 
         constexpr FixedString(const FixedString&) noexcept = default;
@@ -327,15 +353,12 @@ namespace OP
             return *this;
         }
 
-        //constexpr FixedString& append(const FixedString& other) noexcept(use_noexcept_c)
-        //{
-        //    assert((size() + other.size()) < capacity_c);
-        //    auto p = end();
-        //    for (auto src = other.cbegin(); src != other.cend(); ++p, ++src)
-        //        *p = *src;
-        //    _buffer[0] += static_cast<value_type>(other.size());
-        //    return *this;
-        //}
+        template <class TPolicy, 
+            std::enable_if_t<std::is_convertible_v<typename FixedString<TPolicy>::value_type, inner_char_t>, int> = 0>
+        constexpr FixedString& append(const FixedString<TPolicy>& other) noexcept(use_noexcept_c)
+        {
+            return append(other.data(), other.size());
+        }
 
         template <class StringLike>
         constexpr FixedString& append(const StringEnforce<StringLike>& sv) noexcept(use_noexcept_c)
@@ -374,6 +397,18 @@ namespace OP
             return append(sv);
         }
 
+        template <class StringLike>
+        FixedString& assign(const StringEnforce<StringLike>& sv, size_type pos, size_type count = npos) noexcept(use_noexcept_c)
+        {
+            size_type n = sv.size() - pos;
+            if (count < n)
+                n = count;
+
+            enforce(n <= capacity_c, err_exceed_limit); //need test before string changed
+            clear();
+            return append(sv.data() + pos, n);
+        }
+
         template <class T>
         FixedString& push_back(LiteralEnforce<T> symbol) noexcept(use_noexcept_c)
         {
@@ -382,18 +417,14 @@ namespace OP
             return *this;
         }
 
-        /**
-        *
-        * \throws std::out_of_range when position exceeds size or new string overflows capacity.
-        */
-        template <class StringLike>
+        template <class T>
         constexpr FixedString& replace(size_t pos, size_t count,
-                       const StringEnforce<StringLike>& sv) 
+                       const LiteralEnforce<T>* symbols, size_t src_length) 
         {
             if(pos > size())
                 throw std::out_of_range("replace position is out of the range");
             const size_t cut_count = std::min(size() - pos, count);
-            const auto tail_offset = OP::utils::uint_diff_int(sv.size(), cut_count);
+            const auto tail_offset = OP::utils::uint_diff_int(src_length, cut_count);
             enforce((size() + tail_offset) < capacity_c, err_exceed_limit);
             
             auto move_dest = begin() + pos;
@@ -401,7 +432,7 @@ namespace OP
             auto suffix_pos = move_dest + cut_count;
             if(tail_offset < 0) //need move suffix left
             {
-                auto suffix_dest = move_dest + sv.size();
+                auto suffix_dest = move_dest + src_length;
                 for(;suffix_pos != end(); ++suffix_pos, ++suffix_dest)
                     *suffix_dest = *suffix_pos;
             }
@@ -415,12 +446,23 @@ namespace OP
             }
             //else when `tail_offset == 0`: {nothing to move in suffix}
 
-            for(auto c: sv)
-                *move_dest++ = c;
+            for(size_t i = 0; i < src_length; ++i)
+                *move_dest++ = symbols[i];
 
             _buffer[0] = static_cast<value_type>((size() + tail_offset));
 
             return *this;
+        }
+
+        /**
+        *
+        * \throws std::out_of_range when position exceeds size or new string overflows capacity.
+        */
+        template <class StringLike>
+        constexpr FixedString& replace(size_t pos, size_t count,
+                       const StringEnforce<StringLike>& sv) 
+        {
+            return replace(pos, count, sv.data(), sv.size());
         }
 
         constexpr FixedString& operator = (const FixedString&) noexcept = default;
@@ -438,6 +480,11 @@ namespace OP
             return append(right);
         }
 
+        template <class TPolicy>
+        constexpr FixedString& operator += (const FixedString<TPolicy>& right) noexcept(use_noexcept_c)
+        {
+            return append(right);
+        }
         /** create new instance
         * 
         * \throws std::out_of_range when total length exceeds FixedString capacity.
@@ -446,7 +493,19 @@ namespace OP
         constexpr FixedString operator + (const StringEnforce<StringLike>& right) const noexcept(use_noexcept_c)
         {
             enforce(
-                (size() + right.size()) <= capacity_c, "sum length exceed capacity");
+                (size() + right.size()) <= capacity_c, "sum length exceeds capacity");
+            FixedString result{ *this };
+            result.append(right);
+            return result;
+        }
+
+        template <class TPolicy,
+            std::enable_if_t<std::is_convertible_v<typename FixedString<TPolicy>::value_type, inner_char_t>, int> = 0
+        >
+        constexpr FixedString operator + (const FixedString<TPolicy>& right) const noexcept(use_noexcept_c)
+        {
+            enforce(
+                (size() + right.size()) <= capacity_c, "sum length exceeds capacity");
             FixedString result{ *this };
             result.append(right);
             return result;
