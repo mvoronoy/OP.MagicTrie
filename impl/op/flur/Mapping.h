@@ -13,26 +13,38 @@ namespace OP::flur
 {
     namespace details
     {
-        template <class F, class A, class ...Ax>
-        inline decltype(auto) map_invoke_impl(F applicator, A&& a, Ax&& ...ax)
+        template <class F>
+        struct WrapMapApplicator
         {
-            if constexpr (std::is_invocable_v<decltype(applicator), A>)
+            F _applicator;
+
+            constexpr explicit WrapMapApplicator(F f) noexcept
+                : _applicator(std::move(f))
             {
-                return applicator(std::forward<A>(a));
             }
-            else if constexpr (std::is_invocable_v<decltype(applicator), A, Ax...>)
+
+            template <class R>
+            inline decltype(auto) invoke_impl(R&& a, const SequenceState& state)
             {
-                return applicator(std::forward<A>(a), std::forward<Ax>(ax)...);
+                //using f_t = std::decay_t<F>;
+                if constexpr (std::is_invocable_v<F, R>)
+                {
+                    return _applicator(std::forward<R>(a));
+                }
+                else if constexpr (std::is_invocable_v<F, R, const SequenceState&>)
+                {
+                    return _applicator(std::forward<R>(a), state);
+                }
+                else if constexpr (std::is_invocable_v<F, const SequenceState&, R>)
+                { //it is not real recombination, but for 2 it works
+                    return _applicator(state, std::forward<R>(a));
+                }
+                else //try without A
+                {   // compiler error there means invalid applicator(F) signature
+                    return _applicator(state);
+                }
             }
-            else if constexpr (std::is_invocable_v<decltype(applicator), Ax..., A>)
-            { //it is not real recombination, but for 2 it works
-                return applicator(std::forward<Ax>(ax)..., std::forward<A>(a));
-            }
-            else 
-            {
-                return map_invoke_impl(applicator, std::forward<Ax>(ax)...);
-            }
-        }
+        };
 
     } //ns:details
     /**
@@ -45,11 +57,11 @@ namespace OP::flur
         using base_t = Sequence<R>;
         using element_t = typename base_t::element_t;
 
-        template <class U>
-        constexpr MappingSequence(Src&& src, U&& f) noexcept
+        template <class F>
+        constexpr MappingSequence(Src&& src, details::WrapMapApplicator<F> holder) noexcept
             : _src(std::move(src))
             , _state{}
-            , _applicator(std::forward<U>(f))
+            , _holder(std::move(holder))
         {
         }
         
@@ -72,7 +84,7 @@ namespace OP::flur
         
         element_t current() const override
         {
-            return details::map_invoke_impl(_applicator, details::get_reference(_src).current(), _state);
+            return _holder.invoke_impl(details::get_reference(_src).current(), _state);
         }
 
         void next() override
@@ -85,7 +97,7 @@ namespace OP::flur
 
         Src _src;
         SequenceState _state;
-        F _applicator;
+        mutable details::WrapMapApplicator<F> _holder;
     };
     
     /** Helper class allows to reduce allocations number when mapping result
@@ -115,13 +127,13 @@ namespace OP::flur
         using to_t = std::decay_t<typename traits_t::template arg_i<1>>;
         using result_t = std::conditional_t< result_by_value_c, to_t, const to_t&>;
 
-        explicit ReusableMapBuffer(F f)
+        constexpr explicit ReusableMapBuffer(F f) noexcept
             : _f(std::move(f)) 
             , _entry{}
         {
         }
 
-        ReusableMapBuffer(to_t init_buffer, F f)
+        constexpr ReusableMapBuffer(to_t init_buffer, F f) noexcept
             : _f(std::move(f)) 
             , _entry{std::move(init_buffer)}
         {
@@ -160,8 +172,9 @@ namespace OP::flur
         {
             using src_container_t = details::sequence_type_t< details::dereference_t<Src> >;
 
-            using result_t = decltype( details::map_invoke_impl(
-                _applicator,
+            details::WrapMapApplicator holder{ _applicator };
+
+            using result_t = decltype( holder.invoke_impl(
                 details::get_reference(src).current(),
                 std::declval<SequenceState>()
                 )
@@ -169,7 +182,8 @@ namespace OP::flur
 
             return MappingSequence<result_t, Src, applicator_t, keep_order_c>(
                 std::move(src), 
-                _applicator);
+                std::move(holder)
+            );
         }
 
         template <class Src>
@@ -177,16 +191,18 @@ namespace OP::flur
         {
             using src_container_t = details::sequence_type_t< details::dereference_t<Src> >;
 
-            using result_t = decltype( details::map_invoke_impl(
-                _applicator,
-                details::get_reference(src).current(),
-                std::declval<SequenceState>()
+            details::WrapMapApplicator holder{ std::move(_applicator) };
+
+            using result_t = decltype(
+                holder.invoke_impl(
+                    details::get_reference(src).current(),
+                    std::declval<SequenceState>()
                 )
             );
 
             return MappingSequence<result_t, Src, applicator_t, keep_order_c>(
                 std::move(src), 
-                std::move(_applicator));
+                std::move(holder));
         }
     private:
         applicator_t _applicator;

@@ -56,10 +56,39 @@ namespace
             src::of_container(inp)
             >> then::mapping(MapOp{}), std::array{ 2, 4, 6 });
     }
+    
+    void test_Multichain(OP::utest::TestRuntime& tresult)
+    {
+        using namespace std::string_literals;
 
+        auto some_stupid_action = [](int a, int b, int c, const std::string& tail){
+            std::ostringstream os;
+            os << a << ',' << b << ',' << c << ':' << tail;
+            return os.str();
+            };
+        std::array inp{ 1, 2, 3 };
+        auto pipeline = src::of_container(inp)
+            >> then::mapping(ReusableMapBuffer([](int i, std::string& str){
+                    str = std::to_string(i);
+                }))
+            >> then::mapping([&](const auto& str, const SequenceState& current){
+                    return some_stupid_action(current.step(), str.size(), current.generation(), str);
+                })
+            ;
+        pipeline >>= apply::drain(std::ostream_iterator<std::string>(
+            tresult.debug(), "\n"));
+        tresult.assert_that<eq_sets>(
+            pipeline, 
+            std::array{
+                "0,1,0:1"s,
+                "1,1,0:2"s,
+                "2,1,0:3"s
+            });
+    }
 
     static auto& module_suite = OP::utest::default_test_suite("flur.then.map")
         .declare("map", test_Map)
         .declare("mutable", test_OperatorMutable)
+        .declare("multichain", test_Multichain)
     ;
 } //ns:
