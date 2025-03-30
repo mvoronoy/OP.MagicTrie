@@ -361,6 +361,10 @@ namespace OP::utest
         const std::string _name;
     };
 
+    namespace tools //forward decl
+    {
+        struct RandomGenerator;
+    }//ns:tools
 
     /** Expose operations to support unit tests */
     struct TestRuntime
@@ -562,6 +566,9 @@ namespace OP::utest
             }
             return sum / repeat;
         }
+        
+        /** Accessor to pre-configured random generator */
+        inline tools::RandomGenerator& randomizer() const;
 
     private:
         TestSuite& _suite;
@@ -1400,6 +1407,11 @@ namespace OP::utest
     inline std::ostream& TestRuntime::debug() const
     {
         return _run_options.log_level() > ResultLevel::info ? _suite.debug() : _null_stream;
+    }
+
+    inline tools::RandomGenerator& TestRuntime::randomizer() const
+    {
+        return tools::RandomGenerator::instance();
     }
 
     template<class Predicate>

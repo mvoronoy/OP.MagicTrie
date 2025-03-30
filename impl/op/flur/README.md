@@ -18,7 +18,7 @@ Flur provides some useful implementations for
 - Processing
 - Consumption.
 
-And of course, developer can provide own implementation.
+And of course, developers can provide own implementation.
 
 ## Getting started
 Let's start from simple. Let's evaluate square of each integer in some std::vector:

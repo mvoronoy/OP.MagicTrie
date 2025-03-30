@@ -502,6 +502,7 @@ namespace OP::console
     private:
         std::tuple<TArg...> _rules;
     };
+
 }//OP::console
 
 #endif //_OP_COMMON_CMDLINE__H_

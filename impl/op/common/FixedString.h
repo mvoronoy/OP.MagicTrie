@@ -9,6 +9,7 @@
 #include <cstring>
 #include <cstdint>
 #include <op/common/Unsigned.h>
+#include <op/common/StringEnforce.h>
 #include <op/common/Utils.h>
 
 #ifdef _MSC_VER
@@ -64,38 +65,22 @@ namespace OP
             "Specified capacity cannot be implemented for Policy::char_t type"
             );
 
+        template <typename T>
+        using LiteralEnforce = ConvertibleToEnforce<inner_char_t, T>;
+
+
+        template <typename T>
+        using StringEnforce = BasicStringEnforce<inner_char_t, T>;
+
         //allow most of the methods be noexcept
         constexpr static bool use_noexcept_c = noexcept(str_policy_t::fail(""));
-
-        template <typename T,
-            typename = std::enable_if_t<
-            std::is_convertible_v<std::decay_t<T>, inner_char_t> > >
-        using LiteralEnforce = T;
-
-        //template <class T, 
-        //    std::enable_if_t<std::is_convertible_v<typename FixedString<T>::value_type, inner_char_t>, int> = 0>
-        //static std::true_type _is_compatible(const FixedString<T>&) noexcept;
         
-        template <class T, std::enable_if_t<std::is_convertible_v<T, inner_char_t>, int> = 0>
-        static std::true_type _is_compatible(const std::basic_string_view<T>&) noexcept;
-
-        template <class T, std::enable_if_t<std::is_convertible_v<T, inner_char_t>, int> = 0>
-        static std::true_type _is_compatible(const std::basic_string<T>&) noexcept;
-
-        static std::false_type _is_compatible(...) noexcept;
-
-        template <class T>
-        constexpr static inline bool buffer_is_compatible_c = decltype(_is_compatible(std::declval<T>()))::value;
-
-        template <typename T,
-            typename = std::enable_if_t<buffer_is_compatible_c<T> > >
-        using StringEnforce = T;
-
         static void enforce(bool condition, const char *reason) noexcept(use_noexcept_c)
         {
             if(!condition)
                 str_policy_t::fail(reason);
         }
+
         template <class T>
         static T enforce_value(bool condition, T t, const char *reason) noexcept(use_noexcept_c)
         {
@@ -103,6 +88,7 @@ namespace OP
                 str_policy_t::fail(reason);
             return t;
         }
+        
         constexpr static inline const char err_exceed_limit[] = "exceed fixed string capacity";
             
     public:
@@ -602,6 +588,18 @@ namespace OP
         return os;
     }
 
+    namespace details
+    {
+        template <class TFixedStr>
+        constexpr inline size_t eval_fixed_view_hash(const TFixedStr& str) noexcept
+        {
+            size_t seed = 0x52dfe1397;
+            ::std::hash<typename TFixedStr::value_type> h;
+            for (auto c : str)
+                seed = (seed * 101) + h(c);
+            return seed;
+        }
+    }
     
 } //ns:OP
 
@@ -615,11 +613,7 @@ namespace std
         template <class T>
         size_t operator()(const T& x) const
         {
-            size_t seed = 0x52dfe1397;
-            ::std::hash<char_t> h;
-            for (auto c : x)
-                seed = (seed * 101) + h(c);
-            return seed;
+            return OP::details::eval_fixed_view_hash(x);
         }
     };
 
