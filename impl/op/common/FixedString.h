@@ -170,8 +170,8 @@ namespace OP
         >
         explicit constexpr FixedString(const FixedString<TPolicy>& other) noexcept(use_noexcept_c)
             : FixedString{
-                sv.data(),
-                enforce_value(sv.size() <= capacity_c, sv.size(), err_exceed_limit)
+                other.data(),
+                enforce_value(other.size() <= capacity_c, other.size(), err_exceed_limit)
             }
         {
         }
