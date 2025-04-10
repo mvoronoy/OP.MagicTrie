@@ -14,82 +14,104 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
+    namespace details
+    {
+        /** define policy of iota state management when only [begin, end) is specified */ 
+        template <class T>
+        struct Boundary2
+        {
+            using value_t = T;
+
+            value_t _begin, _end;
+            
+            constexpr Boundary2(T begin, T end) noexcept 
+                : _begin(std::move(begin))
+                , _end(std::move(end))
+            {}
+
+            void next(value_t& current) const noexcept 
+            {
+                ++current;
+            }
+        };
+
+        /** define policy of iota state management when only [begin, end) is specified */ 
+        template <class T, class U>
+        struct Boundary3
+        {
+            using value_t = T;
+
+            T _begin, _end;
+            U _step;
+
+            constexpr Boundary3(T begin, T end, U step) noexcept 
+                : _begin(std::move(begin))
+                , _end(std::move(end))
+                , _step(std::move(step))
+            {}
+
+            void next(T& current) const noexcept
+            {
+                current += _step;
+            }
+        };
+    }//ns:details
+
     /**
-    *   Create conatiner of sequentially increasing values [begin, end).
-    * Container is ordred on condition if for the boundary 
+    *   Create container of sequentially increasing values [begin, end).
+    * Container is ordered on condition if for the boundary 
     * [begin, end) condition `(begin <= end)` is true. 
     */
-    template <class T, class R = T>
+    template <class TBoundaryManagement, class R = typename TBoundaryManagement::value_t>
     struct OfIota : public Sequence<R>
     {
-        using this_t = OfIota<T, R>;
-        using distance_t = std::ptrdiff_t;
-        struct Bounds
-        {
-            T _begin;
-            T _end;
-            distance_t _step;
-        };
-        using bounds_t = Bounds;
-        constexpr OfIota(T&& begin, T&& end, distance_t step = 1) noexcept
-            : _bounds{ std::forward<T>(begin), std::forward<T>(end), step }
-            , _current(_bounds._end) //end
+        using this_t = OfIota;
+        using boundary_t = TBoundaryManagement;
+        using base_t = Sequence<R>;
+        using value_t = typename boundary_t::value_t;
+        using element_t = typename base_t::element_t;
+
+        explicit constexpr OfIota(boundary_t b) noexcept
+            : _boundary{ std::move(b) }
+            , _current{_boundary._end} //end
         {
         }
 
-        explicit constexpr OfIota(bounds_t bounds) noexcept
-            : _bounds(std::move(bounds))
-            , _current(_bounds._end) //end
-        {}
-
         OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
         {
-            if constexpr(OP::has_operators::less_v<T>)
+            if constexpr(OP::has_operators::less_v<element_t>)
             {
                 // check begin <= end
-                return (_bounds._begin < _bounds._end) || 
-                    (_bounds._begin == _bounds._end);
+                return (_boundary._begin < _boundary._end) || 
+                    (_boundary._begin == _boundary._end);
             }
             else 
                 return false;
         }
 
-        virtual void start() override
+        virtual void start() noexcept override
         {
-            _current = _bounds._begin;
+            _current = _boundary._begin;
         }
 
-        virtual bool in_range() const override
+        virtual bool in_range() const noexcept override
         {
-            return _current != _bounds._end;
+            return _current != _boundary._end;
         }
 
-        virtual R current() const override
+        virtual element_t current() const override
         {
             return _current;
         }
 
         virtual void next() override
         {
-            static_assert(
-                OP::has_operators::plus_eq_v<T, distance_t> ||
-                OP::has_operators::prefixed_plus_plus_v<T>, 
-                "Type T must support `+=` or `++`T"
-            );
-            if constexpr(OP::has_operators::plus_eq_v<T, distance_t>)
-            {
-                _current += _bounds._step;
-            }
-            else
-            {
-                //@! impl have no ability to advance in negative direction
-                for(auto i = 0; in_range() && i < _bounds._step; ++i)
-                    ++_current;
-            }
+            _boundary.next(_current);
         }
+
     private:
-        bounds_t _bounds;
-        T _current;
+        boundary_t _boundary;
+        value_t _current;
     };
 
 

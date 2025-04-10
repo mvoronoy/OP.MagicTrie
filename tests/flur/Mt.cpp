@@ -78,14 +78,6 @@ namespace
     void test_Mt(OP::utest::TestRuntime& tresult)
     {
 
-        //(src::of_iota(20, 114) >> then::mapping([](auto i) {
-        //        return std::async(std::launch::async, [=]() {
-        //            std::this_thread::sleep_for(200ms);
-        //            return i;
-        //            });
-        //    })).for_each([](auto& i) {
-        //        std::cout << "inp>" << i.get() << "\n";
-        //        });
         OP::utils::ThreadPool tp;
 
         QueueSequence<int> tee;

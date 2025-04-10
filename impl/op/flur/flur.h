@@ -215,29 +215,34 @@ namespace OP::flur
         constexpr auto of_iota(T begin, T end) noexcept
         {
             using iota_value_t = std::decay_t<T>;
-            using iota_t = OfIota<iota_value_t> ;
-            using factory_t = SimpleFactory<iota_t, typename iota_t::bounds_t>;
+            using boundary_t = details::Boundary2<iota_value_t>;
+            using iota_t = OfIota<boundary_t>;
+            using factory_t = SimpleFactory<iota_t, boundary_t>;
+            
             return make_lazy_range(factory_t{ 
-                typename iota_t::bounds_t{ std::move(begin), std::move(end), T{ 1 } } });
+                boundary_t{ std::move(begin), std::move(end) } });
         }
         
-        template <class T>
-        constexpr auto of_iota(T begin, T end, T step) noexcept
+        template <class T, class U = T>
+        constexpr auto of_iota(T begin, T end, U step) noexcept
         {
             using iota_value_t = std::decay_t<T>;
-            using iota_t = OfIota<iota_value_t>;
-            using factory_t = SimpleFactory<iota_t, typename iota_t::bounds_t>;
-            return make_lazy_range(factory_t(
-                typename iota_t::bounds_t{ std::move(begin), std::move(end), std::move(step) }));
+            using boundary_t = details::Boundary3<iota_value_t, std::decay_t<U>>;
+            using iota_t = OfIota<boundary_t>;
+            using factory_t = SimpleFactory<iota_t, boundary_t>;
+            return make_lazy_range(factory_t{
+                boundary_t{ std::move(begin), std::move(end), std::move(step) }});
         }
 
-        template <class T>
-        constexpr auto of_cref_iota(T begin, T end, T step) noexcept
+        template <class T, class U = T>
+        constexpr auto of_cref_iota(T begin, T end, U step) noexcept
         {
             using iota_value_t = std::decay_t<T>;
-            using iota_t = OfIota<iota_value_t, const iota_value_t&>;
-            using factory_t = SimpleFactory<iota_t, typename iota_t::bounds_t>;
-            return make_lazy_range(factory_t(std::move(begin), std::move(end), std::move(step)));
+            using boundary_t = details::Boundary3<iota_value_t, std::decay_t<U>>;
+            using iota_t = OfIota<boundary_t, const iota_value_t&>;
+            using factory_t = SimpleFactory<iota_t, boundary_t>;
+            return make_lazy_range(factory_t{
+                boundary_t{ std::move(begin), std::move(end), std::move(step) }});
         }
 
         /** \brief Same as of_iota, but result sequence produces `const T&` */
@@ -245,10 +250,11 @@ namespace OP::flur
         constexpr auto of_cref_iota(T begin, T end) noexcept
         {
             using iota_value_t = std::decay_t<T>;
-            using iota_t = OfIota<iota_value_t, const iota_value_t&>;
-            using factory_t = SimpleFactory<iota_t, typename iota_t::bounds_t>;
+            using boundary_t = details::Boundary2<iota_value_t>;
+            using iota_t = OfIota<boundary_t, const iota_value_t&>;
+            using factory_t = SimpleFactory<iota_t, boundary_t>;
             return make_lazy_range(factory_t{
-                typename iota_t::bounds_t{ std::move(begin), std::move(end), T{ 1 } } });
+                boundary_t{ std::move(begin), std::move(end) } });
         }
 
         /**
@@ -740,15 +746,17 @@ namespace OP::flur
         
         constexpr auto unordered_distinct() noexcept
         {
+            using namespace OP::flur;
             return DistinctFactory<UnorderedHashDistinctPolicy>(UnorderedHashDistinctPolicy{});
         }
         
         /**
         *   Remove duplicates from sorted source sequence. 
-        *   Internaly uses `std::equal_to`
+        *   Internally uses `std::equal_to`
         */
         constexpr auto ordered_distinct() noexcept
         {
+            using namespace OP::flur;
             return DistinctFactory<OrderedDistinctPolicy>(OrderedDistinctPolicy{});
         }
 
@@ -758,15 +766,17 @@ namespace OP::flur
         template <class F>
         constexpr auto ordered_distinct(F f) noexcept
         {
+            using namespace OP::flur;
             return DistinctFactory<OrderedDistinctPolicyWithCustomComparator<F>>(
                 OrderedDistinctPolicyWithCustomComparator<F>(std::move(f)));
         }
 
-        /** Distinct that depending on support ordering in source sequence automaticlly applies 
+        /** Distinct that depending on support ordering in source sequence automatically applies 
         * either `ordered_distinct` or `unordered_distinct`
         */
         constexpr auto auto_distinct() noexcept
         {
+            using namespace OP::flur;
             auto d1 = ordered_distinct();
             auto d2 = unordered_distinct();
             return SmartDistinctFactory(std::move(d1), std::move(d2));
@@ -825,16 +835,18 @@ namespace OP::flur
                     std::move(f), std::forward<Alien>(alien), std::forward<Ax>(ax)...);
         }
 
-        /** Produce repeater (for details see OP::flur::Repeater */
+        /** Produce repeater (for details see OP::flur::Repeater) */
         constexpr auto repeater() noexcept
         {
+            using namespace OP::flur;
             return RepeaterFactory();
         }
 
-        /** Produce repeater (for details see OP::flur::Repeater */
+        /** Produce repeater (for details see OP::flur::Repeater) */
         template <template <typename...> class TContainer = std::deque>
         constexpr auto repeater() noexcept
         {
+            using namespace OP::flur;
             return RepeaterFactory<TContainer>();
         }
 

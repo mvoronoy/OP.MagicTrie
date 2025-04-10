@@ -6,6 +6,7 @@
 #include <memory>
 #include <functional>
 #include <type_traits>
+#include <op/common/astr.h>
 #include <op/common/has_member_def.h>
 #include <op/common/LexComparator.h>
 
