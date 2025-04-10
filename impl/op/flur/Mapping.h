@@ -57,7 +57,6 @@ namespace OP::flur
         using base_t = Sequence<R>;
         using element_t = typename base_t::element_t;
 
-        template <class F>
         constexpr MappingSequence(Src&& src, details::WrapMapApplicator<F> holder) noexcept
             : _src(std::move(src))
             , _state{}
