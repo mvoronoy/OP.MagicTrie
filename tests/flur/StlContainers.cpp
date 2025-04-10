@@ -69,8 +69,8 @@ void test_Vector(OP::utest::TestRuntime& tresult)
         tresult.assert_that<equals>(
             i._tracks[ConstructorType::copy], 0, "You don't control how many times value has been copied");
     }
-
 }
+
 void test_Iota(OP::utest::TestRuntime& tresult)
 {
     constexpr auto pipeline = src::of_iota(1, 3);
@@ -81,6 +81,10 @@ void test_Iota(OP::utest::TestRuntime& tresult)
 
     tresult.assert_that<equals>(100500, OP::flur::reduce(src::of_iota(11, 11), 100500),
         "default with reduce failed");
+
+    tresult.assert_that<equals>(-45, src::of_iota(0, -10, -1) >>= apply::sum(),
+        "negative range failed");
+
 }
 
 void test_Map(OP::utest::TestRuntime& tresult)

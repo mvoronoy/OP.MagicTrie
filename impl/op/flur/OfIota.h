@@ -33,6 +33,11 @@ namespace flur
             {
                 ++current;
             }
+
+            bool in_range(const value_t& current) const noexcept
+            {
+                return current != _end;
+            }
         };
 
         /** define policy of iota state management when only [begin, end) is specified */ 
@@ -53,6 +58,14 @@ namespace flur
             void next(T& current) const noexcept
             {
                 current += _step;
+            }
+
+            bool in_range(const T& current) const noexcept
+            {
+                auto diff = _end - current;
+                if( _step > 0 )
+                    return !(diff < _step);
+                return !(_step < diff);
             }
         };
     }//ns:details
@@ -96,7 +109,7 @@ namespace flur
 
         virtual bool in_range() const noexcept override
         {
-            return _current != _boundary._end;
+            return _boundary.in_range(_current);
         }
 
         virtual element_t current() const override
