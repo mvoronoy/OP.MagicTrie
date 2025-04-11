@@ -42,6 +42,11 @@ namespace {
             tresult.fail("Must not be invoked");
         }
         tresult.assert_that<equals>(invocked, 0);
+    }
+
+    void test_with_state(OP::utest::TestRuntime& tresult)
+    {
+        size_t invocked = 0;
         //test correctnes of function argument-attributes
         size_t expected_generation = 0, step = 0;
         auto pipeline = OP::flur::src::of_lazy_value(
@@ -65,9 +70,9 @@ namespace {
             tresult.assert_that<equals>(57, r);
         }
     }
-   
 
     static auto& module_suite = OP::utest::default_test_suite("flur.lazy_value")
         .declare("noarg", test_noarg)
+        .declare("lazy_with_state", test_with_state)
         ;
 } //ns:<anonymous>
