@@ -25,7 +25,9 @@ namespace OP
         template <class TElement, class Src, class Alt>
         struct OrDefaultSequence : Sequence<TElement>
         {
-            static_assert(std::is_convertible_v<typename Src::element_t, typename Alt::element_t>,
+            static_assert(std::is_convertible_v< 
+                details::sequence_element_type_t<Src>, 
+                details::sequence_element_type_t<Alt> >,
                 "Alternative source must produce compatible values for 'OrDefaultSequence'");
 
             using base_t = Sequence<TElement>;
@@ -96,7 +98,7 @@ namespace OP
         {
 
             /**\brief create OrDefaultSequence.
-            * specialization when Alt is generic value to returns instead of main sequence
+            * specialization when Alt is generic value to return instead of main sequence
             */
             template <class A, class Src>
             auto static sequence_factory(A&& value, Src&& source_sequence,
@@ -118,15 +120,21 @@ namespace OP
             auto static sequence_factory(A&& alt_factory, Src&& source_sequence,
                 details::priority_tag<1> = {/*normal priority*/})
             {
-                using src_container_t = details::dereference_t<Src>;
-                using element_t = typename src_container_t::element_t;
+                constexpr bool factory_reference_v = std::is_lvalue_reference_v<A>;
+                using base_lr_t = std::decay_t<details::dereference_t<A>>;
+                //implement logic of c++20: std::forward_like - make `get_reference` result be similar to `factory` 
+                using lazy_range_t = std::conditional_t<factory_reference_v, const base_lr_t&, base_lr_t&&>;
+                
+                auto alt_seq = std::forward<lazy_range_t>(details::get_reference(alt_factory)).compound();
+
+                using element_t = details::sequence_element_type_t<Src>;
                 //need use std::forward<A> to distinguish when move semantic is used
-                using alt_sequence_t = decltype(std::forward<A>(alt_factory).compound());
+                using alt_sequence_t = decltype(alt_seq);
 
                 return
                     OrDefaultSequence<element_t, Src, alt_sequence_t>(
                         std::move(source_sequence),
-                        std::forward<A>(alt_factory).compound());
+                        std::move(alt_seq));
             }
 
             /**\brief create OrDefaultSequence.

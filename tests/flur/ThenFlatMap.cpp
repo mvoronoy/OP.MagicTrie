@@ -28,15 +28,15 @@ void test_FlatMapFromPipeline(OP::utest::TestRuntime& tresult)
             })
         ;
 
-            constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
-            size_t cnt = 0;
-            for (auto i : fm_lazy)
-            {
-                tresult.debug() << i << "\n";
-                ++cnt;
-            }
-            tresult.assert_that<equals>(cnt, 12, "Wrong times");
-            tresult.assert_that<equals>(expected_sum, std::reduce(fm_lazy.begin(), fm_lazy.end(), 0), "invalid num");
+    constexpr int expected_sum = N + N * (N + 1) * (N + 2) / 3;
+    size_t cnt = 0;
+    for (auto i : fm_lazy)
+    {
+        tresult.debug() << i << "\n";
+        ++cnt;
+    }
+    tresult.assert_that<equals>(cnt, 12, "Wrong times");
+    tresult.assert_that<equals>(expected_sum, std::reduce(fm_lazy.begin(), fm_lazy.end(), 0), "invalid num");
 }
 
 size_t g_copied = 0, g_moved = 0;
