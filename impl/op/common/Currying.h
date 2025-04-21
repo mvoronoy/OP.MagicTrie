@@ -669,7 +669,7 @@ namespace OP::currying
                     return recomb_call(std::move(_functor), std::move(argx)...);
                 }, 
                 std::tuple_cat(
-                    arg_pool, std::forward_as_tuple(extras ...))
+                    _arg_pool, std::forward_as_tuple(extras ...))
             );
         }
         
