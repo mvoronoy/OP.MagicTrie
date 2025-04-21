@@ -581,7 +581,7 @@ namespace OP::currying
     }//ns:details
 
     template <class F>
-    constexpr static auto recomb_call(F&&f) noexcept
+    constexpr static auto recomb_call(F&&f) noexcept(noexcept(f()))
     {
         static_assert(std::is_invocable_v< decltype(f) >, 
                       "Specified function is not invocable for specified set of arguments."
