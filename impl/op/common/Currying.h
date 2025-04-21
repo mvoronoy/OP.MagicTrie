@@ -51,24 +51,24 @@ namespace OP::currying
     struct MemberFunctor : CurryingArgSpec
     {
 
-        constexpr MemberFunctor(TClass inst, M method, Args&&...args) noexcept
+        constexpr MemberFunctor(TClass& inst, M method, Args&&...args) noexcept
             : _inst(inst)
             , _method(method)
             , _args(std::forward<Args>(args)...)
         {
         }
 
-        decltype(auto) operator()()
+        decltype(auto) operator()()&
         {
-            return std::apply([this](auto&& ...args) -> decltype(auto){
-                return (_inst.*_method)(std::forward<decltype(args)>(args)...);
+            return std::apply([this](auto& ...args) -> decltype(auto){
+                return (_inst.*_method)(args...);
             }, _args);
         }
 
-        decltype(auto) operator()() const
+        decltype(auto) operator()() const&
         {
-            return std::apply([this](auto&& ...args) -> decltype(auto){
-                return (_inst.*_method)(std::forward<decltype(args)>(args)...);
+            return std::apply([this](auto& ...args) -> decltype(auto){
+                return (_inst.*_method)(args...);
             }, _args);
         }
 
@@ -89,7 +89,7 @@ namespace OP::currying
         }
 
     private:
-        TClass _inst;
+        TClass& _inst;
         M _method;
         std::tuple<Args...> _args;
     };
@@ -206,22 +206,45 @@ namespace OP::currying
         return Functor(std::move(t));
     }
 
-    template <class M, class TClass, class ... Args>
-    constexpr auto of_member(const TClass& inst, M(TClass::* method)(Args...) const, Args&& ...args)
+    //template <class TClass, class TMethod, class ... Args>
+    //constexpr auto of_member(TClass&& inst, TMethod method, Args&& ...args)
+    //{
+    //    return MemberFunctor<TMethod, TClass, Args...>{std::forward<TClass>(inst), method, std::forward<Args>(args)...};
+    //}
+
+    //template <class R, class TClass, class ... Args>
+    //constexpr auto of_member(const TClass& inst, R(TClass::* method)(Args...) const, Args&& ...args)
+    //{
+    //    return MemberFunctor<decltype(method), const TClass&, Args...>{inst, method, std::forward<Args>(args)...};
+    //}
+
+    ///**
+    //* Create callable wrapper around member of arbitrary class that can be used 
+    //* together with CurryingTuple in role of `TCallable` template parameter.
+    //* Result is lambda with `TClass&` as a first argument.
+    //*/
+    //template <class R, class TClass, class ... Args>
+    //constexpr auto of_member(TClass& inst, R(TClass::* method)(Args...), Args&& ...args)
+    //{
+    //    return MemberFunctor<decltype(method), TClass&, Args...>{inst, method, std::forward<Args>(args)...};
+    //}
+    template <class TClass, class TMethod, class ... Args>
+    constexpr auto of_member(const TClass& inst, TMethod method, Args&& ...args)
     {
-        return MemberFunctor<decltype(method), const TClass&, Args...>{inst, method, std::forward<Args>(args)...};
+        return MemberFunctor<TMethod, const TClass&, Args...>{inst, method, std::forward<Args>(args)...};
     }
 
     /**
-    * Create callable wrapper around member of arbitrary class that can be used 
+    * Create callable wrapper around member of arbitrary class that can be used
     * together with CurryingTuple in role of `TCallable` template parameter.
     * Result is lambda with `TClass&` as a first argument.
     */
-    template <class R, class TClass, class ... Args>
-    constexpr auto of_member(TClass& inst, R(TClass::* method)(Args...), Args&& ...args)
+    template <class TClass, class TMethod, class ... Args>
+    constexpr auto of_member(TClass& inst, TMethod method, Args&& ...args)
     {
-        return MemberFunctor<decltype(method), TClass&, Args...>{inst, method, std::forward<Args>(args)...};
+        return MemberFunctor<TMethod, TClass&, Args...>{inst, method, std::forward<Args>(args)...};
     }
+
 
     template <class T>
     auto of_var()
@@ -536,6 +559,123 @@ namespace OP::currying
     template<class... Ts> struct ArgInjectors : Ts... { using Ts::operator()...; };
     // explicit deduction guide (not needed as of C++20)
     template<class... Ts> ArgInjectors(Ts...) -> ArgInjectors<Ts...>;
+    
+    namespace details{
+                // need change type to result of CurryingArgSpec evaluation
+        template <class T, std::enable_if_t<std::is_base_of_v<CurryingArgSpec, std::decay_t<T>>, int> = 0>
+        static decltype(auto) subst_arg(T&& t)
+        {
+            return t();
+        }
+
+                // no additional type deduction is needed
+        template <class T, std::enable_if_t<!std::is_base_of_v<CurryingArgSpec, std::decay_t<T>>, float> = 0>
+        static decltype(auto) subst_arg(T&& t) noexcept
+        {
+            return t;
+        }
+
+        template <class T>
+        using type_subst_t = decltype(subst_arg(std::declval<T>()));
+        
+    }//ns:details
+
+    template <class F>
+    constexpr static auto recomb_call(F&&f) noexcept
+    {
+        static_assert(std::is_invocable_v< decltype(f) >, 
+                      "Specified function is not invocable for specified set of arguments."
+                      " Algorithm not really tries all possible combinations, so try change"
+                      " the order of values inside tuple or order of callable arguments.");
+        return std::forward<F>(f)();
+    }
+    
+    template <class F, class T, class ...Tx>
+    constexpr static decltype(auto) recomb_call(F&& f, T&& t, Tx&& ...tx)
+    {
+        if constexpr(std::is_invocable_v<F, T>)
+            return f(std::forward<T>(t));
+        else if constexpr(std::is_invocable_v<F, T, Tx...>)
+            return f(std::forward<T>(t), std::forward<Tx>(tx)...);
+        else if constexpr(std::is_invocable_v<F, Tx..., T>) //weak recombination by place arg at back
+            return f(std::forward<Tx>(tx)..., std::forward<T>(t));
+        else //reduce number of analyzed args
+            return recomb_call(std::forward<F>(f), std::forward<Tx>(tx)...);
+    }
+    
+    /** Creates functor that substitute (binds) known argument for the wrapped functor. The fundamental 
+    * difference between CurryingTuple that this can be used for wrapping functions containing `auto` arguments.
+    * For example `CurryingTuple{...}.def([](auto& ...)` will fail at compile time because type auto is unknown.
+    * The same time `TypeBindCallable([](auto& ...), int)` gives you posibility to bind values or `CurryingArgSpec` (
+    *   like vars, functions) with some liberty of argument order. For example all argument order in the following are allowed:
+    *   \code
+    *   TypeBindCallable([](const std::string, int){...}, std::string("abc"), 57)
+    * or
+    *   TypeBindCallable([](const std::string, int){...}, 57, std::string("abc"))
+    * or
+    *   TypeBindCallable([](int){...}, std::string("abc"), 57) //redundant values are ignored
+    *   \endcode
+    * Note that there is no brut-force of argument substitution, only cyclic substitution of available types.
+    */
+    template <class Functor, class Tuple>
+    class TypeBindCall
+    {
+        Functor _functor;
+        Tuple _arg_pool;
+
+    public:    
+
+        /** \param args parameters to bind, caller is free to apply `std::make_tuple/std::forward_as_tuple` to 
+        *   create argument storage with preferable storage capture type.
+        */
+        constexpr explicit TypeBindCall(Functor&& functor, Tuple args) noexcept
+            : _functor(std::forward<Functor>(functor))
+            , _arg_pool(std::move(args))
+        {
+        }
+        
+        Tuple& arguments()
+        {
+            return _arg_pool;
+        }
+
+        const Tuple& arguments() const
+        {
+            return _arg_pool;
+        }
+
+        Functor& functor()
+        {
+            return _functor;
+        }
+
+        template <class ...Ax>
+        constexpr decltype(auto) operator()(Ax&& ...extras)&
+        {
+            return std::apply(
+                [&](auto& ...argx){
+                    return recomb_call(_functor, argx...);
+                }, 
+                std::tuple_cat(
+                    _arg_pool, std::forward_as_tuple(extras ...))
+            );
+        }
+
+        template <class ...Ax>
+        constexpr decltype(auto) operator()(Ax&& ...extras)&&
+        {
+            return std::apply(
+                [&](auto&& ...argx){
+                    return recomb_call(std::move(_functor), std::move(argx)...);
+                }, 
+                std::tuple_cat(
+                    arg_pool, std::forward_as_tuple(extras ...))
+            );
+        }
+        
+    };
+
+    template <class F, class Tuple> TypeBindCall(F, Tuple) -> TypeBindCall<F, Tuple>;
 
 }//ns:OP::currying
 

@@ -48,7 +48,7 @@ namespace
         std::array inp{ 1, 2, 3 };
         tresult.assert_that<eq_sets>(
             src::of_container(inp)
-            >> then::mapping([](int x) mutable -> int {
+            >> then::mapping([](auto x) mutable -> int {
                 return (x + 1);
                 }), std::array{ 2, 3, 4 });
 

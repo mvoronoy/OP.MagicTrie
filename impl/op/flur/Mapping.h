@@ -26,23 +26,8 @@ namespace OP::flur
             template <class R>
             inline decltype(auto) invoke_impl(R&& a, const SequenceState& state)
             {
-                //using f_t = std::decay_t<F>;
-                if constexpr (std::is_invocable_v<F, R>)
-                {
-                    return _applicator(std::forward<R>(a));
-                }
-                else if constexpr (std::is_invocable_v<F, R, const SequenceState&>)
-                {
-                    return _applicator(std::forward<R>(a), state);
-                }
-                else if constexpr (std::is_invocable_v<F, const SequenceState&, R>)
-                { //it is not real recombination, but for 2 it works
-                    return _applicator(state, std::forward<R>(a));
-                }
-                else //try without A
-                {   // compiler error there means invalid applicator(F) signature
-                    return _applicator(state);
-                }
+                return OP::currying::recomb_call(
+                    _applicator, std::forward<R>(a), state);
             }
         };
 
@@ -194,8 +179,8 @@ namespace OP::flur
 
             using result_t = decltype(
                 holder.invoke_impl(
-                    details::get_reference(src).current(),
-                    std::declval<SequenceState>()
+                details::get_reference(src).current(),
+                std::declval<SequenceState>()
                 )
             );
 

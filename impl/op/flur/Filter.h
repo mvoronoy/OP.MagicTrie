@@ -34,6 +34,7 @@ namespace OP::flur
         {
             auto& source = details::get_reference(_src);
             source.start();
+            _seq_state.start();
             _end = !source.in_range();
             seek();
         }
@@ -51,6 +52,7 @@ namespace OP::flur
         virtual void next() override
         {
             details::get_reference(_src).next();
+            _seq_state.next();
             seek();
         }
 
@@ -60,7 +62,8 @@ namespace OP::flur
             auto& source = details::get_reference(_src);
             for (; !_end && !(_end = !source.in_range()); source.next())
             {
-                if (_predicate(source.current()))
+                using namespace OP::currying;
+                if (recomb_call(_predicate, source.current(), _seq_state))
                     return;
             }
         }
@@ -68,6 +71,7 @@ namespace OP::flur
         bool _end;
         Src _src;
         Fnc _predicate;
+        SequenceState _seq_state{};
     };
 
     template <class Fnc, template <typename...> class Impl>

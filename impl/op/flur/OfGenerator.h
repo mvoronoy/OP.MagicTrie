@@ -44,14 +44,15 @@ namespace OP
 
             explicit constexpr Generator(F f) noexcept
                 : _generator(std::move(f)) 
+                , _sstate{}
             {
             }
 
             /** Start iteration from the beginning. If iteration was already in progress it resets.  */
             virtual void start() override
             {
-                std::get<SequenceState>(_attrs.arguments()).start();
-                _current = _attrs.invoke(_generator);
+                _sstate.start();
+                _current = OP::currying::recomb_call(_generator, _sstate);
             }
             
             /** Check if Sequence is in valid position and may call `next` safely */
@@ -69,8 +70,8 @@ namespace OP
             /** Position iterable to the next step */
             virtual void next() override
             {
-                std::get<SequenceState>(_attrs.arguments()).next();
-                _current = _attrs.invoke(_generator);
+                _sstate.next();
+                _current = OP::currying::recomb_call(_generator, _sstate);
             }
 
         private:
@@ -80,7 +81,7 @@ namespace OP
             current_holder_t _current{};
 
             F _generator;
-            OP::currying::CurryingTuple<SequenceState> _attrs;
+            SequenceState _sstate;
         };
 
         namespace details

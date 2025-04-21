@@ -51,8 +51,26 @@ namespace {
         });
         tresult.assert_that<eq_sets>(r1, std::vector<int>{2, 4}, OP_CODE_DETAILS());
     }
+
+    void test_sequence_state()
+    {                                                      
+        int r = 0;
+        
+        src::generator([](const SequenceState& state) -> std::optional<int>{
+            if(state.step().current() < 100)
+                return static_cast<int>(state.step().current());
+            return {};
+            })
+        >> then::filter([](auto i, const OP::flur::SequenceState& state) -> bool { 
+            return (i ^ state.step().current()) & 1;  //just random formula
+            })
+        >>= apply::sum(r);
+        std::cout << r << "\n";
+    }
+
     static auto& module_suite = OP::utest::default_test_suite("flur.then.filter")
         .declare("filter", test_ThenFilter)
         .declare("filter-edge", test_FilterEdge)
+        .declare("with-state", test_sequence_state)
         ;
 }//ns: empty

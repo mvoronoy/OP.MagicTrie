@@ -73,17 +73,19 @@ namespace {
         }
         tresult.assert_that<equals>(10, invocked, "wrong invocation number");
     }
+
     void test_exception(OP::utest::TestRuntime& tresult)
     {
         tresult.info() << "check exception during 'next'...\n";
         int i3 = 0;
+
         auto pipeline3 = src::generator([&]() {
             if (i3 > 0)
             {
                 throw std::runtime_error("generation fail emulation");
             }
             return std::optional<int>{++i3}; //next call will raise an exception
-            });
+        });
 
         tresult.assert_exception<std::runtime_error>([&]() {
             for (auto r : pipeline3) {}

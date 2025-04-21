@@ -134,7 +134,7 @@ namespace OP::flur
         *       --------------------------------|------------------------------|---------
         *
         * \param limit number of times to repeat result v during sequence iteration. The default is 1. Value 0 is
-        *   allowed, but from optiomization perspective better to use `OP::flur::src::null()` instead.
+        *   allowed, but from optimization perspective better to use `OP::flur::src::null()` instead.
         * \sa of_cref_value
         */
         template <class V>

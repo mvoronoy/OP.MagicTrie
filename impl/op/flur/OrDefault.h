@@ -85,12 +85,7 @@ namespace OP
             Src _src;
             Alt _alt;
         };
-        namespace details
-        {
-            template<unsigned N>
-            struct priority_tag : priority_tag<N - 1> {};
-            template<> struct priority_tag<0> {};
-        }//ns:details
+
 
         /** Factory to create OrDefaultSequence*/
         template <class Alt>
@@ -102,7 +97,7 @@ namespace OP
             */
             template <class A, class Src>
             auto static sequence_factory(A&& value, Src&& source_sequence,
-                details::priority_tag<0> = {/*lowest priority*/})
+                ::OP::utils::priority_tag<0> = {/*lowest priority*/})
             {
                 using src_container_t = details::dereference_t<Src>;
                 using element_t = typename src_container_t::element_t;
@@ -118,7 +113,7 @@ namespace OP
             template <class A, class Src, 
                 std::enable_if_t<is_factory_c<std::decay_t<details::dereference_t<A>> >, int> = 0>
             auto static sequence_factory(A&& alt_factory, Src&& source_sequence,
-                details::priority_tag<1> = {/*normal priority*/})
+                ::OP::utils::priority_tag<1> = {/*normal priority*/})
             {
                 constexpr bool factory_reference_v = std::is_lvalue_reference_v<A>;
                 using base_lr_t = std::decay_t<details::dereference_t<A>>;
@@ -141,10 +136,13 @@ namespace OP
             * specialization when Alt is Sequence<T>
             */
             template <class A, class Src,
-                std::enable_if_t<std::is_base_of_v<OP::flur::Sequence<typename Src::element_t>, std::decay_t<details::dereference_t<A>> >, int> = 0
+                std::enable_if_t<
+                    std::is_base_of_v<
+                        OP::flur::Sequence<typename Src::element_t>, 
+                        std::decay_t<details::dereference_t<A>> >, int> = 0
             >
             auto static sequence_factory(A&& alt_sequence, Src&& source_sequence,
-                details::priority_tag<1> = {/*normal priority*/})
+                ::OP::utils::priority_tag<1> = {/*normal priority*/})
             {
                 using src_container_t = details::dereference_t<Src>;
                 using element_t = typename src_container_t::element_t;
@@ -164,17 +162,18 @@ namespace OP
             template <class Src>
             constexpr auto compound(Src&& src) const& noexcept
             {
-                return sequence_factory(_alt, std::move(src), details::priority_tag<3>{});
+                return sequence_factory(_alt, std::move(src), 
+                    ::OP::utils::priority_tag<3>{});
             }
 
             template <class Src>
             constexpr auto compound(Src&& src) && noexcept
             {
-                return sequence_factory(std::move(_alt), std::move(src), details::priority_tag<3>{});
+                return sequence_factory(std::move(_alt), std::move(src), 
+                    ::OP::utils::priority_tag<3>{});
             }
 
         private:
-
             Alt _alt;
         };
 
