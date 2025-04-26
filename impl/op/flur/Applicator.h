@@ -451,7 +451,8 @@ namespace OP::flur
         template <class TSeq>
         auto collect_for(TSeq& origin) noexcept
         {
-            return Collector{ _factory.compound(std::ref(origin)) };
+            auto crtseq = _factory.compound(std::ref(origin));
+            return Collector<decltype(crtseq)>{ std::move(crtseq) };
         }
 
     private:
