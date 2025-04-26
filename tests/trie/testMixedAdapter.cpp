@@ -300,22 +300,25 @@ void render_children_tree()
 
     //render 500*100 keys
     auto crtsn = apply::cartesian(
-        src::of_iota<size_t>(0, NRoots)
+        [&](const auto& trie_iter, const auto& n2)
+        {
+            auto prev = trie_iter;
+            wr_trie->prefixed_insert(prev, n2, 57.7564);
+        },
+        src::of_iota<size_t>(0, NChildrens)
+                >> then::mapping(pad_str)
+    );
+
+    src::of_iota<size_t>(0, NRoots)
         >> then::mapping([&](auto i)
             {
                 auto insres = wr_trie->insert(pad_str(i), 0);
                 assert(insres.second);
                 return insres.first;
             })
-        >> then::repeater(),
-        src::of_iota<size_t>(0, NChildrens)
-                >> then::mapping(pad_str));
-
-    crtsn.collect([&](const auto& trie_iter, const auto& n2)
-        {
-            auto prev = trie_iter;
-            wr_trie->prefixed_insert(prev, n2, 57.7564);
-        });
+        >> then::repeater()
+        >>= crtsn;
+    
     wr_trie.reset();
 }
 

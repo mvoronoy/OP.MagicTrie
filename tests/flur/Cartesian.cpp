@@ -66,41 +66,53 @@ namespace
         tresult.assert_that<equals>(-135, OP::flur::reduce(r4, 0), "wrong result number");
     }
 
-    void test_Simple(OP::utest::TestRuntime& tresult)
+    void test_Applicator(OP::utest::TestRuntime& tresult)
     {
         std::vector<int> vec1{1, 2, 3, 4},
         vec2 {10, 20, 30, 40, 50},
         vec3 {0, 100, 200};
         using namespace OP::flur;
-        auto crtsn = apply::cartesian(
-            src::of(vec1),
-            src::of(vec2),
-            src::of(vec3));
+
         size_t count = 0;
         std::array<size_t, 3> hundreds{ 0, 0, 0 };
-        crtsn.collect([&](auto n1, auto n2, auto n3)
-            { 
+
+        auto crtsn = apply::cartesian(
+            [&](auto n1, auto n2, auto n3)
+            {
                 count++;
                 auto sum = (n1 + n2 + n3);
                 tresult.debug() << sum << (count % 5 ? "," : "\n");
                 ++hundreds[sum / 100];
-            });
+            },
+            src::of(vec2),
+            src::of(vec3))
+            ;
+        src::of_container(vec1) >>= crtsn;
+        
         tresult.assert_that<equals>(60, count);
         tresult.assert_true(hundreds[0] == hundreds[1] && hundreds[1] == hundreds[2]);
-        auto crtsn2 = crtsn.extend(src::of(std::vector<int>{}));
+
+        auto crtsn4 = [&](auto n1, auto n2, auto n3, auto n4) {++count; };
         count = 0;
-        crtsn2.collect([&](auto n1, auto n2, auto n3, auto n4) {++count; });
+        src::of(vec1) >>= apply::cartesian(
+            crtsn4,
+            src::of(vec2),
+            src::of(vec3), 
+            src::of(std::vector<int>{}));
         tresult.assert_that<equals>(0, count);
 
-        using namespace OP::flur;
-        auto crtsn3 = crtsn.extend(src::of(std::vector<int>{1}));
+        
         count = 0;
-        crtsn3.collect([&](auto n1, auto n2, auto n3, auto n4) {++count; });
+        src::of(vec1) >>= apply::cartesian(
+            crtsn4,
+            src::of(vec2),
+            src::of(vec3), 
+            src::of(std::vector<int>{1}));
         tresult.assert_that<equals>(60, count);
     }
 
     static auto& module_suite = OP::utest::default_test_suite("flur.then.cartesian")
     .declare("cartesian", test_ThenCartesian)
-    .declare("cartesian_app", test_Simple)
+    .declare("applicator", test_Applicator)
     ;
 }//ns:

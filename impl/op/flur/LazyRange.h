@@ -169,25 +169,26 @@ namespace OP::flur
         * \endcode
         *
         */
-        template <class TApplicator, std::enable_if_t<is_applicator_c<TApplicator>, int> = 0>
+        template <class TApplicator, std::enable_if_t<is_applicator_c<std::decay_t<TApplicator>>, int> = 0>
         decltype(auto) operator >>= (TApplicator&& applicator) const&
         {
             return collect_result(*this, applicator);
         }
 
-        template <class TApplicator, std::enable_if_t<is_applicator_c<TApplicator>, int> = 0>
+        template <class TApplicator, std::enable_if_t<is_applicator_c<std::decay_t<TApplicator>>, int> = 0>
         decltype(auto) operator >>= (TApplicator&& applicator) &&
         {
             return collect_result(std::move(*this), applicator);
         }
 
+        /*
         template <class TUnaryFunction, 
             std::enable_if_t<std::is_invocable_v<TUnaryFunction, const this_t&>, int> = 0>
         decltype(auto) operator >>= (TUnaryFunction f) const
         {
             return f(*this);
         }
-/*
+
         template <template <typename> class TUnaryFunction, 
             std::enable_if_t<std::is_invocable_v<TUnaryFunction<this_t>, const this_t&>, short> = 0>
         decltype(auto) operator >>= (TUnaryFunction<this_t> f) const

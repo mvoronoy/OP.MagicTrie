@@ -85,7 +85,7 @@ namespace
         auto ir2 = trie->insert(stem1, v_order + 101.0);
         tresult.assert_false(
             ir2.second,
-            OP_CODE_DETAILS( << "insert must disallow dupplicates"));
+            OP_CODE_DETAILS( << "insert must disallow duplicates"));
         tresult.assert_true(trie->size() == 2);
 
         auto ir3 = trie->insert(stem1_deviation1, v_order);
@@ -133,9 +133,9 @@ namespace
             stem3.resize(stem3.length() - 1);
             stem3 += std::string(1, 'b');
             ir5 = trie->insert(stem3, (double)stem3.length());
-            tresult.assert_true(ir5.second, OP_CODE_DETAILS(<< "multidiverse at:#"<<i));
+            tresult.assert_true(ir5.second, OP_CODE_DETAILS(<< "multi-diverse at:#"<<i));
             tresult.assert_that<eq_sets>(ir5.first.key(), const_stem3,
-                OP_CODE_DETAILS(<< "multidivers at:#" << i)
+                OP_CODE_DETAILS(<< "multi-divers at:#" << i)
                 );
             tresult.assert_that<equals>(*ir5.first, (double)stem3.length(),
                 OP_CODE_DETAILS(<< "iter-value at:#" << i)
@@ -541,10 +541,10 @@ namespace
             {
                 standard.emplace(rnd_buf, (double)rnd_buf.length());
             }
-            else //test against dupplicates 
+            else //test against duplicates 
             {
                 tresult.assert_true(standard.find(rnd_buf) != standard.end(),
-                    OP_CODE_DETAILS(<< " standart map must also treate '"
+                    OP_CODE_DETAILS(<< " standard map must also treat '"
                         << ((const char*)rnd_buf.c_str()) << "' as a duplicate\n"));
             }
         }
@@ -908,7 +908,7 @@ namespace
         tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
         compare_containers(tresult, *trie, test_values);
 
-        //extend with INsert
+        //extend with Insert
         std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
             atom_string_t s1(s.first);
 
@@ -1048,7 +1048,7 @@ namespace
 
         ins_res = trie->prefixed_upsert(
             prefix_a.first, std::begin(key), std::end(key), 0.1);
-        rt.assert_false(ins_res.second, "must be dupplicate");
+        rt.assert_false(ins_res.second, "must be duplicate");
         rt.assert_that<equals>(prefix_a.first.key(), "prefix.a"_astr);
 
         ins_res = trie->prefixed_upsert(

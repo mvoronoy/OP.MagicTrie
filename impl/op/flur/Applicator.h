@@ -51,13 +51,15 @@ namespace OP::flur
         decltype(auto) collector = action.collect_for(rseq);
         using collector_t = std::decay_t<decltype(collector)>;
         
-        rseq.start();
         if constexpr(
             details::has_on_start<collector_t>::value
             || details::extra::has_on_start<collector_t, sequence_t>::value)
         {
+            //delegate start of sequence to implementation
             collector.on_start(rseq);
         }
+        else //default start implementation
+            rseq.start();
 
         if constexpr (
             details::has_on_consume<collector_t>::value
@@ -437,65 +439,47 @@ namespace OP::flur
 
 
 
-    template <class ... Lx>
+    template <class TCartesianFactory>
     struct CartesianApplicator : ApplicatorBase
     {
-        explicit constexpr CartesianApplicator(Lx ...lx) noexcept
-            : _sources(std::move(lx)...)
+        explicit constexpr CartesianApplicator(TCartesianFactory&& crtf) noexcept
+            : _factory(std::move(crtf))
         {
         }
-
-        template <class Lz>
-        constexpr auto extend(Lz&& lz) const
-        {
-            return construct(std::forward<Lz>(lz), std::make_index_sequence<seq_size_c>{});
-        }
-
-        template <class L>
-        using nth_sequence_t = std::decay_t<decltype(
-            details::get_reference(details::get_reference(std::declval<L&>()).compound())
-        )>;
         
-        template <class F>
-        void collect(F applicator) const
+
+        template <class TSeq>
+        auto collect_for(TSeq& origin) noexcept
         {
-            //start all
-            auto seq = std::apply(
-                [&](const auto& ... seq_factory) {
-
-                    using result_t = decltype(
-                        applicator(
-                            details::get_reference(details::get_reference(seq_factory).compound()).current()...)
-                        );
-
-                    using sequence_t = CartesianSequence<
-                        result_t, F, 
-                        std::decay_t<decltype(details::get_reference(seq_factory).compound())>... >;
-
-                    return sequence_t(
-                        std::move(applicator),
-                        details::get_reference(seq_factory).compound()...
-                    );    
-
-                }, _sources);
-             
-            for(seq.start(); seq.in_range(); seq.next())
-            {//consume all
-                seq.current();
-            }  
+            return Collector{ _factory.compound(std::ref(origin)) };
         }
 
     private:
-        static constexpr size_t seq_size_c = sizeof ... (Lx);
 
-        
-        template <class Lz, size_t... I>
-        constexpr auto construct(Lz&& arg, std::index_sequence<I...>) const
+        template <class TCartesianSeq>
+        struct Collector
         {
-            return CartesianApplicator<Lx..., Lz>( std::get<I>(_sources)..., std::forward<Lz>(arg));
-        }
+            TCartesianSeq _cartesian_sequence;
+
+            Collector(TCartesianSeq&& seq)
+                : _cartesian_sequence(std::move(seq))
+            {
+            }
+
+            template <class T>
+            void on_start(T&)
+            {
+                _cartesian_sequence.start();
+            }
+
+            void on_complete()
+            {
+                for(;_cartesian_sequence.in_range(); _cartesian_sequence.next())
+                    static_cast<void>(_cartesian_sequence.current());//consume
+            }
+        };
         
-        std::tuple<Lx...> _sources;
+        TCartesianFactory _factory;
     };
 
 } //ns: OP::flur

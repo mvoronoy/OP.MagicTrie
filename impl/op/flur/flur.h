@@ -946,10 +946,10 @@ namespace OP::flur
         }
         */
 
-        template <class ... Lx>
-        constexpr auto cartesian(Lx&& ... lx)
+        template <class F, class ... Lx>
+        constexpr auto cartesian(F&& f, Lx&& ... lx)
         {
-            return CartesianApplicator(std::forward<Lx>(lx)...);    
+            return CartesianApplicator{then::cartesian(std::forward<F>(f), std::forward<Lx>(lx)...)};    
         }
 
         template <class F, class ... Lx>
