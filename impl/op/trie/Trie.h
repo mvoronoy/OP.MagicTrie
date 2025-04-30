@@ -893,8 +893,8 @@ namespace OP
 
             /**
             *   Remove all that starts with string specified by `prefix`. The fundamental
-            * difference with #prefixed_erase that this method removes any entries
-            * satisfied prefix condition.
+            * difference with #prefixed_erase that this method removes as well entries
+            * that are matched to the prefix condition.
             */
             template <class StringLike>
             size_t prefixed_key_erase_all(const StringLike& prefix)

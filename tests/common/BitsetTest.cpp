@@ -1,6 +1,8 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 #include <op/common/Bitset.h>
+namespace {
+    using namespace OP::utest;
 
 template <class B>
 void generic_test(OP::utest::TestRuntime& tresult, B& container)
@@ -54,6 +56,7 @@ void test_Basic(OP::utest::TestRuntime& tresult)
     OP::trie::Bitset<8> b8_t;
     generic_test(tresult, b8_t);
 }
+
 void test_Finds(OP::utest::TestRuntime& tresult)
 {
     OP::trie::Bitset<3> b3_t;
@@ -111,7 +114,41 @@ void test_Finds(OP::utest::TestRuntime& tresult)
                 OP_CODE_DETAILS( << "next_set failed for i=" << i));
     }
 }
+
+    void test_Count(OP::utest::TestRuntime& tresult)
+    {
+        OP::trie::Bitset<1, std::uint64_t> b1_64_t;
+        tresult.assert_that<equals>(0, b1_64_t.count_bits());
+        b1_64_t.set(64-1);
+        tresult.assert_that<equals>(1, b1_64_t.count_bits());
+        b1_64_t.set(0);
+        tresult.assert_that<equals>(2, b1_64_t.count_bits());
+
+
+        OP::trie::Bitset<3, std::uint64_t> b3_64;
+        tresult.assert_that<equals>(0, b3_64.count_bits());
+        b3_64.set(3*64 - 1);
+        tresult.assert_that<equals>(1, b3_64.count_bits());
+        b3_64.set(0);
+        tresult.assert_that<equals>(2, b3_64.count_bits());
+        
+        for(int i = 0; i < 3; ++i)
+        {
+            OP::trie::Bitset<3, std::uint64_t> b3;
+            for(int j = 0; j < 3; ++j)
+                b3.set(i*8 + j);
+            tresult.assert_that<equals>(3, b3.count_bits());
+            b3.invert_all();
+            tresult.assert_that<equals>(3*64 - 3, b3.count_bits());
+        }
+
+        OP::trie::Bitset<3, std::uint64_t> b3x(~0ull);
+        tresult.assert_that<equals>(3 * 64, b3x.count_bits());
+    }
+
 static auto& module_suite = OP::utest::default_test_suite("Bitset")
 .declare("general", test_Basic)
 .declare("finds", test_Finds)
+    .declare("count", test_Count)
 ;
+} //ns:
