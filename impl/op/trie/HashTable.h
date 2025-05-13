@@ -182,8 +182,6 @@ namespace OP::trie::containers
         }
 
         /**
-        * @tparam OnMoveCallback - functor that is called if internal space of hash-table is 
-        *   optimized (shrunken). Arguments (from, to)
         * @return true if key was erased
         */
         bool erase(atom_t key) override
