@@ -11,7 +11,7 @@
 
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
-#include <op/flur/Ingredients.h>
+#include <op/flur/SequenceState.h>
 #include <op/flur/Proxy.h>
 
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
@@ -31,7 +31,7 @@ namespace OP::flur
         explicit constexpr SkipOrdered(KeyEqual cmp = KeyEqual{}) noexcept
             : _cmp(std::move(cmp)){}
         
-        bool operator()(const SequenceState &attrs, const Seq& seq) const
+        bool operator()(const SequenceState &attrs, const Seq& seq)
         {
             if( attrs.step() == 0)
             {// first entry to sequence
@@ -43,11 +43,11 @@ namespace OP::flur
         }
 
     private:
-        /** @return true if element was not a duplicate 
-        * @param element - really needs && since `seq.current()` may return as lref as a value
+        /** @return true if element is not a duplicate.
+        * @param element - item to emplace. Really needs `&&` since `seq.current()` may return as lref as a value
         */
         template <class T>
-        bool conditional_emplace(T&& element) const
+        bool conditional_emplace(T&& element)
         {
             if(!_bypass.has_value() || !_cmp(*_bypass, element))
             {
@@ -57,7 +57,7 @@ namespace OP::flur
             return false;
         }
 
-        mutable std::optional<decay_element_t> _bypass;
+        std::optional<decay_element_t> _bypass;
         KeyEqual _cmp;
     };
 
@@ -77,7 +77,7 @@ namespace OP::flur
         {
         }
 
-        bool operator()(const SequenceState &attrs, const Seq& seq) const
+        bool operator()(const SequenceState &attrs, const Seq& seq)
         {
             if( attrs.step().current() == 0)
             {
@@ -87,11 +87,11 @@ namespace OP::flur
         }
         using dec_element_t = std::decay_t<details::sequence_element_type_t <Seq>>;
         using check_set_t = std::unordered_set<dec_element_t, Hash, KeyEqual>;
-        mutable check_set_t _bypass;
+        check_set_t _bypass;
     };
 
     /**
-    *   Sequence to implement Distinct stream
+    *   Sequence to implement Distinct control over other sequence.
     */
     template <class T, class Policy, class Src>
     struct DistinctSequence : public Sequence<T>
@@ -99,10 +99,10 @@ namespace OP::flur
         using this_t = DistinctSequence<T, Policy, Src>;
         using base_t = Sequence<T>;
         using element_t = typename base_t::element_t;
-        using dereference_sequnce_t = details::dereference_t<std::decay_t<Src>>;
 
         constexpr DistinctSequence(Src&& src, Policy f) noexcept
-            : _attrs(std::move(src), SequenceState{})
+            : _source(std::move(src))
+            , _state{}
             , _policy(std::move(f))
         {
         }
@@ -110,67 +110,54 @@ namespace OP::flur
         /** Ordering is the same as previous sequence in the pipeline */
         OP_VIRTUAL_CONSTEXPR bool is_sequence_ordered() const noexcept override
         {
-            return rsrc<Src>().is_sequence_ordered();
+            return details::get_reference(_source).is_sequence_ordered();
         }
 
         void start() override
         {
-            auto& rs = rsrc<Src>();
-            auto& pline = rsrc<SequenceState>();
+            auto& rs = details::get_reference(_source);
             rs.start();
-            pline.start();
-            seek(rs, pline); 
+            _state.start();
+            seek(rs); 
         }
 
         bool in_range() const override
         {
-            return rsrc<Src>().in_range();
+            return details::get_reference(_source).in_range();
         }
         
         element_t current() const override
         {
-            return rsrc<Src>().current();
+            return details::get_reference(_source).current();
         }
         
         void next() override
         {
-            auto& rs = rsrc<Src>();
-            auto& pline = rsrc<SequenceState>();
+            auto& rs = details::get_reference(_source);
             rs.next();
-            pline.next();
-            seek(rs, pline); 
+            _state.next();
+            seek(rs); 
         }
 
     private:
         
-        void seek(dereference_sequnce_t& rs, SequenceState& pline)
+        template <class TDeref>
+        void seek(TDeref& rs)
         {
             while(rs.in_range() && !distinct_result())
             {
                 rs.next();
-                pline.next();
+                _state.next();
             }
-        }
-
-        template <class U>
-        const auto& rsrc() const
-        {
-            return details::get_reference(std::get<U>(_attrs.arguments()));
-        }
-
-        template <class U>
-        auto& rsrc() 
-        {
-            return details::get_reference(std::get<U>(_attrs.arguments()));
         }
 
         bool distinct_result()
         {
-            return _attrs.invoke(_policy);
+            return _policy(_state, _source);
         }
-
-        OP::currying::CurryingTuple<
-            std::decay_t<Src>, SequenceState> _attrs;
+        
+        Src _source;
+        SequenceState _state;
         Policy _policy;
     };
 
@@ -187,7 +174,7 @@ namespace OP::flur
         }
     }; 
 
-    /** Policy configures DistinctFactory to use custome comparator on ordered sequences */
+    /** Policy configures DistinctFactory to use custom comparator on ordered sequences */
     template <class Eq>
     struct OrderedDistinctPolicyWithCustomComparator
     {
@@ -219,7 +206,7 @@ namespace OP::flur
         }
     }; 
 
-    /** Policy configures DistinctFactory to use custome comparator and standart std::hash<> on un-ordered sequences */
+    /** Policy configures DistinctFactory to use custom comparator and standard std::hash<> on un-ordered sequences */
     template <class Eq>
     struct UnorderedDistinctPolicyWithCustomComparator
     {
@@ -260,7 +247,7 @@ namespace OP::flur
     *       return SkipUnordered<Seq, hash_t, Eq>(hash_t{}, _eq);
     *   }
     * \endcode
-    *  Functor is allowed to recive following arguments in any combination or order:
+    *  Functor is allowed to receive following arguments in any combination or order:
     *   - SequenceState &attrs - to control current step number;
     *   - const Seq& - previous sequence in pipeline;
     *   - const typename Seq::element_t&  - current processed element

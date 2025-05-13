@@ -16,7 +16,7 @@
 
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
-#include <op/flur/Ingredients.h>
+#include <op/flur/SequenceState.h>
 
 namespace OP
 {

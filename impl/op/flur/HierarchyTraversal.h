@@ -19,7 +19,7 @@
 #include <op/flur/typedefs.h>
 #include <op/flur/Sequence.h>
 #include <op/flur/FlatMapping.h>
-#include <op/flur/Ingredients.h>
+#include <op/flur/SequenceState.h>
 
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace OP::flur

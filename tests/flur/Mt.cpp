@@ -170,20 +170,18 @@ namespace
 
         tresult.info() << "check async exception during 'next'...\n";
         std::atomic<int> i3{ 0 };
-        auto pipeline3 = src::generator([&]() {
+        auto pipeline3 = src::generator([&]() -> std::optional<std::future<int>> {
             if (i3 > 0)
             {
                 throw std::runtime_error("generation fail emulation");
             }
             //don't do optional of future in real code
-            return
-                (i3 > 3)
-                ? std::optional<std::future<int>>{}
-                : std::make_optional(tp.async([&]() {
+            return (i3 > 3)
+                ? std::nullopt
+                : std::optional{tp.async([&]() {
                     ++i3;
                     return i3.load();
-                }
-            ));
+                })};
             })
 
             >> then::mapping([](const auto& fi) {

@@ -85,6 +85,10 @@ namespace OP::has_operators
 {
     namespace details{
 
+        template<class T, class = decltype(*std::declval<T>())> 
+        std::true_type  has_dereference_test(const T&);
+        std::false_type has_dereference_test(...);
+
         template<class T, class = decltype(std::declval<T>() < std::declval<T>() )> 
         std::true_type  has_less_than_test(const T&);
         std::false_type has_less_than_test(...);
@@ -126,6 +130,10 @@ namespace OP::has_operators
         std::false_type has_plus_eq(...);
         
     }//ns:details
+
+    /** Compile time check if type T supports dereference (unary `*`) */
+    template<class T> using dereference = decltype(details::has_dereference_test(std::declval<T>()));
+    template<class T> inline constexpr bool dereference_v = dereference<T>::value;
 
     /** Compile time check if type T supports operator less `<` */
     template<class T> using less = decltype(details::has_less_than_test(std::declval<T>()));

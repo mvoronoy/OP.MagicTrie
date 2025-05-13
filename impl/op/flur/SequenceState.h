@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _OP_FLUR_INGREDIENTS__H_
-#define _OP_FLUR_INGREDIENTS__H_
+#ifndef _OP_FLUR_SEQUENCESTATE__H_
+#define _OP_FLUR_SEQUENCESTATE__H_
 
 namespace OP::flur
 {
@@ -19,15 +19,16 @@ namespace OP::flur
             void next() noexcept  { ++_step; }
             constexpr size_t current() const noexcept  { return _step; }
             constexpr operator size_t() const noexcept { return _step; }
-            void start() { _step = 0; }
+            void start() noexcept { _step = 0; }
 
         private:
             size_t _step;
         };
 
         /** Advance generation and reset current step to 0*/
-        void start() 
+        void start() noexcept
         { 
+            _stop = false;
             _generation.next();
             _step.start();
         }
@@ -40,7 +41,19 @@ namespace OP::flur
         /** \brief count number of times sequence was started (how many `start` method was called) */
         const Step& generation() const noexcept { return _generation; }
 
+        /** Indicate stop the sequence */
+        void stop() noexcept
+        {
+            _stop = true;
+        }
+
+        constexpr bool is_stopped() const noexcept
+        {
+            return _stop;
+        }
+
     private:
+        bool _stop = false;
         /** `generation` is an zero based attribute to track how many times 
         *   sequence was started. 
         *  This can be used, for example, to initialize some resources only 
@@ -55,4 +68,4 @@ namespace OP::flur
     };
 
 }//ns OP::flur
-#endif //_OP_FLUR_INGREDIENTS__H_
+#endif //_OP_FLUR_SEQUENCESTATE__H_

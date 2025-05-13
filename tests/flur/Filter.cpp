@@ -56,10 +56,10 @@ namespace {
     {                                                      
         int r = 0;
         
-        src::generator([](const SequenceState& state) -> std::optional<int>{
-            if(state.step().current() < 100)
-                return static_cast<int>(state.step().current());
-            return {};
+        src::generator([](const SequenceState& state) -> std::optional<int> {
+            return (state.step().current() < 100)
+                ? std::optional<int>{static_cast<int>(state.step().current())}
+                : std::nullopt;
             })
         >> then::filter([](auto i, const OP::flur::SequenceState& state) -> bool { 
             return (i ^ state.step().current()) & 1;  //just random formula
