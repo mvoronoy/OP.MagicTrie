@@ -403,7 +403,7 @@ namespace OP::flur
         template <class T>
         constexpr auto sum(T& result) noexcept
         {
-            return Sum<T&, typename dummy<std::plus>::default_sum_collector_with_op_t>(result);
+            return Sum<T&, dummy<std::plus>::default_sum_collector_with_op_t>(result);
         }
 
         constexpr auto sum() noexcept
@@ -414,7 +414,7 @@ namespace OP::flur
         template <template <typename> class Op, class T>
         constexpr auto sum(T& result) noexcept
         {
-            return Sum<T, typename dummy<Op>::default_sum_collector_with_op_t>(result);
+            return Sum<T, dummy<Op>::default_sum_collector_with_op_t>(result);
         }
 
         template <class T, class TBinaryConsumer>
