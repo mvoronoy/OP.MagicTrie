@@ -443,6 +443,20 @@ namespace OP
                 return (nav_res == StemCompareResult::equals);
             }
 
+            /** \return check if iterator points to the prefix that has some child.
+            *   Method is always false for `end()` or invalid iterators.
+            */
+            bool has_child(iterator& prefix) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), false); //place all RO operations to atomic scope
+                if (sync_iterator(prefix) && !prefix.is_end())
+                {
+                    const auto& back = prefix.rat();
+                    return all_set(back.terminality(), Terminality::term_has_child);
+                }
+                return false;
+            }
+
             /**
             *   Get first child element resided below position specified by parameter `of_this`. Since all keys 
             *   in Trie are lexicographically
@@ -1354,9 +1368,9 @@ namespace OP
                 const std::uint64_t new_ver = ++this->_version;
                 _topology->template slot<TrieResidence>()
                     .update([&](auto& header) {
-                    --header._count; //number of terminals
-                    header._version = new_ver; // version of trie
-                        });
+                        --header._count; //number of terminals
+                        header._version = new_ver; // version of trie
+                    });
                 if (count) { ++*count; }
                 return result;
             }

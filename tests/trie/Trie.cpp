@@ -1359,6 +1359,59 @@ namespace
         probe = (const atom_t*)"xyz";
         tresult.assert_false(trie->check_exists(probe));
     }
+
+    void test_ChildrenCount(OP::utest::TestRuntime& tresult)
+    {
+        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::trie::SegmentOptions()
+            .segment_size(0x110000));
+
+        using trie_t = test_trie_t;
+
+        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+        tresult.assert_false(trie->has_child(trie->end()));
+        tresult.assert_false(trie->has_child(trie->begin()));
+        tresult.assert_false(trie->has_child(typename trie_t::iterator()));
+
+        typedef std::pair<atom_string_t, double> p_t;
+        std::map<atom_string_t, double> test_values;
+
+        typedef std::pair<atom_string_t, double> p_t;
+
+        const p_t ini_data[] = {
+            p_t((atom_t*)"a", 1.),
+            p_t((atom_t*)"ab", 1.),
+            p_t((atom_t*)"ac", 1.),
+            p_t((atom_t*)"abc", 1.),
+            p_t((atom_t*)"klmnopqr", 1.),
+            p_t((atom_t*)"klm", 1.), //order of insert is important - shorter after longer
+            p_t((atom_t*)"xyz", 1),
+        };
+        std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+            atom_string_t s1(s.first);
+            trie->insert(s.first, s.second);
+            test_values.emplace(s.first, s.second);
+            });
+        
+        auto a_found = trie->find("a"_astr);
+        tresult.assert_true(a_found != trie->end());
+
+        tresult.assert_true(trie->has_child(a_found));
+
+        trie->erase(trie->find("ac"_astr));
+        tresult.assert_true(trie->has_child(a_found));
+
+        trie->erase(trie->find("a"_astr));
+        tresult.assert_false(trie->has_child(a_found), "check against invalid iterator");
+
+        auto klm_found = trie->find("klm"_astr);
+        tresult.assert_true(trie->has_child(klm_found));
+
+        auto xyz_found = trie->find("xyz"_astr);
+        tresult.assert_false(trie->has_child(xyz_found));
+    }
+
     void test_NextLowerBound(TestRuntime& tresult)
     {
         auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
@@ -1675,6 +1728,7 @@ namespace
         .declare("prefixed erase_all", test_TriePrefixedEraseAll)
         .declare("prefixed erase_all by key", test_TriePrefixedKeyEraseAll)
         .declare("check_exists", test_TrieCheckExists)
+        .declare("children_count", test_ChildrenCount)
         .declare("next_lower_bound", test_NextLowerBound)
         .declare("issue_erase_seq_of_4", issue_erase_seq_of_4)
         .declare("issue_next_sibling", issue_next_sibling)
