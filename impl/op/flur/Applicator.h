@@ -143,7 +143,7 @@ namespace OP::flur
         *               You may substitute any functor implementing the binary operator:
         *               `TSeq::element_t operator()(TSeq::element_t, TSeq::element_t)`, for example `std::multiplies`.
         */
-        template <class TSum, class TSeq, template <typename> class Op = std::plus>
+        template <class TSum, class TSeq, template <typename> class Op>
         struct DefaultSumCollector
         {
             TSum _dest;
@@ -393,17 +393,6 @@ namespace OP::flur
             return Count<size_t>(0);
         }
 
-        template <class T>
-        constexpr auto sum(T& result) noexcept
-        {
-            return Sum<T&, collectors::DefaultSumCollector>(result);
-        }
-
-        constexpr auto sum() noexcept
-        {
-            return Sum<AsSequence, collectors::DefaultSumCollector>{};
-        }
-
         template <template <typename> class Op>
         struct dummy
         {
@@ -411,10 +400,21 @@ namespace OP::flur
             using default_sum_collector_with_op_t = collectors::DefaultSumCollector<T, TSeq, Op>;
         };
 
+        template <class T>
+        constexpr auto sum(T& result) noexcept
+        {
+            return Sum<T&, typename dummy<std::plus>::default_sum_collector_with_op_t>(result);
+        }
+
+        constexpr auto sum() noexcept
+        {
+            return Sum<AsSequence, dummy<std::plus>::default_sum_collector_with_op_t>{};
+        }
+
         template <template <typename> class Op, class T>
         constexpr auto sum(T& result) noexcept
         {
-            return Sum<T, typename dummy<Op>::default_sum_collector_with_op_t >(result);
+            return Sum<T, typename dummy<Op>::default_sum_collector_with_op_t>(result);
         }
 
         template <class T, class TBinaryConsumer>
