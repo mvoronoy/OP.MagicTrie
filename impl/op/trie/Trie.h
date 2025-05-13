@@ -446,7 +446,7 @@ namespace OP
             /** \return check if iterator points to the prefix that has some child.
             *   Method is always false for `end()` or invalid iterators.
             */
-            bool has_child(iterator& prefix) const
+            bool has_child(iterator prefix) const
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), false); //place all RO operations to atomic scope
                 if (sync_iterator(prefix) && !prefix.is_end())
