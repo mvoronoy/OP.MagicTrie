@@ -119,28 +119,43 @@ namespace OP::flur
     /** placeholder to postpone target type detection */
     struct AsSequence{};
 
-    /**
+    /** @brief Namespace providing generic and specialized implementations of 
+    *        sum and multiplication algorithms.
     *
-    * \tparam T type of destination result, it is allowed to be `AsSequence` - meaning result is the same as TSequence::element_t.
+    * This namespace defines algorithms that follow the sum accumulation pattern, 
+    * supporting both addition and multiplication operations for generic types.
+    * Specializations for floating-point and arithmetic types are included to 
+    * reduce numerical error accumulation and improve precision in computation-heavy contexts.
     */
-    template <class T, template <typename> class Op = std::plus >
-    class Sum : ApplicatorBase
+    namespace collectors 
     {
-    public:
-
-        template <class TSum, class TSeq>
-        struct Collector
+       /**
+        * @brief Provides a default collector suitable for most use cases.
+        *
+        * This collector performs basic accumulation using the provided operation.
+        * For floating-point arithmetic, consider using alternatives (\sa PairwiseSumCollector, 
+        *   KahanSumCollector, NeumaierSumCollector).
+        * to reduce the risk of numerical error accumulation.
+        *
+        * @tparam TSum  The result type of the accumulation.
+        * @tparam TSeq  The source sequence type to aggregate.
+        * @tparam Op    The accumulation functor. Defaults to `std::plus<>`.
+        *               You may substitute any functor implementing the binary operator:
+        *               `TSeq::element_t operator()(TSeq::element_t, TSeq::element_t)`, for example `std::multiplies`.
+        */
+        template <class TSum, class TSeq, template <typename> class Op = std::plus>
+        struct DefaultSumCollector
         {
             TSum _dest;
             Op<std::decay_t<TSum>> _action;
 
-            constexpr Collector() noexcept
-                : _dest{}
-                , _action{}
+            explicit constexpr DefaultSumCollector(TSum dest, Op<std::decay_t<TSum>> action = {}) noexcept
+                : _dest{ dest }
+                , _action(std::move(action))
             {}
 
-            explicit constexpr Collector(TSum& dest, Op<std::decay_t<TSum>> action = {}) noexcept
-                : _dest{ dest }
+            explicit constexpr DefaultSumCollector(Op<std::decay_t<TSum>> action = {}) noexcept
+                : _dest{}
                 , _action(std::move(action))
             {}
 
@@ -156,10 +171,22 @@ namespace OP::flur
             }
         };
 
-        constexpr Sum() = default;
+    }//ns:collectors
+    /**
+    *
+    * \tparam T type of destination result, it is allowed to be `AsSequence` - meaning result is the same as TSequence::element_t.
+    */
+    template <class T, template <typename, typename> class TCollector>
+    class Sum : ApplicatorBase
+    {
+        using pointer_t = std::add_pointer_t<T>;
+        using reference_t = std::add_lvalue_reference_t<T>;
+    public:
 
-        explicit constexpr Sum(T dest)
-            : _dest(dest)
+        constexpr Sum() noexcept = default;
+
+        explicit constexpr Sum(reference_t dest) noexcept
+            : _dest(&dest)
         {
         }
 
@@ -169,15 +196,15 @@ namespace OP::flur
             if constexpr(std::is_same_v<T, AsSequence>)
             {
                 using element_t = std::decay_t<details::sequence_element_type_t<TSeq>>;
-                return Collector<element_t, TSeq>{};
+                return TCollector<element_t, TSeq>{};
             }
             else
-                return Collector<T, TSeq>{_dest};
+                return TCollector<reference_t, TSeq>{*_dest};
         }
 
     private:
 
-        T _dest;
+        pointer_t _dest;
     };
 
     template <class T>
@@ -369,18 +396,25 @@ namespace OP::flur
         template <class T>
         constexpr auto sum(T& result) noexcept
         {
-            return Sum<T&>(result);
+            return Sum<T&, collectors::DefaultSumCollector>(result);
         }
 
         constexpr auto sum() noexcept
         {
-            return Sum<AsSequence>{};
+            return Sum<AsSequence, collectors::DefaultSumCollector>{};
         }
+
+        template <template <typename> class Op>
+        struct dummy
+        {
+            template <class T, class TSeq>
+            using default_sum_collector_with_op_t = collectors::DefaultSumCollector<T, TSeq, Op>;
+        };
 
         template <template <typename> class Op, class T>
         constexpr auto sum(T& result) noexcept
         {
-            return Sum<T&, Op>(result);
+            return Sum<T, typename dummy<Op>::default_sum_collector_with_op_t >(result);
         }
 
         template <class T, class TBinaryConsumer>
