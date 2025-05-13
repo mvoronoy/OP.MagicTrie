@@ -63,9 +63,7 @@ namespace {
         invocked = 0;
         size_t control_seq = 1;
         for (const auto& r : OP::flur::src::generator([&](const SequenceState at) ->std::optional<size_t> {
-            tresult.assert_true(
-                (at.step() == 0 && (invocked == 0))
-                || (at.step() > 0 && (invocked > 0)),
+            tresult.assert_that<equals>(at.step(), invocked,
                 "bool parameter wrong semantic");
 
             ++invocked;
@@ -107,7 +105,7 @@ namespace {
         for (auto r : OP::flur::src::generator(
             [&](const SequenceState& attrs) -> std::optional<std::string_view>{
                 current = attrs.step() == 0 ? subset.begin() : std::next(current);
-                return current == subset.end() ? std::nullopt : std::optional{*current};
+                return current == subset.end() ? std::nullopt : std::optional<std::string_view>{*current};
             }))
         {
             //tresult.debug() << "gen:" << r << "\n";

@@ -65,8 +65,8 @@ namespace OP::flur
         /** Position iterable to the next step */
         virtual void next() override
         {
-            _current = OP::currying::recomb_call(_generator, _sstate);
             _sstate.next();
+            _current = OP::currying::recomb_call(_generator, _sstate);
         }
 
     private:
