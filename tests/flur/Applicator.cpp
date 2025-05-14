@@ -166,6 +166,127 @@ namespace {
             make_shared(src::of_value(57))) , 57);
     }
 
+    template <class T>
+    constexpr T arithmetic_progression_sum(size_t N, T from, T to) 
+    {
+        return N * (from + to) / T{2};
+    }
+
+    template <class T, size_t N>
+    constexpr auto test_generator(T factor = T{1}/N) noexcept
+    {
+        return src::generator([factor](const SequenceState& state) -> std::optional<T>{
+            return state.step() < N 
+                ? std::optional<T>{state.step() + factor}
+                : std::nullopt
+            ;
+        });
+    }
+
+    template <class T, class TApp1, class TApp2>
+    void compare_sum_algorithms_low_magnitude(TestRuntime& rt, TApp1&& worst, TApp2&& better)
+    {
+        constexpr size_t range_c = 1021; //some large enough prime number
+        const T step_c = T{ 1 } / 10;//0.1
+        const auto generator = test_generator<T, range_c>(step_c);
+        const T expected = arithmetic_progression_sum(range_c, step_c, (step_c + range_c - 1));
+
+        T val_worst = generator >>= worst;
+        T val_better = generator >>= better;
+        rt.debug() << "Small magnitude function:\n";
+        rt.debug() << "\tdiff between expected and worst (abs error)=" << (expected - val_worst) << "\n";
+        rt.debug() << "\tdiff between expected and better (abs error)=" << (expected - val_better) << "\n";
+        rt.debug() << "\tdiff between naive and pairwise (rel error, the bigger the better)=" << (val_worst - val_better) << "\n";
+        rt.assert_that<negate<almost_eq>>(expected, val_worst,
+            "assert should check that absolute error is not appropriate and exceed machine depended epsilon");
+
+        rt.assert_that<less_or_equals>(std::abs(expected - val_better), std::abs(expected - val_worst),
+            "assert should check that algorithm better or equals to worst");
+    }
+
+    template <class T, size_t N>
+    constexpr auto test_magnitude_generator(T a, T r) noexcept
+    {
+        return src::generator([=](const SequenceState& state) -> std::optional<T> {
+            T eval = a * std::pow(r, static_cast<T>(state.step()));
+            return state.step() < N
+                ? std::optional<T>{eval}
+                : std::nullopt
+                ;
+            });
+    }
+
+    constexpr static std::tuple<float, double, long double> type_depended_exponent_c{47.f, 101, 101.0};//some large enough prime number
+    template <class T, class TApp1, class TApp2>
+    void compare_sum_algorithms_large_magnitude(TestRuntime& rt, TApp1&& worst, TApp2&& better)
+    {
+        constexpr size_t range_c = std::get<T>(type_depended_exponent_c); //some large enough prime number
+        constexpr T a{17}, r{-1.75311};
+        const auto generator = test_magnitude_generator<T, range_c>(a, r);
+
+        const T expected = a * (T{1} - std::pow(r, T{ range_c})) / (T{1} - r);
+
+        T val_worst = generator >>= worst;
+        T val_better = generator >>= better;
+
+        rt.debug() << "Large magnitude function:\n";
+        rt.debug() << "\tdiff between expected and worst (abs error)=" << (expected - val_worst) << "\n";
+        rt.debug() << "\tdiff between expected and better (abs error)=" << (expected - val_better) << "\n";
+        rt.debug() << "\tdiff between naive and pairwise (rel error, the bigger the better)=" << (val_worst - val_better) << "\n";
+        rt.assert_that<negate<almost_eq>>(expected, val_worst,
+            "assert should check that absolute error is not appropriate and exceed machine depended epsilon\n");
+
+        rt.assert_that<less_or_equals>(std::abs(expected - val_better), std::abs(expected - val_worst),
+            "assert should check that pairwise better than naive\n");
+    }
+
+    void test_fsum_pairwise(TestRuntime& rt)
+    {
+        rt.debug() << "Alg test for float...\n";
+        compare_sum_algorithms_low_magnitude<float>(
+            rt, apply::sum(), apply::fsum<apply::sum_pairwise_t>());
+        compare_sum_algorithms_large_magnitude<float>(
+            rt, apply::sum(), apply::fsum<apply::sum_pairwise_t>());
+
+        rt.debug() << "Alg test for double...\n";
+        compare_sum_algorithms_low_magnitude<double>(
+            rt, apply::sum(), apply::fsum<apply::sum_pairwise_t>());
+    }
+
+    void test_fsum_kahan(TestRuntime& rt)
+    {
+        rt.debug() << "Alg test for float...\n";
+        compare_sum_algorithms_low_magnitude<float>(
+            rt, apply::fsum<apply::sum_pairwise_t>(), apply::fsum<apply::sum_kahan_t>());
+        compare_sum_algorithms_large_magnitude<float>(
+            rt, apply::fsum<apply::sum_pairwise_t>(), apply::fsum<apply::sum_kahan_t>());
+
+        rt.debug() << "Alg test for double...\n";
+        compare_sum_algorithms_low_magnitude<double>(
+            rt, apply::fsum<apply::sum_pairwise_t>(), apply::fsum<apply::sum_kahan_t>());
+    }
+
+    void test_fsum_neumaier(TestRuntime& rt)
+    {
+        rt.debug() << "Alg test for float...\n";
+        compare_sum_algorithms_low_magnitude<float>(
+            rt, apply::fsum<apply::sum_kahan_t>(), apply::fsum<apply::sum_neumaier_t>());
+        compare_sum_algorithms_large_magnitude<float>(
+            rt, apply::fsum<apply::sum_pairwise_t>(), apply::fsum<apply::sum_neumaier_t>());
+
+        rt.debug() << "Alg test for double...\n";
+        compare_sum_algorithms_low_magnitude<double>(
+            rt, apply::fsum<apply::sum_pairwise_t>(), apply::fsum<apply::sum_neumaier_t>());
+        compare_sum_algorithms_large_magnitude<double>(
+            rt, apply::fsum<apply::sum_pairwise_t>(), apply::fsum<apply::sum_neumaier_t>());
+
+        rt.debug() << "Alg test for long-double...\n";
+        compare_sum_algorithms_low_magnitude<long double>(
+            rt, apply::fsum<apply::sum_pairwise_t>(), apply::fsum<apply::sum_neumaier_t>());
+        compare_sum_algorithms_large_magnitude<long double>(
+            rt, apply::fsum<apply::sum_pairwise_t>(), apply::fsum<apply::sum_neumaier_t>());
+    }
+
     static auto& module_suite = OP::utest::default_test_suite("flur.apply")
         .declare("sum", test_sum)
         .declare("count", test_count)
@@ -174,5 +295,8 @@ namespace {
         .declare("reduce", test_reduce)
         .declare("first", test_first)
         .declare("last", test_last)
+        .declare("fsum_pairwise", test_fsum_pairwise)
+        .declare("fsum_kahan", test_fsum_kahan)
+        .declare("fsum_neumaier", test_fsum_neumaier)
         ;
 }//ns:

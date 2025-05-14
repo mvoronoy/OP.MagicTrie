@@ -171,7 +171,156 @@ namespace OP::flur
             }
         };
 
+        template <template <typename> class Op>
+        struct ArgReducer
+        {
+            template <class T, class TSeq>
+            using default_sum_collector_with_op_t = collectors::DefaultSumCollector<T, TSeq, Op>;
+        };
+
+        /**
+         * @brief Summation collector uses pairwise summation to improve numerical stability.
+         *
+         * This collector divides the input sequence and sums values in pairs,
+         * reducing rounding error by maintaining better balance between large and small terms.
+         * It is particularly effective for large datasets or where precision loss due to ordering
+         * is a concern.
+         *
+         * Compared to naive accumulation, it significantly reduces numerical drift,
+         * but may still be less accurate than Kahan or Neumaier methods for extreme cases.
+         */
+        template <class TSum, class TSeq, 
+            std::enable_if_t<std::is_floating_point_v<TSum>, int> = 0>
+        struct PairwiseSumCollector
+        {
+            using deref_sum_t = std::decay_t<TSum>;
+            
+            TSum _dest;
+            std::array<deref_sum_t, 2> _accumulator{};
+            deref_sum_t _odd_sum{};
+            size_t _offset = 0, _gen = 0;
+
+            explicit constexpr PairwiseSumCollector(TSum dest) noexcept
+                : _dest{ dest }
+            {
+            }
+
+            constexpr PairwiseSumCollector() noexcept
+                : _dest{}
+            {
+            }
+
+            void on_consume(const TSeq& seq)
+            {
+                _accumulator[_offset++] = seq.current(); //accumulate pairs
+                if(_offset == _accumulator.size())
+                {
+                    //need suppress optimization on pair sum
+                    volatile deref_sum_t pair_sum = (_accumulator[0] + _accumulator[1]);
+                    *((_gen ++ & 1) ? &_dest : &_odd_sum) += pair_sum;
+                    _offset = 0;
+                }
+            }
+
+            decltype(auto) on_complete() noexcept
+            {
+                if(_offset == 1) //handle odd number
+                    _dest += _accumulator[0];
+                return _dest + _odd_sum;
+            }
+        };
+
+        /**
+         * @brief Summation collector uses the Kahan summation algorithm.
+         *
+         * This collector applies compensation for lost low-order bits during summation
+         * by tracking a running error term. It adds a correction factor on each iteration,
+         * significantly improving accuracy in floating-point addition.
+         *
+         * Especially effective when many small numbers are added to a much larger one.
+         * More accurate than pairwise summation, but incurs slightly more computational cost.
+         */
+        template <class TSum, class TSeq,
+            std::enable_if_t<std::is_floating_point_v<TSum>, int> = 0>
+        struct KahanSumCollector
+        {
+            using deref_sum_t = std::decay_t<TSum>;
+            TSum _dest;
+            deref_sum_t _compensation{};
+
+            explicit constexpr KahanSumCollector(TSum dest) noexcept
+                : _dest{ dest }
+            {
+            }
+
+            explicit constexpr KahanSumCollector() noexcept
+                : _dest{}
+            {
+            }
+
+            void on_consume(const TSeq& seq)
+            {
+                deref_sum_t delta = seq.current() - _compensation;
+                deref_sum_t result = _dest + delta;
+                _compensation = (result - _dest) - delta;
+                _dest = result;
+            }
+
+            decltype(auto) on_complete() noexcept
+            {
+                return _dest;
+            }
+        };
+
+        /**
+         * @brief Accumulator using the Neumaier summation algorithm.
+         *
+         * A refined version of Kahan's method, Neumaier's algorithm compensates rounding errors
+         * even when the next term is larger in magnitude than the current sum.
+         * It maintains both the total sum and a separate compensation term.
+         *
+         * Offers higher precision but slower than Kahan in cases with large magnitude variation,
+         * and is generally more robust in real-world scenarios where cancellation is common.
+         */
+        template <class TSum, class TSeq,
+            std::enable_if_t<std::is_floating_point_v<TSum>, int> = 0>
+        struct NeumaierSumCollector
+        {
+            using deref_sum_t = std::decay_t<TSum>;
+            TSum _dest;
+            deref_sum_t _compensation{};
+
+            explicit constexpr NeumaierSumCollector(TSum dest) noexcept
+                : _dest{ dest }
+            {
+            }
+
+            explicit constexpr NeumaierSumCollector() noexcept
+                : _dest{}
+            {
+            }
+
+            void on_consume(const TSeq& seq)
+            {
+                deref_sum_t item = seq.current();
+                deref_sum_t result = _dest + item;
+                
+                if(std::abs(_dest) >= std::abs(item))
+                    _compensation += (_dest - result) + item;
+                else
+                    _compensation += (item - result) + _dest;
+
+                _dest = result;
+            }
+
+            decltype(auto) on_complete() noexcept
+            {
+                _dest += _compensation; //apply compensation to the result
+                return _dest;
+            }
+        };
     }//ns:collectors
+
     /**
     *
     * \tparam T type of destination result, it is allowed to be `AsSequence` - meaning result is the same as TSequence::element_t.
@@ -393,28 +542,69 @@ namespace OP::flur
             return Count<size_t>(0);
         }
 
-        template <template <typename> class Op>
-        struct dummy
-        {
-            template <class T, class TSeq>
-            using default_sum_collector_with_op_t = collectors::DefaultSumCollector<T, TSeq, Op>;
-        };
-
         template <class T>
         constexpr auto sum(T& result) noexcept
         {
-            return Sum<T&, dummy<std::plus>::template default_sum_collector_with_op_t>(result);
+            
+            return Sum<T&, 
+                collectors::ArgReducer<std::plus>::template default_sum_collector_with_op_t>(result);
         }
 
         constexpr auto sum() noexcept
         {
-            return Sum<AsSequence, dummy<std::plus>::template default_sum_collector_with_op_t>{};
+            return Sum<AsSequence, 
+                collectors::ArgReducer<std::plus>::template default_sum_collector_with_op_t>{};
         }
 
         template <template <typename> class Op, class T>
         constexpr auto sum(T& result) noexcept
         {
-            return Sum<T, dummy<Op>::template default_sum_collector_with_op_t>(result);
+            return Sum<T, 
+                collectors::ArgReducer<Op>::template default_sum_collector_with_op_t>(result);
+        }
+
+        template <class TSum, class TSeq>
+        using sum_pairwise_t = collectors::PairwiseSumCollector<TSum, TSeq>;
+
+        template <class TSum, class TSeq>
+        using sum_kahan_t = collectors::KahanSumCollector<TSum, TSeq>;
+
+        template <class TSum, class TSeq>
+        using sum_neumaier_t = collectors::NeumaierSumCollector<TSum, TSeq>;
+        /**
+        * @brief Create applicator to summate floating point sequence with improved precision.
+        * 
+        * When you apply naive `apply::sum` to sequence of floating points (including `float`, `double` and `long double`)
+        *   this implementation can accumulate rounding errors that amplifies as sequence size grows. To reduce
+        *   errors special algorithms can be applied. Following table allows you select correct algorithm:
+        * 
+        * Collector                        | Accuracy | Cost  | Best for
+        * ---------------------------------|----------|-------|---------------------------
+        * naive (if you use `sum()`)       |Very Low  | Low   | Non floating point types.
+        * collectors::PairwiseSumCollector | Medium   | Low   | Balanced summation with mild error risk
+        * (alias: sum_pairwise_t)          |          |       |
+        * collectors::KahanSumCollector    |High      |Medium | Sequences with many additions. Loses precision when adding a small number 
+        * (alias: sum_kahan_t)             |          |       | to a much larger sum.
+        * collectors::NeumaierSumCollector |Very High |Above medium | Datasets with large magnitude variation.
+        * (alias: sum_neumaier_t)          |          |        |
+        *
+        * @param result destination result, has one of the floating point types: `float`, `double` or `long double`.
+        * @tparam TCollector summation algorithm, one of the: `sum_pairwise_t`, `sum_kahan_t` or `sum_neumaier_t`.
+        */ 
+        template <class T, template <typename, typename> class TCollector = sum_pairwise_t>
+        constexpr decltype(auto) fsum(T& result) noexcept
+        {
+            return Sum<T, TCollector>{result};
+        }
+
+        /** @brief Create applicator to summate floating point sequence with improved precision.
+        * 
+        * The same as `fsum(T&)`, but evaluate result type by collected input sequence. 
+        */ 
+        template <template <typename...> class TCollector = sum_pairwise_t>
+        constexpr auto fsum() noexcept
+        {
+            return Sum<AsSequence, TCollector>();
         }
 
         template <class T, class TBinaryConsumer>

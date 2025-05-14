@@ -109,9 +109,9 @@ namespace OP::utest
             wide_num_t abs_diff = std::abs(left - right);
             constexpr wide_num_t eps = std::numeric_limits<wide_num_t>::epsilon();
             bool result = abs_diff <= eps
-                || abs_diff <= eps * std::max( wide_num_t{1}, std::max(std::abs(left), std::abs(right) ))
-                //result is subnormal
-                || abs_diff < std::numeric_limits<wide_num_t>::min()
+                //|| abs_diff <= eps * std::max( wide_num_t{1}, std::max(std::abs(left), std::abs(right) ))
+                ////result is subnormal
+                //|| abs_diff < std::numeric_limits<wide_num_t>::min()
                 ;
 
             if (result)

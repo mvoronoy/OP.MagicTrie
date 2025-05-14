@@ -25,39 +25,13 @@ namespace OP
 
             using deref_input_sequence_t = details::dereference_t<input_sequence_t>;
 
-            static decltype(auto) invoke(
+            static inline decltype(auto) invoke(
                 // cppcheck-suppress constParameterReference
                 applicator_t& applicator,
                 const deref_input_sequence_t& sequence,
                 SequenceState& state)
             {
-                if constexpr (std::is_invocable_v<applicator_t>)
-                {// flat map functor can be empty
-                    return applicator();
-                }
-                else if constexpr (std::is_invocable_v<applicator_t, 
-                    decltype(details::get_reference(sequence).current())>)
-                { //the same as default fallback, but allows in first order check `flat_mapping([](auto&...)`
-                    return applicator(details::get_reference(sequence).current());
-                }
-                else if constexpr (std::is_invocable_v<applicator_t, decltype(state)>)
-                {// SequenceState only consumer
-                    return applicator(state);
-                }
-                else if constexpr (std::is_invocable_v<applicator_t, 
-                    decltype(details::get_reference(sequence).current()), decltype(state)>)
-                {
-                    return applicator(details::get_reference(sequence).current(), state);
-                }
-                else if constexpr (std::is_invocable_v<applicator_t, decltype(state), 
-                    decltype(details::get_reference(sequence).current())>)
-                {
-                    return applicator(state, details::get_reference(sequence).current());
-                }
-                else //default fallback for consuming current element of input sequence
-                {
-                    return applicator(details::get_reference(sequence).current());
-                }
+                return OP::currying::recomb_call(applicator, sequence.current(), state);
             }
 
             /** result type of applicator function */
