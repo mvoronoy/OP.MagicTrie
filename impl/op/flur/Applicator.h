@@ -601,7 +601,7 @@ namespace OP::flur
         * 
         * The same as `fsum(T&)`, but evaluate result type by collected input sequence. 
         */ 
-        template <template <typename...> class TCollector = sum_pairwise_t>
+        template <template <typename, typename> class TCollector = sum_pairwise_t>
         constexpr auto fsum() noexcept
         {
             return Sum<AsSequence, TCollector>();
