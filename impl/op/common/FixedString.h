@@ -497,7 +497,7 @@ namespace OP
             return result;
         }
 
-        constexpr explicit operator view_t() const noexcept
+        constexpr /*explicit*/ operator view_t() const noexcept
         {
             return view_t{ data(), size() };
         }

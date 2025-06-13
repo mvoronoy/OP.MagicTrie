@@ -247,6 +247,8 @@ namespace OP
                 assert(node_data); //there we have only valid pointers
                 assert(_child_presence.get(key));//must exists
                 node_data->_child = FarAddress{};
+                if(!_value_presence.get(key)) // no more reason to keep entry
+                    container->erase(key);
                 _child_presence.clear(key);
                 ++_version;
             }

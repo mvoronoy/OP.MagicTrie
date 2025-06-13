@@ -1623,6 +1623,7 @@ namespace
             //>> OP::flur::then::mapping([](const auto&))
             );
     }
+    
     void test_insert_10k(OP::utest::TestRuntime& tresult)
     {
         auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(
@@ -1705,6 +1706,7 @@ namespace
         }
 
     }
+
 
     static auto& module_suite = OP::utest::default_test_suite("Trie.core")
         .declare("creation", test_TrieCreation)

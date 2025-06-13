@@ -77,7 +77,6 @@ namespace
             OP::trie::EventSourcingSegmentManager, OP::trie::PlainValueManager<double>, ufstr_t
         >;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
-        using mix_ns = OP::trie::Ingredient<trie_t>;
 
         auto test_range0 = OP::trie::make_mixed_sequence_factory(
             std::static_pointer_cast<trie_t const>(trie));
@@ -121,7 +120,6 @@ namespace
             OP::trie::EventSourcingSegmentManager, OP::trie::PlainValueManager<double>, OP::common::atom_string_t> ;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
-        using mix_ns = OP::trie::Ingredient<trie_t>;
 
         auto test_range0 = OP::trie::make_mixed_sequence_factory(
             std::static_pointer_cast<trie_t const>(trie));

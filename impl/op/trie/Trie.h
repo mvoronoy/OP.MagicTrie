@@ -498,8 +498,7 @@ namespace OP
             */
             auto range() const
             {
-                return OP::flur::make_lazy_range(
-                    TrieSequenceFactory<this_t>(this->shared_from_this()));
+                return make_mixed_sequence_factory(this->shared_from_this());
             }
 
             /**
@@ -523,25 +522,24 @@ namespace OP
             template <class AtomContainer>
             auto prefixed_range(const AtomContainer& prefix) const
             {
-                return OP::flur::make_lazy_range(
+                return 
                     make_mixed_sequence_factory(
                         std::const_pointer_cast<const this_t>(this->shared_from_this()),
-                        typename Ingredient<this_t>::PrefixedBegin(prefix),
-                        typename Ingredient<this_t>::template PrefixedLowerBound<AtomContainer>(prefix),
-                        typename Ingredient<this_t>::PrefixedInRange(StartWithPredicate(prefix))
-                    )
-                );
+                        Ingredient::PrefixedBegin(prefix),
+                        Ingredient::PrefixedLowerBound(prefix),
+                        Ingredient::PrefixedInRange(StartWithPredicate(prefix))
+                    );
             }
 
             /**Return range that allows iterate all immediate children of specified prefix*/
             auto children_range(const iterator& of_this) const
             {
-                return OP::flur::make_lazy_range(make_mixed_sequence_factory(
+                return make_mixed_sequence_factory(
                     std::const_pointer_cast<const this_t>(this->shared_from_this()),
-                    typename Ingredient<this_t>::ChildBegin{ of_this },
-                    typename Ingredient<this_t>::ChildInRange{ StartWithPredicate(of_this.key()) },
-                    typename Ingredient<this_t>::SiblingNext{}
-                ));
+                    Ingredient::ChildBegin{ of_this },
+                    Ingredient::ChildInRange{ StartWithPredicate(of_this.key()) },
+                    Ingredient::SiblingNext{}
+                );
             }
 
             /**Return range that allows iterate all immediate childrens of specified prefix
@@ -550,23 +548,23 @@ namespace OP
             template <class AtomContainer>
             auto children_range(const AtomContainer& of_key) const
             {
-                return OP::flur::make_lazy_range(make_mixed_sequence_factory(
+                return make_mixed_sequence_factory(
                     std::const_pointer_cast<const this_t>(this->shared_from_this()),
-                    typename Ingredient<this_t>::template ChildOfKeyBegin<AtomContainer>{ of_key },
-                    typename Ingredient<this_t>::ChildInRange{ StartWithPredicate(of_key) },
-                    typename Ingredient<this_t>::SiblingNext{}
-                ));
+                    Ingredient::ChildOfKeyBegin<AtomContainer>{ of_key },
+                    Ingredient::ChildInRange{ StartWithPredicate<AtomContainer>(of_key) },
+                    Ingredient::SiblingNext{}
+                );
             }
 
             /**Return range that allows iterate all siblings of specified prefix*/
             template <class AtomContainer>
             auto sibling_range(const AtomContainer& key) const
             {
-                return OP::flur::make_lazy_range(make_mixed_sequence_factory(
+                return make_mixed_sequence_factory(
                     std::const_pointer_cast<const this_t>(this->shared_from_this()),
-                    typename Ingredient<this_t>::Find(key),
-                    typename Ingredient<this_t>::SiblingNext{}
-                ));
+                    Ingredient::Find<AtomContainer>(key),
+                    Ingredient::SiblingNext{}
+                );
 
             }
 
@@ -669,7 +667,7 @@ namespace OP
             *   \tparam FPayloadFactory functor that assigns value. It must have signature `void (payload_t& )` 
             *   \return a pair of iterator and bool. Iterator pointing to the element matched to key 
             *       `of_prefix.key() + atom_string_t(begin, aend)`. Boolean value denoting if the insertion succeeded
-            *       or result key is a dupplicate. For empty string `(begin == aend)` method immidiatly returns 
+            *       or result key is a duplicate. For empty string `(begin == aend)` method immediately returns 
             *       pair `(end(), false)`
             */
             template <class AtomIterator, class FPayloadFactory>
@@ -1097,7 +1095,8 @@ namespace OP
                     });
                 return version;
             }
-
+            /** find first mismatch after position pointed by `iter` and string specified [`begin`, `end`)
+            */ 
             template <class AtomIterator>
             StemCompareResult mismatch(iterator& iter, AtomIterator& begin, AtomIterator end) const
             {
@@ -1113,6 +1112,8 @@ namespace OP
                 {
                     auto node =
                         view<node_t>(*_topology, node_addr);
+                    assert(node->magic_word_c == 0x55AA);
+
                     atom_t step_key = *begin++;
                     bool has_child = node->has_child(step_key);
                     bool has_value = node->has_value(step_key);
@@ -1137,7 +1138,6 @@ namespace OP
                             return StemCompareResult::string_end;
                         }
                     }
-                    assert(node->magic_word_c == 0x55AA);
                     mismatch_result = node->rawc(*_topology, step_key,
                         [&](const node_data_t& node_data) -> StemCompareResult {
                             node_addr = node_data._child;//if exists discover next child node
@@ -1353,9 +1353,11 @@ namespace OP
 
                     if (!wr_node->erase(*_topology, static_cast<atom_t>(back.key()), first))
                     { //don't continue if exists a child node
-                        pos.rat(
-                            terminality_and(~Terminality::term_has_data),
-                            node_version(wr_node->_version));
+                        
+                        // The `pos` iterator is not valid anymore at this point
+                        //pos.rat(
+                        //    terminality_and(~Terminality::term_has_data),
+                        //    node_version(wr_node->_version));
                         break;
                     }
                     //remove entire node if it is not a root

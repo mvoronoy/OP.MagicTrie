@@ -32,6 +32,28 @@ namespace OP::utils
         return diff;
     }    
 
-    
+    namespace details
+    {
+        template <typename T> 
+        inline constexpr int signum(T x, std::false_type) noexcept
+        {
+            return T{0} < x;
+        }
+
+        template <typename T> 
+        inline constexpr int signum(T x, std::true_type is_signed) noexcept
+        {
+            return (T{0} < x) - (x < T{0});
+        }
+    }
+    /** 
+    * @return -1 or 1 depending on sign of `x`. Special thanks to https://stackoverflow.com/a/4609795/149818.
+    */
+    template <typename T> 
+    inline constexpr int signum(T x) noexcept
+    {
+        return details::signum(x, std::is_signed<T>());
+    }
+
 } //OP::utils
 #endif //_OP_COMMON_UNSIGNED__H_

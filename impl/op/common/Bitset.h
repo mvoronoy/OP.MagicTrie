@@ -126,14 +126,13 @@ namespace OP
         template <size_t N, class Int>
         struct BitsetIterator 
         {
+            /**bits count in single entry*/
+            constexpr static size_t bits_c = std::numeric_limits<Int>::digits;
+            
+            /**Total bit count managed by this container*/
+            constexpr static size_t bit_length_c = bits_c * N;
+
             using iterator_category = std::random_access_iterator_tag;
-            enum
-            {
-                /**bits count in single entry*/
-                bits_c = sizeof(Int) << 3,
-                /**Total bit count managed by this container*/
-                bit_length_c = bits_c * N
-            };
             using difference_type = ptrdiff_t;
             using this_t = BitsetIterator<N, Int>;
 
@@ -349,15 +348,14 @@ namespace OP
 
             typedef std::uint16_t dim_t;
             typedef std::uint8_t atom_t;
+            
             constexpr static const dim_t nil_c = dim_t(~0u);
             
-            enum
-            {
-                /**bits count in single entry*/
-                bits_c = const_iterator::bits_c,
-                /**Total bit count managed by this container*/
-                bit_length_c = const_iterator::bit_length_c
-            };
+            /**bits count in single entry*/
+            constexpr static size_t bits_c = const_iterator::bits_c;
+            
+            /**Total bit count managed by this container*/
+            constexpr static size_t bit_length_c = const_iterator::bit_length_c;
             
             constexpr explicit Bitset(Int def = {0}) noexcept
             {

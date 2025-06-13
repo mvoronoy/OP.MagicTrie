@@ -15,7 +15,7 @@ namespace OP::trie
 {
     /** Implement predicate checking 'start-with' logic
     */
-    template <class AtomString = OP::common::atom_string_t >
+    template <class AtomString >
     struct StartWithPredicate
     {
         StartWithPredicate(AtomString prefix) noexcept
@@ -32,7 +32,7 @@ namespace OP::trie
             return std::equal(_prefix.begin(), _prefix.end(), str.begin());
         }
     private:
-        const AtomString _prefix;
+        const std::decay_t<AtomString> _prefix;
     };
 
     // explicit deduction guide (not needed as of C++20)
@@ -42,63 +42,75 @@ namespace OP::trie
     namespace details
     {
         /** Declare SFINAE predicate to test  if class  has member _begin */
-        OP_DECLARE_CLASS_HAS_MEMBER( _begin )
+        OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER( _begin )
         /** Declare SFINAE predicate to test  if class  has member _next */
-        OP_DECLARE_CLASS_HAS_MEMBER( _next )
+        OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER( _next )
         /** Declare SFINAE predicate to test  if class  has member _in_range */
-        OP_DECLARE_CLASS_HAS_MEMBER( _in_range )
+        OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER( _in_range )
         /** Declare SFINAE predicate to test  if class  has member _end */
-        OP_DECLARE_CLASS_HAS_MEMBER( _end )
+        OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER( _end )
         /** Declare SFINAE predicate to test if class  has member lower_bound */
-        OP_DECLARE_CLASS_HAS_MEMBER( _lower_bound )
+        OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER( _lower_bound )
     }
     
 
-    template <class Trie>
-    struct Ingredient
+    namespace Ingredient
     {
-        using iterator = typename Trie::iterator;
         /** Ingredient for MixAlgorithmRangeAdapter - allows range use `first_child` method instead of `begin` */
+        template <class Iterator>
         struct ChildBegin
         {
-            ChildBegin(iterator iter)
+            ChildBegin(Iterator iter)
                 : _iterator(std::move(iter))
             {
             }
 
-            iterator _begin(const Trie& trie) const
+            template <class Trie>
+            auto _begin(const Trie& trie) const
             {
                 return trie.first_child(_iterator);
             }
+
         private:
             /** Mutable since Trie can update version of iterator */
-            mutable iterator _iterator;
+            mutable std::decay_t<Iterator> _iterator;
         };
+        
+        template <class Iter> //deduction guide
+        ChildBegin(Iter) -> ChildBegin<Iter>;
+
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range use `find(key | `first_child` method instead of `begin` */
-        template <class AtomContainer = OP::common::atom_string_t>
+        template <class AtomString>
         struct ChildOfKeyBegin
         {
-            ChildOfKeyBegin(AtomContainer key)
+            constexpr explicit ChildOfKeyBegin(AtomString key) noexcept
                 : _key(std::move(key))
             {
             }
 
-            iterator _begin(const Trie& trie) const
+            template <class Trie>
+            auto _begin(const Trie& trie) const
             {
                 auto found = trie.find(_key);
                 if( trie.in_range( found ) )
                     return trie.first_child(found);
                 return trie.end();
             }
+
         private:
-            const AtomContainer _key;
+            const std::decay_t<AtomString> _key;
         };
+
+        template <class AtomString> //deduction guide
+        ChildOfKeyBegin(AtomString) -> ChildOfKeyBegin<AtomString>;
+        
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range use `next_sibling` method instead of `next` */
         struct SiblingNext
         {
-            void _next(const Trie& trie, iterator& i) const
+            template <class Trie>
+            void _next(const Trie& trie, typename Trie::iterator& i) const
             {
                 trie.next_sibling(i);
             }
@@ -106,44 +118,38 @@ namespace OP::trie
 
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows start iteration from first element that matches specific prefix string */
+        template <class AtomString>
         struct PrefixedBegin
         {
-            template <class SharedArguments>
-            PrefixedBegin(const SharedArguments& args)
-                : _prefix(std::get<OP::common::atom_string_t>(args))
-            {
-            }
 
-            PrefixedBegin(OP::common::atom_string_t prefix)
+            constexpr explicit PrefixedBegin(AtomString prefix) noexcept
                 : _prefix(std::move(prefix))
             {
             }
 
-            iterator _begin(const Trie& trie) const
+            template <class Trie>
+            auto _begin(const Trie& trie) const
             {
                 return trie.prefixed_begin(std::begin(_prefix), std::end(_prefix));
             }
 
         private:
-            const OP::common::atom_string_t _prefix;
+            const std::decay_t<AtomString> _prefix;
         };
+
+        template <class AtomString> //deduction guide
+        PrefixedBegin(AtomString) -> PrefixedBegin<AtomString>;
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows start iteration from first element that 
         greater or equal than specific key. If key is not started with prefix:
             - for lexicographic less key - then lower_bound starts from prefix
             - for lexicographic greater key - then lower_bound returns end()
         */
-        template <class AtomString = OP::common::atom_string_t >
+        template <class AtomString>
         struct PrefixedLowerBound
         {
 
-            template <class SharedArguments>
-            PrefixedLowerBound(const SharedArguments& args)
-                : _prefix(std::get<AtomString>(args))
-            {
-            }
-
-            OP_CONSTEXPR_CPP20 PrefixedLowerBound(AtomString prefix) noexcept
+            OP_CONSTEXPR_CPP20 explicit PrefixedLowerBound(AtomString prefix) noexcept
                 : _prefix(std::move(prefix))
             {
             }
@@ -151,7 +157,8 @@ namespace OP::trie
             /** 
             * \param i - [out] result iterator
             */
-            void _lower_bound(const Trie& trie, iterator& i, const typename Trie::key_t& key) const
+            template <class Trie>
+            void _lower_bound(const Trie& trie, typename Trie::iterator& i, const typename Trie::key_t& key) const
             {
                 auto kb = std::begin(key);
                 auto ke = std::end(key);
@@ -173,8 +180,10 @@ namespace OP::trie
             }
 
         private:
-            const AtomString _prefix;
+            const std::decay_t<AtomString> _prefix;
         };
+        template <class AtomString> //deduction guide
+        PrefixedLowerBound(AtomString) -> PrefixedLowerBound<AtomString>;
 
         /** Ingredient for MixAlgorithmRangeAdapter - allows range customize `in_range` in a way to check that 
         * range iterates over items with specific prefix 
@@ -189,7 +198,8 @@ namespace OP::trie
                 : _prefix_check(std::forward<F>(pred))
                 {}
 
-            bool _in_range(const Trie& trie, const iterator& i) const
+            template <class Trie>
+            bool _in_range(const Trie& trie, const typename Trie::iterator& i) const
             {
                 return trie.in_range(i) && _prefix_check(i);
             }
@@ -207,54 +217,55 @@ namespace OP::trie
         template <class F>
         struct ChildInRange: PrefixedInRange<F>
         {
-            using  PrefixedInRange<F>:: PrefixedInRange;
+            using  PrefixedInRange<F>::PrefixedInRange;
         };
 
         template <class F> //deduction guide
         ChildInRange(F) -> ChildInRange<F>;
 
         /** Ingredient for MixAlgorithmRangeAdapter - implements `in_range` with extra predicate */
+        template <class Predicate>
         struct TakeWhileInRange
         {
-            /** extract predicate from shared argument std::tuple from */
-            template <class SharedArguments>
-            TakeWhileInRange(const SharedArguments& args) noexcept
-                : _predicate(std::get<bool(const iterator&)>(args)) 
-            {}
-
             /** \tparam Predicate take-while predicate, must be compatible with `bool(const iterator&)` */
-            template <class Predicate>
             TakeWhileInRange(Predicate predicate) noexcept
                 : _predicate(std::move(predicate))
             {}
 
-            bool _in_range(const Trie& trie, const iterator& i) const
+            template <class Trie>
+            bool _in_range(const Trie& trie, const typename Trie::iterator& i) const
             {
                 return trie.in_range(i) && _predicate(i);
             }
 
         private:
-            const std::function< bool(const iterator&)> _predicate;
+            Predicate _predicate;
         };
+        template <class F> //deduction guide
+        TakeWhileInRange(F) -> TakeWhileInRange<F>;
 
         /** Ingredient for MixAlgorithmRangeAdapter - implements `find` to play role of begin */
         
+        template <class AtomString>
         struct Find
         {
-            Find(typename Trie::key_t key)
+            Find(AtomString key)
                 : _key(std::move(key))
             {}
 
-            typename Trie::iterator _begin(const Trie& trie) const
+            template <class Trie>
+            auto _begin(const Trie& trie) const
             {
                 return trie.find(_key);
             }
 
         private:
-            const typename Trie::key_t _key;
+            const std::decay_t<AtomString> _key;
         };
+        template <class AtomString> //deduction guide
+        Find(AtomString) -> Find<AtomString>;
 
-    };
+    }//ns:Ingredient
 
     /**
     Motivation: Trie and PrefixedRanges contains lot of algorithms to do conceptually similar actions in different way. 
@@ -326,23 +337,23 @@ namespace OP::trie
         {}
         
         using base_begin_t = std::conditional_t< 
-                                        OP_CHECK_CLASS_HAS_MEMBER(M, _begin), M, base_t >;
+                                        details::has__begin<M, Trie>::value, M, base_t >;
         using base_begin_t::_begin;
 
         using base_next_t = typename std::conditional_t< 
-                                        OP_CHECK_CLASS_HAS_MEMBER(M, _next), M, base_t >;
+                                        details::has__next<M, Trie>::value, M, base_t >;
         using base_next_t::_next;
         
         using base_in_range_t = typename std::conditional_t< 
-                                        OP_CHECK_CLASS_HAS_MEMBER(M, _in_range), M, base_t >;
+                                        details::has__in_range<M, Trie>::value, M, base_t >;
         using base_in_range_t::_in_range;
 
         using base_end_t = typename std::conditional_t< 
-                                        OP_CHECK_CLASS_HAS_MEMBER(M, _end), M, base_t >;
+                                        details::has__end<M, Trie>::value, M, base_t >;
         using base_end_t::_end;
 
         using base_lower_bound_t = typename std::conditional_t< 
-                                        OP_CHECK_CLASS_HAS_MEMBER(M, _lower_bound), M, base_t >;
+                                        details::has__lower_bound<M, Trie>::value, M, base_t >;
         using base_lower_bound_t::_lower_bound;
     };
     namespace flur = OP::flur;

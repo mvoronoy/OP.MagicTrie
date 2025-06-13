@@ -251,6 +251,14 @@ namespace {
         rt.debug() << "Alg test for double...\n";
         compare_sum_algorithms_low_magnitude<double>(
             rt, apply::sum(), apply::fsum<apply::sum_pairwise_t>());
+
+        double test_val = 0.0;
+        constexpr unsigned range_c = 100;
+        constexpr double step_c = 0.1;
+        double expected = arithmetic_progression_sum(range_c, step_c, (step_c + range_c - 1));
+        test_generator<double, range_c>(step_c) >>= apply::fsum<apply::sum_pairwise_t>(test_val); //check signature of collector with value reference
+        constexpr static almost_eq_t close_enough_precise(step_c / 1000.);
+        rt.assert_that<close_enough_precise>(test_val, expected, "check signature of collector with value reference\n");
     }
 
     void test_fsum_kahan(TestRuntime& rt)

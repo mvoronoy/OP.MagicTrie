@@ -14,6 +14,8 @@ namespace OP::trie
     class TrieIterator
     {
     public:
+        using container_t = Container;
+
         using iterator_category = std::bidirectional_iterator_tag;
         using difference_type = std::ptrdiff_t;
 

@@ -75,7 +75,7 @@ namespace
     void test_Example(OP::utest::TestRuntime& tresult)
     {
         using namespace std::placeholders;
-        auto all = arguments(2.f, -9).//this value will pass as 3d argument z
+        auto all = arguments(2.f, -9).
             invoke(sum_int);
         tresult.debug() << "(Should be -7.)sum = " << all << "\n";
         tresult.assert_that<almost_eq>(-7.f, all);

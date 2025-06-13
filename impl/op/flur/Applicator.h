@@ -190,7 +190,7 @@ namespace OP::flur
          * but may still be less accurate than Kahan or Neumaier methods for extreme cases.
          */
         template <class TSum, class TSeq, 
-            std::enable_if_t<std::is_floating_point_v<TSum>, int> = 0>
+            std::enable_if_t<std::is_floating_point_v<std::decay_t<TSum>>, int> = 0>
         struct PairwiseSumCollector
         {
             using deref_sum_t = std::decay_t<TSum>;
@@ -226,7 +226,8 @@ namespace OP::flur
             {
                 if(_offset == 1) //handle odd number
                     _dest += _accumulator[0];
-                return _dest + _odd_sum;
+                _dest += _odd_sum;
+                return _dest;
             }
         };
 
@@ -591,7 +592,7 @@ namespace OP::flur
         * @param result destination result, has one of the floating point types: `float`, `double` or `long double`.
         * @tparam TCollector summation algorithm, one of the: `sum_pairwise_t`, `sum_kahan_t` or `sum_neumaier_t`.
         */ 
-        template <class T, template <typename, typename> class TCollector = sum_pairwise_t>
+        template <template <typename, typename> class TCollector, class T>
         constexpr decltype(auto) fsum(T& result) noexcept
         {
             return Sum<T, TCollector>{result};

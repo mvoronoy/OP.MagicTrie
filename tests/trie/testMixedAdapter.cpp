@@ -35,7 +35,6 @@ void testDefault(OP::utest::TestRuntime& tresult)
     using trie_t = Trie<
         EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t> ;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
-    using mix_ns = Ingredient<trie_t>;
 
     auto test_range0 = OP::trie::make_mixed_sequence_factory(
         std::static_pointer_cast<trie_t const>(trie));
@@ -79,7 +78,6 @@ void testChildConfig(OP::utest::TestRuntime& tresult)
     using trie_t = Trie<
         EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
-    using mix_ns = Ingredient<trie_t>;
 
     using p_t = std::pair<const atom_string_t, double>;
 
@@ -103,11 +101,10 @@ void testChildConfig(OP::utest::TestRuntime& tresult)
     atom_string_t common_prefix = "abc"_astr;
 
     auto test_range = OP::trie::make_mixed_sequence_factory(
-        std::const_pointer_cast<const trie_t>(trie)
-        ,
-        typename mix_ns::ChildBegin(trie->find(common_prefix)),
-        typename mix_ns::SiblingNext{},
-        typename mix_ns::ChildInRange(StartWithPredicate(common_prefix))
+        std::const_pointer_cast<const trie_t>(trie),
+        Ingredient::ChildBegin(trie->find(common_prefix)),
+        Ingredient::SiblingNext{},
+        Ingredient::ChildInRange(StartWithPredicate(common_prefix))
     );
 
     std::map<atom_string_t, double> test_values = {
@@ -126,10 +123,10 @@ void testChildConfig(OP::utest::TestRuntime& tresult)
 
     auto test_range2 = OP::trie::make_mixed_sequence_factory(
         std::const_pointer_cast<const trie_t>(trie),
-        mix_ns::ChildBegin(trie->find(common_prefix))
+        Ingredient::ChildBegin(trie->find(common_prefix))
     ) >> then::mapping([](const auto& i) {
         return p_t(i.key(), *i);
-        });
+    });
     test_values.clear();
     test_values = {
     p_t("abc.1"_astr, 1.),
@@ -153,7 +150,6 @@ void test_ISSUE_0002(OP::utest::TestRuntime& tresult)
         EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
     std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
-    using mix_ns = Ingredient<trie_t>;
 
     using p_t = std::pair<const atom_string_t, double>;
 
@@ -185,8 +181,8 @@ void test_ISSUE_0002(OP::utest::TestRuntime& tresult)
 
     auto source_range = OP::trie::make_mixed_sequence_factory(
         std::const_pointer_cast<const trie_t>(trie),
-        typename Ingredient<trie_t>::template ChildOfKeyBegin<>(result_prefix),
-        typename Ingredient<trie_t>::SiblingNext{}
+        Ingredient::ChildOfKeyBegin(result_prefix),
+        Ingredient::SiblingNext{}
     ) >> then::mapping([](const auto& i) {
         return p_t(i.key(), *i);
         });

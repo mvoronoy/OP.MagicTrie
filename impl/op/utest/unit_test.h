@@ -440,27 +440,32 @@ namespace OP::utest
 
         /**
         *   Most generic way to check result and assert. Method takes template parameter Marker
-        *   then applied multiple Args to it. Marker can be one of standard existing in
-         *   namespace OP::utest :
-        * \li equals - to assert equality of 2 comparable arguments (including STL containers);
-        * \li almost_eq - for floating types allows compare equality with negleting precision specified by `std::numeric_limits::epsilon()`
+        *   then applied multiple Args to it. Marker can be custom or one of the standard existing in
+         *  the namespace `OP::utest`:
+        * \li equals/not_equals - to assert equality of 2 comparable arguments (including STL containers);
+
+        * \li almost_eq - for floating types allows compare equality with neglection precision specified by custom or default `std::numeric_limits::epsilon()`.
         * \li eq_sets - to assert equality of 2 arbitrary containers but with items that can be
         *               automatically compared (by `==` comparator). Both containers are also checked against same items order.
+        * \li eq_unordered_sets - the same as `eq_set`, but ignores the order of items (uses std::unordered_set inside to collect items,
+        *       so item must be not only comparable (`==`) but support `std::hash<>` as well).
         * \li eq_ranges - to assert equality of 2 arbitrary containers specified by pair of iterators.
         *                    Both ranges are also checked against same items order.
-        * \li less - to assert strict less between 2 args
-        * \li greater - to assert strict greater between 2 args
+        * \li less/greater/greater_or_equals/less_or_equals - to assert comparison relation between 2 args
+        
         * \li negate or logical_not to invert other Markers. For example `assert_that< negate<less> >(3, 2)` - evaluates
         *               `!(3 < 2)` that is effectively `3>=2`
-        * \li is_null - to assert arg is nullptr
+        * \li is_null/is_not_null - to assert arg is nullptr
+        * \li regex_match to test if one string-like argument matches to the specified `std::regex` expression.
+        * \li regex_search to test if one string-like argument contains specified `std::regex` expression.
         */
-        template<class Marker, class ...Args>
+        template<const auto& AssertOperation, class ...Args>
         void assert_that(Args&& ...args)
         {
-            Marker m;
+            using Marker = std::decay_t<decltype(AssertOperation)>;
             //consciously don't use make_tuple to have reference to argument
             auto pack_arg = std::forward_as_tuple(std::forward<Args>(args)...);
-            auto that_result = details::apply_prefix(m, pack_arg, std::make_index_sequence<Marker::args_c>());
+            auto that_result = details::apply_prefix(AssertOperation, pack_arg, std::make_index_sequence<Marker::args_c>());
             bool succeeded;
             if constexpr (std::is_convertible_v<std::decay_t<decltype(that_result)>, bool>)
                 succeeded = that_result;
