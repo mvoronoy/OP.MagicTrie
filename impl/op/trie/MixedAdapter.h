@@ -453,12 +453,18 @@ namespace OP::trie
     };
 
     template <class TTrie, class ... Mx>
-    auto make_mixed_sequence_factory (std::shared_ptr<const TTrie> trie, Mx&& ...args)
+    auto make_mixed_sequence_factory(std::shared_ptr<const TTrie> trie, Mx&& ...args) noexcept
     {
         TrieSequenceFactory<TTrie, Mx...> factory (std::move(trie), std::forward<Mx>(args)...);
         return OP::flur::make_lazy_range(
                 std::move(factory)
         );
+    }
+
+    template <class TTrie, class ... Mx>
+    auto make_mixed_sequence_factory(std::shared_ptr<TTrie> trie, Mx&& ...args) noexcept
+    {
+        return make_mixed_sequence_factory(std::const_pointer_cast<const TTrie>(trie), std::forward<Mx>(args)...);
     }
 
 } //ns:OP::trie

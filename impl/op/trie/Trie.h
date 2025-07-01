@@ -283,7 +283,9 @@ namespace OP
                             [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
                     }
                 }
-                
+                else
+                    i_beg = end();
+
                 return i_beg;
             }
 
@@ -1142,9 +1144,12 @@ namespace OP
                         [&](const node_data_t& node_data) -> StemCompareResult {
                             node_addr = node_data._child;//if exists discover next child node
                             StemCompareResult stem_matches = StemCompareResult::equals;
-                            if (!node_data._stem.is_nil())
+                            if (node_data._stem.is_nil())
+                            { // no stem
+                                iter.rat(stem_size(0));
+                            }
+                            else
                             { //stem exists, append to out iterator
-                                
                                 auto result_stem_size = static_cast<dim_t>(
                                     string_memory_manager.get(node_data._stem, [&](atom_t c) -> bool {
                                         if (begin == end)
@@ -1162,8 +1167,6 @@ namespace OP
                                         }));
                                 iter.rat(stem_size(result_stem_size));
                             }
-                            else
-                                iter.rat(stem_size(0));
                             if (stem_matches == StemCompareResult::equals)
                             {
                                 if(begin != end)

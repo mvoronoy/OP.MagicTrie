@@ -370,10 +370,67 @@ void test_UnorderedOrderFlatMap(TestRuntime& tresult)
     //trie->prefixed_range("1"_astr);
 }
 
+void test_Prefix(TestRuntime& tresult)
+{
+    using namespace OP::flur;
+    auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+
+    using trie_t = Trie<
+        EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t> ;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    std::map<atom_string_t, double> test_values;
+
+    using p_t = std::pair<atom_string_t, double>;
+
+    const p_t ini_data[] = {
+        p_t("ab.c"_astr, 1.),
+        p_t("abc"_astr, 1.),
+        p_t("abc.1"_astr, 1.),
+        p_t("abc.2"_astr, 1.),
+        p_t("abc.3"_astr, 1.3),
+        p_t("abc.333"_astr, 1.33), 
+        p_t("abc.444"_astr, 1.444), 
+        p_t("abcdef"_astr, 2.0),
+    };
+
+    std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
+        trie->insert(s.first, s.second);
+        test_values.emplace(s);
+        });
+
+    auto test_prefix = "abc."_astr;
+    auto child_rel = OP::trie::make_mixed_sequence_factory(
+            trie,
+            Ingredient::PrefixedBegin(test_prefix),
+            Ingredient::PrefixedInRange(StartWithPredicate(test_prefix)),
+            Ingredient::SiblingNext()
+        );
+    //for(auto i: child_rel)
+    //    std::cout << (const char*)i.key().c_str() << " : " << *i << "\n";
+
+    size_t count = 0;
+    test_prefix = "abc.333"_astr;
+    trie->erase(trie->find(test_prefix), &count);
+    tresult.assert_that<equals>(1, count);
+    
+    test_prefix = "abc.333"_astr;
+    auto child_rel2 = OP::trie::make_mixed_sequence_factory(
+            trie,
+            Ingredient::PrefixedBegin(test_prefix),
+            Ingredient::PrefixedInRange(StartWithPredicate(test_prefix)),
+            Ingredient::SiblingNext()
+    ) >> then::keep_order_mapping([](const auto& i){return i.key();});
+    tresult.assert_that<eq_sets>(child_rel2, std::vector<atom_string_t>{});
+}
+
 static auto& module_suite = OP::utest::default_test_suite("MixedAdapter")
 .declare("default", testDefault)
 .declare("child", testChildConfig)
 .declare("ISSUE_0002", test_ISSUE_0002)
 .declare("prefix-join", test_PrefixJoin)
 .declare("prefix-join-unordered", test_UnorderedOrderFlatMap)
+.declare("prefix", test_Prefix)
 ;

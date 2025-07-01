@@ -14,23 +14,32 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
+    namespace details
+    {
+        template <class TContainer>
+        using optional_element_type_t = std::decay_t<decltype(*std::declval<TContainer>())>;
+
+        template <class TContainer>
+        using cref_optional_element_type_t = std::add_const_t<std::add_lvalue_reference_t<optional_element_type_t<TContainer>>>;
+    }//ns:details
     /**
-    * Treate std::optional as container of 0 or 1 element of type T.
-    * Note container of 1 item is traeted as sorted
+    * Treate T as container of 0 or 1 element of some underlayed type.
+    * 
+    * The container must be a type that:
+    * - Can be contextually converted to `bool`, 
+    * - Supports the `*` (dereference) operator.
+    *
+    * Typical examples include: `std::optional`, `std::shared_ptr`, and `std::unique_ptr`.
+    * Note, the result sequence is sorted.
     */
     template <class T>
-    struct OfOptional : public OrderedSequence<const T&>
+    struct OfOptional : public OrderedSequence<details::optional_element_type_t<T>>
     {
-        using container_t = std::optional<T>;
+        
+        using typename OrderedSequence::element_t;
 
-        explicit constexpr OfOptional(container_t&& src) noexcept
-            :_src(std::forward<container_t>(src))
-            , _retrieved(false)
-        {
-        }
-
-        explicit constexpr OfOptional(const container_t& src) noexcept
-            :_src(src)
+        explicit constexpr OfOptional(T src) noexcept
+            : _src(std::move(src))
             , _retrieved(false)
         {
         }
@@ -42,10 +51,10 @@ namespace flur
 
         virtual bool in_range() const override
         {
-            return !_retrieved && _src.has_value();
+            return !_retrieved && static_cast<bool>(_src);
         }
 
-        virtual const T& current() const override
+        virtual element_t current() const override
         {
             return *_src;
         }
@@ -54,9 +63,10 @@ namespace flur
         {
             _retrieved = true;
         }
+
     private:
         bool _retrieved;
-        container_t _src;
+        T _src;
     };
 
 } //ns:flur

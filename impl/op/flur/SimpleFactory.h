@@ -29,27 +29,23 @@ namespace OP::flur
 
         constexpr decltype(auto) compound() const& noexcept
         {
-            return construct(std::make_index_sequence<sizeof ...(Tx)>{});
+            return std::apply(
+                [&](const auto& ...vx){
+                    return SourceImpl{ vx... };
+                },
+                _v);
         }
 
         constexpr decltype(auto) compound() && noexcept
         {
-            return construct(std::make_index_sequence<sizeof ...(Tx)>{});
+            return std::apply(
+                [&](auto& ...vx){
+                    return SourceImpl{ std::move(vx) ... };
+                },
+                _v);
         }
 
     private:
-
-        template <size_t ...Is>
-        SourceImpl construct(std::index_sequence<Is...>) const&
-        {
-            return SourceImpl{ std::get<Is>(_v)... };
-        }
-
-        template <size_t ...Is>
-        SourceImpl construct(std::index_sequence<Is...>) &&
-        {
-            return SourceImpl{ std::move(std::get<Is>(_v))... };
-        }
 
         std::tuple<Tx...> _v;
     };

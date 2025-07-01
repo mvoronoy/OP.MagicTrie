@@ -64,37 +64,25 @@ namespace OP::flur
             return of_container(std::forward<T>(t));
         }
         
-        /**
-        * Create new LazyRange from std::optional. Result range is ordered and allows 0 to 1 iteration by 
-        * the contained value
+       /**
+        * Creates a `LazyRange` containing 0 or 1 items from the input argument.
+        *
+        * The input must be a type that:
+        * - Can be contextually converted to `bool`, and
+        * - Supports the `*` (dereference) operator.
+        *
+        * Typical examples include: `std::optional`, `std::shared_ptr`, and `std::unique_ptr`.
+        *
+        * The resulting range is ordered and allows at most one iteration over the contained value, if present.
         */
-        template <class V>
-        constexpr auto of_optional(std::optional<V>&& v) noexcept
+        template <template <typename ...> class TOptional, class ...Vx>
+        constexpr auto of_optional(TOptional<Vx...> v) noexcept
         {
+            using container_t = decltype(v);
             return make_lazy_range(
-                SimpleFactory<OfOptional<V>, std::optional<V>>{std::forward<std::optional<V>>(v)});
-        }
-
-        template <class V>
-        constexpr auto of_optional(V v) noexcept
-        {
-            return make_lazy_range(
-                SimpleFactory<OfOptional<V>, std::optional<V>>{std::optional <V>(std::move(v))});
+                SimpleFactory<OfOptional<container_t>, container_t>{std::move(v)});
         }
         
-        template <class V>
-        constexpr auto of_optional() noexcept
-        {
-            return make_lazy_range(
-                SimpleFactory<OfOptional<V>, std::optional<V>>{std::optional <V>{}});
-        }
-        
-        template <class T, std::enable_if_t<std::is_invocable<decltype(of_optional<T>), T>::value, int> = 0>
-        constexpr auto of(T t) noexcept
-        {
-            return of_optional(std::move(t));
-        }
-
         /** Resolve always empty container. */
         template <class T>
         constexpr auto null() noexcept

@@ -131,7 +131,7 @@ void test_Set(OP::utest::TestRuntime& tresult)
 
 void test_Optional(OP::utest::TestRuntime& tresult)
 {   
-    constexpr auto r = src::of_optional(57.f);
+    constexpr auto r = src::of_optional(std::optional(57.f));
     tresult.assert_true(r.compound().is_sequence_ordered(), 
         "Optional must produce ordered sequence");
 
@@ -150,6 +150,31 @@ void test_Optional(OP::utest::TestRuntime& tresult)
         );
 
     
+}
+
+void test_OptionalPtr(OP::utest::TestRuntime& tresult)
+{   
+
+    auto r = src::of_optional(std::make_shared<float>(57.f));
+    tresult.assert_true(r.compound().is_sequence_ordered(), 
+        "Optional must produce ordered sequence");
+
+    tresult.assert_that<equals>(2*57.f,
+        OP::flur::reduce(r, 57.f),
+        "Wrong sum of 1 item sequence"
+        );
+
+
+    tresult.assert_that<equals>(0.f,
+        src::of_optional(std::unique_ptr<float>()) >>= OP::flur::apply::fsum(),
+        "Wrong sum of 0 item sequence"
+    );
+
+
+    tresult.assert_that<equals>(57.f,
+        src::of_optional(std::make_unique<float>(57.f)) >>= OP::flur::apply::fsum(),
+        "Wrong sum of 1 item sequence"
+        );
 }
 
 void test_Value(OP::utest::TestRuntime& tresult)
@@ -203,6 +228,7 @@ static auto& module_suite = OP::utest::default_test_suite("flur.stl")
 .declare("map", test_Map)
 .declare("set", test_Set)
 .declare("optional", test_Optional)
+.declare("optional_ptr", test_OptionalPtr)
 .declare("value", test_Value)
 .declare("iota", test_Iota)
 .declare("iterate", test_Iterate)

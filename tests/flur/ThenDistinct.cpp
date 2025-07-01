@@ -33,7 +33,7 @@ void test_ThenOrderedDistinct(OP::utest::TestRuntime& tresult)
     tresult.assert_that<eq_sets>(
         n_uniq, std::set<int>{1, 2, 4, 6});
     
-    auto empt_uniq1 = src::of_optional<int>()
+    auto empt_uniq1 = src::of_optional(std::optional<int>())
         >> then::ordered_distinct([](const auto& prev, const auto& next){
             return (prev / 2) == (next / 2); 
         })

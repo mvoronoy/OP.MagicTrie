@@ -39,10 +39,10 @@ namespace OP::flur
     template <class Lr, class TAction, std::enable_if_t<is_applicator_c<TAction>, int> = 0 >
     decltype(auto) collect_result(Lr&& factory, TAction& action)
     {
-        constexpr bool factory_reference_v = std::is_lvalue_reference_v<Lr>;
+        constexpr bool factory_reference_v = std::is_rvalue_reference_v<decltype(factory)>;
         using base_lr_t = std::decay_t<details::dereference_t<Lr>>;
         //implement logic of c++20: std::forward_like - make `get_reference` result be similar to `factory` 
-        using lazy_range_t = std::conditional_t<factory_reference_v, const base_lr_t&, base_lr_t&&>;
+        using lazy_range_t = std::conditional_t<factory_reference_v, base_lr_t&&, const base_lr_t&>;
 
         auto seq = std::forward<lazy_range_t>(details::get_reference(factory)).compound();
         auto& rseq = details::get_reference(seq);
