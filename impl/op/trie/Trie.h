@@ -833,10 +833,10 @@ namespace OP
             }
 
             /**Simplified form of erase(iterator&, size_t*)*/
-            iterator erase(iterator&& pos)
+            iterator erase(iterator&& pos, size_t* count = nullptr)
             {
                 iterator snapshot = std::move(pos);
-                return erase(snapshot, nullptr);
+                return erase(snapshot, count);
             }
 
             /**
