@@ -35,8 +35,8 @@ namespace flur
     template <class T>
     struct OfOptional : public OrderedSequence<details::optional_element_type_t<T>>
     {
-        
-        using typename OrderedSequence::element_t;
+        using base_t = OrderedSequence<details::optional_element_type_t<T>>;
+        using typename base_t::element_t;
 
         explicit constexpr OfOptional(T src) noexcept
             : _src(std::move(src))
