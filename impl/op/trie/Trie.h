@@ -266,7 +266,7 @@ namespace OP
                 auto nav = common_prefix(begin, aend, i);
                 if (begin != aend) //no such prefix since begin wasn't exhausted
                     return end();
-                auto i_beg = i;//, i_end = i;
+                auto i_beg = i;
                 //find next position that doesn't matches to prefix
                 //nothing to do for: if (nav.compare_result == StemCompareResult::equals //prefix fully matches to existing terminal
                 if (nav == StemCompareResult::string_end) //key partially matches to some prefix
@@ -283,7 +283,7 @@ namespace OP
                             [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
                     }
                 }
-                else
+                else if( nav != StemCompareResult::equals)
                     i_beg = end();
 
                 return i_beg;

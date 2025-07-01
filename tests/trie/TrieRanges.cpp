@@ -18,7 +18,7 @@
 #include <algorithm>
 #include "../test_comparators.h"
 
-namespace 
+namespace
 {
     using namespace OP::trie;
     using namespace OP::utest;
@@ -49,8 +49,8 @@ namespace
         }
     }
 
-    #include "TrieTestUtils.h"
-    #include <random>
+#include "TrieTestUtils.h"
+#include <random>
 
     void test_TrieSubtree(OP::utest::TestRuntime& tresult)
     {
@@ -201,15 +201,15 @@ namespace
         atom_string_t query3("x"_atom);
         auto tst_r1 = trie->prefixed_range(std::begin(query3), std::end(query3));
         tresult.assert_that<eq_sets>(
-            (container1 & tst_r1) >> then::mapping(pair_extractor), 
+            (container1 & tst_r1) >> then::mapping(pair_extractor),
             test_values,
             OP_CODE_DETAILS()
-            );
+        );
         tresult.assert_that<eq_sets>(
-            (tst_r1 & container1) >> then::mapping(pair_extractor), 
+            (tst_r1 & container1) >> then::mapping(pair_extractor),
             test_values,
             OP_CODE_DETAILS()
-            );
+        );
 
         const atom_string_t stem_diver[] = {
             "ma"_atom,
@@ -232,7 +232,7 @@ namespace
         };
         std::for_each(std::begin(stem_diver), std::end(stem_diver), [&trie](const atom_string_t& s) {
             trie->insert(s, (double)s.length());
-            });
+        });
         std::map<atom_string_t, double> join_src = {
             {"mdef"_atom, 4},
             {"mg"_atom, 2},
@@ -260,7 +260,7 @@ namespace
         test_values.emplace("nb"_atom, 2);*/
 
         atom_string_t query4("m"_atom), query5("a"_atom);
-        
+
         //tresult.assert_that<eq_sets>(
         //    trie->prefixed_range(query4) 
         //    >> then::ordered_join(join_src_range, [](const auto& i, const auto& pr) 
@@ -326,7 +326,7 @@ namespace
             p_t((atom_t*)"jkl", 3.0),
             p_t((atom_t*)"lmn", 3.5) //common suffix for 3. & 4.
         };
-        for(const p_t& s: ini_data) 
+        for (const p_t& s : ini_data)
         {
             auto ires = trie->insert(s.first, s.second);
             tresult.assert_true(ires.second, "dup key");
@@ -334,35 +334,35 @@ namespace
         }
 
         auto _1_range = trie->prefixed_range("1."_astr);
-        for(const auto& i: _1_range) 
+        for (const auto& i : _1_range)
         {
             tresult.debug() << "{" << (const char*)i.key().c_str() << " = " << i.value() << "}\n";
         }
 
-        auto suffixes_range = _1_range 
+        auto suffixes_range = _1_range
             >> then::mapping([](const auto& i)->atom_string_t {
             return i.key().substr(2/*"1."*/);
-            });
+        });
         std::for_each(suffixes_range, [&](const auto& i) {
             tresult.debug() << "{" << (const char*)i.c_str() << "}\n";
-            });
+        });
         //-->>>>
         auto frange1 = suffixes_range >> then::flat_mapping(
             [&trie](const auto& i) {
             return trie->prefixed_range(i);
-            });
+        });
         std::cout << "Flatten result:\n";
         std::for_each(frange1, [](const auto& i) {
             std::cout << "{" << (const char*)i.key().c_str() << ", " << i.value() << "}\n";
-            });
-        auto _1_flatten = suffixes_range 
+        });
+        auto _1_flatten = suffixes_range
             >> then::flat_mapping(
-            [&trie](const auto& i) {
-                return trie->prefixed_range(i);
-            }) 
+                [&trie](const auto& i) {
+            return trie->prefixed_range(i);
+        })
             >> then::mapping([](const auto& i) {
-                return p_t(i.key(), i.value());
-            });
+            return p_t(i.key(), i.value());
+        });
         std::map<atom_string_t, double> strain1 = {
 
             decltype(strain1)::value_type((atom_t*)"abc", 1.0),
@@ -378,10 +378,10 @@ namespace
             {"2."_atom, 2.0},
             {"3."_atom, 3.0}
         };
-        
+
         auto fres2 = src::of_container(src1)
             >> then::flat_mapping(
-            [&trie](const auto& i) {
+                [&trie](const auto& i) {
 
             return trie
                 ->prefixed_range(i.first)
@@ -390,10 +390,10 @@ namespace
                     return OP::ranges::key_discovery::key(i).substr(k.length());
                 }) */
                 ;
-            })
-            >> then::mapping([](const auto&i) {
-                return p_t(i.key(), i.value());
-            })
+        })
+            >> then::mapping([](const auto& i) {
+            return p_t(i.key(), i.value());
+        })
             ;
 
         test_container_t strain_fm = {
@@ -409,7 +409,7 @@ namespace
         };
         std::for_each(fres2, [&](const auto& i) {
             //tresult.debug() << "\\/{" << i.key() << ", " << *i << "}\\/\n";
-            });
+        });
         tresult.assert_that<eq_sets>(
             fres2, strain_fm, OP_CODE_DETAILS());
 
@@ -440,7 +440,7 @@ namespace
             p_t((atom_t*)"abd", 2.0)
         };
         std::map<atom_string_t, double> test_values;
-        for(const p_t& s: ini_data) 
+        for (const p_t& s : ini_data)
         {
             trie->insert(s.first, s.second);
             test_values.emplace(s.first, s.second);
@@ -486,14 +486,14 @@ namespace
         //r1_test.emplace(std::string(ini_data[4].first.begin(), ini_data[4].first.end()), ini_data[4].second);
 
         tresult.assert_that<eq_sets>(
-            r1 >> then::mapping(pair_extractor), 
+            r1 >> then::mapping(pair_extractor),
             r1_test, OP_CODE_DETAILS());
 
         auto r2 = trie->children_range(i_3);  //end()
         std::map<atom_string_t, double> r2_empty;
         tresult.assert_that<eq_sets>(
-            r2>> then::mapping(pair_extractor), 
-            r2_empty, 
+            r2 >> then::mapping(pair_extractor),
+            r2_empty,
             OP_CODE_DETAILS());
 
     }
@@ -525,25 +525,25 @@ namespace
         std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
             trie->insert(s.first, s.second);
             test_values.emplace(s.first, s.second);
-            });
+        });
 
         auto i = test_values.begin();
 
         auto rrange9 = (
-            trie->range() 
+            trie->range()
             >> then::mapping([&](auto const& kv) {
             tresult.assert_true(tools::container_equals(kv.key(), i->first, &tools::sign_tolerant_cmp<atom_t>),
                 OP_CODE_DETAILS(<< "error for key=" << (const char*)i->first.c_str() << ", while obtained:" << (const char*)kv.key().c_str()));
             tresult.assert_that<equals>(kv.value(), i->second,
                 OP_CODE_DETAILS(<< "Associated value error, has:" << kv.value() << ", expected:" << i->second));
-            ++i; 
+            ++i;
             return 0;//just dummy result to allow count
-            })).compound();
+        })).compound();
         auto n = std::distance(rrange9.begin(), rrange9.end());
         tresult.assert_that<equals>(9, n, "wrong counter");
         //test take_while semantic
         auto range_rest = (trie->range()
-        >> then::take_awhile([&](auto const& kv)->bool {
+            >> then::take_awhile([&](auto const& kv)->bool {
             return kv.key()[0] <= (atom_t)'b';
         })).compound();
 
@@ -587,22 +587,22 @@ namespace
             flt_src.current().key(),
             "g"_atom,
             OP_CODE_DETAILS(<< "lower_bound must point 'XYZ'")
-            );
+        );
     }
 
 
 
     template <class Range1, class Range2, class Vector>
-    std::int64_t applyJoinRest(Range1 range1, Range2 range2, Vector &result)
+    std::int64_t applyJoinRest(Range1 range1, Range2 range2, Vector& result)
     {
 
         auto join_result = (range1 >> OP::flur::then::ordered_join(range2)).compound();
-        
+
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
         //materialize
         std::copy(join_result.begin(), join_result.end(), std::back_inserter(result));
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-        
+
         auto retval = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
         return retval;
     }
@@ -614,7 +614,7 @@ namespace
         auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
-        auto tmngr2 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>((std::string("2_")+test_file_name).c_str(),
+        auto tmngr2 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>((std::string("2_") + test_file_name).c_str(),
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
         auto tmngr3 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>((std::string("3_") + test_file_name).c_str(),
@@ -622,14 +622,14 @@ namespace
             .segment_size(0x110000));
 
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<size_t>, OP::common::atom_string_t> ;
-        tresult.info()<<"create trie #1...\n";
+            EventSourcingSegmentManager, PlainValueManager<size_t>, OP::common::atom_string_t>;
+        tresult.info() << "create trie #1...\n";
         std::shared_ptr<trie_t> trie1 = trie_t::create_new(tmngr1);
 
-        tresult.info()<<"create trie #2...\n";
+        tresult.info() << "create trie #2...\n";
         std::shared_ptr<trie_t> trie2 = trie_t::create_new(tmngr2);
 
-        tresult.info()<<"create trie #3...\n";
+        tresult.info() << "create trie #3...\n";
         std::shared_ptr<trie_t> trie3 = trie_t::create_new(tmngr3);
 
         typedef std::pair<atom_string_t, size_t> p_t;
@@ -640,30 +640,30 @@ namespace
         atom_string_t rnd_val;
         rnd_val.reserve(avg_str_len);
         static const atom_string_t rand_str_base = "0123456789"\
-                        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"\
-                        "abcdefghijklmnopqrstuvwxyz"_astr;
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"\
+            "abcdefghijklmnopqrstuvwxyz"_astr;
         for (size_t i = 0; i < trie_limit; ++i)
         {
-            tresult.debug()<<".";
-            if((i % 32) == 0 )
-                tresult.debug()<<i<<"\n";
+            tresult.debug() << ".";
+            if ((i % 32) == 0)
+                tresult.debug() << i << "\n";
             auto& rnds = OP::utest::tools::RandomGenerator::instance();
             rnds.random_field(rnd_val, rand_str_base, avg_str_len, avg_str_len);
 
             trie1->insert(rnd_val, i);
-            tresult.debug()<<":";
-            if(((int)rnd_val[0]) % 2 == 0 )
+            tresult.debug() << ":";
+            if (((int)rnd_val[0]) % 2 == 0)
                 trie2->insert(rnd_val, i);
-            if( ((int)rnd_val[0]) % 3 == 0)
+            if (((int)rnd_val[0]) % 3 == 0)
                 trie3->insert(rnd_val, i);
             test_values.emplace(rnd_val, i);
         }
-        tresult.info()<<"\nDone populating #1, #2, #3 \n Compare with test-values...";
+        tresult.info() << "\nDone populating #1, #2, #3 \n Compare with test-values...";
         compare_containers(tresult, *trie1, test_values);
 
         //thin-out map for later compare
         for (auto iter = test_values.begin(); iter != test_values.end(); ) {
-            if ((iter->first[0] %2) != 0 || (iter->first[0] % 3) != 0)  {
+            if ((iter->first[0] % 2) != 0 || (iter->first[0] % 3) != 0) {
                 iter = test_values.erase(iter);
             }
             else {
@@ -671,19 +671,19 @@ namespace
             }
         }
         using target_t = std::vector<std::pair<atom_string_t, size_t>>;
-        target_t result1; 
+        target_t result1;
         target_t result2;
         result1.reserve(100 + trie_limit / 3);
         result2.reserve(100 + trie_limit / 3);
 
-        tresult.info()<<"Create filtered sub-range-1 for trie #1\n";
+        tresult.info() << "Create filtered sub-range-1 for trie #1\n";
         auto t1r1 = trie1->range() >> then::filter([&](const auto& i) {
             return ((int)i.key()[0]) % 2 == 0;
-            });
-        tresult.info()<<"Create filtered sub-range-2 for trie #1\n";
+        });
+        tresult.info() << "Create filtered sub-range-2 for trie #1\n";
         auto t1r2 = trie1->range() >> then::filter([&](const auto& i) {
             return ((int)i.key()[0]) % 3 == 0;
-            });
+        });
         // filtered range uses default impl of ordered_join
         //tresult.info() << "ordered_join processed:" << applyJoinRest(
         //    t1r1,
@@ -849,7 +849,7 @@ namespace
     //        test_values, OP_CODE_DETAILS());
     //}
 
-    void test_ISSUE_0001(OP::utest::TestRuntime& tresult) 
+    void test_ISSUE_0001(OP::utest::TestRuntime& tresult)
     {
         atom_string_t source_seq[] = {
             { 0x13,0x04,0x10,0x50,0x12,0xc1,0x5b,0xa1,0x0e,0x9e,0x16,0xdc,0xef,0x4c,0x6e,0x34,0x9b,0x96 },
@@ -1078,7 +1078,7 @@ namespace
             OP::trie::SegmentOptions()
             .segment_size(0x110000));
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t> ;
+            EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
         const atom_string_t to_erase
@@ -1101,7 +1101,7 @@ namespace
         std::for_each(std::begin(source_seq), std::end(source_seq), [&](const atom_string_t& s) {
             trie->insert(s, 0);
             test_values.emplace(s, 0);
-            });
+        });
         compare_containers(tresult, *trie, test_values);
 
         trie->erase(trie->find(to_erase));
@@ -1175,11 +1175,11 @@ namespace
 
         if (1 == 1)
         {
-            auto exec_single_thr = [&](atom_string_t start_from, std::uint64_t* result){
+            auto exec_single_thr = [&](atom_string_t start_from, std::uint64_t* result) {
                 auto range = trie->prefixed_range(start_from); //not an error instead of children_range, because "a"=0
                 std::uint64_t target = 0;
                 for (auto iter : range)
-                {   
+                {
                     target += iter.value();
                 }
                 *result = target;
@@ -1211,29 +1211,29 @@ namespace
                 std::future<std::uint64_t> future_sum{};
                 src::of_iota(0, 3)
                     >> then::mapping([&](auto i) {
-                            atom_string_t buffer = "a"_astr;
-                            to_hext(i, buffer, 1);
-                            auto range = trie->prefixed_range(buffer);
-                            return std::make_shared<decltype(range)>(std::move(range));
-                        })
+                    atom_string_t buffer = "a"_astr;
+                    to_hext(i, buffer, 1);
+                    auto range = trie->prefixed_range(buffer);
+                    return std::make_shared<decltype(range)>(std::move(range));
+                })
                     >> then::minibatch<2>(tp)
                     >>= Reduce(
-                        future_sum, 
+                        future_sum,
                         [&](std::future<std::uint64_t>& previous, auto&& range) -> void
-                        {
-                            previous = std::move(
-                                tp.async([fut = std::move(previous), r2 = range]() mutable
-                                {
-                                    std::uint64_t local_sum = 0;
-                                    for (auto& iter : *r2)
-                                        local_sum += iter.value();
-                                    return fut.valid()
-                                        ? fut.get() + local_sum
-                                        //first entry
-                                        : local_sum;
-                                }));
-                        });
-                    sum = future_sum.get();
+                {
+                    previous = std::move(
+                        tp.async([fut = std::move(previous), r2 = range]() mutable
+                    {
+                        std::uint64_t local_sum = 0;
+                        for (auto& iter : *r2)
+                            local_sum += iter.value();
+                        return fut.valid()
+                            ? fut.get() + local_sum
+                            //first entry
+                            : local_sum;
+                    }));
+                });
+                sum = future_sum.get();
             };
             std::cout << "minibatch=" << measure(minibatch) << "\tsum=" << sum << "\n";
             tresult.assert_that<equals>(expecting_sum_c, sum);
@@ -1242,17 +1242,17 @@ namespace
 
     static auto& module_suite = OP::utest::default_test_suite("Trie.range")
 
-    .declare("subtree of prefix", test_TrieSubtree)
-    .declare("lambda on subtree", test_TrieSubtreeLambdaOperations)
-    .declare("flatten", test_Flatten)
-    ////.declare("section range", test_TrieSectionRange)
-    ////.declare("all_prefixes_range", test_AllPrefixesRange)
-    .declare("child", test_ChildSelector)
-    .declare("iterate all by range", test_Range)
-    .declare("test native ranges of Trie", test_NativeRangeSupport)
-    .declare("override_join_range", test_JoinRangeOverride)
-    .declare("ISSUE_0001", test_ISSUE_0001)
-    .declare("10k", test_10k)
-    //
-    ;
+        .declare("subtree of prefix", test_TrieSubtree)
+        .declare("lambda on subtree", test_TrieSubtreeLambdaOperations)
+        .declare("flatten", test_Flatten)
+        ////.declare("section range", test_TrieSectionRange)
+        ////.declare("all_prefixes_range", test_AllPrefixesRange)
+        .declare("child", test_ChildSelector)
+        .declare("iterate all by range", test_Range)
+        .declare("test native ranges of Trie", test_NativeRangeSupport)
+        .declare("override_join_range", test_JoinRangeOverride)
+        .declare("ISSUE_0001", test_ISSUE_0001)
+        .declare("10k", test_10k)
+        //
+        ;
 }//ns:""
