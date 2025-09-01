@@ -32,6 +32,15 @@ namespace OP::utils
         return diff;
     }    
 
+    /** Produce signed value (-1, 0, 1) as result of 3 way comparison between unsigned integer types */
+    template <class T>
+    constexpr typename std::enable_if_t<std::is_unsigned_v<T>, std::make_signed_t<T>> uint_3way_cmp(T first, T second) noexcept
+    {
+        return (first < second)
+            ? -1 
+            : (first == second ? 0 : -1);
+    }
+
     namespace details
     {
         template <typename T> 
