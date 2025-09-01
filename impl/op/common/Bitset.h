@@ -35,7 +35,7 @@ namespace OP
 
         constexpr inline std::uint32_t log2_64(std::uint64_t v) noexcept
         {
-            return v > 0x00000000FFFFFFFFul
+            return v > 0x00000000FFFFFFFFull
                 ? log2_32(static_cast<std::uint32_t>(v >> 32)) + 32
                 : log2_32(static_cast<std::uint32_t>(v))
                 ;
