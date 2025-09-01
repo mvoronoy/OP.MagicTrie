@@ -20,7 +20,7 @@ namespace {
         const set_t subset{ "aaa", "bbb", "ccc" };
         std::string vowels = { 'a', 'e', 'i', 'o', 'u', 'y' };
         auto ptr1 = make_shared(
-            src::of(subset) >> 
+            src::of_container(subset) >> 
             then::filter([](const auto&s) 
                 {
                     return s.length() > 2; 

@@ -14,7 +14,7 @@ namespace {
     {
         tresult.info() << "Filter empty source\n";
         const std::set<std::string> empty_set;
-        auto r_empty = src::of(empty_set)
+        auto r_empty = src::of_container(empty_set)
             >> then::filter([&](const std::string& a) {
             tresult.fail("Empty must not invoke filter");
             return true; })
@@ -24,7 +24,7 @@ namespace {
 
         const std::set<std::string> single_set = { "a" };
         size_t invocations = 0;
-        auto r_empty2 = src::of(single_set)
+        auto r_empty2 = src::of_container(single_set)
             >> then::filter([&](const std::string& a) {
             ++invocations;
             return false;
@@ -45,7 +45,7 @@ namespace {
     void test_FilterEdge(OP::utest::TestRuntime& tresult)
     {
         const std::vector<int> all_num = {1, 2, 3, 4, 5};
-        auto r1 = src::of(all_num)
+        auto r1 = src::of_container(all_num)
             >> then::filter([&](const auto& n) {
             return (n & 1) == 0;
         });

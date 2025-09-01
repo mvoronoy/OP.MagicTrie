@@ -40,17 +40,18 @@ struct TestCopySensetive
 
 };
 
+
 void test_Vector(OP::utest::TestRuntime& tresult)
 {
     using sens_vector_t = std::vector<TestCopySensetive>;
     auto r = src::of_container(sens_vector_t(3));
+
     tresult.info() << "Test no redundant copies\n";
     for (auto const& i : r)
     {
         tresult.assert_that<equals>(
             i._tracks[ConstructorType::copy], 0, "You don't control how many times value has been copied");
     }
-
     
     tresult.info() << "Test no redundant copies for&&\n";
     for (auto const& i : src::of_container(sens_vector_t(3)).compound())//enforce `compound()&&` notation
@@ -69,6 +70,15 @@ void test_Vector(OP::utest::TestRuntime& tresult)
         tresult.assert_that<equals>(
             i._tracks[ConstructorType::copy], 0, "You don't control how many times value has been copied");
     }
+
+    tresult.info() << "Test forcibly processing by value (Intrinsic::result_by_value)\n";
+    auto by_val = src::of_container<Intrinsic::result_by_value>(sens_vector_t(3));
+    for (auto const& i : by_val)
+    {
+        tresult.assert_that<equals>(
+            i._tracks[ConstructorType::copy], 1, "You don't control how many times value has been copied (Intrinsic::result_by_value)");
+    }
+
 }
 
 void test_Iota(OP::utest::TestRuntime& tresult)
@@ -114,7 +124,7 @@ void test_Set(OP::utest::TestRuntime& tresult)
     tresult.assert_true(r.compound().is_sequence_ordered(), "Set must produce ordered sequence");
     //just check generic form works
     tresult.assert_true(
-        src::of(tst_set_t{ ""s }).compound().is_sequence_ordered(), 
+        src::of_container(tst_set_t{ ""s }).compound().is_sequence_ordered(), 
         "Set must support simple construction");
     //count summary str length
     tresult.assert_that<equals>(3,
@@ -194,7 +204,7 @@ void test_Iterate(OP::utest::TestRuntime& tresult)
     using tst_map_t = std::map<char, float>;
     using element_t = typename tst_map_t::value_type;
     tst_map_t source1{ {'a', 1.f}, {'b', 1.2f} };
-    auto r = src::of(std::cref(source1));
+    auto r = src::of_container(std::cref(source1));
     float sum = 0.f;
     for (const auto& pair : r)
     {

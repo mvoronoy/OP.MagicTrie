@@ -15,14 +15,6 @@ namespace OP
 /** Namespace for Fluent Ranges (flur) library. Compile-time composed ranges */
 namespace flur
 {
-    enum class MaFOptions
-    {
-        /** Modify MaF behavior to declare Sequence::current return result by value instead of
-        * const reference
-        */
-        result_by_value
-    };
-
     /**
     * Mapping and filter by one opertion 
     * \tparam Src - source sequnce to convert
@@ -30,7 +22,7 @@ namespace flur
     *       Note that implementation assumes that <desired-mapped-type> is default constructible
     * \tparam options_c - extra options to customize sequence behavior. Implementation recognizes one or any of:
     *       - Intrinsic::keep_order - to allow keep source sequence order indicator;
-    *       - MaFOptions::result_by_value - to declare `current()` return result by value instead of
+    *       - Intrinsic::result_by_value - to declare `current()` return result by value instead of
     *            const reference.
     *
     */
@@ -113,7 +105,7 @@ namespace flur
         using from_t = std::decay_t<typename traits_t::template arg_i<0>>;
         using mapped_t = std::decay_t<typename traits_t::template arg_i<1>>;
 
-        constexpr static inline bool is_result_by_value_c = OP::utils::any_of<options_c...>(MaFOptions::result_by_value);
+        constexpr static inline bool is_result_by_value_c = OP::utils::any_of<options_c...>(Intrinsic::result_by_value);
         constexpr static inline bool keep_order_c = OP::utils::any_of<options_c...>(Intrinsic::keep_order);
 
         using sequence_element_t = std::conditional_t<is_result_by_value_c, mapped_t, const mapped_t&>;

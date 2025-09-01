@@ -80,7 +80,7 @@ void test_FlatMapFromContainer(OP::utest::TestRuntime& tresult)
     constexpr int N = 4;
     constexpr auto fm_lazy = src::of_iota(1, N + 1)
         >> then::flat_mapping([](auto i) {
-        return src::of(
+        return src::of_container(
             ExploreVector<std::string>{
                 "a" + std::to_string(i),
                 "b" + std::to_string(i),

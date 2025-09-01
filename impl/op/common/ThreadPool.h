@@ -250,14 +250,18 @@ namespace OP::utils
         
         static void thread_routine(ThreadPool *owner)
         {
-            while(!owner->_end)
+            while(!owner->_end.load())
             {
                 uniq_guard_t g(owner->_acc_tasks);
                 
-                if(owner->_task_list.empty() && !owner->_end)
-                    owner->_cv_task.wait(g, [owner]{return owner->_end || !owner->_task_list.empty();});
+                if(!owner->_end.load() && owner->_task_list.empty())
+                    owner->_cv_task.wait(
+                        g, 
+                        [owner](){
+                            return owner->_end.load() || !owner->_task_list.empty();
+                        });
                 
-                if( owner->_task_list.empty() || owner->_end)
+                if( owner->_end.load() || owner->_task_list.empty() )
                     continue;
                 
                 ++owner->_busy;

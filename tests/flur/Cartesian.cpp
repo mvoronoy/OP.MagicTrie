@@ -84,8 +84,8 @@ namespace
                 tresult.debug() << sum << (count % 5 ? "," : "\n");
                 ++hundreds[sum / 100];
             },
-            src::of(vec2),
-            src::of(vec3))
+            src::of_container(vec2),
+            src::of_container(vec3))
             ;
         src::of_container(vec1) >>= crtsn;
         
@@ -94,20 +94,20 @@ namespace
 
         auto crtsn4 = [&](auto n1, auto n2, auto n3, auto n4) {++count; };
         count = 0;
-        src::of(vec1) >>= apply::cartesian(
+        src::of_container(vec1) >>= apply::cartesian(
             crtsn4,
-            src::of(vec2),
-            src::of(vec3), 
-            src::of(std::vector<int>{}));
+            src::of_container(vec2),
+            src::of_container(vec3), 
+            src::of_container(std::vector<int>{}));
         tresult.assert_that<equals>(0, count);
 
         
         count = 0;
-        src::of(vec1) >>= apply::cartesian(
+        src::of_container(vec1) >>= apply::cartesian(
             crtsn4,
-            src::of(vec2),
-            src::of(vec3), 
-            src::of(std::vector<int>{1}));
+            src::of_container(vec2),
+            src::of_container(vec3), 
+            src::of_container(std::vector<int>{1}));
         tresult.assert_that<equals>(60, count);
     }
 

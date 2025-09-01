@@ -214,7 +214,6 @@ namespace {
 
     void test_shared(TestRuntime& tresult)
     {
-
         tresult.info() << "join Polymorphs ...\n";
         ;
         auto r1_dat1 =
@@ -238,9 +237,66 @@ namespace {
         tresult.assert_that<eq_sets>(*r2, std::vector{ 3 });
     }
 
+    template <class Os, class TContainer>
+    Os& debug_print(Os& os, const TContainer& cnt)
+    {
+        os << "{";
+        size_t n = 0;
+        for(decltype(auto) x: cnt)
+            os << (n++?", ": "") << x;
+        os << "}";
+        return os;
+    }
+
+    void test_ordered_no_low_bound(TestRuntime& tresult)
+    {
+        constexpr int start_c = 5, end_c = 20;
+        std::set<int> lb_set;
+        for(int i = start_c; i < end_c; i+=3)
+            lb_set.insert(i);    
+        auto lb_container = src::of_container<Intrinsic::result_by_value>(std::cref(lb_set));
+        auto test_lb_seq = lb_container.compound();
+        static_assert(
+            std::is_base_of_v<OrderedSequenceOptimizedJoin<int>, decltype(test_lb_seq)>, 
+            "must use lower_bound as optimization"
+            );
+        auto no_lb_container_big = src::of_iota(0, end_c + 10);
+        tresult.assert_true(
+            no_lb_container_big.compound().is_sequence_ordered(), 
+            "iota for monotone int must produce ordered seq");
+
+        tresult.assert_that<eq_sets>(lb_container & no_lb_container_big, lb_set);
+        tresult.assert_that<eq_sets>(no_lb_container_big & lb_container, lb_set);
+        tresult.assert_that<eq_sets>(lb_container & lb_container , lb_set);
+        tresult.assert_that<eq_sets>(lb_container & 
+            (lb_container >> then::ordering_flat_mapping(
+                [](int a){return src::of_iota(a, a+3);}
+            )), 
+            lb_set);
+
+
+        auto no_lb_container_left = src::of_iota(0, end_c);
+      
+        debug_print(tresult.debug() << "UUT container:\n\t",  lb_container) << "\n";
+        debug_print(tresult.debug() << "Exemplar container:\n\t",  no_lb_container_left) << "\n";
+        debug_print(tresult.debug() << "Join container:\n\t",  lb_container & no_lb_container_left) << "\n";
+
+        tresult.assert_that<eq_sets>(lb_container & no_lb_container_left, lb_set);
+        tresult.assert_that<eq_sets>(no_lb_container_left & lb_container, lb_set);
+
+        auto no_lb_container_right = src::of_iota(start_c, end_c+5);
+        tresult.assert_that<eq_sets>(lb_container & no_lb_container_right, lb_set);
+        tresult.assert_that<eq_sets>(no_lb_container_right & lb_container, lb_set);
+
+        std::array<int, 1> unit_ordered_array{start_c};
+        tresult.assert_that<eq_sets>(lb_container & src::of_container(unit_ordered_array), unit_ordered_array,
+            "1 item array is an ordered container too");
+    }
+
     static auto& module_suite = OP::utest::default_test_suite("flur.ordered_join")
         .declare("filter", test_Join)
         .declare("with-single", test_JoinSingle)
         .declare("shared", test_shared)
+        .declare("ordered_no_low_bound", test_ordered_no_low_bound)
         ;
 }//ns: empty

@@ -52,18 +52,12 @@ namespace OP::flur
         * Create LazyRange from any container that supports pair std::begin / std::end.
         * For ordered containers like std::set or std::map result will generate OrderedSequence wrapper
         */
-        template <class T>
+        template <auto ... options_c, class T>
         constexpr auto of_container(T&& t) noexcept
         {
-            return make_lazy_range(OfContainerFactory<T>(0, std::forward<T>(t)));
+            return make_lazy_range(OfContainerFactory<T, options_c...>(0, std::forward<T>(t)));
         }
-        
-        template <class T, std::enable_if_t<std::is_invocable<decltype(of_container<T>), T&&>::value, int> = 0>
-        constexpr auto of(T&& t)  noexcept
-        {
-            return of_container(std::forward<T>(t));
-        }
-        
+                
        /**
         * Creates a `LazyRange` containing 0 or 1 items from the input argument.
         *
@@ -166,6 +160,20 @@ namespace OP::flur
                 simple_factory_param_t{ std::move(f), limit }});
         }
 
+       /**
+        * \brief Creates a LazyRange that, based on the boolean flag \p condition, evaluates either \p on_true or \p on_false.
+        *
+        * This function provides a generic implementation of the ternary operator: `condition ? on_true : on_false`, where each term
+        * can be either a fixed value or a lambda that produces a LazyRange. The element types of the resulting ranges from `on_true`
+        * and `on_false` must be compatible (as defined by `std::is_convertible_v` or similar).
+        *
+        * \tparam TOnTrue A LazyRange or a lambda returning a LazyRange to be used when \p condition is true.
+        *         The element type must be compatible with that of \p TOnFalse.
+        * \tparam TOnFalse A LazyRange or a lambda returning a LazyRange to be used when \p condition is false.
+        *         The element type must be compatible with that of \p TOnTrue.
+        * \param condition A boolean flag that determines whether the result will be evaluated from \p TOnTrue or \p TOnFalse.
+        * \return A LazyRange containing elements from either \p TOnTrue or \p TOnFalse, depending on \p condition.
+        */
         template <class TOnTrue, class TOnFalse>
         constexpr auto conditional(bool condition, TOnTrue on_true, TOnFalse on_false) noexcept
         {
@@ -496,7 +504,7 @@ namespace OP::flur
         * \tparam maf_options_c - extra options to customize sequence behavior. Implementation recognizes 
         * none or any of:
         *       - Intrinsic::keep_order - to allow keep source sequence order indicator;
-        *       - MaFOptions::result_by_value - to declare `current()` return result by value instead of
+        *       - Intrinsic::result_by_value - to declare `current()` return result by value instead of
         *            const reference.
         * \tparam F functor with the signature `bool(typename Src::element_t, <desired-mapped-type> &result)`
         *       Note that implementation assumes that <desired-mapped-type> is default constructible
@@ -508,17 +516,17 @@ namespace OP::flur
             return MapAndFilterFactory<f_t, maf_options_c...>(std::move(f));
         }
 
-        /** Equivalent to call of `maf_cv<MaFOptions::result_by_value>(std::move(f))`. Creates `maf` factory that  
+        /** Equivalent to call of `maf_cv<Intrinsic::result_by_value>(std::move(f))`. Creates `maf` factory that  
         *  produces sequence to copy result instead of const-reference.
         */
         template <class F>
         constexpr auto maf(F f) noexcept
         {
-            return maf_cv<MaFOptions::result_by_value>(std::move(f));
+            return maf_cv<Intrinsic::result_by_value>(std::move(f));
         }
 
         /** 
-        * Equivalent to call of `maf_cv<Intrinsic::keep_order, MaFOptions::result_by_value>(std::move(f))`
+        * Equivalent to call of `maf_cv<Intrinsic::keep_order, Intrinsic::result_by_value>(std::move(f))`
         * Creates `maf` factory that  
         *  produces sequence that keeps ordering and copies result instead of const-reference.
         * Result sequence is not mandatory ordered it just commitment of developer of `F` to keep order  
@@ -530,7 +538,7 @@ namespace OP::flur
         constexpr auto keep_order_maf(F f) noexcept
         {
             using f_t = std::decay_t<F>;
-            return MapAndFilterFactory<f_t, Intrinsic::keep_order, MaFOptions::result_by_value>(std::move(f));
+            return MapAndFilterFactory<f_t, Intrinsic::keep_order, Intrinsic::result_by_value>(std::move(f));
         }
 
         /** Equivalent to call of `maf_cv<Intrinsic::keep_order>(std::move(f))`. Creates `maf` factory that  

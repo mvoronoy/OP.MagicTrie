@@ -50,8 +50,8 @@ namespace {
                 "gAAAAAAAAAo"} };
         std::set<std::string> expected2{ {"gAAAAAAAAAM", "gAAAAAAAAAU", "gAAAAAAAAAc", "gAAAAAAAAAk", "gAAAAAAAAAs"} };
 
-        auto res2 = src::of(ord1_all) >> then::ordered_diff(src::of(sub));
-        tresult.assert_that<eq_sets>(res2, src::of(expected2));
+        auto res2 = src::of_container(ord1_all) >> then::ordered_diff(src::of_container(sub));
+        tresult.assert_that<eq_sets>(res2, src::of_container(expected2));
     }
 
     int less_ignore_case(const std::string& left, const std::string& right)
@@ -101,7 +101,7 @@ namespace {
 
         OP::flur::OverrideComparisonTraits custom_less_trait(less_ignore_case);
 
-        auto ignore_case_1 = src::of(
+        auto ignore_case_1 = src::of_container(
             std::multiset<std::string, decltype(custom_less_trait)::less_t>(
                 { "aa", "aa", "BB", "bb", "BB", "C", "xx", "XX" },
                 custom_less_trait.less_factory())
@@ -188,7 +188,7 @@ namespace {
         auto cmprt = OP::flur::custom_compare(less_ignore_case, cust_hash);
         std::unordered_set<std::string, decltype(cmprt)::hash_t> hm(16, cmprt.hash_factory());
 
-        auto ignore_case_1 = src::of(unord_dif)
+        auto ignore_case_1 = src::of_container(unord_dif)
             //randomly make some entries upper-case
             >> then::mapping([&](auto str/*copy*/) {
             if (tools::random<std::uint16_t>() & 1)
@@ -200,7 +200,7 @@ namespace {
                 });
 
         tresult.assert_that<eq_sets>(
-            src::of(unord_dif)
+            src::of_container(unord_dif)
             >> then::unordered_diff(ignore_case_1, cmprt),
             empty,
             OP_CODE_DETAILS("subtracting itself must produce empty"));

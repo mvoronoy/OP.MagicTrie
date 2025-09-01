@@ -49,7 +49,7 @@ namespace OP::flur
         }
     };
 
-    /** Provide definition for ordered iteable sequence */
+    /** Provide definition for ordered iterable sequence */
     template <class T>
     struct OrderedSequence : public Sequence<T>
     {
@@ -86,13 +86,18 @@ namespace OP::flur
     /** Sequence hint to modify sequence behaviour */
     enum class Intrinsic
     {
-        /** Used as dummy stub */
+        /** Used as nothing to do stub */
         none,
-        /** Keep order feature. Multiple algorithm like Map, FlatMap, MapAndFilter(MaF) allows support ordering
+        /** When supported, keeps order feature. Multiple algorithm like Map, FlatMap, MapAndFilter(MaF) allows support ordering
         *  if source ordered as well. NOTE! keep_order does not mean 'ordered', it just state 
         *  if source ordered then result just keeps ordering as well.
         */
-        keep_order
+        keep_order,
+        /** 
+        *   When supported, modifies sequence behavior to declare Sequence::current return result by value instead of
+        * const reference
+        */
+        result_by_value
     };
 
 

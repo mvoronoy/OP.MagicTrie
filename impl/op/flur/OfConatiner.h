@@ -99,6 +99,35 @@ namespace flur
     template <class Container, class Base>
     using OfUnorderedContainerSequence = OfContainerSequence<Container, Base>; 
 
+    namespace details
+    {
+        /** Just generic call of container::lower_bound, when supported by STL.
+        * Allows customize this in edge cases (like std::array<T, 1>...)
+        */
+        template <class Container, class T>
+        decltype(auto) lower_bound_impl(const Container& container, const T& key) 
+        {
+            return container.lower_bound(key);
+        }
+
+        /** Special case for std::array<T, 1> */
+        template <class T>
+        decltype(auto) lower_bound_impl(const std::array<T, 1>& container, const T& key) 
+        {
+            if(!(container[0] < key)) //per spec - `lower_bound` defined as first non-less.
+                return container.begin();
+            else
+                return container.end();
+        }
+
+        /** Special case for std::array<T, 0> */
+        template <class T>
+        decltype(auto) lower_bound_impl(const std::array<T, 0>& container, const T& ) 
+        {
+            return container.end();
+        }
+    }
+
     //template <class Container, class Base>
     //using OfOrderedContainer = OfContainerSequence<Container, 
     //                            OrderedSequence< details::element_of_container_t<Container> > >;
@@ -126,28 +155,34 @@ namespace flur
 
         void lower_bound(const element_t& other) override
         {
-            base_t::pos() = details::get_reference(
-                    base_t::container()).lower_bound( extract_key(other) );
+            base_t::pos() = details::lower_bound_impl(
+                    details::get_reference(base_t::container()),
+                    extract_key(other) 
+            );
         }
     };
 
     namespace details
     {
 
+        template <class Container>
+        using iterator_reference_type_t = decltype(*std::begin(
+            std::declval<details::dereference_t<Container>>()));
+
         /** \brief detect type of STL container's contained element
         * To get element type reference operator `*` is applied to result of std::begin of `Container`
         */ 
-        template <class Container>
-        using element_of_container_t = decltype(*std::begin(
-            std::declval<details::dereference_t<Container>>()));
+        template <class Container, bool force_by_value >
+        using element_of_container_t = std::conditional_t<force_by_value,
+            std::decay_t<iterator_reference_type_t<Container>>, iterator_reference_type_t<Container>>;
 
-        template <class Container>
+        template <class Container, bool force_by_value>
         using detect_sequence_t = 
             std::conditional_t< ::OP::flur::details::is_ordered_v<details::dereference_t<std::decay_t<Container>> > 
             , OfLowerBoundContainerSequence< Container, 
-                    OrderedSequenceOptimizedJoin<details::element_of_container_t<Container>> >
+                    OrderedSequenceOptimizedJoin<details::element_of_container_t<Container, force_by_value>> >
             , OfUnorderedContainerSequence< Container, 
-                    Sequence<details::element_of_container_t<Container>> >
+                    Sequence<details::element_of_container_t<Container, force_by_value>> >
             >;
     } //ns:details
 
@@ -155,10 +190,12 @@ namespace flur
     * Adapter for STL containers or user defined that support std::begin<TContainer> and std::end<TContainer>
     * Also TContainer may be wrapped with: `std::ref` / `std::cref` or `std::shared_ptr`, `std::unique_ptr`.
     */
-    template <class TContainer>
+    template <class TContainer, auto ... options_c>
     struct OfContainerFactory : FactoryBase
     {
         using holder_t = std::decay_t< TContainer >;
+
+        constexpr static inline bool force_by_value_c = OP::utils::any_of<options_c...>(Intrinsic::result_by_value);
 
         template <class U>
         constexpr OfContainerFactory(int, U&& u) noexcept
@@ -185,14 +222,14 @@ namespace flur
         constexpr auto compound() const& noexcept
         {
             /** Detects if container can support OrderedSequence or Sequence */
-            using sequence_t = details::detect_sequence_t<const holder_t&>;
+            using sequence_t = details::detect_sequence_t<const holder_t&, force_by_value_c>;
             return sequence_t(0, _v);
         }
         /** \brief create iterable sequence that owns specified container (using move semantic).
         */
         constexpr auto compound() && noexcept
         {
-            using sequence_t = details::detect_sequence_t<holder_t>;
+            using sequence_t = details::detect_sequence_t<holder_t, force_by_value_c>;
             return sequence_t(0, std::move(_v));
         }
         holder_t _v;
