@@ -239,17 +239,15 @@ namespace OP
                     return;
                 auto [mis_it, mis_key] = std::mismatch(
                     i.key().begin(), i.key().end(), key.begin(), key.end());
-                while (mis_it < i.key().end())
-                    i.pop();
-                if (mis_key != key.end())
+                if (mis_key == key.end())
                 {
-                    lower_bound_impl(mis_key, key.end(), i);
+                    _next(i, true); //no matches with key
                 }
                 else
                 {
-                    auto kbeg = key.begin();
-                    auto iend = end();
-                    lower_bound_impl(kbeg, key.end(), iend);
+                    while (mis_it < i.key().end())
+                        i.pop();
+                    lower_bound_impl(mis_key, key.end(), i);
                 }
             }
 
@@ -443,6 +441,18 @@ namespace OP
                 StemCompareResult nav_res = common_prefix(b, std::end(container), iter);
 
                 return (nav_res == StemCompareResult::equals);
+            }
+
+            template <class AtomString>
+            bool check_prefix_exists(const AtomString& container) const
+            {
+                OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), false); //place all RO operations to atomic scope
+                auto b = std::begin(container);
+                iterator iter = end();
+
+                StemCompareResult nav_res = common_prefix(b, std::end(container), iter);
+
+                return nav_res == StemCompareResult::equals || nav_res == StemCompareResult::string_end;
             }
 
             /** \return check if iterator points to the prefix that has some child.

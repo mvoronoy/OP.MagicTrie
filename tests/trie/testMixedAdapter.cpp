@@ -256,7 +256,7 @@ void test_PrefixJoin(TestRuntime& tresult)
     tresult.assert_that<eq_sets>(
         trie_range >> then::mapping(get_key_only),
         src::of_container(std::set<atom_string_t>{
-        "123.1"_astr,
+            "123.1"_astr,
             "123.2"_astr,
             "123.3"_astr,
             "abc"_astr,
@@ -274,6 +274,102 @@ void test_PrefixJoin(TestRuntime& tresult)
         >> then::prefix_join(trie)
         >> then::mapping(get_key_only)),
         OP_CODE_DETAILS(<< "failed empty case #2"));
+}
+
+void test_PrefixJoinUnordered(TestRuntime& tresult)
+{
+    using namespace OP::flur;
+
+    constexpr auto iterator_to_str =
+        [](const auto& pair) -> std::string {return reinterpret_cast<const char*>(pair.key().c_str()); };
+
+    auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(
+        test_file_name,
+        OP::trie::SegmentOptions()
+        .segment_size(0x110000));
+    using trie_t = Trie<
+        EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
+    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+
+    //compare with empty
+    tresult.assert_that<eq_unordered_sets>(
+        src::of_container(std::vector<std::string>{}) //grants unordered source
+        >> then::prefix_join(trie)
+        >> then::mapping(iterator_to_str),
+        std::vector<std::string>{},
+        OP_CODE_DETAILS(<< "failed unordered join")
+    );
+
+
+    //make some non-joinable stuff
+    trie->insert("12"s, 0.9);
+    trie->insert("124"s, 0.9);
+    trie->insert("12345"s, 0.9);
+    trie->insert("17"s, 0.9);
+    trie->insert("xyz"s, 2);
+
+    //join with empty
+    tresult.assert_that<eq_unordered_sets>(
+        src::of_container(std::vector<std::string>{}) //grants unordered source
+        >> then::prefix_join(trie)
+        >> then::mapping(iterator_to_str),
+        std::vector<std::string>{},
+        OP_CODE_DETAILS(<< "failed unordered join")
+    );
+
+
+    std::vector<std::string> source{ static_cast<size_t>('g') - 'a', "ab_c"s };
+
+    auto pos = source.begin();
+    for (char c = 'a'; c != 'g'; ++c, ++pos)
+    {
+        (*pos)[2] = c;
+        trie->insert(*pos, 1);
+    }
+    //make source random-shuffled unordered
+    std::shuffle(source.begin(), source.end(), tresult.randomizer().generator());
+
+    tresult.assert_that<eq_unordered_sets>(
+        src::of_container(source)
+            >> then::prefix_join(trie)
+            >> then::mapping(iterator_to_str),
+        source,
+        OP_CODE_DETAILS(<< "failed unordered join")
+    );
+    
+    //check non-existing entry case
+    auto extended_source = source;
+    extended_source.push_back("neg"s);
+
+    tresult.assert_that<eq_unordered_sets>(
+        src::of_container(extended_source)
+        >> then::prefix_join(trie)
+        >> then::mapping(iterator_to_str),
+        source,
+        OP_CODE_DETAILS(<< "failed unordered join")
+    );
+    //check "neg" matches with "negative" as prefix_join expected
+    trie->insert("negative"_astr, 2.0);
+    source.push_back("negative");
+
+    tresult.assert_that<eq_unordered_sets>(
+        src::of_container(extended_source)
+        >> then::prefix_join(trie)
+        >> then::mapping(iterator_to_str),
+        source,
+        OP_CODE_DETAILS(<< "failed unordered join")
+    );
+
+    source = { "12"s };
+    extended_source = { "12"s, "12345"s, "124"s };
+    tresult.assert_that<eq_unordered_sets>(
+        src::of_container(source)
+        >> then::prefix_join(trie)
+        >> then::mapping(iterator_to_str),
+        extended_source,
+        OP_CODE_DETAILS(<< "failed unordered join")
+    );
+
 }
 
 std::string pad_str(int i) {
@@ -431,6 +527,7 @@ static auto& module_suite = OP::utest::default_test_suite("MixedAdapter")
 .declare("child", testChildConfig)
 .declare("ISSUE_0002", test_ISSUE_0002)
 .declare("prefix-join", test_PrefixJoin)
-.declare("prefix-join-unordered", test_UnorderedOrderFlatMap)
+.declare("prefix-join-flat-map", test_UnorderedOrderFlatMap)
+.declare("prefix-join-unordered", test_PrefixJoinUnordered)
 .declare("prefix", test_Prefix)
 ;

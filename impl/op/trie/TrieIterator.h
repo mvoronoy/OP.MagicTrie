@@ -130,6 +130,13 @@ namespace OP::trie
             return _container->value_of(_position_stack.back());
         }
 
+        /**Set iterator equal to end()*/
+        void clear()
+        {
+            _position_stack.clear();
+            _prefix.clear();
+        }
+
     protected:
 
         template <class T>
@@ -251,12 +258,6 @@ namespace OP::trie
         node_version_t version() const
         {
             return this->_version;
-        }
-        /**Set iterator equal to end()*/
-        void clear()
-        {
-            _position_stack.clear();
-            _prefix.clear();
         }
     };
     

@@ -1459,16 +1459,16 @@ namespace
         tresult.debug() << "lower_next =" << (const char*)tsti_1.key().c_str() << "\n";
         tresult.assert_that<equals>(tsti_1.key(), "aa"_astr, OP_CODE_DETAILS( << "wrong exact next_lower_bound"));
         auto test = start_i;
-        //test through all with 1 step ahead (emulate pure `next` behaviour)
+        //test through all with 1 step ahead (emulate pure `next` behavior)
         for (size_t i = 1; i < (sizeof(ini_data) / sizeof(ini_data[0])); ++i)
         {
-            trie->next_lower_bound_of(test, ini_data[i].first);
-            tresult.debug() << "lower_next(of:" << (const char*)ini_data[i].first.c_str() << ")=" << (const char*)test.key().c_str() << "=>" << test.value() << "\n";;
+            trie->next_lower_bound_of(test, ini_data[i-1].first);
+            tresult.debug() << "lower_next(of:" << (const char*)ini_data[i-1].first.c_str() << ")=" << (const char*)test.key().c_str() << "=>" << test.value() << "\n";;
 
             tresult.assert_that<equals>(test.key(), ini_data[i].first, OP_CODE_DETAILS() << "wrong exact next_lower_bound");
         }
         //test through all with all steps ahead
-        //test through all with 1 step ahead (emulate pure `next` behaviour)
+        //test through all with 1 step ahead (emulate pure `next` behavior)
         for (size_t i = 1; i < (sizeof(ini_data) / sizeof(ini_data[0])); ++i)
         {
             auto test = start_i;
@@ -1477,7 +1477,7 @@ namespace
         }
         test = start_i; //now it "a"
         trie->next_lower_bound_of(test, "b"_astr);
-        tresult.assert_that<equals>(test.key(), "ba"_astr, OP_CODE_DETAILS() << "wrong unexisting next_lower_bound");
+        tresult.assert_that<equals>(test.key(), "ba"_astr, OP_CODE_DETAILS() << "wrong un-existing next_lower_bound");
         trie->next_lower_bound_of(test, "c"_astr);
         tresult.assert_that<equals>(test, trie->end(), OP_CODE_DETAILS() << "wrong end() check");
     }
