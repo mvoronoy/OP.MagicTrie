@@ -23,7 +23,7 @@ namespace OP::flur
         */
         template <class U, class ... Ux>
         explicit constexpr SimpleFactory(U&& u, Ux&& ...ux) noexcept
-            : _v{std::forward_as_tuple( std::forward<U>(u), std::forward<Ux>(ux) ... )}
+            : _v{ std::forward<U>(u), std::forward<Ux>(ux) ... }
         {
         }
 
