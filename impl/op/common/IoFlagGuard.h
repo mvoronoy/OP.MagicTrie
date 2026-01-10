@@ -1,9 +1,9 @@
-#ifndef _OP_IOFLAGGUARD__H_
-#define _OP_IOFLAGGUARD__H_
+#ifndef _OP_COMMON_IOFLAGGUARD__H_
+#define _OP_COMMON_IOFLAGGUARD__H_
 
 #include <iostream>
 
-namespace OP
+namespace OP::raii
 {
     /** RAII pattern to save/restore flags of std::stream to avoid altering
     shared streams (like std::cout) parameters by manipulators like: 
@@ -53,5 +53,6 @@ namespace OP
     template<class TStream> IoFlagGuard(TStream&) -> IoFlagGuard<TStream>;
 
 
-} //end of namespace OP
-#endif //_OP_RANGE__H_
+} //end of namespace OP::raii
+
+#endif //_OP_COMMON_IOFLAGGUARD__H_
