@@ -617,12 +617,12 @@ namespace OP::vtm
             return true; //continue buckets iteration
         }
 
-        template <class ...Ux>
-        bool call_lambda_scan(Ux&&...)
-        {
-            static_assert(false,
-                "callback supposed to match signature either f(const T&) or f(iterator, iterator)");
-        }
+        //template <class ...Ux>
+        //bool call_lambda_scan(Ux&&...)
+        //{
+        //    static_assert(false,
+        //        "callback supposed to match signature either f(const T&) or f(iterator, iterator)");
+        //}
 
         /**
         * Apply indexers to a single bucket, and if it matches the given `query`,
