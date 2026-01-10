@@ -9,6 +9,7 @@
 #endif //_MSC_VER
 
 #include <set>
+#include <cassert>
 #include <op/common/Utils.h>
 #include <algorithm>
 
@@ -22,8 +23,9 @@
 
 namespace OP
 {
-    template <class T>
-    struct RangeContainer;
+    /** Indicate that constructor of range must treate seconf argument as `right` position instead of `size` */
+    struct Abs {};
+
 
     namespace zones
     {
@@ -112,10 +114,9 @@ namespace OP
                 return rar;
             if(!rar.count())
                 return lar;
-            auto leftmost = std::min(zones::pos(lar), zones::pos(rar));
-            return TZone(leftmost, 
-                static_cast<typename TZone::distance_t>( 
-                    std::max(zones::right(lar), zones::right(rar)) - leftmost));
+            return TZone(Abs{}, 
+                    std::min(zones::pos(lar), zones::pos(rar)), 
+                    std::max(zones::right(lar), zones::right(rar)) );
         }
 
         template <class TZone>
@@ -133,15 +134,12 @@ namespace OP
 
     } //ns:zones
 
-    struct Abs {};
-
     template <class T, class Distance = unsigned int>
     struct Range 
     {
-        typedef T pos_t;
-        typedef Distance distance_t;
-        typedef Range<T, Distance> this_t;
-        friend struct RangeContainer<T>;
+        using pos_t = T;
+        using distance_t = Distance;
+        using this_t = Range<T, Distance>;
 
         constexpr Range() noexcept
             : _pos{}
