@@ -7,7 +7,6 @@
 namespace
 {
 
-    using namespace OP::trie;
     using namespace OP::vtm;
     using namespace OP::utils;
 

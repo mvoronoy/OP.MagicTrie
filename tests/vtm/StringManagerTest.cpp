@@ -1,19 +1,21 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
+
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/StringMemoryManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
+#include <op/vtm/InMemMemoryChangeHistory.h>
+
 #include <set>
 #include <cassert>
 #include <iterator>
 
-using namespace OP::trie;
-using namespace OP::vtm;
-using namespace OP::utest;
-using namespace OP::common;
-
 namespace
 {
+    using namespace OP::vtm;
+    using namespace OP::utest;
+    using namespace OP::common;
+
     static const char* node_file_name = "StringManager.test";
 
     void test_StringManager(OP::utest::TestRuntime& tresult)
@@ -24,7 +26,8 @@ namespace
         auto tmngr1 = SegmentManager::template create_new<EventSourcingSegmentManager>(
             node_file_name,
             OP::vtm::SegmentOptions()
-            .segment_size(0x110000)
+                .segment_size(0x110000),
+            std::shared_ptr<MemoryChangeHistory>(new InMemoryChangeHistory)
         );
 
         SegmentTopology<
@@ -225,7 +228,8 @@ namespace
         auto tmngr1 = SegmentManager::template create_new<EventSourcingSegmentManager>(
             node_file_name,
             OP::vtm::SegmentOptions()
-            .segment_size(0x110000)
+            .segment_size(0x110000),
+            std::unique_ptr<MemoryChangeHistory>(new InMemoryChangeHistory)
         );
 
         SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);

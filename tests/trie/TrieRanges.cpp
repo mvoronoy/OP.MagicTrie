@@ -10,6 +10,8 @@
 #include <op/trie/Trie.h>
 #include <op/trie/PlainValueManager.h>
 
+#include <op/vtm/InMemMemoryChangeHistory.h>
+
 #include <op/common/astr.h>
 
 #include <op/vtm/SegmentManager.h>
@@ -20,6 +22,7 @@
 
 namespace
 {
+    using namespace OP::vtm;
     using namespace OP::trie;
     using namespace OP::utest;
     using namespace OP::flur;
@@ -57,9 +60,11 @@ namespace
         //take randomizer configured by test engine
         auto random_gen = tools::RandomGenerator::instance().generator();
 
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         using trie_t = test_trie_t;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         std::map<atom_string_t, double> test_values;
@@ -93,7 +98,9 @@ namespace
         }
         compare_containers(tresult, *trie, test_values);
         trie.reset();
-        tmngr1 = OP::trie::SegmentManager::open<EventSourcingSegmentManager>(test_file_name);
+        tmngr1 = OP::vtm::SegmentManager::open<EventSourcingSegmentManager>(test_file_name,
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         trie = trie_t::open(tmngr1);
         //
         compare_containers(tresult, *trie, test_values);
@@ -150,9 +157,11 @@ namespace
     }
     void test_TrieSubtreeLambdaOperations(OP::utest::TestRuntime& tresult)
     {
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         using trie_t = test_trie_t;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
@@ -289,9 +298,11 @@ namespace
     void test_Flatten(OP::utest::TestRuntime& tresult)
     {
         using namespace OP::flur;
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
 
         using trie_t = test_trie_t;
 
@@ -418,9 +429,11 @@ namespace
 
     void test_ChildSelector(OP::utest::TestRuntime& tresult)
     {
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
 
         using trie_t = test_trie_t;
 
@@ -501,9 +514,11 @@ namespace
     void test_Range(OP::utest::TestRuntime& tresult)
     {
         using namespace OP::flur;
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
@@ -566,12 +581,13 @@ namespace
         src1.emplace("xyz"_atom, 1.0);
 
         //note: no transactions!
-        auto tmngr1 = OP::trie::SegmentManager::create_new<OP::trie::SegmentManager>("trie2range.test",
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<OP::vtm::SegmentManager>("trie2range.test",
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000)
+        );
 
         using trie_t = OP::trie::Trie<
-            OP::trie::SegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
+            OP::vtm::SegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         for (const auto& pair : src1) trie->insert(pair.first, pair.second);
@@ -611,15 +627,21 @@ namespace
     {
         using namespace OP::flur;
 
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
-        auto tmngr2 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>((std::string("2_") + test_file_name).c_str(),
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
-        auto tmngr3 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>((std::string("3_") + test_file_name).c_str(),
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
+        auto tmngr2 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>((std::string("2_") + test_file_name).c_str(),
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
+        auto tmngr3 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>((std::string("3_") + test_file_name).c_str(),
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
 
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<size_t>, OP::common::atom_string_t>;
@@ -718,8 +740,8 @@ namespace
     //    
     //    using namespace OP::flur;
     //
-    //    auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-    //        OP::trie::SegmentOptions()
+    //    auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+    //        OP::vtm::SegmentOptions()
     //        .segment_size(0x110000));
     //
     //    typedef Trie<EventSourcingSegmentManager, double> trie_t;
@@ -1074,9 +1096,11 @@ namespace
         typedef std::pair<atom_string_t, double> p_t;
         std::map<atom_string_t, double> test_values;
 
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
@@ -1120,10 +1144,11 @@ namespace
     void test_10k(OP::utest::TestRuntime& tresult)
     {
         using segment_manager_t = SegmentManager;//EventSourcingSegmentManager;
-        auto tmngr = OP::trie::SegmentManager::create_new<segment_manager_t>(
+        auto tmngr = OP::vtm::SegmentManager::create_new<segment_manager_t>(
             "10k.trie",
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000)
+        );
         using trie_t = Trie<
             segment_manager_t, PlainValueManager<std::uint64_t>, OP::common::atom_string_t>;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);

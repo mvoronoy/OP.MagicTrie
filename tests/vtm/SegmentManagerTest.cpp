@@ -9,8 +9,9 @@ using namespace OP::trie;
 
 void test_SegmentManager(OP::utest::TestRuntime& result)
 {
-    const char seg_file_name[] = "segementation.test";
-    GenericMemoryTest::test_MemoryManager<OP::trie::SegmentManager>(seg_file_name, result);
+    const char seg_file_name[] = "segmentation.test";
+    GenericMemoryTest::test_MemoryManager<OP::vtm::SegmentManager>(
+        seg_file_name, result);
 }
               
 

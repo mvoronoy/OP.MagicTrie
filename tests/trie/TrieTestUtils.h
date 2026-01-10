@@ -10,7 +10,7 @@ using namespace OP::utest;
 template <class Os, class T>
 void print_hex(Os& os, const T& t)
 {
-    OP::IoFlagGuard stream_guard(os);
+    OP::raii::IoFlagGuard stream_guard(os);
     auto b = std::begin(t), e = std::end(t);
     for (; b != e; ++b)
         os << std::setbase(16) << std::setw(2) << std::setfill('0') << (unsigned int)(unsigned char)*b;

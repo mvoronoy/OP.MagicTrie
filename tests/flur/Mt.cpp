@@ -102,7 +102,7 @@ namespace
                 },
                 src::outer(std::ref(tee))
                 >> then::mapping([&](auto i) {
-                    OP::IoFlagGuard guard_io(tresult.debug());
+                    OP::raii::IoFlagGuard guard_io(tresult.debug());
                     tresult.debug() << "\t>inner:(" << i << ")" << std::hex << i << "\n";
                     return i;
                     })

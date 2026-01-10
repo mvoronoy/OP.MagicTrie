@@ -47,6 +47,9 @@ add_executable (trie_test
     "common/basic.cpp"
     "common/FixedString.cpp"
 
+    "vtm/AppendOnlyLog.cpp"
+    "vtm/AppendOnlySkipList.cpp"
+    "vtm/AppendOnlyLogFileRotation.cpp"
     "vtm/ContainersTest.cpp"
     "vtm/FixedSizeMemoryManagerTest.cpp"
     "vtm/StringManagerTest.cpp"
@@ -56,7 +59,6 @@ add_executable (trie_test
     "SpanContainerTest.cpp"
     "tr.cpp"
 
-    "vtm/Transacted.cpp"
     "vtm/EventSourcedSegmentManagerTest.cpp"
     
     "trie/Trie.cpp"
@@ -107,6 +109,5 @@ target_include_directories(trie_test
 target_link_libraries(${PROJECT_NAME} Threads::Threads)
 
 # Unit tests
-add_test(NAME "OP.trie.tests.override_join_range" COMMAND trie_test -r "Trie/override_join_range")
 add_test(NAME "root.OP.tests.all" COMMAND trie_test -r ".+/.+")
 # add_test(NAME "ABC.OP.namespace.Tests.SomeTest" COMMAND trie_test -r ".+/.+")

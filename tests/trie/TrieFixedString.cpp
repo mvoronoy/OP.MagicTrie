@@ -5,6 +5,7 @@
 #include <op/utest/unit_test_is.h>
 
 #include <op/vtm/EventSourcingSegmentManager.h>
+#include <op/vtm/InMemMemoryChangeHistory.h>
 
 #include <op/trie/Trie.h>
 #include <op/trie/PlainValueManager.h>
@@ -64,17 +65,20 @@ namespace
     void testDefault(OP::utest::TestRuntime& tresult, const worload_t& workload)
     {
         using namespace OP::flur;
-        auto tmngr = OP::trie::SegmentManager::create_new<OP::trie::EventSourcingSegmentManager>(
+        auto tmngr = OP::vtm::SegmentManager::create_new<OP::vtm::EventSourcingSegmentManager>(
             test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+            OP::vtm::SegmentOptions()
+                .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+
+        );
 
         using ufstr_t = OP::FixedString<OP::fix_str_policy_noexcept<std::uint8_t, 64>>;
 
         //using trie_t = Trie<
         //    EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t> ;
         using trie_t = OP::trie::Trie<
-            OP::trie::EventSourcingSegmentManager, OP::trie::PlainValueManager<double>, ufstr_t
+            OP::vtm::EventSourcingSegmentManager, OP::trie::PlainValueManager<double>, ufstr_t
         >;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
@@ -111,13 +115,15 @@ namespace
     void testAtomStr(OP::utest::TestRuntime& tresult, const worload_t& workload)
     {
         using namespace OP::flur;
-        auto tmngr = OP::trie::SegmentManager::create_new<OP::trie::EventSourcingSegmentManager>(
+        auto tmngr = OP::vtm::SegmentManager::create_new<OP::vtm::EventSourcingSegmentManager>(
             test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
 
         using trie_t = OP::trie::Trie<
-            OP::trie::EventSourcingSegmentManager, OP::trie::PlainValueManager<double>, OP::common::atom_string_t> ;
+            OP::vtm::EventSourcingSegmentManager, OP::trie::PlainValueManager<double>, OP::common::atom_string_t> ;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 

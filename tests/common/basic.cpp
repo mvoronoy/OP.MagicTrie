@@ -61,15 +61,15 @@ namespace { //anonymose
     {
         std::cout << "test alignment routines..." << std::endl;
 
-        assert(10 == OP::trie::align_on(3, 10));
-        assert(20 == OP::trie::align_on(11, 10));
-        assert(0 == OP::trie::align_on(0, 10));
-        assert(10 == OP::trie::align_on(10, 10));
+        assert(10 == OP::vtm::align_on(3, 10));
+        assert(20 == OP::vtm::align_on(11, 10));
+        assert(0 == OP::vtm::align_on(0, 10));
+        assert(10 == OP::vtm::align_on(10, 10));
         //check for 
-        assert(17 == OP::trie::align_on(16, 17));
-        assert(17 == OP::trie::align_on(3, 17));
-        assert(0 == OP::trie::align_on(0, 17));
-        assert(34 == OP::trie::align_on(18, 17));
+        assert(17 == OP::vtm::align_on(16, 17));
+        assert(17 == OP::vtm::align_on(3, 17));
+        assert(0 == OP::vtm::align_on(0, 17));
+        assert(34 == OP::vtm::align_on(18, 17));
     }
 
     struct TestValue

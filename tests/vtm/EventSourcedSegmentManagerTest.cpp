@@ -8,9 +8,12 @@
 #include <fstream>
 #include <iomanip>
 #include <op/trie/Trie.h>
+
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
+#include <op/vtm/InMemMemoryChangeHistory.h>
 #include <op/vtm/MemoryChunks.h>
+
 #include "GenericMemoryTest.h"
 
 namespace
@@ -60,26 +63,7 @@ namespace
     0xB3, 0x56, 0x30, 0xBB, 0x80, 0x0A, 0xCC, 0x00, 0xC8, 0x07, 0x3F, 0xC5, 0xEE, 0x2B, 0xA4, 0x1E,
     0x2F, 0x79, 0xC2, 0xDC, 0x41, 0x03, 0x58, 0xBD, 0xE3, 0x71, 0x1B, 0x8E, 0x62, 0x5E, 0x80, 0x7B
     };
-    template <class Sm>
-    void test_overlappedException(Sm& tmanager)
-    {
-        try {
-            tmanager->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq) + 10);
-            OP_UTEST_ASSERT(false);//exception must be raised
-        }
-        catch (Exception const& e) {
-            OP_UTEST_ASSERT(e.code() == er_overlapping_block);
-        }
-        //check overlapping exception #2
-        try {
-            tmanager->readonly_block(FarAddress(read_only_data_fpos - 1), sizeof(tst_seq));
-            OP_UTEST_ASSERT(false);//exception must be raised
-        }
-        catch (Exception const& e) {
-            OP_UTEST_ASSERT(e.code() == er_overlapping_block);
-        }
-    }
-
+    
     /**Check that this transaction sees changed data, but other transaction doesn't*/
     template <class Sm>
     void test_TransactionIsolation(Sm& tmanager, std::uint64_t pos, segment_pos_t block_size,
@@ -91,17 +75,19 @@ namespace
         //ro must see changes
         OP_UTEST_ASSERT(0 == memcmp(written, ro_block.pos(), block_size));
 
-        std::future<bool> future_block1_read_cmmitted = std::async(std::launch::async, [&]() {
+        std::future<bool> future_block1_read_committed = std::async(std::launch::async, [&]() {
             //another tran with ReadCommitted isolation must see previous state
             auto ro_block2 = tmanager->readonly_block(FarAddress(pos), block_size);
             OP_UTEST_ASSERT(0 == memcmp(origin, ro_block2.pos(), block_size));
             return true;
             });
-        OP_UTEST_ASSERT(future_block1_read_cmmitted.get());
+        OP_UTEST_ASSERT(future_block1_read_committed.get());
 
         auto prev_isolation =
-            tmanager->read_isolation(OP::trie::ReadIsolation::Prevent);
+            tmanager->history_manager()->read_isolation(OP::vtm::ReadIsolation::Prevent);
+
         std::future<bool> future_block1_t2 = std::async(std::launch::async, [&]() {
+            TransactionGuard local_tran (tmanager->begin_transaction(), true);
             try {
                 auto ro_block2 = tmanager->readonly_block(FarAddress(pos), block_size);
             }
@@ -130,9 +116,12 @@ namespace
     {
         const char seg_file_name[] = "t-segmentation.test";
 
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(1024));
+        auto tmngr1 = SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            SegmentOptions()
+            .segment_size(1024),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+
+            );
         tmngr1->ensure_segment(0);
 
         constexpr segment_pos_t start_offset_c = 0x40;
@@ -179,9 +168,11 @@ namespace
 
         const char seg_file_name[] = "t-segmentation.test";
 
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(1024));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            OP::vtm::SegmentOptions()
+                .segment_size(1024),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            );
         tmngr1->ensure_segment(0);
         std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
         tresult.assert_true(fdata_acc.good());
@@ -252,8 +243,8 @@ namespace
                 tmngr1->writable_block(FarAddress(read_only_data_fpos), 1));
             tresult.assert_true(false);//exception must be raised
         }
-        catch (Exception const& e) {
-            tresult.assert_true(e.code() == er_transaction_not_started);
+        catch (OP::Exception const& e) {
+            tresult.assert_true(e.code() == ErrorCodes::er_transaction_not_started);
         }
         //when all transaction closed, no overlapped exception anymore
         auto overlapped_block = tmngr1->readonly_block(FarAddress(read_only_data_fpos), sizeof(tst_seq) + 10);
@@ -267,7 +258,9 @@ namespace
     {
         const char seg_file_name[] = "t-segmentation.test";
         //uncomment to debug...> auto& prev_os = OP::vtm::integrity::Stream::os(tresult.info()); 
-        GenericMemoryTest::test_MemoryManager<EventSourcingSegmentManager>(seg_file_name, tresult);
+        GenericMemoryTest::test_MemoryManager<EventSourcingSegmentManager>(seg_file_name, tresult,
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         //uncomment to debug...> OP::vtm::integrity::Stream::os(prev_os);//restore
     }
 
@@ -275,9 +268,11 @@ namespace
     {
         tresult.info() << "test Transacted Memory Allocation..." << std::endl;
         const char seg_file_name[] = "t-segmentation.test";
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         auto aa1 = tmngr1->segment_size();
         SegmentTopology<HeapManagerSlot> mngrToplogy(tmngr1);
 
@@ -307,9 +302,11 @@ namespace
             tmngr1->wr_at<TestAbc>(abc1_off);
             OP_UTEST_FAIL(<< "Exception OP::trie::er_transaction_not_started must be raised");
         }
-        catch (OP::trie::Exception& e)
+        catch (OP::Exception& e)
         {
-            OP_UTEST_ASSERT(e.code() == OP::trie::er_transaction_not_started, << "must raise exception with code OP::trie::er_transaction_not_started");
+            OP_UTEST_ASSERT(
+                e.code() == OP::vtm::ErrorCodes::er_transaction_not_started, 
+                << "must raise exception with code OP::trie::er_transaction_not_started");
         }
         mngrToplogy._check_integrity();
 
@@ -392,9 +389,11 @@ namespace
     {
         tresult.info() << "Reproduce issue with dealloc-alloc in single transaction..." << std::endl;
         const char seg_file_name[] = "t-segmentation.test";
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         auto aa1 = tmngr1->segment_size();
         //tmngr1->ensure_segment(0);
         SegmentTopology<HeapManagerSlot> mngrToplogy(tmngr1);
@@ -431,9 +430,10 @@ namespace
     {
         tresult.info() << "Generic positive tests...\n";
         const char seg_file_name[] = "t-segmentation.test";
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory));
         tmngr1->ensure_segment(0);
         OP_CONSTEXPR(static const) segment_pos_t read_block_pos = 0x50;
         OP_CONSTEXPR(static const) segment_pos_t write_block_pos = 0x100;
@@ -446,7 +446,8 @@ namespace
         memcpy(wr2.pos(), write_fill_seq1, sizeof(write_fill_seq1));
         tran1->commit();
         auto tran2 = tmngr1->begin_transaction();
-        OP_CONSTEXPR(static const) segment_pos_t wide_write_block_size = sizeof(write_fill_seq1) + write_block_pos - read_block_pos;
+        constexpr segment_pos_t wide_write_block_size = 
+            sizeof(write_fill_seq1) + write_block_pos - read_block_pos;
         //now create read-only block, that released afterall
         if (1 == 1)
         {
@@ -454,6 +455,7 @@ namespace
                 tmngr1->readonly_block(FarAddress(0, read_block_pos), wide_write_block_size); //big overlapped chunk
             //test we have ro available for all
             auto future1 = std::async(std::launch::async, [&]() -> bool {
+                TransactionGuard thread_tran(tmngr1->begin_transaction(), true);
                 auto r1_no_tran = tmngr1->readonly_block(FarAddress(0, read_block_pos), wide_write_block_size);
                 for (auto i = 0u; i < (write_block_pos - read_block_pos); ++i)
                     if (test_byte != r1_no_tran.pos()[i])
@@ -488,56 +490,30 @@ namespace
                 ro1t2.pos(), ro1t2.pos() + sizeof(write_fill_seq2),
                 write_fill_seq2, write_fill_seq2 + sizeof(write_fill_seq2)), "Wrong data read for separate transaction");
         tran2->commit();
-        //
-        // Retain behaviour
-        //
-        tresult.info() << "Test RO block with retain behaviour...\n";
-        auto tran3 = tmngr1->begin_transaction();
-        if (1 == 1)
-        {   //this block will cause destroy, but not release
-            ReadonlyMemoryChunk ro_keep_lock =
-                tmngr1->readonly_block(FarAddress(0, read_block_pos), 10, ReadonlyBlockHint::ro_keep_lock);
 
-        }
-        //after block destroyed, start another-thread-transaction to try capture
-        auto future3 = std::async(std::launch::async, [&]() -> bool {
-            auto tran4 = tmngr1->begin_transaction();
-            try
-            {
-                static_cast<void>(//ignore result
-                    tmngr1->writable_block(FarAddress(0, read_block_pos), 10));
-                //exception must be raised!
-                tran4->rollback();
-                return false;
-            }
-            catch (const ConcurrentLockException&)
-            {
-            }
-            tran4->commit();
-            return true;
-            });
-        tresult.assert_true(future3.get(), "Exception ConcurrentLockException must be raised");
-        tran3->commit();
         //
         //  Stacked block is deleted later than originated transaction
         //
-        tresult.info() << "Test stacked RO block behaviour...\n";
+        tresult.info() << "Test stacked RO block behavior...\n";
         ReadonlyMemoryChunk stacked;
         if (1 == 1)
         {
             auto local_tran = tmngr1->begin_transaction();
-            stacked = tmngr1->readonly_block(FarAddress(0, read_block_pos), 10); //now we have object that destoyes later than transaction
+            stacked = tmngr1->readonly_block(FarAddress(0, read_block_pos), 10); //now we have object that destroys later than transaction
             local_tran->rollback();
             //no exceptions there
         }
     }
+
     void test_EvSrcNestedTransactions(OP::utest::TestRuntime& tresult)
     {
         tresult.info() << "Nesting transactions...\n";
         const char seg_file_name[] = "t-segmentation.test";
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            );
         tmngr1->ensure_segment(0);
         OP_CONSTEXPR(static const) segment_pos_t write_block_len = 0x11;
         static_assert(3 * write_block_len < sizeof(write_fill_seq1), "please use block smaller than test data");
@@ -647,7 +623,10 @@ namespace
             tranClean->commit();
             //close & reopen segment
             tmngr1.reset();
-            tmngr1 = OP::trie::SegmentManager::open<EventSourcingSegmentManager>(seg_file_name);
+            tmngr1 = OP::vtm::SegmentManager::open<EventSourcingSegmentManager>(
+                seg_file_name,
+                std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+                );
             tmngr1->ensure_segment(0);
         }
         if (1 == 1)
@@ -702,9 +681,11 @@ namespace
 
         const char seg_file_name[] = "t-segmentation.test";
 
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(1024));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(1024),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         tmngr1->ensure_segment(0);
         std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
         tresult.assert_true(fdata_acc.good());
@@ -746,9 +727,11 @@ namespace
 
         const char seg_file_name[] = "t-segmentation.test";
 
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(1024));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            OP::vtm::SegmentOptions()
+                .segment_size(1024),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         tmngr1->ensure_segment(0);
         std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
         tresult.assert_true(fdata_acc.good());
@@ -774,9 +757,11 @@ namespace
 
         const char seg_file_name[] = "t-segmentation.test";
 
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            OP::vtm::SegmentOptions()
+                .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         tmngr1->ensure_segment(0);
         constexpr segment_pos_t write_block_pos1 = 0;
         constexpr segment_pos_t write_block_len1 = sizeof(write_fill_seq1);
@@ -888,9 +873,11 @@ namespace
     {
         const char seg_file_name[] = "t-segmentation.test";
 
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(5 * 1024));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
+            OP::vtm::SegmentOptions()
+                .segment_size(5 * 1024),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
         tmngr1->ensure_segment(0);
         constexpr segment_pos_t start_offset_c = 0x40;
         constexpr segment_pos_t test_seq_len_c = 256;
@@ -906,12 +893,13 @@ namespace
         }
         { //exploit ro-sequence 
             OP::vtm::TransactionGuard op_g(tmngr1->begin_ro_transaction());
-            tresult.assert_exception<OP::trie::Exception>([&]() {
-                static_cast<void>(tmngr1->writable_block(FarAddress(0, start_offset_c), test_seq_len_c));
+            tresult.assert_exception<OP::Exception>([&]() {
+                    static_cast<void>(
+                        tmngr1->writable_block(FarAddress(0, start_offset_c), test_seq_len_c));
                 })
                 .then([](const auto& ex) {
-                return ex.code() == OP::trie::ErrorCode::er_ro_transaction_started;
-                    })
+                    return ex.code() == OP::vtm::ErrorCodes::er_ro_transaction_started;
+                })
                 ;
             auto bx40_x1000 = tmngr1->readonly_block(FarAddress(0, start_offset_c), test_seq_len_c);
             tresult.assert_true(0 == memcmp(bx40_x1000.pos(), test_seq.data(), test_seq.size()));

@@ -8,6 +8,7 @@
 
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <op/vtm/StringMemoryManager.h>
+#include <op/vtm/InMemMemoryChangeHistory.h>
 
 #include <op/flur/flur.h>
 
@@ -21,6 +22,7 @@ static const char* test_file_name = "trie.test";
 
 namespace OP::trie::store_converter
 {
+    using namespace OP::vtm;
     using namespace OP::trie;
     using namespace OP::utest;
 
@@ -61,6 +63,7 @@ auto tfo(TTopology& topology, const V & stor)
 
 namespace
 {
+    using namespace OP::vtm;
     using namespace OP::trie;
     using namespace OP::utest;
     using namespace OP::common;
@@ -112,9 +115,11 @@ namespace
     void testDefault(OP::utest::TestRuntime& tresult)
     {
         using namespace OP::flur;
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            SegmentOptions()
+                .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
 
         using test_payload_t = TestStruct;
 
@@ -151,9 +156,11 @@ namespace
     void testVariant(OP::utest::TestRuntime& tresult)
     {
         using namespace OP::flur;
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+                .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
 
         using test_variant_t = std::variant<
             std::monostate,
@@ -234,9 +241,11 @@ namespace
     void testTuple(OP::utest::TestRuntime& tresult)
     {
         using namespace OP::flur;
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            );
 
         using var_t = std::variant<std::monostate, short, double, TestStruct>;
         using test_tuple_t = 
@@ -278,9 +287,11 @@ namespace
     void testStr(OP::utest::TestRuntime& tresult)
     {
         using namespace OP::flur;
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
 
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<std::string>, OP::common::atom_string_t
@@ -303,9 +314,10 @@ namespace
     void testStrCompact(OP::utest::TestRuntime& tresult)
     {
         using namespace OP::flur;
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>("trie2.test",
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>("trie2.test",
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory));
 
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<std::string, 16>, 
@@ -329,9 +341,11 @@ namespace
 
     void testErase(OP::utest::TestRuntime& tresult)
     {
-        auto tmngr = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            );
 
         using test_variant_t = std::variant<
             std::monostate,

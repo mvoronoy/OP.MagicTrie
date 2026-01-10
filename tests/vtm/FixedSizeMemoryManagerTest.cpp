@@ -3,11 +3,13 @@
 #include <op/trie/Trie.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
+#include <op/vtm/InMemMemoryChangeHistory.h>
 #include <set>
 #include <cassert>
 #include <iterator>
 namespace
 {
+    using namespace OP::vtm;
     using namespace OP::trie;
     using namespace OP::utest;
 
@@ -102,6 +104,8 @@ namespace
 
     void test_NodeManager(OP::utest::TestRuntime& tresult)
     {
+        using namespace OP::vtm;
+
         struct TestPayload
         {/*The size of Payload selected to be bigger than FixedSizeMemoryManager::ZeroHeader */
             TestPayload()
@@ -117,10 +121,12 @@ namespace
 
         typedef FixedSizeMemoryManager<TestPayload, test_nodes_count_c> test_node_manager_t;
 
-        auto tmngr1 = OP::trie::SegmentManager::template create_new<EventSourcingSegmentManager>(
+        auto tmngr1 = SegmentManager::template create_new<EventSourcingSegmentManager>(
             node_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+            SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<MemoryChangeHistory>(new InMemoryChangeHistory)
+        );
 
         SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
         test_Generic<test_node_manager_t>(tresult, mngrToplogy);
@@ -143,12 +149,14 @@ namespace
             int n1;
         };
 
-        typedef FixedSizeMemoryManager<TestPayload, test_nodes_count_c> test_node_manager_t;
+        using test_node_manager_t = FixedSizeMemoryManager<TestPayload, test_nodes_count_c> ;
 
-        auto tmngr1 = OP::trie::SegmentManager::template create_new<EventSourcingSegmentManager>(
+        auto tmngr1 = OP::vtm::SegmentManager::template create_new<EventSourcingSegmentManager>(
             node_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
 
         SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
         auto& fmm = mngrToplogy.template slot<test_node_manager_t>();
@@ -252,9 +260,11 @@ namespace
         //The size of payload smaller than FixedSizeMemoryManager::ZeroHeader
         typedef FixedSizeMemoryManager<TestPayloadSmall, test_nodes_count_c> test_node_manager_t;
 
-        auto tmngr1 = OP::trie::SegmentManager::create_new<EventSourcingSegmentManager>(node_file_name,
-            OP::trie::SegmentOptions()
-            .segment_size(0x110000));
+        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(node_file_name,
+            OP::vtm::SegmentOptions()
+            .segment_size(0x110000),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        );
 
         SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
         test_Generic<test_node_manager_t>(tresult, mngrToplogy);

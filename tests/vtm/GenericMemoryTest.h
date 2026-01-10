@@ -1,14 +1,14 @@
 #ifndef _GENERICMEMORYTEST__H_
 #define _GENERICMEMORYTEST__H_
 
-
-#include <op/utest/unit_test.h>
-#include <op/utest/unit_test_is.h>
 #include <random>
 #include <algorithm>
 
+#include <op/utest/unit_test.h>
+#include <op/utest/unit_test_is.h>
+
 using namespace OP::utest;
-using namespace OP::trie;
+
 struct GenericMemoryTest{
 
     static inline const std::uint8_t TestSeq[] = { 0x7A, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x00, 0x28, 0x00,
@@ -36,9 +36,13 @@ struct GenericMemoryTest{
     0xAE, 0x35, 0xE4, 0xB0, 0x38, 0xE3, 0xB3, 0x3D, 0xE6, 0xBB, 0x44, 0xE9, 0xC0, 0x4C, 0xE2, 0xBB,
     0x4E, 0xD5, 0xAE, 0x4B, 0xCE, 0xA4, 0x4B, 0x00, 0x00, 0x00 };
 
-    template <class Sm>
-    static void test_MemoryManager(const char * seg_file_name, OP::utest::TestRuntime& result)
+    template <class Sm, class ...ExtraArgs>
+    static void test_MemoryManager(const char * seg_file_name, OP::utest::TestRuntime& result, ExtraArgs&& ...extra_args)
     {
+
+        using namespace OP::trie;
+        using namespace OP::vtm;
+
         result.info() << "test HeapManagerSlot on" << typeid(Sm).name() << "..." << std::endl;
         std::uint32_t tst_size = -1;
         struct TestMemAlloc1
@@ -54,9 +58,8 @@ struct GenericMemoryTest{
         };
         struct TestHead
         {
-        
             int _ntype;
-            OP::trie::far_pos_t table_pos;
+            OP::vtm::far_pos_t table_pos;
         };
         struct TestEmptyPayload {};
         typedef NodeHashTable<TestEmptyPayload, 8> htbl64_t;
@@ -66,8 +69,8 @@ struct GenericMemoryTest{
         if (1 == 1)
         {       
             result.info() << "Test create new...\n";
-            auto options = OP::trie::SegmentOptions().segment_size(0x110000);
-            auto mngr1 = Sm::template create_new<Sm>(seg_file_name, options);
+            auto options = SegmentOptions().segment_size(0x110000);
+            auto mngr1 = Sm::template create_new<Sm>(seg_file_name, options, extra_args... );
             tst_size = mngr1->segment_size();
             SegmentTopology<HeapManagerSlot> mngrTopology (mngr1);
 
@@ -80,7 +83,7 @@ struct GenericMemoryTest{
             mngrTopology._check_integrity();
         }
         result.info() << "Test reopen existing...\n";
-        auto segmentMngr2 = Sm::template open<Sm>(seg_file_name);
+        auto segmentMngr2 = Sm::template open<Sm>(seg_file_name, extra_args...);
         result.assert_true(tst_size == segmentMngr2->segment_size(), OP_CODE_DETAILS());
         SegmentTopology<HeapManagerSlot>& mngr2 = *new SegmentTopology<HeapManagerSlot>(segmentMngr2);
 
@@ -116,23 +119,12 @@ struct GenericMemoryTest{
             mngr2.slot<HeapManagerSlot>().forcible_deallocate(rest + 1);
             result.assert_true(false, OP_CODE_DETAILS(<<"exception must be raised"));
         }
-        catch (const OP::trie::Exception& e)
+        catch (const OP::Exception& e)
         {
-            result.assert_true(e.code() == OP::trie::er_invalid_block, OP_CODE_DETAILS());
+            result.assert_true(e.code() == OP::vtm::ErrorCodes::er_invalid_block, OP_CODE_DETAILS());
         }
         mngr2._check_integrity();
-        //allocate new segment and allocate memory and try to dealloc in other segment
-        //mngr2.segment_manager().ensure_segment(1);
-        //try
-        //{
-        //    mngr2.slot<HeapManagerSlot>().forcible_deallocate((1ull<<32)| rest);
-        //    result.assert_true(false);//exception must be raised
-        //}
-        //catch (const OP::trie::Exception& e)
-        //{
-        //    result.assert_true(e.code() == OP::trie::er_invalid_block);
-        //}
-        
+
         OP::vtm::TransactionGuard g6(segmentMngr2->begin_transaction());
         mngr2.slot<HeapManagerSlot>().forcible_deallocate(one_byte_pos);
         g6.commit();
@@ -173,7 +165,7 @@ struct GenericMemoryTest{
         delete&mngr2;//mngr2.reset();//causes delete
         segmentMngr2.reset();
 
-        auto segmentMngr3 = Sm::template open<Sm>(seg_file_name);
+        auto segmentMngr3 = Sm::template open<Sm>(seg_file_name, extra_args...);
         SegmentTopology<HeapManagerSlot>* mngr3 = new SegmentTopology<HeapManagerSlot>(segmentMngr3);
         auto& mm = mngr3->slot<HeapManagerSlot>();
         /**Flag must be set if memory management allows merging of free adjacent blocks*/
