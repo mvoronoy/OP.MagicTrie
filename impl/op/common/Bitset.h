@@ -340,6 +340,10 @@ namespace OP
         template <size_t N = 1, typename Int = std::uint64_t>
         struct Bitset
         {
+            static_assert(
+                std::is_unsigned_v<Int>,
+                "Template parameter Int must be unsigned, like: std::uint8_t, std::uint16_t, std::uint32_t, std::uint64_t");
+
             friend struct Bitset<N + 1, Int>;
             using this_t = Bitset<N, Int>;
 
@@ -363,27 +367,31 @@ namespace OP
                     _presence[i] = def;
             }
 
+            /** @return iterator to the first bit of container. Iterator goes over all bits in container. */
             const_iterator begin() const noexcept
             {
                 return const_iterator(_presence, 0);
             }
 
+            /** @return iterator to the end of container.  */
             const_iterator end() const noexcept
             {
                 return const_iterator(_presence, bit_length_c);
             }
 
+            /** @return first entry of iterator that goes over state 1 (presence) only */
             const_presence_iterator presence_begin() const noexcept
             {
                 return const_presence_iterator(this);
             }
 
+            /** @return end of presence iterator */
             const_presence_iterator presence_end() const noexcept
             {
                 return const_presence_iterator();
             }
 
-            /**@return index of first bit that is set, or `nil_c` if no bits*/
+            /** @return index of first bit that is set, or `nil_c` if no bits*/
             constexpr inline dim_t first_set() const noexcept
             {
                 for (auto i = 0; i < N; ++i)
@@ -450,6 +458,7 @@ namespace OP
                 return nil_c;
             }
 
+            /** Count number of bits equal to 1 */
             constexpr inline dim_t count_bits() const noexcept
             {
                 return static_cast<dim_t>(_count_bits(std::make_index_sequence<N>()));
@@ -471,30 +480,34 @@ namespace OP
                 return nil_c;
             }
             
+            /** Get value of bit at position `index` */
             constexpr inline bool get(dim_t index) const noexcept
             {
                 assert(index < bit_length_c);
                 return 0 != (_presence[index / bits_c] & ( 1ULL << (index % bits_c) ));
             }
             
+            /** Set value of bit at position `index` */
             inline void set(dim_t index) noexcept
             {
                 assert(index < bit_length_c);
                 _presence[index / bits_c] |= 1ULL << (index % bits_c);
             }
             
+            /** Set value of bit at position `index` to 0 */
             inline void clear(dim_t index) noexcept
             {
                 assert(index < bit_length_c);
                 _presence[index / bits_c] &= ~(1ULL << (index % bits_c));
             }
             
+            /** Set value of bit at position `index` either to 0 or 1 */
             inline void assign(dim_t index, bool val) noexcept
             {
                 val ? set(index):clear(index);
             }
 
-            /** Invert bit at specified pos. 
+            /** Invert bit at specified `index`.. 
             * @return previous state
             */
             inline bool toggle(dim_t index) noexcept
@@ -504,11 +517,13 @@ namespace OP
                 return !((_presence[index / bits_c] ^= mask) & mask);
             }
 
+            /** Invert all bits in container */
             constexpr void invert_all() noexcept
             {
                 _invert_all(std::make_index_sequence<N>());
             }
 
+            /** Total number of bits in this container. */
             constexpr size_t capacity() const noexcept
             {
                 return bit_length_c;
