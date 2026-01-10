@@ -212,7 +212,7 @@ namespace OP::vtm
         auto indexed_buckets(Q&& query) const
         {
             using namespace OP::flur;
-            auto zhis = shared_from_this();
+            auto zhis = this->shared_from_this();
             return make_lazy_range(
                 for_each_bucket(),
                 then::filter([zhis, query = std::forward<Q>(query)](const bucket_t* bucket, SequenceState& sequence_state) ->bool {
@@ -329,7 +329,7 @@ namespace OP::vtm
         {
             using namespace OP::flur;
             return indexed_buckets(std::forward<Q>(query))
-                >> then::flat_mapping([zhis = shared_from_this()](const bucket_t* bucket) {
+                >> then::flat_mapping([zhis = this->shared_from_this()](const bucket_t* bucket) {
                     auto guard = zhis->shared_mutex(bucket);
                     return src::of_iterators(bucket->data(), bucket->data() + bucket->_size);
                 });
@@ -448,13 +448,13 @@ namespace OP::vtm
             using namespace OP::flur;
             using unreq_query_t = std::decay_t<Q>;
 
-            std::shared_ptr<this_t> zhis = shared_from_this();
+            std::shared_ptr<this_t> zhis = this->shared_from_this();
             
             return make_lazy_range(
                 OP::flur::SimpleFactory<AsyScan<unreq_query_t>, std::shared_ptr<this_t>, unreq_query_t>{
                     zhis, std::move(query)
                 },
-                then::flat_mapping([zhis = shared_from_this()](const bucket_t* bucket) {
+                then::flat_mapping([zhis = this->shared_from_this()](const bucket_t* bucket) {
                     auto guard = zhis->shared_mutex(bucket);
                     return src::of_iterators(bucket->data(), bucket->data() + bucket->_size);
                     })
@@ -472,7 +472,7 @@ namespace OP::vtm
             std::atomic_bool done = false;
             auto producer_job = _append_log->thread_pool().async([this]() {
                 for_each_bucket([&](const bucket_t& bucket) { 
-                    ValueGuard<std::atomic_bool, bool> turn_true(done, true); //ensure true at exit to indicate stop for outer thread
+                    raii::ValueGuard<std::atomic_bool, bool> turn_true(done, true); //ensure true at exit to indicate stop for outer thread
                     BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
                         BucketNavigation nav = BucketNavigation::worth;
                         (((nav = indexer.check(query)) == BucketNavigation::not_sure) && ...);
