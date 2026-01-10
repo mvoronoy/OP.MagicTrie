@@ -198,7 +198,7 @@ namespace OP::vtm
 
         mutable std::array<std::shared_mutex, 7> _bucket_acc;
 
-        constexpr auto for_each_bucket() const
+        auto for_each_bucket() const
         {
             std::shared_ptr<this_t> zhis = std::const_pointer_cast<this_t>(this->shared_from_this());
             r_guard_t g(_header_acc); // just to read start pos
@@ -209,7 +209,7 @@ namespace OP::vtm
         }
 
         template <class Q>
-        constexpr auto indexed_buckets(Q&& query) const
+        auto indexed_buckets(Q&& query) const
         {
             using namespace OP::flur;
             auto zhis = shared_from_this();

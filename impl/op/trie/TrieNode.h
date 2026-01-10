@@ -127,7 +127,7 @@ namespace OP
                 ++_version;
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
-                smm::SmartStringAddress stem_addr;
+                stem_str_address_t stem_addr;
                 if (erase_data)
                 {
                     assert(presence(key));
