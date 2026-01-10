@@ -17,6 +17,7 @@ namespace OP::trie::containers
         static inline constexpr dim_t capacity_c = 256;
         using this_t = AntiHashTable<Payload, ParentInfo>;
         using base_t = KeyValueContainer<Payload, ParentInfo>;
+        using FarAddress = vtm::FarAddress;
 
         using persisted_table_t = vtm::PersistedArray<Payload>;
         using const_persisted_table_t = vtm::ConstantPersistedArray<Payload>;

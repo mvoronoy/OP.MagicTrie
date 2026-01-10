@@ -81,14 +81,14 @@ namespace OP::trie::store_converter
         template <class TTopology>
         static void serialize(TTopology& topology, const type_t& source, storage_type_t& dest)
         {
-            StringMemoryManager memmngr(topology);
+            vtm::StringMemoryManager memmngr(topology);
             dest = memmngr.smart_insert(source);
         }
 
         template <class TTopology>
         static void reassign(TTopology& topology, const type_t& source, storage_type_t& dest)
         {
-            StringMemoryManager memmngr(topology);
+            vtm::StringMemoryManager memmngr(topology);
             if(!dest.is_nil()) 
                 memmngr.destroy(dest);    
             dest = memmngr.smart_insert(source);
@@ -97,7 +97,7 @@ namespace OP::trie::store_converter
         template <class TTopology>
         static type_t deserialize(TTopology& topology, const storage_type_t& source)
         {
-            StringMemoryManager memmngr(topology);
+            vtm::StringMemoryManager memmngr(topology);
             type_t result;
             memmngr.get(source, std::back_inserter(result));
             return result;
@@ -108,7 +108,7 @@ namespace OP::trie::store_converter
         {
             if(!dest.is_nil()) 
             {
-                StringMemoryManager memmngr(topology);
+                vtm::StringMemoryManager memmngr(topology);
                 memmngr.destroy(dest);    
                 dest = {};
             }
@@ -176,7 +176,7 @@ namespace OP::trie::store_converter
         }
 
         template <class T, std::enable_if_t<is_member<T>::value, void*> = nullptr>
-        PersistedVariant(T&& t)
+        explicit PersistedVariant(T&& t) noexcept 
             : _selector(index_of<T>(std::make_index_sequence<sizeof ...(Tx)>{}))
         {
             using arg_t = std::decay_t<T>;
