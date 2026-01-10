@@ -41,7 +41,7 @@ namespace OP::flur
 
         virtual bool in_range() const override
         {
-            return !_end;
+            return !_end && !_seq_state.is_stopped();
         }
 
         virtual element_t current() const override
@@ -60,7 +60,7 @@ namespace OP::flur
         void seek()
         {
             auto& source = details::get_reference(_src);
-            for (; !_end && !(_end = !source.in_range()); source.next())
+            for (; !_end && !_seq_state.is_stopped() && !(_end = !source.in_range()); source.next())
             {
                 using namespace OP::currying;
                 if (recomb_call(_predicate, source.current(), _seq_state))
