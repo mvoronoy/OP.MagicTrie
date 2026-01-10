@@ -281,26 +281,26 @@ namespace OP::utils
         constexpr static std::uint32_t requirement = element_size_c * N;
 
         template <typename Int>
-        static constexpr Int array_size(Int n)
+        static constexpr Int array_size(Int n) noexcept
         {
             return static_cast<Int>(element_size_c) * n;
         }
     };
 
     template <class T, class Y>
-    OP_CONSTEXPR(OP_EMPTY_ARG) inline T align_on(T address, Y base) noexcept
+    constexpr inline T align_on(T address, Y base) noexcept
     {
-        return ((address + base - 1) / base)*base;//(address % base) ? (address + (base - (address % base))) : address;
+        return ((address + base - 1) / base)*base;
     }
         
     template <class T, class Y>
-    OP_CONSTEXPR(OP_EMPTY_ARG) inline std::uint32_t aligned_sizeof(Y base) noexcept
+    constexpr inline std::uint32_t aligned_sizeof(Y base) noexcept
     {
         return align_on(static_cast<std::uint32_t>(memory_requirement<T>::requirement), base);
     }
 
     template <class T, class Y>
-    inline bool is_aligned(T address, Y base)
+    constexpr inline bool is_aligned(T address, Y base) noexcept
     {
         return ((size_t)(address) % base) == 0;
     }
