@@ -306,23 +306,23 @@ namespace OP::vtm
         template <class FCallback>
         void scan_files(FCallback& action)
         {                                                                                          
-            namespace fs = std::filesystem;
-            if (fs::exists(root) && fs::is_directory(root))
-            {
+            //namespace fs = std::filesystem;
+            //if (fs::exists(root) && fs::is_directory(root))
+            //{
 
-                for (auto const& dir_entry : std::filesystem::directory_iterator{_data_dir})
-                {
-                    if (dir_entry.is_regular_file() 
-                        && entry.path().extension() == _file_ext
-                        && OP::utils::subview(entry.path().filename().string(), 0, _file_prefix.size()) == _file_prefix
-                        )
-                    {
-                        paths.emplace_back(entry.path().filename());
-                    }
-                }
-            }
+            //    for (auto const& dir_entry : std::filesystem::directory_iterator{_data_dir})
+            //    {
+            //        if (dir_entry.is_regular_file() 
+            //            && entry.path().extension() == _file_ext
+            //            && OP::utils::subview(entry.path().filename().string(), 0, _file_prefix.size()) == _file_prefix
+            //            )
+            //        {
+            //            paths.emplace_back(entry.path().filename());
+            //        }
+            //    }
+            //}
 
-            return paths;
+            //return paths;
         } 
 
         OP::utils::ThreadPool& _thread_pool;
