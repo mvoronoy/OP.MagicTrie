@@ -71,7 +71,7 @@ namespace OP::trie
             {
                 auto& heap_manager = topology.template slot<vtm::HeapManagerSlot> ();
                 auto address = heap_manager.allocate(
-                    memory_requirement<payload_t>::requirement);
+                    utils::memory_requirement<payload_t>::requirement);
                 *std::launder(reinterpret_cast<FarAddress*>(storage._data)) = address;
             }
             else
@@ -88,8 +88,9 @@ namespace OP::trie
             {
                 auto& heap_manager = topology.template slot<vtm::HeapManagerSlot>();
                 auto& address = *std::launder(reinterpret_cast<FarAddress*>(storage._data));
-                auto wr_block = resolve_segment_manager(topology).writable_block(address,
-                                        memory_requirement<payload_t>::requirement);
+                auto wr_block = resolve_segment_manager(topology).writable_block(
+                    address,
+                    utils::memory_requirement<payload_t>::requirement);
                 auto& val = *wr_block.template at<payload_t>(0);
                 storage_converter_t::destroy(topology, val);
                 heap_manager.deallocate(address);
@@ -108,7 +109,7 @@ namespace OP::trie
             {
                 auto& address = *std::launder(reinterpret_cast<FarAddress*>(storage._data));
                 auto wr_data = OP::vtm::resolve_segment_manager(tsegment)
-                    .writable_block(address, memory_requirement< payload_t>::requirement);
+                    .writable_block(address, utils::memory_requirement< payload_t>::requirement);
                 payload_callback(*wr_data.template at<payload_t>(0));
             }
             else
@@ -126,7 +127,7 @@ namespace OP::trie
             {
                 const auto& address = *std::launder(reinterpret_cast<const FarAddress*>(storage._data));
                 auto ro_data = OP::vtm::resolve_segment_manager(tsegment)
-                    .readonly_block(address, memory_requirement< payload_t>::requirement);
+                    .readonly_block(address, utils::memory_requirement< payload_t>::requirement);
                 return payload_callback(*ro_data.template at<payload_t>(0));
             }
             else
