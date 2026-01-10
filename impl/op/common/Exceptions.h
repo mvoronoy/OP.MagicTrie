@@ -37,8 +37,23 @@ namespace OP
             return _instance;
         }
     
+        /** \brief For the error category `category` register callback that will be used to resolve human readable 
+        *   definition of error by the error code.
+        *
+        *   \param category - error category that will encode your errors. It should follow `my_error_category * OP::ec_category` formula. 
+        *       For example if you need define 3 error codes create enum as follow \code
+        *           enum MyErrorCodes{
+        *               category = 5 * OP::ec_category,
+        *               my_error_1, //aka 0x50001
+        *               my_error_2, //aka 0x50002
+        *               my_error_3 //aka 0x50003
+        *           };
+        *       \endcode
+        *       There 5 is a category.
+        *   \throws std::runtime_error on category duplicate.
+        */
         template <class F>
-        [[maybe_ignored]] bool register_error_category(unsigned category, F callback)
+        [[maybe_unused]] bool register_error_category(unsigned category, F callback)
         {
             std::unique_lock guard(_registered_categories_acc);
             auto [prev, succ] = _registered_categories.try_emplace(category, callback_t(std::move(callback)));
@@ -51,6 +66,14 @@ namespace OP
             return true;
         }
 
+        /** \brief take text description by error_code.
+        *
+        *   \param error_code - constant in form of `error_category * OP::ec_category + internal_error_code`. 
+        *       Where error_category previously registered by #register_error_category method.
+        *   \param extra_args - optional arguments that will be appended one by one to the result string. Internally
+        *       it uses std::ostringstream, so argument can be anything what support `<<` operator, including primitives
+        *       or iomanip patterns like `std::hex`, `std::setfill`...
+        */
         template <class ...Tx>
         std::string format_error(unsigned error_code, const Tx&...extra_args) const
         {
@@ -73,6 +96,7 @@ namespace OP
 
             return os.str();
         }
+
     private:
         ErrorDecoderRegistry() = default;
         ErrorDecoderRegistry(const ErrorDecoderRegistry&) = delete;
