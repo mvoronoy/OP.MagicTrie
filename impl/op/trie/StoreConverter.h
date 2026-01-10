@@ -76,7 +76,7 @@ namespace OP::trie::store_converter
     {
         using type_t = std::string;
 
-        using storage_type_t = smm::SmartStringAddress<>;
+        using storage_type_t = OP::vtm::smm::SmartStringAddress<>;
 
         template <class TTopology>
         static void serialize(TTopology& topology, const type_t& source, storage_type_t& dest)

@@ -26,6 +26,7 @@ namespace OP::trie
         using this_t = TrieIterator<Container>;
 
         using atom_t = OP::common::atom_t;
+        using dim_t = OP::vtm::dim_t;
 
     private:
         friend Container;
@@ -163,7 +164,7 @@ namespace OP::trie
         template <class Iterator>
         void update_stem(Iterator begin, Iterator end)
         {
-            assert( _position_stack.back()._stem_size == dim_nil_c );
+            assert( _position_stack.back()._stem_size == vtm::dim_nil_c );
             auto size = end - begin;
             assert(size < std::numeric_limits<dim_t>::max());
             _position_stack.back()._stem_size = static_cast<dim_t>(size);

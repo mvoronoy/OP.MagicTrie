@@ -7,12 +7,15 @@ namespace OP
 {
     namespace trie
     {
-        using namespace ::OP::utils;
         /**
         *   Small slot to keep arbitrary Trie information in 0 segment
         */
-        struct TrieResidence : public Slot
+        struct TrieResidence : public vtm::Slot
         {
+            using FarAddress = vtm::FarAddress;
+            using segment_idx_t = vtm::segment_idx_t;
+            using segment_pos_t = vtm::segment_pos_t;
+
             /** Plain data structure to store metainformation of trie */
             struct TrieHeader
             {
@@ -35,7 +38,7 @@ namespace OP
             template <class TSegmentManager, class Payload, class TKeyString, std::uint32_t initial_node_count>
             friend struct Trie;
         
-            explicit TrieResidence(SegmentManager& manager) noexcept
+            explicit TrieResidence(vtm::SegmentManager& manager) noexcept
                 : Slot(manager)
             {
             }
@@ -44,7 +47,7 @@ namespace OP
             TrieHeader get_header() const
             {
                 return
-                    *view<TrieHeader>(segment_manager(), _segment_address);
+                    *vtm::view<TrieHeader>(segment_manager(), _segment_address);
             }
 
         private:
@@ -53,13 +56,13 @@ namespace OP
         protected:
             /**
             *   Set new root node for Trie
-            * \throws TransactionIsNotStarted if method called outside of transaction scope
+            * \throws OP::Exception if method called outside of transaction scope
             * \tparam F - callback in the form `void(TrieHeader&)`
             */
             template <class F>
             void update(F callback)
             {
-                auto wr = accessor<TrieHeader>(segment_manager(), _segment_address);
+                auto wr = vtm::accessor<TrieHeader>(segment_manager(), _segment_address);
                 callback(*wr);
             }
 
@@ -76,7 +79,7 @@ namespace OP
             segment_pos_t byte_size(FarAddress segment_address) const override
             {
                 assert(segment_address.segment() == 0);
-                return memory_requirement<TrieHeader>::requirement;
+                return vtm::memory_requirement<TrieHeader>::requirement;
             }
             
             void on_new_segment(FarAddress segment_address) override
@@ -84,7 +87,7 @@ namespace OP
                 assert(segment_address.segment() == 0);
                 _segment_address = segment_address;
 
-                *segment_manager().wr_at<TrieHeader>(segment_address, OP::trie::WritableBlockHint::new_c)
+                *segment_manager().wr_at<TrieHeader>(segment_address, OP::vtm::WritableBlockHint::new_c)
                     = TrieHeader(); //init with null
             }
 

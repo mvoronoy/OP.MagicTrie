@@ -10,7 +10,6 @@
 
 namespace OP::trie::containers
 {
-    using namespace OP::vtm;
     /**
     *   \tparam Payload - value that is stored by Trie, it must be plain struct (e.g.
     *       std::is_standard_layout_v<Payload> == true).
@@ -27,6 +26,8 @@ namespace OP::trie::containers
         
         using base_t = KeyValueContainer<Payload, ParentInfo>;
         using atom_t = OP::common::atom_t;
+        using dim_t = vtm::dim_t;
+        using FarAddress = vtm::FarAddress;
 
         virtual ~KeyValueContainer() = default;
         /**

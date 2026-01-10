@@ -40,14 +40,14 @@ namespace OP
             * navigation on trie granted by algorithms of lookup particular byte on node level. Root
             * level (0) always use 256 items to lookup, but for lower levels it can be wasting of the
             * disk and memory space. Lower levels use hash algorithms to locate key entry, these algorithms
-            * works on 8, 32, 64 and 128 table sizes. Overriding this option you can improve heuristic behaviour.
+            * works on 8, 32, 64 and 128 table sizes. Overriding this option you can improve heuristic behavior.
             */
-            dim_t init_node_size(size_t level) const
+            vtm::dim_t init_node_size(size_t level) const
             {
                 return level == 0 ? 256 : _node_size;
             }
         private:
-            dim_t _node_size = 8;
+            vtm::dim_t _node_size = 8;
         };
 
 
@@ -62,6 +62,9 @@ namespace OP
         {
         public:
             using atom_t = OP::common::atom_t;
+            using dim_t = OP::vtm::dim_t;
+            using FarAddress = OP::vtm::FarAddress;
+            using NullableAtom = vtm::NullableAtom;
             using trie_t = Trie<TSegmentManager, TPayloadManager, TKeyString, initial_node_count>;
             using payload_manager_t = TPayloadManager;
             using payload_t = typename payload_manager_t::payload_t;
@@ -113,7 +116,7 @@ namespace OP
             TSegmentManager& segment_manager()
             {
                 return static_cast<TSegmentManager&>(
-                    OP::trie::resolve_segment_manager(*_topology));
+                    OP::vtm::resolve_segment_manager(*_topology));
             }
             
             /**Total number of items*/
@@ -144,7 +147,7 @@ namespace OP
                 auto next_addr = _root;
                 iterator i(this);
                 bool ok = true;
-                auto locator = [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); };
+                auto locator = [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); };
                 do{
                     std::tie(ok, next_addr) = load_iterator(
                         next_addr, i, locator, &iterator::emplace);
@@ -207,7 +210,7 @@ namespace OP
                 {
                     auto [ok, child] = load_iterator(
                         i.rat().address(), i,
-                        [&i](ReadonlyAccess<node_t>& ro_node)
+                        [&i](vtm::ReadonlyAccess<node_t>& ro_node)
                         {
                             //don't optimize i.rat() since iterator updated inside `load_iterator`
                             return ro_node->next((atom_t)i.rat().key());
@@ -220,7 +223,7 @@ namespace OP
                             return;
                         }
                         enter_deep_until_terminal(child, i, 
-                            [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                            [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
                         return;
                     }
                     i.pop();
@@ -270,7 +273,7 @@ namespace OP
                 if (nav == StemCompareResult::string_end) //key partially matches to some prefix
                 { //correct string at the back of iterator
                     auto [ok, child] = load_iterator(i_beg.rat().address(), i_beg,
-                        [&i](ReadonlyAccess<node_t>&) {
+                        [&i](vtm::ReadonlyAccess<node_t>&) {
                             return NullableAtom{ i.rat().key() };
                         },
                         &iterator::update_back);
@@ -278,7 +281,7 @@ namespace OP
                     if (is_not_set(i_beg.rat().terminality(), Terminality::term_has_data))
                     {
                         enter_deep_until_terminal(child, i_beg,
-                            [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                            [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
                     }
                 }
                 else if( nav != StemCompareResult::equals)
@@ -485,7 +488,7 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 return children_navigation(of_this,
-                    [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                    [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
             }
             /**
             *   Get last child element resided below position specified by `of_this`. Since all keys 
@@ -503,7 +506,7 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 return children_navigation(of_this,
-                    [](ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
+                    [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
             }
             /**
             *   @return sequence-factory that embrace all records by pair `[ begin(), end() )` but in more effecient way.
@@ -604,7 +607,7 @@ namespace OP
             auto value_of(position_t pos) const
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true);
-                auto node = view<node_t>(*_topology, pos.address());
+                auto node = vtm::view<node_t>(*_topology, pos.address());
                 if (pos.key() < dim_t{ 256 })
                 {
                     return node->get_value(*_topology, (atom_t)pos.key(), [this](const auto& ref){
@@ -871,7 +874,7 @@ namespace OP
                     return counter;
                 }
                 // here iterator definitely has a child
-                auto parent_wr_node = accessor<node_t>(*_topology, rat.address());
+                auto parent_wr_node = vtm::accessor<node_t>(*_topology, rat.address());
 
                 std::stack<FarAddress> to_process;
                 to_process.push(parent_wr_node->get_child(
@@ -883,7 +886,7 @@ namespace OP
                     auto node_addr = to_process.top();
                     to_process.pop();
 
-                    auto wr_node = accessor<node_t>(*_topology, node_addr);
+                    auto wr_node = vtm::accessor<node_t>(*_topology, node_addr);
                     erased_terminals += wr_node->erase_all(*_topology, to_process);
                     remove_node(wr_node);
                 }
@@ -993,12 +996,13 @@ namespace OP
 
         private:
 
-            using node_manager_t = FixedSizeMemoryManager<node_t, initial_node_count>;
+            using node_manager_t = vtm::FixedSizeMemoryManager<node_t, initial_node_count>;
 
-            using topology_t = SegmentTopology<
+            using topology_t = vtm::SegmentTopology<
                 TrieResidence,
                 node_manager_t,
-                HeapManagerSlot/*Memory manager must go last*/>;
+                vtm::HeapManagerSlot/*Memory manager must go last*/
+            >;
             std::unique_ptr<topology_t> _topology;
 
             /** This variable is a global version indicator, since 
@@ -1035,7 +1039,7 @@ namespace OP
                 auto node_addr = _topology->template slot<node_manager_t> ()
                     .allocate(options.init_node_size(level));
 
-                auto wr_node = accessor<node_t>(*_topology, node_addr);
+                auto wr_node = vtm::accessor<node_t>(*_topology, node_addr);
                 wr_node->create_interior(*_topology);
                 _topology->template slot<TrieResidence>()
                     .update([this](auto& header) {
@@ -1044,7 +1048,7 @@ namespace OP
                 return node_addr;
             }
 
-            void remove_node(WritableAccess<node_t>& wr_node)
+            void remove_node(vtm::WritableAccess<node_t>& wr_node)
             {
                 wr_node->destroy_interior(*_topology);
                 _topology->template slot<node_manager_t>().deallocate(
@@ -1083,8 +1087,8 @@ namespace OP
                 const auto& back = result.rat();
                 assert(back.key() < 256);
                 atom_t key = static_cast<atom_t>(back.key());
-                auto wr_node = accessor<node_t>(*_topology, back.address());
-                assert(back.stem_size() != dim_nil_c );
+                auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
+                assert(back.stem_size() != vtm::dim_nil_c );
                 wr_node->insert(
                     *_topology, key, 
                     result._prefix.end() - back.stem_size(), result._prefix.end(),
@@ -1113,7 +1117,7 @@ namespace OP
             StemCompareResult mismatch(iterator& iter, AtomIterator& begin, AtomIterator end) const
             {
                 using node_data_t = typename node_t::NodeData;
-                StringMemoryManager string_memory_manager(*_topology);
+                vtm::StringMemoryManager string_memory_manager(*_topology);
 
                 StemCompareResult mismatch_result = StemCompareResult::equals;
                 for (FarAddress node_addr = iter.rat().address(); 
@@ -1123,7 +1127,7 @@ namespace OP
                         mismatch_result);)
                 {
                     auto node =
-                        view<node_t>(*_topology, node_addr);
+                        vtm::view<node_t>(*_topology, node_addr);
                     assert(node->magic_word_c == 0x55AA);
 
                     atom_t step_key = *begin++;
@@ -1133,7 +1137,7 @@ namespace OP
                     iter.rat(
                         //address(node_addr),
                         key(step_key),
-                        stem_size(dim_nil_c), //no stem info yet
+                        stem_size(vtm::dim_nil_c), //no stem info yet
                         terminality(
                             (has_value ? Terminality::term_has_data : Terminality::term_no)
                             | (has_child ? Terminality::term_has_child : Terminality::term_no)),
@@ -1207,7 +1211,7 @@ namespace OP
             */
             template <class FValueEval>
             void insert_mismatch_string_end(
-                WritableAccess<node_t>& wr_node,
+                vtm::WritableAccess<node_t>& wr_node,
                 iterator& iter, FValueEval&& f_value_eval)
             {
                 //assert(!wr_node->has_value(step_key));
@@ -1219,7 +1223,7 @@ namespace OP
                     if (!src_entry._stem.is_nil())
                     {
                         auto new_node_addr = new_node(iter.node_count() + 1);
-                        auto target_node = accessor<node_t>(*_topology, new_node_addr);
+                        auto target_node = vtm::accessor<node_t>(*_topology, new_node_addr);
                         wr_node->move_from_entry(*_topology, step_key, src_entry, back.stem_size(), target_node);
                     }
                     assert(!wr_node->has_value(step_key));
@@ -1251,7 +1255,7 @@ namespace OP
                 const auto& back = pos.rat();
                 assert(all_set(back.terminality(), Terminality::term_has_data));
 
-                auto wr_node = accessor<node_t>(*_topology, back.address());
+                auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
                 atom_t up_key = static_cast<atom_t>(back.key());
                 wr_node->raw(*_topology, up_key, [&](auto& node_data) {
                         wr_node->set_raw_factory_value(*_topology, up_key, node_data, [&](auto& dest) {
@@ -1304,7 +1308,7 @@ namespace OP
                 {
                     auto back = iter.rat();//no reference
                     atom_t step_key = static_cast<atom_t>(back.key());
-                    auto wr_node = accessor<node_t>(*_topology, back.address());
+                    auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
 
                     if (mismatch_result == StemCompareResult::string_end)
                     {
@@ -1327,7 +1331,7 @@ namespace OP
                     }
                     else //stem is fully processed
                     {
-                        auto target_node = accessor<node_t>(*_topology, new_node_addr);
+                        auto target_node = vtm::accessor<node_t>(*_topology, new_node_addr);
 
                         wr_node->move_to(*_topology, step_key, back.stem_size(), target_node);
                         iter.rat(
@@ -1354,7 +1358,7 @@ namespace OP
                 for (bool first = true; pos.node_count(); pos.pop(), first = false)
                 {
                     const auto& back = pos.rat();
-                    auto wr_node = accessor<node_t>(*_topology, back.address());
+                    auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
                     if (erase_child_and_exit)
                     {//previous node may leave reference to child
                         wr_node->remove_child(*_topology, static_cast<atom_t>(back.key()));
@@ -1405,7 +1409,7 @@ namespace OP
                     if (!all_set(result_iter.rat().terminality(), Terminality::term_has_child))
                         return false;//no way down
                     const auto& back = result_iter.rat();
-                    next_address = view<node_t>(
+                    next_address = vtm::view<node_t>(
                         *_topology, back.address())
                         ->get_child(*_topology, static_cast<atom_t>(back.key()))
                         ;
@@ -1430,7 +1434,7 @@ namespace OP
                     const auto& back = result_iter.rat();
                     assert(back.key() < dim_t{ 256 });
                     auto addr = new_node(result_iter.node_count());
-                    accessor<node_t>(*_topology, back.address())
+                    vtm::accessor<node_t>(*_topology, back.address())
                         ->set_child(*_topology, static_cast<atom_t>(back.key()), addr);
                     result_iter.push(
                         address(addr)
@@ -1467,7 +1471,7 @@ namespace OP
                 const auto& back = result.rat();
                 assert(back.key() < 256);
                 FarAddress child = back.address();
-                auto ro_node = view<node_t>(*_topology, child);
+                auto ro_node = vtm::view<node_t>(*_topology, child);
                 child = ro_node->get_child(*_topology, 
                     static_cast<atom_t>(back.key()));
                 enter_deep_until_terminal(child, result, locator);
@@ -1510,7 +1514,7 @@ namespace OP
                     auto back = prefix.rat(stem_size(0));//not a reference
                     auto [ok, child] = load_iterator(
                         back.address(), prefix,
-                        [&](ReadonlyAccess<node_t>& ro_node) 
+                        [&](vtm::ReadonlyAccess<node_t>& ro_node)
                         { //on absence of entry just try find bigger in the same node
                             return ro_node->next_or_this(static_cast<atom_t>(back.key()));
                         },
@@ -1526,7 +1530,7 @@ namespace OP
                     if (is_not_set(prefix.rat().terminality(), Terminality::term_has_data))
                     {
                         enter_deep_until_terminal(back.address(), prefix,
-                            [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                            [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
                     }
                     return false; //not an exact match
                 }
@@ -1534,7 +1538,7 @@ namespace OP
                 {
                     auto [ok, child] = load_iterator(
                         prefix.rat().address(), prefix,
-                        [&](ReadonlyAccess<node_t>& ro_node) {
+                        [&](vtm::ReadonlyAccess<node_t>& ro_node) {
                             return NullableAtom{ prefix.rat().key() };
                         },
                         &iterator::update_back);
@@ -1542,7 +1546,7 @@ namespace OP
                     if (is_not_set(prefix.rat().terminality(), Terminality::term_has_data))
                     {
                         enter_deep_until_terminal(child, prefix,
-                            [](ReadonlyAccess<node_t>& ro_node) { 
+                            [](vtm::ReadonlyAccess<node_t>& ro_node) {
                                 return ro_node->first(); 
                             });
                     }
@@ -1576,7 +1580,7 @@ namespace OP
                 //take each node of iterator and check against current version of real node
                 for (const auto& i : it._position_stack)
                 {
-                    auto node = view<node_t>(*_topology, i.address());
+                    auto node = vtm::view<node_t>(*_topology, i.address());
                     if (node->_hash_table.is_nil())
                     {//may be iterator so old, so node have been removed
                         it = end();
@@ -1602,7 +1606,7 @@ namespace OP
                         }
                         return true;
                     }
-                    assert(i.stem_size() != dim_nil_c);
+                    assert(i.stem_size() != vtm::dim_nil_c);
                     prefix_length += i.stem_size() + 1;
                     ++order;
                 }
@@ -1622,7 +1626,7 @@ namespace OP
                 const FarAddress& node_addr, iterator& dest, 
                 FFindEntry pos_locator, FIteratorUpdate iterator_update) const
             {
-                auto ro_node = view<node_t>(*_topology, node_addr);
+                auto ro_node = vtm::view<node_t>(*_topology, node_addr);
                 NullableAtom pos = pos_locator(ro_node);
                 if (!pos)
                 { //no first
@@ -1638,7 +1642,7 @@ namespace OP
                     [&](const auto& node_data) {
                         if (!node_data._stem.is_nil())
                         {//if stem exists should be placed to iterator
-                            StringMemoryManager smm(*_topology);
+                            vtm::StringMemoryManager smm(*_topology);
                             key_t buffer;
                             smm.get(node_data._stem, std::back_inserter(buffer));
                             (dest.*iterator_update)(std::move(root_pos),
@@ -1667,18 +1671,18 @@ namespace OP
                     //try enter deep
                     if (way_down && all_set(back.terminality(), Terminality::term_has_child))
                     {   //get address of child
-                        auto ro_node = view<node_t>(*_topology, back.address());
+                        auto ro_node = vtm::view<node_t>(*_topology, back.address());
                         auto child_addr = ro_node->get_child(
                             *_topology, static_cast<atom_t>(back.key()));
                         enter_deep_until_terminal(child_addr, i, 
-                            [](ReadonlyAccess<node_t>& ro_node) { 
+                            [](vtm::ReadonlyAccess<node_t>& ro_node) {
                                 return ro_node->first(); 
                             });
                         return;
                     }
                     //try navigate right from current position
                     auto [ok, child] = load_iterator(i.rat().address(), i,
-                        [&i](ReadonlyAccess<node_t>& ro_node)
+                        [&i](vtm::ReadonlyAccess<node_t>& ro_node)
                         {
                             //don't optimize `i.rat` since i may change
                             return ro_node->next((atom_t)i.rat().key());
@@ -1691,7 +1695,7 @@ namespace OP
                             return;
                         }
                         enter_deep_until_terminal(child, i,
-                            [](ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                            [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
                         return;
                     }
                     //here since no way neither down nor right

@@ -1074,7 +1074,7 @@ namespace OP::utest
 
             for (auto& suite_decl : _suites)
             {
-                IoFlagGuard stream_guard(suite_decl.second->info());
+                raii::IoFlagGuard stream_guard(suite_decl.second->info());
 
                 suite_decl.second->info()
                     << "==[" << suite_decl.first << "]"
@@ -1451,7 +1451,7 @@ namespace OP::utest
             info() << "\t[" << tcase->id() << "]...\n";
             result.emplace_back( tcase->execute(runtime_vars, _options) );
             auto& last_run = result.back();
-            IoFlagGuard stream_guard(info());
+            raii::IoFlagGuard stream_guard(info());
             info()
                     << "\t[" << tcase->id() << "] done with status:"
                     << "-=[" << last_run.status_to_colored_str()

@@ -18,8 +18,8 @@ namespace OP::trie::containers
         using this_t = AntiHashTable<Payload, ParentInfo>;
         using base_t = KeyValueContainer<Payload, ParentInfo>;
 
-        using persisted_table_t = PersistedArray<Payload>;
-        using const_persisted_table_t = ConstantPersistedArray<Payload>;
+        using persisted_table_t = vtm::PersistedArray<Payload>;
+        using const_persisted_table_t = vtm::ConstantPersistedArray<Payload>;
         using payload_factory_t = typename base_t::FPayloadFactory;
 
         /**
@@ -30,7 +30,7 @@ namespace OP::trie::containers
                 const ParentInfo& node_info,
                 dim_t capacity)
             : _segment_manager(topology.segment_manager())
-            , _heap_manager(topology.template slot<HeapManagerSlot>())
+            , _heap_manager(topology.template slot<vtm::HeapManagerSlot>())
             , _node_info(node_info)
         {
             assert(capacity == capacity_c);
@@ -82,7 +82,7 @@ namespace OP::trie::containers
         {
             if(_node_info.presence(key))
                 return key;
-            return dim_nil_c;
+            return vtm::dim_nil_c;
         }
         
         Payload* get(atom_t key) override
@@ -127,7 +127,7 @@ namespace OP::trie::containers
             
             //iterate only over occupied slots
             for(atom_t key = static_cast<atom_t>(i);
-                i != dim_nil_c;
+                i != vtm::dim_nil_c;
                 i = _node_info.presence_next_set(key), 
                 key = static_cast<atom_t>(i))
             {
@@ -139,8 +139,8 @@ namespace OP::trie::containers
          }
 
     private:
-        SegmentManager& _segment_manager;                
-        HeapManagerSlot& _heap_manager;                
+        vtm::SegmentManager& _segment_manager;
+        vtm::HeapManagerSlot& _heap_manager;
         const ParentInfo& _node_info;
     
     };

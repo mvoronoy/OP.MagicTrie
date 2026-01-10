@@ -23,11 +23,12 @@ namespace OP::trie
     *   \tparam inline_byte_size_limit - byte size to allocate for storage. By default this 
     *       value equals to `sizeof(FarAddress)`
     */
-    template <class Payload, size_t inline_byte_size_limit = sizeof(FarAddress)>
+    template <class Payload, size_t inline_byte_size_limit = sizeof(vtm::FarAddress)>
     struct PlainDataStorage
     {
         using this_t = PlainDataStorage<Payload, inline_byte_size_limit>;
         using payload_t = Payload;
+        using FarAddress = vtm::FarAddress;
 
         constexpr static size_t inline_byte_size_limit_c = inline_byte_size_limit;
 
@@ -54,7 +55,7 @@ namespace OP::trie
     *   \tparam inline_byte_size_limit - byte size to allocate for storage. By default this 
     *       value equals to `sizeof(FarAddress)`
     */
-    template <class Payload, size_t inline_byte_size_limit = sizeof(FarAddress)>
+    template <class Payload, size_t inline_byte_size_limit = sizeof(vtm::FarAddress)>
     struct PlainValueManager
     {
         using source_payload_t = Payload;

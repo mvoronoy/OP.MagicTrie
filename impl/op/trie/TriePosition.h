@@ -8,7 +8,6 @@
 
 namespace OP::trie
 {    
-    using namespace OP::vtm;
     /** Decodes if TriePosition points to value, children or combination of this or nothing of this
     */
     enum class Terminality : std::uint8_t
@@ -97,10 +96,13 @@ namespace OP::trie
 
     struct TriePosition
     {
+        using dim_t = vtm::dim_t;
+        using FarAddress = vtm::FarAddress;
+
         constexpr TriePosition() noexcept = default;
 
         template <class ... Tx>
-        TriePosition(TriePositionArg<Tx>&& ... tx) noexcept
+        explicit TriePosition(TriePositionArg<Tx>&& ... tx) noexcept
         {
             (tx(*this), ... );
         }
@@ -151,9 +153,9 @@ namespace OP::trie
 
         FarAddress _node_addr = {};
         /**horizontal position in node*/
-        dim_t _key = dim_nil_c;
+        dim_t _key = vtm::dim_nil_c;
         /** Vertical position in node, for nodes without stem it is dim_nil_c*/
-        dim_t _stem_size = dim_nil_c;
+        dim_t _stem_size = vtm::dim_nil_c;
         Terminality _terminality = Terminality::term_no;
         node_version_t _version = ~node_version_t{};
         
@@ -167,9 +169,9 @@ namespace OP::trie
     };
 
     template <>
-    struct TriePositionArg<FarAddress>
+    struct TriePositionArg<vtm::FarAddress>
     {
-        FarAddress _t;
+        vtm::FarAddress _t;
         void operator()(TriePosition& target){ target._node_addr = _t; }
     };
 
@@ -202,13 +204,13 @@ namespace OP::trie
     };
 
     template <>
-    struct TriePositionArg<dim_t>
+    struct TriePositionArg<vtm::dim_t>
     {
-        dim_t _t;
+        vtm::dim_t _t;
         void operator()(TriePosition& target)
         {
             //be aware! something already changed stem size 
-            assert( target._stem_size == dim_nil_c );
+            assert( target._stem_size == vtm::dim_nil_c );
             target._stem_size = _t; 
         }
     };
@@ -226,9 +228,9 @@ namespace OP::trie
         return TriePositionArg<OP::common::atom_t>{c};
     }
 
-    inline auto address(FarAddress addr)
+    inline auto address(vtm::FarAddress addr)
     {
-        return TriePositionArg<FarAddress>{std::move(addr)};
+        return TriePositionArg<vtm::FarAddress>{std::move(addr)};
     }
 
     inline auto terminality(Terminality c)
@@ -249,9 +251,9 @@ namespace OP::trie
         return arg_t{c, arg_t::Op::disjunct};
     }
 
-    inline auto stem_size(dim_t c)
+    inline auto stem_size(vtm::dim_t c)
     {
-        return TriePositionArg<dim_t>{c};
+        return TriePositionArg<vtm::dim_t>{c};
     }
 
     inline auto node_version(node_version_t c)

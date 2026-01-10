@@ -227,20 +227,6 @@ namespace OP::vtm
             slots_t _slots;
             segments_ptr_t _segments;
         };
-        /** Helper SFINAE to discover if target `T` has member method segment_manager() to resolve SegmentManager. 
-        * Use:\code
-        * has_segment_manager_accessor<T>::has_c 
-        *\endcode
-        */
-        template<typename T>
-        class has_segment_manager_accessor
-        {
-            template<typename U, SegmentManager&(U::*)() > struct SFINAE {};
-            template<typename U> static std::true_type test(SFINAE<U, &U::segment_manager>*);
-            template<typename U> static std::false_type test(...);
-        public:
-            static const bool has_c = decltype(test<T>(0))::value;
-        };
         
         /**Resolver of SegmentManager from class instance that has accessor `segment_manager()`. */
         template <class T>

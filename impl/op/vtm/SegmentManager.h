@@ -24,9 +24,11 @@
 #include <op/vtm/MemoryChunks.h>
 #include <op/vtm/SegmentHelper.h>
 
+#include <op/vtm/vtm_error.h>
+
 namespace OP::vtm
 {
-        using namespace boost::interprocess;
+        namespace bip = boost::interprocess;
         
         struct SegmentManager;
 
@@ -42,15 +44,9 @@ namespace OP::vtm
 
         struct SegmentOptions
         {
-            SegmentOptions() :
-                _memory_alignment(SegmentHeader::align_c)
+            SegmentOptions() 
+                :_segment_size(1) //assume reasonable value will be assigned later
             {
-                segment_size(1);
-            }
-
-            segment_pos_t memory_alignment() const
-            {
-                return _memory_alignment;
             }
 
             /**
@@ -71,14 +67,14 @@ namespace OP::vtm
                 return *this;
             }
 
-            /**@return result size that obtained from user prefeence either of #segment_size(segment_pos_t hint) or #heuristic_size and alligned for OS-depended
+            /**@return result size that obtained from user preference either of #segment_size(segment_pos_t hint) or #heuristic_size and alligned for OS-depended
             *   page size
             */
             segment_pos_t segment_size() const
             {
                 auto r = _segment_size;
 
-                size_t min_page_size = boost::interprocess::mapped_region::get_page_size();
+                size_t min_page_size = bip::mapped_region::get_page_size();
                 r = OP::utils::align_on(r, static_cast<segment_pos_t>(min_page_size));
 
                 return r;
@@ -109,7 +105,6 @@ namespace OP::vtm
             }
 
             segment_pos_t _segment_size;
-            segment_pos_t _memory_alignment;
         };
 
         /**Namespace place together utilities to evaluate size of segment in heuristic way. Each item from namespace can be an argument to SegmentOptions::heuristic_size*/
@@ -123,13 +118,14 @@ namespace OP::vtm
             *\endcode
             */
             template <class T, size_t n>
-            inline size_t of_array(const SegmentOptions& previous)
+            constexpr inline size_t of_array(const SegmentOptions& previous) noexcept
             {
                 return
                     OP::utils::align_on(
-                        OP::utils::memory_requirement<T, n>::requirement, previous.memory_alignment()
-                    ) + previous.memory_alignment()/*for memory-control-structure*/;
+                        OP::utils::memory_requirement<T, n>::requirement, SegmentHeader::align_c
+                    ) + SegmentHeader::align_c/*for memory-control-structure*/;
             }
+
             template <class T>
             struct of_array_dyn
             {
@@ -142,8 +138,8 @@ namespace OP::vtm
                 {
                     return
                         OP::utils::align_on(
-                            OP::utils::memory_requirement<T>::array_size(_count), previous.memory_alignment()) 
-                        + previous.memory_alignment()/*for memory-control-structure*/;
+                            OP::utils::memory_requirement<T>::array_size(_count), SegmentHeader::align_c) 
+                        + SegmentHeader::align_c/*for memory-control-structure*/;
                 }
             private:
                 size_t _count;
@@ -157,7 +153,7 @@ namespace OP::vtm
             template <class T, size_t n = 1>
             inline size_t of_assorted(const SegmentOptions& previous)
             {
-                return n*(OP::utils::aligned_sizeof<T>(previous.memory_alignment()) + previous.memory_alignment());
+                return n*(OP::utils::aligned_sizeof<T>(SegmentHeader::align_c) + SegmentHeader::align_c);
             }
             /**Increase total amount of already reserved bytes by some percentage value. Used with SegmentOptions::heuristic_size. For example:
             *\code
@@ -191,28 +187,46 @@ namespace OP::vtm
 
             virtual ~SegmentManager() = default;
 
-            template <class Manager>
+            template <class Manager, class ...Ax>
             static std::shared_ptr<Manager> create_new(const char * file_name,
-                const SegmentOptions& options = SegmentOptions())
+                const SegmentOptions& options, Ax&& ...extra_args)
             {
-                auto result = std::shared_ptr<Manager>(
-                    new Manager(file_name, true, false));
-                result->_segment_size = options.segment_size();
-                return result;
+                using io = std::ios_base;
+                //file is opened always in RW mode
+
+                auto file = open_file(file_name, io::in | io::out | io::binary | io::trunc);
+                return std::shared_ptr<Manager>(
+                    new Manager(
+                        file_name, 
+                        std::move(file),
+                        make_file_mapping(file_name), 
+                        options.segment_size(), 
+                        std::forward<Ax>(extra_args)...)
+                );
             }
 
-            template <class Manager>
-            static std::shared_ptr<Manager> open(const char * file_name)
+            template <class Manager, class ...Ax>
+            static std::shared_ptr<Manager> open(const char * file_name, Ax&&...ax)
             {
+                using io = std::ios_base;
+                auto file = open_file(file_name, io::in | io::out | io::binary);
+
                 auto result = std::shared_ptr<Manager>(
-                    new Manager(file_name, false, false));
+                    new Manager(
+                        file_name, 
+                        std::move(file),
+                        make_file_mapping(file_name), 
+                        1/*dummy*/,
+                        std::forward<Ax>(ax)...)
+                );
+
                 //try to read header of segment if previous exists
                 guard_t l(result->_file_lock);
 
                 SegmentHeader header;
                 result->do_read(&header, 1);
                 if (!header.check_signature())
-                    throw trie::Exception(trie::er_invalid_signature, file_name);
+                    throw Exception(vtm::ErrorCodes::er_invalid_signature, file_name);
                 result->_segment_size = header.segment_size();
                 return result;
             }
@@ -226,6 +240,7 @@ namespace OP::vtm
             {
                 return OP::utils::aligned_sizeof<SegmentHeader>(SegmentHeader::align_c);
             }
+
             /** @return address of segment beginning */
             constexpr FarAddress start_address(segment_idx_t index) const noexcept
             {
@@ -262,7 +277,7 @@ namespace OP::vtm
             }
             
             /**
-            *   @param hint - default behaviour is to release lock after ReadonlyMemoryChunk destroyed.
+            *   @param hint - default behavior is to release lock after ReadonlyMemoryChunk destroyed.
             * @throws ConcurrentLockException if block is already locked for write
             */
             [[nodiscard]] virtual ReadonlyMemoryChunk readonly_block(
@@ -345,32 +360,18 @@ namespace OP::vtm
             }
 
         protected:
+            using file_t = std::fstream;
 
-            SegmentManager(const char * file_name, bool create_new, bool is_readonly) 
+            SegmentManager(const char * file_name, std::fstream file, bip::file_mapping mapping, segment_idx_t segment_size)
                 : _file_name(file_name)
                 , _cached_segments(10)
                 , _listener(nullptr)
-                , _segment_size{ 0 }//just temp assignment, is overriden on crete/open static methods
+                , _segment_size(segment_size)
+                , _fbuf(std::move(file))
+                , _mapping(std::move(mapping))
             {
-                //file is opened always in RW mode
-                std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary;
-                if(create_new)
-                    mode |=  std::ios_base::trunc;
-
-                _fbuf.open(file_name, mode);
-                if (_fbuf.bad())
-                    throw trie::Exception(trie::er_file_open, file_name);
-
-                //make segment
-                try
-                {
-                    _mapping = file_mapping(file_name, is_readonly ? read_only : read_write);
-                }
-                catch (boost::interprocess::interprocess_exception& e)
-                {
-                    throw trie::Exception(trie::er_memory_mapping, e.what());
-                }
             }
+
             /** Create memory buffer on raw memory, so associated deleter does nothing. */
             ShadowBuffer make_buffer(FarAddress address, size_t size)
             {
@@ -399,7 +400,7 @@ namespace OP::vtm
                     std::stringstream ose;
                     ose << "Cannot write:(" << to_write << ") bytes to file:" << _file_name;
 
-                    throw trie::Exception(trie::er_write_file, ose.str().c_str());
+                    throw Exception(vtm::ErrorCodes::er_write_file, ose.str().c_str());
                 }
                 return *this;
             }
@@ -414,7 +415,7 @@ namespace OP::vtm
                     std::stringstream ose;
                     ose << "Cannot read:(" << to_read << ") bytes from file:" << _file_name;
 
-                    throw trie::Exception(trie::er_read_file, ose.str().c_str());
+                    throw Exception(vtm::ErrorCodes::er_read_file, ose.str().c_str());
                 }
                 return *this;
             }
@@ -463,22 +464,45 @@ namespace OP::vtm
 
         private:
 
-            using file_t = std::fstream;
             /**Per boost documentation file_lock cannot be used between 2 threads (only between process) on POSIX sys, so use named mutex*/
-            typedef std::recursive_mutex file_lock_t;
-            typedef std::lock_guard<file_lock_t> guard_t;
-            uint32_t _segment_size;
-            SegmentEventListener *_listener;
-
-            std::string _file_name;
-            file_t _fbuf;
-            file_lock_t _file_lock;
-            mutable file_mapping _mapping;
-
+            using file_lock_t = std::recursive_mutex;
+            using guard_t = std::lock_guard<file_lock_t> ;
             using cache_region_t = SegmentHelperCache<details::SegmentHelper, segment_idx_t>;
             using slot_address_range_t = Range<const std::uint8_t*, segment_pos_t>;
 
+
+            segment_idx_t _segment_size;
+            SegmentEventListener *_listener;
+            std::string _file_name;
+            file_t _fbuf;
+            mutable bip::file_mapping _mapping;
+            file_lock_t _file_lock;
+                                   
             mutable cache_region_t _cached_segments;
+
+            static bip::file_mapping make_file_mapping(const char* file_name)
+            {
+                try
+                {
+                    return bip::file_mapping(file_name, bip::read_write);
+                }
+                catch (boost::interprocess::interprocess_exception& e)
+                {
+                    throw Exception(vtm::ErrorCodes::er_memory_mapping, e.what());
+                }
+            }
+
+            static file_t open_file(const char* file_name, std::ios_base::openmode mode)
+            {
+                file_t new_file(file_name, mode);
+
+                if (new_file.bad())
+                {
+                    std::system_error sys_err(errno, std::system_category(), file_name);
+                    throw Exception(vtm::ErrorCodes::er_file_open, sys_err.what());
+                }
+                return new_file;
+            }
 
             segment_idx_t allocate_segment()
             {
@@ -491,7 +515,6 @@ namespace OP::vtm
                 do_write(header);
                 //place empty memory block
                 auto current = OP::utils::align_on((std::streamoff)_fbuf.tellp(), SegmentHeader::align_c);
-                //_fbuf.seekp(current);
                 
                 _fbuf.seekp(new_pos + std::streamoff(_segment_size - 1), std::ios_base::beg);
                 _fbuf.put(0);

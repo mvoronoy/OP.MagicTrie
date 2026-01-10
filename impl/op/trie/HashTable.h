@@ -13,6 +13,9 @@ namespace OP::trie::containers
 {
 
     using atom_t = OP::common::atom_t;
+    using dim_t = OP::vtm::dim_t;
+    using fast_dim_t = OP::vtm::fast_dim_t;
+
     namespace details
     {
         /**
@@ -127,8 +130,8 @@ namespace OP::trie::containers
             Payload payload = {};
         };
 
-        using persisted_table_t = PersistedArray<Content>;
-        using const_persisted_table_t = ConstantPersistedArray<Content>;
+        using persisted_table_t = vtm::PersistedArray<Content>;
+        using const_persisted_table_t = vtm::ConstantPersistedArray<Content>;
         using payload_factory_t = typename base_t::FPayloadFactory;
 
         /**
@@ -137,7 +140,7 @@ namespace OP::trie::containers
         template <class TSegmentTopology>
         PersistedHashTable(TSegmentTopology& topology, const ParentInfo& node_info, dim_t capacity)
             : _segment_manager(topology.segment_manager())
-            , _heap_manager(topology.template slot<HeapManagerSlot>())
+            , _heap_manager(topology.template slot<vtm::HeapManagerSlot>())
             , _node_info(node_info)
             , _capacity(capacity)
         {
@@ -217,14 +220,14 @@ namespace OP::trie::containers
         virtual atom_t reindex(atom_t key) const override 
         {
             auto reindexed = find(key);
-            assert(reindexed != dim_nil_c);
+            assert(reindexed != vtm::dim_nil_c);
             return static_cast<atom_t>(reindexed);
         }
 
         /**Find index of key entry or #end() if nothing found*/
         dim_t find(atom_t key) const override
         {
-            dim_t result = dim_nil_c;
+            dim_t result = vtm::dim_nil_c;
             persisted_table_t ref_data(_node_info.reindex_table());
             auto hash_data = ref_data.cref(_segment_manager, _capacity);
 
@@ -275,7 +278,7 @@ namespace OP::trie::containers
             
             //iterate only over occupied slots
             for(atom_t key = static_cast<atom_t>(i);
-                i != dim_nil_c;
+                i != vtm::dim_nil_c;
                 i = _node_info.presence_next_set(key), 
                 key = static_cast<atom_t>(i))
             {
@@ -327,7 +330,7 @@ namespace OP::trie::containers
                 ++hash %= _capacity; //try next slot, but keep in boundary
             }
             //has no enough place
-            return std::make_pair(dim_nil_c, false); //no capacity
+            return std::make_pair(vtm::dim_nil_c, false); //no capacity
         }
         
         template <class TableRef, class FCollect >
@@ -410,8 +413,8 @@ namespace OP::trie::containers
         }
 
     private:
-        SegmentManager& _segment_manager;
-        HeapManagerSlot& _heap_manager;
+        vtm::SegmentManager& _segment_manager;
+        vtm::HeapManagerSlot& _heap_manager;
         const ParentInfo& _node_info;
         const dim_t _capacity;
     };

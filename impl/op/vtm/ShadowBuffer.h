@@ -9,7 +9,7 @@
 namespace OP::vtm
 {
     /** Simple byte buffer allocated on heap. It similar to std::unique_ptr, but allows to create
-    * non-owning 'ghost'. Used as element for #ShadowBufferCache contianer to allow quick reuse memory
+    * non-owning 'ghost'. Used as element for #ShadowBufferCache container to allow quick reuse memory
     * using size as a key.  
     */
     struct ShadowBuffer

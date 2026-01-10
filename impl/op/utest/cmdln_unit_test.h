@@ -115,7 +115,7 @@ namespace OP::utest::cmdline
         opts.fail_fast(fail_fast);
         OP::utest::TestRun::default_instance().options() = opts;
         // keep origin out formatting
-        IoFlagGuard cout_flags(std::cout);
+        raii::IoFlagGuard cout_flags(std::cout);
         //std::set_terminate([]() {
         //    std::cerr << "fatal termination happened...\n";
         //    });
@@ -149,7 +149,7 @@ namespace OP::utest::cmdline
         {
             if(std::get<size_t>(agg))
             {
-                IoFlagGuard cout_flags(std::cout);
+                raii::IoFlagGuard cout_flags(std::cout);
                 std::cout
                     << "\t" << TestResult::status_to_colored_str(std::get < TestResult::Status > (agg))
                     << std::setfill('-') << std::setw(10)

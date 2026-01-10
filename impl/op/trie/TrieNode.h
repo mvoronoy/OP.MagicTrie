@@ -24,18 +24,21 @@ namespace OP
             using payload_manager_t = PayloadManager;
             using this_t = TrieNode<payload_manager_t>;
             using atom_t = OP::common::atom_t;
+            using NullableAtom = OP::vtm::NullableAtom;
+            using dim_t = OP::vtm::dim_t;
+            using FarAddress = OP::vtm::FarAddress;
             using atom_string_t = OP::common::atom_string_t;
             using atom_string_view_t = OP::common::atom_string_view_t;
             using payload_t = typename payload_manager_t::payload_t;
             using data_storage_t = typename payload_manager_t::data_storage_t;
-            using stem_str_address_t = smm::SmartStringAddress<>;
+            using stem_str_address_t = vtm::smm::SmartStringAddress<>;
 
             /*declare 256-bit presence bitset*/
             using presence_t = Bitset<4, std::uint64_t>;
 
             struct NodeData
             {
-                FarAddress _child = {};
+                vtm::FarAddress _child = {};
                 stem_str_address_t _stem = {};
                 data_storage_t _value = {};
             };
@@ -97,7 +100,7 @@ namespace OP
                             _value_presence.set(key);
                             if (begin != end)
                             {
-                                StringMemoryManager str_manager(topology);
+                                vtm::StringMemoryManager str_manager(topology);
                                 auto size = end - begin;
                                 assert(size <
                                     std::numeric_limits<dim_t>::max() - 1);
@@ -109,7 +112,7 @@ namespace OP
                     if (success)
                         break;
 
-                    assert(hash == dim_nil_c);//only possible reason to be there - capacity is over
+                    assert(hash == vtm::dim_nil_c);//only possible reason to be there - capacity is over
                     grow(topology, *container);
                 }
                 ++_version;
@@ -148,7 +151,7 @@ namespace OP
 
                 if (!stem_addr.is_nil())
                 {
-                    StringMemoryManager smm(topology);
+                    vtm::StringMemoryManager smm(topology);
                     smm.destroy(stem_addr);
                 }
 
@@ -159,7 +162,7 @@ namespace OP
 
             /**
             *   Frees content of this node and give a caller addresses of all descendant children.
-            *   So without recursion caller can destroy children afterall.
+            *   So without recursion caller can destroy children after all.
             *   Node is not destroyed.
             *   @return number of data-slots destroyed
             */
@@ -169,9 +172,9 @@ namespace OP
                 size_t data_slots = 0;
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
-                StringMemoryManager string_memory_manager(topology);
+                vtm::StringMemoryManager string_memory_manager(topology);
 
-                for (auto i = presence_first_set(); dim_nil_c != i;
+                for (auto i = presence_first_set(); vtm::dim_nil_c != i;
                     i = presence_next_set(static_cast<atom_t>(i)))
                 {
                     NodeData* node = container->get(static_cast<atom_t>(i));
@@ -360,7 +363,7 @@ namespace OP
             */
             template <class TSegmentTopology>
             void move_to(TSegmentTopology& topology, atom_t key, dim_t in_stem_pos,
-                WritableAccess<this_t>& target_node)
+                vtm::WritableAccess<this_t>& target_node)
             {
                 wrap_key_value_t src_container;
                 kv_container(topology, src_container); //resolve correct instance implemented by this node
@@ -372,14 +375,14 @@ namespace OP
 
             template <class TSegmentTopology>
             void move_from_entry(TSegmentTopology& topology, atom_t source_key, NodeData& source, dim_t in_stem_pos,
-                WritableAccess<this_t>& target_node)
+                vtm::WritableAccess<this_t>& target_node)
             {
                 assert(!source._stem.is_nil()); //call move_to assumes valid stem
 
                 wrap_key_value_t target_container;
                 target_node->kv_container(topology, target_container);
                 //take stem to memory
-                StringMemoryManager str_manager(topology);
+                vtm::StringMemoryManager str_manager(topology);
                 atom_string_t stem_buf;
                 str_manager.get(source._stem, std::back_inserter(stem_buf));
                 assert(in_stem_pos <= stem_buf.size());
@@ -449,9 +452,9 @@ namespace OP
             {
                 dim_t ch_res = _child_presence.first_set();
                 dim_t dt_res = _value_presence.first_set();
-                if (dim_nil_c == ch_res)
+                if (vtm::dim_nil_c == ch_res)
                     return dt_res;
-                if (dim_nil_c == dt_res)
+                if (vtm::dim_nil_c == dt_res)
                     return ch_res;
                 return std::min(dt_res, ch_res);
             }
@@ -460,9 +463,9 @@ namespace OP
             {
                 dim_t ch_res = _child_presence.last_set();
                 dim_t dt_res = _value_presence.last_set();
-                if (dim_nil_c == ch_res)
+                if (vtm::dim_nil_c == ch_res)
                     return dt_res;
-                if (dim_nil_c == dt_res)
+                if (vtm::dim_nil_c == dt_res)
                     return ch_res;
                 return std::max(dt_res, ch_res);
             }
@@ -472,9 +475,9 @@ namespace OP
             {
                 dim_t ch_res = _child_presence.next_set(previous);
                 dim_t dt_res = _value_presence.next_set(previous);
-                if (dim_nil_c == ch_res)
+                if (vtm::dim_nil_c == ch_res)
                     return dt_res;
-                if (dim_nil_c == dt_res)
+                if (vtm::dim_nil_c == dt_res)
                     return ch_res;
                 return std::min(dt_res, ch_res);
             }
@@ -483,9 +486,9 @@ namespace OP
             {
                 dim_t ch_res = _child_presence.next_set_or_this(previous);
                 dim_t dt_res = _value_presence.next_set_or_this(previous);
-                if (dim_nil_c == ch_res)
+                if (vtm::dim_nil_c == ch_res)
                     return dt_res;
-                if (dim_nil_c == dt_res)
+                if (vtm::dim_nil_c == dt_res)
                     return ch_res;
                 return std::min(dt_res, ch_res);
             }
@@ -498,9 +501,9 @@ namespace OP
             using wrap_key_value_t = Multiimplementation<key_value_t, hash_table_t, anti_hash_table_t>;
 
             template <class TSegmentTopology>
-            auto kv_container(TSegmentTopology& topology, wrap_key_value_t& out, dim_t capacity = dim_nil_c) const
+            auto kv_container(TSegmentTopology& topology, wrap_key_value_t& out, dim_t capacity = vtm::dim_nil_c) const
             {
-                if (capacity == dim_nil_c)
+                if (capacity == vtm::dim_nil_c)
                     capacity = _capacity;
                 return (capacity < 256)
                     ? static_cast<key_value_t*>(
@@ -520,7 +523,7 @@ namespace OP
                 assert(node._stem.is_nil());//please check that you don't override existing stem
                 if (end != begin) //first letter considered in `presence`
                 {
-                    StringMemoryManager str_manager(topology);
+                    vtm::StringMemoryManager str_manager(topology);
                     node._stem = str_manager.insert(begin, end);
                     begin = end;
                 }

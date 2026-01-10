@@ -14,809 +14,475 @@
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/Transactional.h>
-#include <op/vtm/ShadowBufferCache.h>
+#include <op/vtm/vtm_error.h>
 
-namespace OP
+namespace OP::vtm
 {
-    using namespace vtm;
-    namespace trie
+    enum class ReadIsolation : std::uint32_t
     {
-        enum class ReadIsolation : std::uint32_t
-        {
-            /** Raise exception on any try to read concurrent. So caller may retry later. */
-            Prevent = 10,
-            /** Concurrent block reads most recent commit */
-            ReadCommitted,
-            /** Concurrent block may read uncommitted data */
-            ReadUncommitted
-        };
+        /** Raise exception on any try to read concurrent. So caller may retry later. */
+        Prevent = 10,
+        /** Concurrent block reads most recent commit */
+        ReadCommitted,
+        /** Concurrent block may read uncommitted data */
+        ReadUncommitted
+    };
 
-        class EventSourcingSegmentManager : public SegmentManager
-        {
-            friend SegmentManager;
-        public:
+    enum class MemoryRequestType : std::uint_fast8_t
+    {
+        /** block allocated but not usable yet*/
+        init = 0,
+        ro,
+        wr,
+        wr_no_history
+    };
 
-            EventSourcingSegmentManager() = delete;
-
-            ~EventSourcingSegmentManager()
-            {
-                _stop_garbage_collector.store(true);
-                if (1 == 1) 
-                {
-                    std::unique_lock acc(_dispose_lock);
-                    _cv_disposer.notify_one();
-                }
-                _garbage_collector.join();
-            }
-
-            /** Change behavior of read, what to do on detection conflict with write blocks of another transaction.
-            \return previous isolation policy
-            */
-            ReadIsolation read_isolation(ReadIsolation new_level)
-            {
-                return _read_isolation.exchange(new_level);
-            }
+    /** \brief Interface to manage storage of history change log.
+    * 
+    * This is supposed to work together with EventSourcingSegmentManager allowing separate memory management operations from
+    * transaction support.
+    */ 
+    struct MemoryChangeHistory
+    {
+        /** Must use 64 * 64 instead of 'segment_pos_t' as a size because merge of 2 segment_pos_t may produce
+        overflow of segment_pos_t */
+        using RWR = OP::Range<far_pos_t, far_pos_t>;
+        using transaction_id_t = typename Transaction::transaction_id_t;
             
-            [[nodiscard]] transaction_ptr_t begin_ro_transaction() 
+        MemoryChangeHistory() noexcept = default;
+        virtual ~MemoryChangeHistory() = default;
+
+        MemoryChangeHistory(const MemoryChangeHistory&) = delete;
+        MemoryChangeHistory(MemoryChangeHistory&&) = delete;
+        MemoryChangeHistory& operator = (const MemoryChangeHistory&) = delete;
+        MemoryChangeHistory& operator =(MemoryChangeHistory&&) = delete;
+
+        /** \brief Inside specific transaction retrieve memory buffer that must be used for 
+        *   read or write operations for logical range.
+        * 
+        * Method takes logical address space `range` and provides buffer where read/write operations
+        * must be performed for specific transaction.
+        * \param range - logical specification of range;
+        * \param tid - transaction id;
+        * \param memory_type - type of memory to return;
+        * \param init_data - optional source buffer to copy initialization data. May be nullptr.
+        */
+        [[nodiscard]] virtual ShadowBuffer allocate(
+            const RWR& range, transaction_id_t tid, MemoryRequestType memory_type, const void* init_data) = 0;
+        /** \brief Destroy previously allocated by #allocate buffer for specific transaction 
+        *
+        * \param tid - transaction id;
+        * \param buffer - buffer to destroy.
+        */
+        virtual void destroy(transaction_id_t tid, ShadowBuffer buffer) = 0;
+
+        /** Change behavior what to do on memory block race condition with another transaction. 
+        * \return previous isolation policy.
+        */
+        [[maybe_unused]] virtual ReadIsolation read_isolation(ReadIsolation new_level) = 0;
+
+        /** 
+        * Notify implementation that transaction going to complete successfully. Method called right after
+        * all change history records were applied to the storage.
+        * 
+        * \param tid - transaction id.
+        */
+        virtual void on_commit(transaction_id_t  tid) = 0;
+
+        /**
+        * Notify implementation that transaction going to rollback.
+        *
+        * \param tid - transaction id.
+        */
+        virtual void on_rollback(transaction_id_t) = 0;
+    };
+
+
+    class EventSourcingSegmentManager : public SegmentManager
+    {
+        friend SegmentManager;
+    public:
+        using transaction_id_t = typename Transaction::transaction_id_t;
+
+        EventSourcingSegmentManager() = delete;
+
+        ~EventSourcingSegmentManager()
+        {
+        }
+
+        [[nodiscard]] transaction_ptr_t begin_ro_transaction() 
+        {
+            const ro_guard_t g(_opened_transactions_lock);
+            if (!_opened_transactions.empty())
             {
-                const ro_guard_t g(_opened_transactions_lock);
-                if (!_opened_transactions.empty())
-                {
-                    throw Exception(er_cannot_start_ro_transaction);
-                }
+                throw Exception(OP::vtm::ErrorCodes::er_cannot_start_ro_transaction);
+            }
+            return transaction_ptr_t(
+                new ReadOnlyTransaction(_transaction_uid_gen.fetch_add(1), *this));
+        }
+
+        [[nodiscard]] transaction_ptr_t begin_transaction() override
+        {
+            wr_guard_t g(_opened_transactions_lock);
+            if (_ro_tran > 0)
+            {//there are already RO-tran in the scope
                 return transaction_ptr_t(
                     new ReadOnlyTransaction(_transaction_uid_gen.fetch_add(1), *this));
             }
-
-            [[nodiscard]] transaction_ptr_t begin_transaction() override
+            auto thread_id = std::this_thread::get_id();
+            auto insres = _opened_transactions.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(thread_id),
+                std::forward_as_tuple());
+            if (insres.second) //just insert
             {
-                wr_guard_t g(_opened_transactions_lock);
-                if (_ro_tran > 0)
-                {//there are already RO-tran in the scope
-                    return transaction_ptr_t(
-                        new ReadOnlyTransaction(_transaction_uid_gen.fetch_add(1), *this));
-                }
-                auto thread_id = std::this_thread::get_id();
-                auto insres = _opened_transactions.emplace(
-                    std::piecewise_construct,
-                    std::forward_as_tuple(thread_id),
-                    std::forward_as_tuple());
-                if (insres.second) //just insert
-                {
-                    insres.first->second = transaction_impl_ptr_t(
-                        new TransactionImpl(_transaction_uid_gen.fetch_add(1), *this));
-                    return insres.first->second;
-                }
-                //transaction already exists, just create save-point
-                if(auto* impl = dynamic_cast<TransactionImpl*>(insres.first->second.get()))
-                    return impl->recursive();
+                insres.first->second = transaction_impl_ptr_t(
+                    new TransactionImpl(_transaction_uid_gen.fetch_add(1), *this));
                 return insres.first->second;
             }
+            //transaction already exists, just create save-point
+            if(auto* impl = dynamic_cast<TransactionImpl*>(insres.first->second.get()))
+                return impl->recursive();
+            return insres.first->second;
+        }
 
-            [[nodiscard]] ReadonlyMemoryChunk readonly_block(
-                FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
-            {
-                assert(pos.segment() == (pos + size).segment());//block must not exceed segment size
-                transaction_impl_ptr_t current_transaction = 
-                    get_current_transaction().static_pointer_cast<TransactionImpl>();
+        [[nodiscard]] ReadonlyMemoryChunk readonly_block(
+            FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
+        {
+            assert(pos.segment() == (pos + size).segment());//block must not exceed segment size
+            transaction_impl_ptr_t current_transaction = 
+                get_current_transaction().static_pointer_cast<TransactionImpl>();
 
-                auto result = SegmentManager::readonly_block(pos, size, hint);
-                if (_ro_tran)
-                    return result;
-                RWR search_range(pos, size);
-                if( !current_transaction )
-                    return readonly_block_no_retain(search_range, std::move(result));
+            auto result = SegmentManager::readonly_block(pos, size, hint);
+            if (_ro_tran)
+                return result;
+            if( !current_transaction ) //no tran
+                return result;
                 
-                //apply all event sourced to `new_buffer`
-                shadow_buffer_t new_buffer = _shadow_buffer_cache.get(result.count());
-                memcpy(new_buffer.get(), result.at<std::uint8_t>(0), result.count()); //first copy origin from disk
-
-                if((hint & ReadonlyBlockHint::ro_keep_lock) == ReadonlyBlockHint::ro_keep_lock)
-                { //need to retain RO block
-
-                    std::unique_lock guard_history_wr(_global_history_acc);
-                    auto new_block_iter = add_global_history(
-                        search_range,
-                        BlockType::ro,
-                        current_transaction->transaction_id(),
-                        std::move(new_buffer),
-                        static_cast<std::uint8_t>(hint)
-                    );
-                    
-                    //guard that BlockType::init will be altered
-                    RAIIBlockGuard block_leaking_guard(*new_block_iter);
-
-                    current_transaction->store(new_block_iter);
-                    guard_history_wr.unlock(); // no more changes of global history list are needed
-                    auto buffer_weak = new_block_iter->_shadow.ghost();
-                    ReadonlyMemoryChunk result(std::move(buffer_weak), size, pos);
-                    std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
-                    poulate_ro_block(search_range, new_block_iter, result, current_transaction->transaction_id());
-                    block_leaking_guard.exchange(BlockType::ro); //ensure block will not be erased until tran end
-                    return result;
-                }
-                else // no retains, just populate buffer with intersected blocks
-                {
-                    std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
-                    ReadonlyMemoryChunk result(std::move(new_buffer), size, pos);
-                    poulate_ro_block(search_range, _global_history.end(), result, current_transaction->transaction_id());
-                    return result;
-                }
-            }
+            RWR search_range(pos, size);
+            //apply all event sourced to `new_buffer`
+            auto buffer = _change_history_manager->allocate(
+                search_range, current_transaction->transaction_id(), 
+                MemoryRequestType::ro, result.at<std::uint8_t>(0));
+            return ReadonlyMemoryChunk(std::move(buffer), size, pos);
+        }
 
 
-            [[nodiscard]] MemoryChunk writable_block(
-                FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
+        [[nodiscard]] MemoryChunk writable_block(
+            FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
+        {
+            assert(pos.segment() == (pos + size).segment());//block must not exceed segment size
+            if( _ro_tran > 0)
             {
-                assert(pos.segment() == (pos + size).segment());//block must not exceed segment size
-                if( _ro_tran > 0)
-                {
-                    throw Exception(er_ro_transaction_started);
-                }
-                transaction_impl_ptr_t current_transaction = 
-                    get_current_transaction().static_pointer_cast<TransactionImpl>();
-                if( !current_transaction ) //write is permitted in transaction scope only
-                    throw Exception(er_transaction_not_started);
+                throw Exception(ErrorCodes::er_ro_transaction_started);
+            }
+            transaction_impl_ptr_t current_transaction = 
+                get_current_transaction().static_pointer_cast<TransactionImpl>();
+            if( !current_transaction ) //write is permitted in transaction scope only
+                throw Exception(ErrorCodes::er_transaction_not_started);
                 
-                auto result = SegmentManager::readonly_block(
-                    pos, size, ReadonlyBlockHint::ro_no_hint_c); //it is not a mistake to use readonly(!)
-                shadow_buffer_t new_buffer = _shadow_buffer_cache.get(result.count()); //try reuse existing buffer
-                if( hint != WritableBlockHint::new_c)
-                {
-                    //first copy origin from disk
-                    memcpy(
-                        new_buffer.get(), result.at<std::uint8_t>(0), result.count()); 
-                }
-                RWR search_range(pos, size);
-
-                // Add to global history WR block
-                std::unique_lock guard_history_wr(_global_history_acc);
-                auto new_block_iter = add_global_history(
-                        search_range,
-                        BlockType::wr,
-                        current_transaction->transaction_id(),
-                        std::move(new_buffer),
-                        static_cast<std::uint8_t>(hint)
-                    );
-                //guard that BlockType::init will be altered to garbage
-                RAIIBlockGuard block_leaking_guard(*new_block_iter);
-
-                current_transaction->store(new_block_iter);
-                guard_history_wr.unlock(); // no more changes of global history list are needed
-
-                std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
-                auto [h_beg, h_end] = narrow_history_log(new_block_iter);
-                // find all previously used block that have any intersection with query
-                // to check if wr- block is allowed
-                for (auto all_iter = h_beg; all_iter != h_end; ++all_iter)
-                {
-                    const auto& block = *all_iter;
-                    if (block._type == BlockType::garbage) //only WR blocks contains changes
-                        continue;
-
-                    auto joined_zone = OP::zones::join_zones(search_range, block._range);
-                    if (joined_zone.empty())
-                        continue;
-                    // existence of ro/wr block type from another transaction is a point to reject
-                    if (block._used_in_transaction != current_transaction->transaction_id())
-                    {//cannot capture because other transaction exists and retain
-                        throw ConcurrentLockException("cannot capture WR-block while it is used in another transaction");
-                    }
-                    //same-tran ro blocks can have retain policy, just ignore
-                    if(block._type != BlockType::wr)
-                        continue;
-                    //apply event sourced to `new_buffer`
-                    /** there are 4 relative positions of intersection existing block and new one:
-                    * 1. existing on left:\code
-                    * [--existing--]
-                    *       [--new--]
-                    * \endcode
-                    * 2. existing on right:\code
-                    *      [--existing--]
-                    * [--new--]
-                    * \endcode
-                    * 3. existing adsorbs new:\code
-                    * [------existing------]
-                    *       [--new--]
-                    * \endcode
-                    * 4. new adsorbs existing:\code
-                    *   [-existing-]
-                    * [------new------]
-                    * \endcode
-                    */
-                    if (hint != WritableBlockHint::new_c)
-                    {
-                        auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), block._range.pos());
-                        assert(offset_in_src >= 0);
-                        auto offset_in_dest = OP::utils::uint_diff_int(joined_zone.pos(), pos.address);
-                        assert(offset_in_dest >= 0);
-                        memcpy(new_block_iter->_shadow.get() + offset_in_dest,
-                               block._shadow.get() + offset_in_src,
-                               joined_zone.count());
-                    }
-                }
-                block_leaking_guard.exchange(BlockType::wr); //ensure block will not be erased until tran end
-
-                shadow_buffer_t buffer_weak = new_block_iter->_shadow.ghost();
-                return MemoryChunk(std::move(buffer_weak), size, pos);
-            }
-
-            [[nodiscard]] MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro) override
-            {
-                return this->writable_block(ro.address(), ro.count());
-            }
-
-        protected:
-            EventSourcingSegmentManager(const char * file_name, bool create_new, bool readonly) 
-                : SegmentManager(file_name, create_new, readonly)
-                , _transaction_uid_gen(121)//just a magic number, actually it can be any number
-                , _garbage_collector(&EventSourcingSegmentManager::collect_garbage, this)
-            {
-
-            }
-
-            virtual transaction_ptr_t get_current_transaction()
-            {
-                //this method can be replaced if compiler supports 'thread_local' keyword
-                const ro_guard_t g(_opened_transactions_lock);
-                auto found = _opened_transactions.find(std::this_thread::get_id());
-                return found == _opened_transactions.end() ? transaction_ptr_t{} : found->second;
-            }
+            RWR search_range(pos, size);
+            auto result = SegmentManager::writable_block(pos, size);
             
-        private:
-
-            using wr_guard_t = std::lock_guard<std::shared_mutex>;
-            using ro_guard_t = std::shared_lock<std::shared_mutex>;
-
-            /** Must use 64 * 64 instead of 'segment_pos_t' as a size because merge of 2 segment_pos_t may produce 
-            overflow of segment_pos_t */
-            using RWR = OP::Range<far_pos_t, far_pos_t>;
-            using shadow_buffer_t = ShadowBuffer;
-
-            enum class BlockType : std::uint_fast8_t
-            {
-                /** block allocated but not usable yet*/
-                init = 0,
-                ro,
-                wr,
-                garbage
-            };
-            /**Properties of captured block in particular transaction*/
-            struct BlockProfile
-            {
-                BlockProfile(
-                    RWR range, 
-                    BlockType type,
-                    Transaction::transaction_id_t used_in_transaction,
-                    std::uint64_t epoch,
-                    shadow_buffer_t shadow,
-                    std::uint8_t flag
-                )
-                    : _range(range)
-                    , _type(type)
-                    , _used_in_transaction(used_in_transaction)
-                    , _epoch(epoch)
-                    , _shadow(std::move(shadow))
-                    , _flag(flag)
-                {
-                }
-
-                /** position/size of block */
-                const RWR _range;
-                /** type of retain readonly/writable (and init state) */ 
-                std::atomic<BlockType> _type = BlockType::init;
-                /** what transaction retains the block */
-                const Transaction::transaction_id_t _used_in_transaction;
-                const std::uint64_t _epoch;
-                /** shadow memory of changes */
-                shadow_buffer_t _shadow;
-                /**additional to _type optional flags either ReadonlyBlockHint or WritableBlockHint */
-                const std::uint8_t _flag;  
-            };
-
-            /** Allows guard just created BlockProfile from memory leaks. If explicit #exchange is not
-            * called block automatically marked to #BlockType::garbage at guard scope exit.
-            */
-            struct RAIIBlockGuard
-            {
-                explicit RAIIBlockGuard(BlockProfile& block)
-                    : _block(block)
-                    , _origin_type(_block._type.load())
-                {
-                }
-
-                ~RAIIBlockGuard()
-                {
-                    if (_origin_type != BlockType::garbage)
-                    {
-                        _block._type = BlockType::garbage;
-                    }
-                }
-
-                /** @return previous block type value. */
-                [[maybe_unused]] BlockType exchange(BlockType new_type)
-                {
-                    auto result = _block._type.exchange(new_type);
-                    _origin_type = BlockType::garbage; //prevent destroying at destructor
-                    return result;
-                }
-
-                BlockProfile& _block;
-                BlockType _origin_type;
-            };
-
-            using history_t = std::list<BlockProfile>;
-            using history_iterator_t = typename history_t::iterator;
-
-            history_t _global_history;
-            std::atomic<std::uint64_t> _epoch{0};
-            mutable std::shared_mutex _global_history_acc;
-
-            enum class TransactionState : std::uint8_t
-            {
-                /** Transaction state when commit/rollbacks are possible and allowed */
-                active = 0,
-                /** Transaction state when only rollbacks are allowed (1) */
-                sealed_rollback_only,
-                /** Transaction state when no other operations are allowed (2) */
-                sealed_noop
-            };
             
-            /** support evolution of TransactionState when commit/rollback happens */
-            static TransactionState& next_state(TransactionState& state) noexcept
-            {
-                return reinterpret_cast<TransactionState&>(
-                    ++reinterpret_cast<std::uint8_t&>(state));
-            }
+            auto buffer = 
+                (hint == WritableBlockHint::new_c) //no need for initial copy
+                ? _change_history_manager->allocate(
+                    search_range, current_transaction->transaction_id(),
+                    MemoryRequestType::wr_no_history, nullptr)
+                :  _change_history_manager->allocate(
+                    search_range, current_transaction->transaction_id(),
+                    MemoryRequestType::wr, result.at<std::uint8_t>(0))
+                ;
 
-            /** Soft implementation of Transaction when caller tries create nested transactions. Mostly
-            * delegates all implementation to the parent `TImpl
-            */ 
-            template <class TImpl>
-            struct SavePoint : public Transaction
-            {
-                using transaction_log_t = decltype(TImpl::_transaction_log); //aka std::vector<history_iterator_t>
-                using log_iterator_t = typename transaction_log_t::iterator;
+            auto ghost = buffer.ghost();
+            current_transaction->store_log_record(std::move(buffer), result.pos());
+            return MemoryChunk(std::move(ghost), size, pos);
+        }
 
-                SavePoint(TImpl* framed_tran)
-                    : Transaction(framed_tran->transaction_id())
-                    , _framed_tran(framed_tran)
-                {
-                    _from = _framed_tran->_transaction_log.size();
-                }
+        [[nodiscard]] MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro) override
+        {
+            return this->writable_block(ro.address(), ro.count());
+        }
 
-                void commit() override
-                {
-                    if(_tr_state >= TransactionState::sealed_rollback_only)
-                        throw Exception(ErrorCode::er_transaction_ghost_state);
-                    bool has_something_to_erase = false;
-                    // No real commit for WR, since save point have to wait until entire transaction complete
-                    // but we can remove all read locks unless ReadonlyBlockHint::ro_keep_lock used
-                    for(auto i = begin(), iend = end(); i != iend; ++i)
-                    {
-                        auto& block = **i;
-                        if(block._type == BlockType::ro //block for read
-                             && !(block._flag & (std::uint8_t)ReadonlyBlockHint::ro_keep_lock) //keep lock in tran
-                           )
-                        {
-                            block._type = BlockType::garbage; //mark block as garbage for future wipe
-                            has_something_to_erase = true;
-                        }
-                    }
-                    if(has_something_to_erase)
-                        _framed_tran->_owner._cv_disposer.notify_one();
-                    next_state(_tr_state); //disable changes in this
-                }
+        [[nodiscard]] std::shared_ptr<MemoryChangeHistory> history_manager()
+        {
+            return _change_history_manager;
+        }
+    protected:
+        EventSourcingSegmentManager(
+            const char* file_name, 
+            std::fstream file, 
+            bip::file_mapping mapping, 
+            segment_idx_t segment_size,
+            std::shared_ptr<MemoryChangeHistory> _history_manager
+            ) 
+            : SegmentManager(file_name, std::move(file), std::move(mapping), segment_size)
+            , _transaction_uid_gen(121)//just a magic number, actually it can be any number
+            , _change_history_manager(std::move(_history_manager))
+        {
 
-                void rollback() override
-                {
-                    if(_tr_state >= TransactionState::sealed_noop)
-                        throw Exception(ErrorCode::er_transaction_ghost_state);
-                    bool has_something_to_erase = false;
-                    for (auto i = begin(), iend = end(); i != iend; ++i)
-                    {
-                        auto& block = **i;
-                        /* on rollback remove all collected in this scope blocks*/
-                        block._type = BlockType::garbage; //mark block as garbage for future wipe
-                        has_something_to_erase = true;
-                    }
+        }
 
-                    if (has_something_to_erase)
-                        _framed_tran->_owner._cv_disposer.notify_one();
-                    next_state(_tr_state);
-                }
-
-                log_iterator_t begin() const
-                {
-                    return _framed_tran->_transaction_log.begin() + _from;
-                }
-
-                log_iterator_t end() const
-                {
-                    return _framed_tran->_transaction_log.end();
-                }
-                /** delegate call to the framed transaction */
-                void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
-                {
-                    _framed_tran->register_handle(std::move(handler));
-                }
-                
-                TImpl* _framed_tran;
-                size_t _from;
-                /**After commit/rollback SavePoint must not be used anymore*/
-                TransactionState _tr_state = TransactionState::active;
-            };
+        virtual transaction_ptr_t get_current_transaction()
+        {
+            //this method can be replaced if compiler supports 'thread_local' keyword
+            const ro_guard_t g(_opened_transactions_lock);
+            auto found = _opened_transactions.find(std::this_thread::get_id());
+            return found == _opened_transactions.end() ? transaction_ptr_t{} : found->second;
+        }
             
-            /** Implement Transaction interface */
-            struct TransactionImpl : public Transaction
-            {
-                TransactionImpl(transaction_id_t id, EventSourcingSegmentManager& owner) noexcept
-                    : Transaction(id)
-                    , _owner(owner)
-                {
-                }
+    private:
 
-                /**Client code may claim nested transaction. Instead of real transaction just provide save-point
-                * @return new instance of SavePoint with the same transaction-id as current one
-                */
-                transaction_ptr_t recursive()
-                {
-                    return transaction_ptr_t{ new SavePoint{this} };
-                }
+        using wr_guard_t = std::lock_guard<std::shared_mutex>;
+        using ro_guard_t = std::shared_lock<std::shared_mutex>;
 
-                /**Form transaction log*/
-                void store(history_iterator_t block)
-                {
-                    if(_tr_state != TransactionState::active)
-                        throw Exception(ErrorCode::er_transaction_ghost_state);
-                    _transaction_log.emplace_back(std::move(block));
-                }
-                
-                virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
-                {
-                    _end_listener.emplace_back(std::move(handler));
-                }
-                
-                void rollback() override
-                {
-                    if(_tr_state >= TransactionState::sealed_noop)
-                        throw Exception(ErrorCode::er_transaction_ghost_state);
-                    //invoke events on transaction end
-                    for (auto& ev : _end_listener)
-                    {
-                        ev->on_rollback();
-                    }
-
-                    for(auto& block_iter: _transaction_log)
-                    {
-                        auto& block = *block_iter;
-                        block._type = BlockType::garbage;
-                    }
-
-                    //notify background worker to dispose this tran
-                    _owner.dispose_transaction(transaction_ptr_t{ TransactionShareMode{}, this });
-                }
-
-                void commit() override
-                {
-                    if(_tr_state >= TransactionState::sealed_rollback_only)
-                        throw Exception(ErrorCode::er_transaction_ghost_state);
-                    //invoke events on transaction end
-                    for (auto& ev : _end_listener)
-                    {
-                        ev->on_commit();
-                    }
-
-                    for (auto& block_iter : _transaction_log)
-                    {
-                        auto& block = *block_iter;
-                        if(block._type == BlockType::wr)
-                        { //write-out changes
-                            segment_pos_t byte_size = static_cast<segment_pos_t>(block._range.count());
-                            auto mb = _owner.raw_writable_block(
-                                FarAddress(block._range.pos()),
-                                byte_size,
-                                (WritableBlockHint)block._flag);
-                            mb.byte_copy(block._shadow.get(), byte_size);
-                        }
-                        block._type = BlockType::garbage;
-                    }
-
-                    //notify background worker to dispose this tran
-                    _owner.dispose_transaction(transaction_ptr_t{ TransactionShareMode{}, this });
-
-                }
-                
-                /**Allows discover state if transaction still exists (not in ghost state) */
-                bool is_active() const
-                {
-                    return _tr_state == TransactionState::active;
-                }
-                
-                EventSourcingSegmentManager& _owner;
-
-                using transaction_end_listener_t = std::vector<std::unique_ptr<BeforeTransactionEnd>>;
-
-                TransactionState _tr_state = TransactionState::active;
-
-                std::vector<history_iterator_t> _transaction_log;
-                transaction_end_listener_t _end_listener;
-                
-            };
-
-            struct ReadOnlyTransaction : public Transaction
-            {
+        /** Must use 64 * 64 instead of 'segment_pos_t' as a size because merge of 2 segment_pos_t may produce 
+        overflow of segment_pos_t */
+        using RWR = typename MemoryChangeHistory::RWR;
             
-                ReadOnlyTransaction(transaction_id_t id, EventSourcingSegmentManager& owner)
-                    : Transaction(id)
-                    , _owner(owner)
-                {
-                    ++_owner._ro_tran;
-                }
+        std::shared_ptr<MemoryChangeHistory> _change_history_manager;
 
-                ~ReadOnlyTransaction()
-                {
-                }
-
-                virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
-                {
-                    _end_handlers.emplace_back(std::move(handler));
-                }
-
-                /** RO transaction has nothing to rollback, so just notify subscribers about rollback */
-                virtual void rollback()
-                    override
-                {
-                    --_owner._ro_tran;
-                    for(auto& h: _end_handlers)
-                        h->on_rollback();
-                }
-
-                /** RO transaction has nothing to commit, so just notify subscribers about rollback */
-                virtual void commit()
-                    override
-                {
-                    --_owner._ro_tran;
-                    for (auto& h: _end_handlers)
-                        h->on_commit();
-                }
-
-            private:
-                
-                std::vector< std::unique_ptr<BeforeTransactionEnd>> _end_handlers;
-                EventSourcingSegmentManager& _owner;
-            };
-
-            using transaction_impl_ptr_t = TransactionPtr<TransactionImpl>;
-
-            /*just provide access to parent's writable-block*/
-            MemoryChunk raw_writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
-            {
-                return SegmentManager::writable_block(pos, size, hint);
-            }
-
-            /** Just take already existing block and check how it intersects with existing captured WR blocks */
-            ReadonlyMemoryChunk readonly_block_no_retain(
-                RWR search_range, ReadonlyMemoryChunk&& raw)
-            {
-                auto current_isolation = _read_isolation.load();
-                //apply all event sourced to `new_buffer`
-                
-                shadow_buffer_t new_buffer = _shadow_buffer_cache.get(raw.count());//note: recycle of this buffer in future is impossible
-                memcpy(new_buffer.get(), raw.at<std::uint8_t>(0), raw.count()); //copy origin persisted memory from disk
-
-                std::shared_lock guard_history_ro(_global_history_acc);
-                auto [all_iter, h_end] = narrow_history_log(_global_history.end());
-                // find all previously used block that have any intersection with query
-                // to check if readonly block is allowed
-                for (; all_iter != h_end; ++all_iter)
-                {
-                    const auto& block = *all_iter;
-                    // iterate transaction log from oldest to newest and apply changes on 'raw' memory block                    
-                    if (block._type != BlockType::wr)
-                        continue;
-                    auto joined_zone = OP::zones::join_zones(search_range, block._range);
-
-                    if (joined_zone.empty())
-                        continue;
-
-                    //cannot capture because other WR- tran exists over this block
-                    switch (current_isolation)
-                    {
-                        case ReadIsolation::Prevent:
-                            //allow caller to retry later
-                            throw ConcurrentLockException(
-                                "cannot capture RO while it is used as WR in other transaction, or no transaction used");
-                        case ReadIsolation::ReadUncommitted:
-                        { //DIRTY-READ logic
-                            auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), block._range.pos());
-                            assert(offset_in_src >= 0);
-                            auto offset_in_dest = OP::utils::uint_diff_int(joined_zone.pos(), search_range.pos());
-                            assert(offset_in_dest >= 0);
-                            memcpy(new_buffer.get() + offset_in_dest,
-                                    block._shadow.get() + offset_in_src,
-                                    joined_zone.count());
-                            break;
-                        }
-                        case ReadIsolation::ReadCommitted:
-                            [[fallthrough]];
-                        default:
-                            break; //jump to next of for
-                    }
-                    //do nothing, Ignore this WR block, proceed with origin RO memory. 
-                }
-                return ReadonlyMemoryChunk(std::move(new_buffer), raw.count(), raw.address());
-            }
-
-            void poulate_ro_block(const RWR& search_range, history_iterator_t end, 
-                ReadonlyMemoryChunk& memory, Transaction::transaction_id_t current_tran)
-            {
-                auto current_isolation = _read_isolation.load();
-                auto [all_iter, h_end] = narrow_history_log(std::move(end));
-                // find all previously used block that have any intersection with query
-                // to check if readonly block is allowed
-                for (; all_iter != h_end; ++all_iter)
-                {
-                    const auto& block = *all_iter;
-                    // iterate transaction log from oldest to newest and apply changes on result memory block                    
-                    if (block._type != BlockType::wr)
-                        continue;
-                    auto joined_zone = OP::zones::join_zones(search_range, block._range);
-                    if (joined_zone.empty())
-                        continue;
-                    if (block._used_in_transaction != current_tran)
-                    {//another WR- tran exists over this block
-                        switch (current_isolation)
-                        {
-                        case ReadIsolation::Prevent:
-                        {
-                            //block_leaking_guard ensures that: `new_block_iter->_type = garbage`
-                            //exception, but caller may retry later
-                            throw ConcurrentLockException(
-                                "cannot capture RO while it is used as WR in other transaction, or no transaction used");
-                        }
-                        case ReadIsolation::ReadUncommitted:
-                        { //DIRTY-READ logic, further code will copy this dirty chunk
-                            break;
-                        }
-                        case ReadIsolation::ReadCommitted:
-                            [[fallthrough]];
-                        default:
-                            //do nothing, Ignore this WR block, proceed with origin RO memory. 
-                            continue; //jump to next of for
-                        }
-                    }
-                    /** there are 4 relative positions of intersection existing block and new one:
-                    * 1. existing on left:\code
-                    * [--existing--]
-                    *       [--new--]
-                    * \endcode
-                    * 2. existing on right:\code
-                    *      [--existing--]
-                    * [--new--]
-                    * \endcode
-                    * 3. existing adsorbs new:\code
-                    * [------existing------]
-                    *       [--new--]
-                    * \endcode
-                    * 4. new adsorbs existing:\code
-                    *   [-existing-]
-                    * [------new------]
-                    * \endcode
-                    */
-                    auto offset_in_src = OP::utils::uint_diff_int(joined_zone.pos(), block._range.pos());
-                    assert(offset_in_src >= 0);
-                    auto offset_in_dest = OP::utils::uint_diff_int(joined_zone.pos(), search_range.pos());
-                    assert(offset_in_dest >= 0);
-
-                    memcpy(memory.pos() + offset_in_dest,
-                        block._shadow.get() + offset_in_src,
-                        joined_zone.count());
-
-                }
-            }
-
-            void dispose_transaction(transaction_impl_ptr_t tran)
-            {
-                auto erased_tran_id = tran->transaction_id();
-                {//block to place tran to garbage collector
-                    std::unique_lock acc (_dispose_lock);
-                    _ready_to_dispose.emplace_back(std::move(tran));
-                    _cv_disposer.notify_one();
-                }
-                // iterate association with threads (potentially can be more than one) and erase matches with tran-id
-                const wr_guard_t acc_capt(_opened_transactions_lock);
-                for(auto i = _opened_transactions.begin(); i != _opened_transactions.end(); )
-                {
-                    if (erased_tran_id == i->second->transaction_id())
-                    {
-                        i = _opened_transactions.erase(i);
-                    }
-                    else
-                        ++i;
-                }
-            }
-
-            /** Worker method to wipe from _global_history not used references*/
-            void collect_garbage()
-            {
-                while(!_stop_garbage_collector.load())
-                {
-                    //dispose closed transactions
-                    std::unique_lock<std::mutex> acc_job(_dispose_lock);
-                    if(!_ready_to_dispose.empty())
-                    {
-                        //take one to destroy
-                        auto tran = std::move(_ready_to_dispose.back());
-                        _ready_to_dispose.pop_back();
-                        acc_job.unlock(); //allow contribute from another thread
-
-                        //utilize all shadow buffers and wipe entry from global history
-                        for (auto& block_iter : tran->_transaction_log)
-                        {
-                            auto& block = *block_iter;
-                            _shadow_buffer_cache.utilize(std::move(block._shadow)); //allow shadow memory reuse
-                            std::lock_guard g(_global_history_acc);//short lock to remove item from global history
-                            _global_history.erase(block_iter);
-                        }
-                    }
-                    else //put on wait until something appear or full GC stop
-                        _cv_disposer.wait(acc_job, [this](){
-                            return _stop_garbage_collector || !_ready_to_dispose.empty();
-                        });
-                }
-            }
-
-            /** \return position in _global_history where item has been added. 
-            *   \pre `_global_history_acc` is unique locked
-            */
-            history_iterator_t add_global_history(
-                RWR search_range, BlockType type, Transaction::transaction_id_t transaction_id,
-                ShadowBuffer buffer, std::uint8_t flag)
-            {
-                _global_history.emplace_back(
-                    search_range,
-                    type,
-                    transaction_id,
-                    ++ _epoch,
-                    std::move(buffer),
-                    flag
-                );
-                
-                auto new_block_iter = _global_history.end();
-                --new_block_iter;
-                return new_block_iter;
-            }
-
-            /** \brief Tries to improve (narrow) heuristic of scanning _global_history
-            *   \pre `_global_history_acc` at least is share locked
-            */
-            std::pair<history_iterator_t, history_iterator_t> narrow_history_log(history_iterator_t end) 
-            {
-                return std::pair{ _global_history.begin(), std::move(end) };
-            }
-
-            ShadowBufferCache _shadow_buffer_cache = {};
-
-            using opened_transactions_t = std::unordered_map<std::thread::id, transaction_ptr_t>;
-            opened_transactions_t _opened_transactions;
-            mutable std::shared_mutex _opened_transactions_lock;
-
-            std::atomic<Transaction::transaction_id_t> _transaction_uid_gen;
-
-            /**Allows notify background worker to check for some job*/
-            std::condition_variable _cv_disposer;
-            std::atomic<bool> _stop_garbage_collector = false;
-            std::atomic<size_t> _ro_tran = 0;
-            mutable std::mutex _dispose_lock;
-            std::deque<transaction_impl_ptr_t> _ready_to_dispose;
-            /**background worker to release redundant records from history */
-            std::thread _garbage_collector;
-            std::atomic<ReadIsolation> _read_isolation = ReadIsolation::ReadCommitted;
+        enum class TransactionState : std::uint8_t
+        {
+            /** Transaction state when commit/rollbacks are possible and allowed */
+            active = 0,
+            /** Transaction state when only rollbacks are allowed (1) */
+            sealed_rollback_only,
+            /** Transaction state when no other operations are allowed (2) */
+            sealed_noop
         };
+            
+        /** support evolution of TransactionState when commit/rollback happens */
+        static TransactionState& next_state(TransactionState& state) noexcept
+        {
+            return reinterpret_cast<TransactionState&>(
+                ++reinterpret_cast<std::uint8_t&>(state));
+        }
+
+        /** Soft implementation of Transaction when caller tries create nested transactions. Mostly
+        * delegates all implementation to the parent `TImpl
+        */ 
+        template <class TImpl>
+        struct SavePoint : public Transaction
+        {
+            using transaction_log_t = decltype(TImpl::_transaction_log); //aka std::vector<history_iterator_t>
+            using log_iterator_t = typename transaction_log_t::iterator;
+
+            SavePoint(TImpl* framed_tran)
+                : Transaction(framed_tran->transaction_id())
+                , _framed_tran(framed_tran)
+            {
+                _from = _framed_tran->_transaction_log.size();
+            }
+
+            void commit() override
+            {
+                if(_tr_state >= TransactionState::sealed_rollback_only)
+                    throw Exception(OP::vtm::ErrorCodes::er_transaction_ghost_state);
+                bool has_something_to_erase = false;
+                // No real commit for WR
+                next_state(_tr_state); //disable changes in this
+            }
+
+            void rollback() override
+            {
+                if(_tr_state >= TransactionState::sealed_noop)
+                    throw Exception(OP::vtm::ErrorCodes::er_transaction_ghost_state);
+                //reset blocks to unused state
+                _framed_tran->utilize_unused_blocks(
+                    _framed_tran->_transaction_log.begin() + _from
+                );
+                next_state(_tr_state);
+            }
+
+            log_iterator_t begin() const
+            {
+                return _framed_tran->_transaction_log.begin() + _from;
+            }
+
+            log_iterator_t end() const
+            {
+                return _framed_tran->_transaction_log.end();
+            }
+
+            /** delegate call to the framed transaction */
+            void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
+            {
+                _framed_tran->register_handle(std::move(handler));
+            }
+                
+            TImpl* _framed_tran;
+            size_t _from;
+            /**After commit/rollback SavePoint must not be used anymore*/
+            TransactionState _tr_state = TransactionState::active;
+        };
+            
+        /** Implement Transaction interface */
+        struct TransactionImpl : public Transaction
+        {
+            TransactionImpl(transaction_id_t id, EventSourcingSegmentManager& owner) noexcept
+                : Transaction(id)
+                , _owner(owner)
+            {
+            }
+
+            /**Client code may claim nested transaction. Instead of real transaction just provide save-point
+            * @return new instance of SavePoint with the same transaction-id as current one
+            */
+            transaction_ptr_t recursive()
+            {
+                return transaction_ptr_t{ new SavePoint{this} };
+            }
+
+            /**Form transaction log*/
+            void store_log_record(ShadowBuffer from, std::uint8_t* dest)
+            {
+                if(_tr_state != TransactionState::active)
+                    throw Exception(vtm::ErrorCodes::er_transaction_ghost_state);
+                _transaction_log.emplace_back(std::move(from), dest);
+            }
+                
+            virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
+            {
+                _end_listener.emplace_back(std::move(handler));
+            }
+
+            template <class Iter>    
+            void utilize_unused_blocks(Iter begin)
+            {
+                while(begin != _transaction_log.end())
+                {
+                    _owner._change_history_manager->destroy(transaction_id(), std::move(begin->first));
+                    begin = _transaction_log.erase(begin); //to avoid double scan
+                }
+            }
+
+            void rollback() override
+            {
+                if(_tr_state >= TransactionState::sealed_noop)
+                    throw Exception(vtm::ErrorCodes::er_transaction_ghost_state);
+                //invoke events on transaction end
+                for (auto& ev : _end_listener)
+                {
+                    ev->on_rollback();
+                }
+                utilize_unused_blocks(_transaction_log.begin());
+                _owner._change_history_manager->on_rollback(transaction_id());
+                _owner.dispose_transaction(transaction_id());
+            }
+
+            void commit() override
+            {
+                if(_tr_state >= TransactionState::sealed_rollback_only)
+                    throw Exception(vtm::ErrorCodes::er_transaction_ghost_state);
+                //invoke events on transaction end
+                for (auto& ev : _end_listener)
+                {
+                    ev->on_commit();
+                }
+
+                for (auto& [from, to] : _transaction_log)
+                {
+                    memcpy(to, from.get(), from.size());
+                    _owner._change_history_manager->destroy(transaction_id(), std::move(from));
+                }
+                _owner._change_history_manager->on_commit(transaction_id());
+                _owner.dispose_transaction(transaction_id());
+            }
+                
+            /**Allows discover state if transaction still exists (not in ghost state) */
+            bool is_active() const
+            {
+                return _tr_state == TransactionState::active;
+            }
+                
+            EventSourcingSegmentManager& _owner;
+
+            using transaction_end_listener_t = std::vector<std::unique_ptr<BeforeTransactionEnd>>;
+
+            TransactionState _tr_state = TransactionState::active;
+            using save_to_t = std::pair<ShadowBuffer, std::uint8_t*>;
+            std::deque<save_to_t> _transaction_log;
+            transaction_end_listener_t _end_listener;
+        };
+
+        struct ReadOnlyTransaction : public Transaction
+        {
+            
+            ReadOnlyTransaction(transaction_id_t id, EventSourcingSegmentManager& owner)
+                : Transaction(id)
+                , _owner(owner)
+            {
+                ++_owner._ro_tran;
+            }
+
+            ~ReadOnlyTransaction()
+            {
+            }
+
+            virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
+            {
+                _end_handlers.emplace_back(std::move(handler));
+            }
+
+            /** RO transaction has nothing to rollback, so just notify subscribers about rollback */
+            virtual void rollback()
+                override
+            {
+                --_owner._ro_tran;
+                for(auto& h: _end_handlers)
+                    h->on_rollback();
+            }
+
+            /** RO transaction has nothing to commit, so just notify subscribers about rollback */
+            virtual void commit() override
+            {
+                --_owner._ro_tran;
+                for (auto& h: _end_handlers)
+                    h->on_commit();
+            }
+
+        private:
+                
+            std::vector< std::unique_ptr<BeforeTransactionEnd>> _end_handlers;
+            EventSourcingSegmentManager& _owner;
+        };
+
+        using transaction_impl_ptr_t = TransactionPtr<TransactionImpl>;
+
+        /*just provide access to parent's writable-block*/
+        MemoryChunk raw_writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
+        {
+            return SegmentManager::writable_block(pos, size, hint);
+        }
+
+        void dispose_transaction(transaction_id_t erased_tran_id)
+        {
+            // iterate association with threads (potentially can be more than one) and erase matches with tran-id
+            const wr_guard_t acc_capt(_opened_transactions_lock);
+            for(auto i = _opened_transactions.begin(); i != _opened_transactions.end(); )
+            {
+                if (erased_tran_id == i->second->transaction_id())
+                {
+                    i = _opened_transactions.erase(i);
+                }
+                else
+                    ++i;
+            }
+        }
+
+        using opened_transactions_t = std::unordered_map<std::thread::id, transaction_ptr_t>;
+        opened_transactions_t _opened_transactions;
+        mutable std::shared_mutex _opened_transactions_lock;
+
+        std::atomic<Transaction::transaction_id_t> _transaction_uid_gen;
+
+        std::atomic<size_t> _ro_tran = 0;
+        mutable std::mutex _dispose_lock;
+    };
         
 
-    } //ns::trie
-}//ns::OP
+}//ns::OP::vtm
 
 #endif //_OP_VTM_EVENTSOURCINGSEGMENTMANAGER__H_

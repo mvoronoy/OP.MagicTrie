@@ -37,7 +37,6 @@ namespace OP::vtm
         /**
         * Allocate memory block without initialization that can accommodate `sizeof(T)*count` bytes. As usual result block little bigger (on allignment of Segment::align_c)
         * @throw trie::Exception When there is no memory on 2 possible reasons:
-        * \li er_memory_need_compression - manager owns by too small chunks, that can be optimized by block movement
         * \li er_no_memory - there is no enough memory, so new segment must be allocated
         * @param size - byte size to allocate
         * @return memory position
@@ -57,7 +56,7 @@ namespace OP::vtm
                 segment_manager().ensure_segment(avail_segments); //used number-of-segments as an index so don't need +1
                 std::tie(header_pos, user_size) = _free_blocks->pull_not_less(size);
                 if (header_pos.is_nil())
-                    throw OP::trie::Exception(OP::trie::er_no_memory);
+                    throw Exception(vtm::ErrorCodes::er_no_memory);
             }
             constexpr segment_pos_t mbh = OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c);
             segment_pos_t deposit = user_size;
@@ -129,13 +128,13 @@ namespace OP::vtm
             if (!OP::utils::is_aligned(address.offset(), SegmentHeader::align_c)
                 //|| !check_pointer(memblock)
                 )
-                throw trie::Exception(trie::er_invalid_block);
+                throw Exception(vtm::ErrorCodes::er_invalid_block);
 
             FarAddress header(HeapBlockHeader::get_header_addr(address));
 
             auto header_block = segment_manager().accessor<HeapBlockHeader>(header);
             if (!header_block->check_signature() || header_block->is_free())
-                throw trie::Exception(trie::er_invalid_block);
+                throw Exception(vtm::ErrorCodes::er_invalid_block);
 
             do_deallocate(header_block);
         }
@@ -156,7 +155,7 @@ namespace OP::vtm
         void _check_integrity(FarAddress segment_addr) override
         {
             auto& integrity = integrity::Stream::os();
-            IoFlagGuard g(integrity);
+            raii::IoFlagGuard g(integrity);
             integrity << std::hex << std::boolalpha;
             integrity << "HeapManager at segment: 0x" << segment_addr.segment() << ", offset: 0x" << segment_addr.offset() <<"\n";
             if(segment_addr.segment() == 0 )

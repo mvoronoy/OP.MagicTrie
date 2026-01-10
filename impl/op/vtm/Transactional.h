@@ -10,16 +10,18 @@
 #include <typeinfo>
 #include <cassert>
 
+#include <op/vtm/vtm_error.h>
+
 namespace OP::vtm
 {
-    /**Exception is raised when imposible to obtain lock over memory block*/
-    struct ConcurrentLockException : public OP::trie::Exception
+    /**Exception is raised when impossible to obtain lock over memory block*/
+    struct ConcurrentLockException 
     {
-        ConcurrentLockException() :
-            Exception(OP::trie::er_transaction_concurent_lock) {
-        }
-        ConcurrentLockException(const char* debug) :
-            Exception(OP::trie::er_transaction_concurent_lock, debug) {
+        ConcurrentLockException() = default;
+        
+        Exception to_exception()
+        {
+            return Exception(vtm::ErrorCodes::er_transaction_concurrent_lock);
         }
     };
 
@@ -358,18 +360,18 @@ namespace OP::vtm
             {
                 return f(ax...);//as soon this is a loop move/forward args must not be used
             }
-            catch (const OP::vtm::ConcurrentLockException& e)
+            catch (const OP::vtm::ConcurrentLockException&)
             {
                 /*ignore exception for a while*/
-                e.what();
             }
         }
-        throw OP::vtm::ConcurrentLockException("10");
+        throw Exception(vtm::ErrorCodes::er_transaction_concurrent_lock);
     }
 
     template <size_t N, typename F, typename  ... Args>
     inline typename std::result_of<F(Args ...)>::type transactional_yield_retry_n(F f, Args ... ax)
     {
+        static_assert(N > 0, "set number of retries greater than zero");
         constexpr size_t limit = N - 1;
         for (auto i = 0; i < limit; ++i)
         {

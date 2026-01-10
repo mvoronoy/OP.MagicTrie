@@ -71,15 +71,15 @@ namespace OP::vtm
 
     namespace details
     {
-        using namespace boost::interprocess;
+        namespace bip = boost::interprocess;
 
         struct SegmentHelper
         {
             friend struct SegmentManager;
 
-            SegmentHelper(file_mapping& mapping, offset_t offset, std::size_t size) :
-                _mapped_region(mapping, read_write, offset, size),
-                _avail_bytes(0)
+            SegmentHelper(bip::file_mapping& mapping, bip::offset_t offset, std::size_t size) 
+                : _mapped_region(mapping, bip::read_write, offset, size)
+                , _avail_bytes(0)
             {
             }
 
@@ -109,7 +109,7 @@ namespace OP::vtm
             segment_pos_t to_offset(const void* memblock)
             {
                 if (!check_pointer(memblock))
-                    throw trie::Exception(trie::er_invalid_block);
+                    throw Exception(vtm::ErrorCodes::er_invalid_block);
                 return unchecked_to_offset(memblock);
             }
 
@@ -123,20 +123,20 @@ namespace OP::vtm
             std::uint8_t* from_offset(segment_pos_t offset)
             {
                 if (offset >= this->_mapped_region.get_size())
-                    throw trie::Exception(trie::er_invalid_block);
+                    throw Exception(vtm::ErrorCodes::er_invalid_block);
                 return reinterpret_cast<std::uint8_t*>(this->_mapped_region.get_address()) + offset;
             }
 
-            void flush(bool assync = true)
+            void flush(bool async = true)
             {
-                _mapped_region.flush(0, 0, assync);
+                _mapped_region.flush(0, 0, async);
             }
 
             void _check_integrity()
             {
             }
         private:
-            mapped_region _mapped_region;
+            bip::mapped_region _mapped_region;
 
             segment_pos_t _avail_bytes;
 
