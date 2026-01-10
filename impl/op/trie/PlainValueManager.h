@@ -69,7 +69,7 @@ namespace OP::trie
         {
             if constexpr( data_storage_t::big_payload_c )
             {
-                auto& heap_manager = topology.template slot<HeapManagerSlot> ();
+                auto& heap_manager = topology.template slot<vtm::HeapManagerSlot> ();
                 auto address = heap_manager.allocate(
                     memory_requirement<payload_t>::requirement);
                 *std::launder(reinterpret_cast<FarAddress*>(storage._data)) = address;
@@ -86,7 +86,7 @@ namespace OP::trie
         {
             if constexpr( data_storage_t::big_payload_c )
             {
-                auto& heap_manager = topology.template slot<HeapManagerSlot>();
+                auto& heap_manager = topology.template slot<vtm::HeapManagerSlot>();
                 auto& address = *std::launder(reinterpret_cast<FarAddress*>(storage._data));
                 auto wr_block = resolve_segment_manager(topology).writable_block(address,
                                         memory_requirement<payload_t>::requirement);
