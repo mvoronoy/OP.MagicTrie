@@ -497,7 +497,7 @@ namespace OP::vtm
                     });
                 done = true;
             });
-            auto consume_bucket = [this](const Bucket* bucket) {
+            auto consume_bucket = [&](const Bucket* bucket) {
                 r_guard_t guard = shared_mutex(bucket);
                 auto begin = bucket->data(), end = bucket->data() + bucket->_size;
                 guard.unlock();
