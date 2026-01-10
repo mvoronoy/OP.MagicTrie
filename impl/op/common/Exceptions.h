@@ -7,84 +7,130 @@
 
 #include <exception>
 #include <string>
+#include <sstream>
+#include <shared_mutex>
+#include <unordered_map>
+#include <functional>
 
 namespace OP
 {
-    namespace trie
+    enum ErrorCode
     {
-        enum ErrorCode
-        {
-            no_error = 0,
-            //
-            er_file_open = 1,
-            er_write_file = 2,
-            er_read_file = 3,
-            er_invalid_signature = 4,
-            er_memory_mapping = 10,
-            //
-            //memory exceptions:
-            //
-            er_memory_need_compression = 20,
-            er_no_memory = 21,
-            /**memory management function got invalid pointer */
-            er_invalid_block = 22,
-            //
-            //  Named map exception
-            //
-            /**Named map is not specified at SegmentManager creation time*/
-            er_no_named_map = 30,
-            /**As key use up to 8 symbols string*/
-            er_named_map_key_too_long = 31,
-            er_named_map_key_exists = 32,
-            //
-            //  Transactions
-            //
-            er_transaction_not_started = 40,
-            /**Cannot obtain lock over already existing*/
-            er_transaction_concurent_lock = 41,
-            /** Using already closed transaction (transaction in ghost-state)*/
-            er_transaction_ghost_state = 42,
-            /** Transactional memory blocks cannot be overlapped. Blocks may be nested, adjasted or separated. */
-            er_overlapping_block = 43,
-            /** readonly transaction in progress */
-            er_ro_transaction_started = 44,
-            er_cannot_start_ro_transaction = 45
-        };
+        ec_no_error = 0,
+        ec_category = 0x1000
+    };
 
-        struct Exception : public std::logic_error
+    /**
+    * \brief Provide the extendable by developer bridge between error codes and human readable error explanation.
+    *
+    *  ErrorCode logically splits into an error category `(developer provided as ec_category  * my_category)` and 
+    *  a specific error value (in range 1..0xfff). The class ErrorDecoderRegistry allows register callback with category 
+    *  to discover error explanation string.
+    *  From development perspective this class is a singleton.
+    *
+    */
+    struct ErrorDecoderRegistry
+    {
+        static ErrorDecoderRegistry& instance() noexcept
         {
-            explicit Exception(ErrorCode code):
-                _code(code),
-                std::logic_error(std::to_string((unsigned)code)){}
-
-            Exception(ErrorCode code, const char * error):
-                _code(code),
-                std::logic_error(error){}
-            operator ErrorCode () const
+            static ErrorDecoderRegistry _instance = {};
+            return _instance;
+        }
+    
+        template <class F>
+        [[maybe_ignored]] bool register_error_category(unsigned category, F callback)
+        {
+            std::unique_lock guard(_registered_categories_acc);
+            auto [prev, succ] = _registered_categories.try_emplace(category, callback_t(std::move(callback)));
+            if(!succ)
             {
-                return _code;
+                std::ostringstream os;
+                os << "Error category 0x" << std::hex << category << " is already registered";
+                throw std::runtime_error(os.str().c_str());
             }
-            ErrorCode code() const
-            {
-                return _code;
-            }
+            return true;
+        }
 
-        private: 
-            ErrorCode _code;
-        };
-        struct TransactionException : public Exception
+        template <class ...Tx>
+        std::string format_error(unsigned error_code, const Tx&...extra_args) const
         {
-            explicit TransactionException(ErrorCode code):
-                Exception(code){}
+            //extract error category
+            const unsigned category = error_code / ec_category;
+            std::ostringstream os;
 
-        };
-        struct TransactionIsNotStarted : public TransactionException
+            std::ios_base::fmtflags old_flags( os.flags() );
+            os << "(0x" << std::hex << std::setw(8) << std::setfill('0') << error_code << ") ";
+            os.flags(old_flags);
+
+            std::shared_lock ro_guard(_registered_categories_acc);
+            auto found = _registered_categories.find(category);
+            if( found != _registered_categories.end() )
+                os << found->second(error_code) << ".";
+            ro_guard.unlock();
+
+            // optional additional args
+            ((os << extra_args), ...);
+
+            return os.str();
+        }
+    private:
+        ErrorDecoderRegistry() = default;
+        ErrorDecoderRegistry(const ErrorDecoderRegistry&) = delete;
+        ErrorDecoderRegistry(ErrorDecoderRegistry&&) = delete;
+
+        using callback_t = std::function<std::string(unsigned)>;
+
+        std::unordered_map<unsigned, callback_t> _registered_categories;
+        mutable std::shared_mutex _registered_categories_acc;
+    };
+
+    /**
+    * \brief General exception type for the entire OP library.
+    *
+    * This exception inherits from `std::logic_error` to allow seamless integration
+    * with standard C++ error-handling mechanisms.
+    *
+    * Each Exception instance carries an error code that is logically split into
+    * an error category and a specific error value. Optionally, the error code can
+    * be translated into a human-readable string using `ErrorDecoderRegistry`.
+    */
+    struct Exception : public std::exception
+    {
+        /**
+         * \brief Construct an OP::Exception from an error code and optional explanatory arguments.
+         *
+         * \param code Constant error code. It is recommended to compose this value as
+         *        `error_category * OP::ec_category + internal_error_code`. In this case,
+         *        the implementation attempts to resolve the error category via a
+         *        callback registered in `ErrorDecoderRegistry::register_error_category`
+         *        and translate the code into a human-readable description.
+         *
+         * \param opt_args Optional additional arguments that are appended sequentially
+         *        to the resulting exception message.
+         */
+        template <class ... Tx>
+        explicit Exception(unsigned code, const Tx& ...opt_args)
+            : _code(code)
+            , _error_text(ErrorDecoderRegistry::instance().format_error(code, opt_args...))
         {
-            TransactionIsNotStarted() :
-                TransactionException(er_transaction_not_started){}
-        };
-    }  //end of namespace trie
-} //end of namespace OP
+        }
+
+        unsigned code() const
+        {
+            return _code;
+        }
+
+        virtual const char* what() const noexcept override 
+        {
+            return _error_text.c_str();
+        }
+
+    private: 
+        unsigned _code;
+        std::string _error_text;
+    };
+
+} //ns:OP
 
 
 #endif //_OP_TR_EXCEPTIONS__H
