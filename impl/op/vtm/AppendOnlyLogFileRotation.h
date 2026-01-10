@@ -204,9 +204,7 @@ namespace OP::vtm
             */
             static std::uint64_t hash(std::uint64_t item_to_index) noexcept
             {
-                //std::hash<std::uint64_t> hfun;
-                //return hfun(item_to_index);
-                return item_to_index * 0x5fe14bf901200001ull //(0x60ff8010405001); //good spreading of sequential bits for average case
+                return item_to_index * 0x5fe14bf901200001ull; //(0x60ff8010405001) //good spreading of sequential bits for average case
             }
 
             inline void index(std::uint64_t item_to_index) noexcept
