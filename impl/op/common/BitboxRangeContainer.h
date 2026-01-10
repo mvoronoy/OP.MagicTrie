@@ -169,9 +169,11 @@ private:
     */
     static constexpr auto mask(const TRange& r) noexcept
     {
+        auto bit_width = OP::trie::log2(r.count()) + 1;
         return std::make_pair(
             OP::trie::log2(r.pos()),
-        r.count() | ((1ull << OP::trie::log2(r.count())) - 1));
+            ((1ull << bit_width) - 1)
+        );
     }
 
     
