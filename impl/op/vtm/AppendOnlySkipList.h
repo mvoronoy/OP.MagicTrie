@@ -185,7 +185,7 @@ namespace OP::vtm
                 assert(_current);
                 auto current_guard(_owner->shared_mutex(_current));
                 if (!_current->_next_bucket.is_nil())
-                    _current = _owner->_append_log->at<Bucket>(_current->_next_bucket);
+                    _current = _owner->_append_log->template at<Bucket>(_current->_next_bucket);
                 else
                     _current = nullptr;
             }
@@ -200,7 +200,7 @@ namespace OP::vtm
 
         constexpr auto for_each_bucket() const
         {
-            std::shared_ptr<this_t> zhis = std::const_pointer_cast<this_t>(shared_from_this());
+            std::shared_ptr<this_t> zhis = std::const_pointer_cast<this_t>(this->shared_from_this());
             r_guard_t g(_header_acc); // just to read start pos
 
             return OP::flur::SimpleFactory<BucketSequence, std::shared_ptr<this_t>, FarAddress>{
