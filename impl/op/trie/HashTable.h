@@ -121,6 +121,7 @@ namespace OP::trie::containers
 
         using this_t = PersistedHashTable<Payload, ParentInfo>;
         using base_t = KeyValueContainer<Payload, ParentInfo>;
+        using FarAddress = vtm::FarAddress;
 
         /** Define content of the table, including origin key and payload*/
         struct Content

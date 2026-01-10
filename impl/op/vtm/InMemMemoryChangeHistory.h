@@ -171,7 +171,7 @@ namespace OP::vtm
             BlockProfile* _next = nullptr;
             const std::uint32_t _signature = signature_c;
             /** shadow memory of changes */
-            std::uint8_t alignas(ShadowBuffer) _memory[1] = {};
+            alignas(ShadowBuffer) std::uint8_t _memory[1] = {};
         };
 
 
