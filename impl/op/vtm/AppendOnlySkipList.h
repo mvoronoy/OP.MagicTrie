@@ -470,7 +470,7 @@ namespace OP::vtm
                 return indexed_for_each(std::forward<Q>(query), std::forward<FCallback>(callback));
             boost::lockfree::spsc_queue<const bucket_t*, boost::lockfree::capacity<bucket_threshold_c> > queue;
             std::atomic_bool done = false;
-            auto producer_job = _append_log->thread_pool().async([this]() {
+            auto producer_job = _append_log->thread_pool().async([&]() {
                 for_each_bucket([&](const bucket_t& bucket) { 
                     raii::ValueGuard<std::atomic_bool, bool> turn_true(done, true); //ensure true at exit to indicate stop for outer thread
                     BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
