@@ -368,10 +368,13 @@ namespace
             };
 
         size_t run1 = 0, run2 = 0;
-        auto no_mt_ms = tresult.measured_run([&]() {
+        // Need fix: P0588R1's: 
+        // If a lambda - expression[...] captures a structured binding(explicitly or implicitly), the 
+        // program is ill - formed.
+        auto no_mt_ms = tresult.measured_run([&, &skplst = skplst]() {
             run1 = run_test_scan_by_sequence(skplst->indexed_for_each(median));
             }, 20);
-        auto mt_ms = tresult.measured_run([&]() {
+        auto mt_ms = tresult.measured_run([&, &skplst = skplst]() {
             run2 = run_test_scan_by_sequence(skplst->async_indexed_for_each(median));
             }, 20);
         tresult.assert_that<equals>(run1, run2);
