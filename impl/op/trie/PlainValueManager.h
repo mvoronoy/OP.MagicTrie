@@ -59,6 +59,7 @@ namespace OP::trie
     struct PlainValueManager
     {
         using source_payload_t = Payload;
+        using FarAddress = vtm::FarAddress;
         using payload_t = typename store_converter::Storage<source_payload_t>::storage_type_t;
 
         using data_storage_t = PlainDataStorage<payload_t, inline_byte_size_limit>;
