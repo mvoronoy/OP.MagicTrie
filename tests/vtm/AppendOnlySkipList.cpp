@@ -234,7 +234,7 @@ namespace
 
         for (auto& [probe_range, overlapped] : all_probes)
         {
-            skplst->indexed_for_each(probe_range, [&](auto from, auto to) -> void {
+            skplst->indexed_for_each(probe_range, [&, &probe_range = probe_range](auto from, auto to) -> void {
                 for (auto i = from; i != to; ++i)
                 {
                     if (!i->_key.is_overlapped(probe_range))
