@@ -381,7 +381,10 @@ namespace OP::vtm
             {
                 BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
                     BucketNavigation nav = BucketNavigation::worth;
-                    (((nav = indexer.check(_query)) == BucketNavigation::not_sure) && ...);
+                    // use `&&` operator allows to find and stop immediately when condition other then `not_sure`
+                    bool dummy = 
+                        (((nav = indexer.check(_query)) == BucketNavigation::not_sure) && ...);
+                    static_cast<void>(dummy);
                     return nav;
                     }, bucket->_indexers);
                 switch (check_bucket)
@@ -478,7 +481,9 @@ namespace OP::vtm
                     raii::ValueGuard<std::atomic_bool, bool> turn_true(done, true); //ensure true at exit to indicate stop for outer thread
                     BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
                         BucketNavigation nav = BucketNavigation::worth;
-                        (((nav = indexer.check(query)) == BucketNavigation::not_sure) && ...);
+                        // use `&&` operator allows to find and stop immediately when condition other then `not_sure`
+                        bool dummy = (((nav = indexer.check(query)) == BucketNavigation::not_sure) && ...);
+                        static_cast<void>(dummy);
                         return nav;
                         }, bucket->_indexers);
                     switch (check_bucket)
@@ -652,7 +657,10 @@ namespace OP::vtm
         {
             BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
                 BucketNavigation nav = BucketNavigation::worth;
-                (((nav = indexer.check(query)) == BucketNavigation::not_sure) && ...);
+                // use `&&` operator allows to find and stop immediately when condition other then `not_sure`
+                bool dummy = 
+                    (((nav = indexer.check(query)) == BucketNavigation::not_sure) && ...);
+                static_cast<void>(dummy);
                 return nav;
                 }, bucket._indexers);
             switch (check_bucket)
