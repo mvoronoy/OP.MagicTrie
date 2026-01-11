@@ -368,7 +368,7 @@ namespace
             };
 
         size_t run1 = 0, run2 = 0;
-        // Need fix: P0588R1's: 
+        // fix: P0588R1's: 
         // If a lambda - expression[...] captures a structured binding(explicitly or implicitly), the 
         // program is ill - formed.
         auto no_mt_ms = tresult.measured_run([&, &skplst = skplst]() {
@@ -383,14 +383,15 @@ namespace
         //---
         run1 = 0, run2 = 0;
         
-        no_mt_ms = tresult.measured_run([&]() {
+        // captures a structured binding, fix by explicit declare
+        no_mt_ms = tresult.measured_run([&, &skplst = skplst]() {
             run1 = 0;
             skplst->indexed_for_each(median, [&](const auto& payload) {
                 for (const auto& probe : check_probes) // just to perform
                     run1 += payload._key.is_overlapped(probe) ? 1 : 0;
                 });
             }, 20);
-        mt_ms = tresult.measured_run([&]() {
+        mt_ms = tresult.measured_run([&, &skplst = skplst]() {
             run2 = 0;
             skplst->indexed_for_each(median, [&](const auto& payload) {
                 for (const auto& probe : check_probes) // just to perform
