@@ -218,7 +218,10 @@ namespace OP::vtm
                 then::filter([zhis, query = std::forward<Q>(query)](const bucket_t* bucket, SequenceState& sequence_state) ->bool {
                     BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
                         BucketNavigation nav = BucketNavigation::worth;
-                        (((nav = indexer.check(query)) == BucketNavigation::not_sure) && ...);
+                        // use `&&` operator allows to find and stop immediately when condition other then `not_sure`
+                        bool dummy = //allows prevent warning: 'expression result unused' 
+                            (((nav = indexer.check(query)) == BucketNavigation::not_sure) && ...);
+                        static_cast<void>(dummy);
                         return nav;
                         }, bucket->_indexers);
                     switch (check_bucket)
@@ -617,12 +620,18 @@ namespace OP::vtm
             return true; //continue buckets iteration
         }
 
-        //template <class ...Ux>
-        //bool call_lambda_scan(Ux&&...)
-        //{
-        //    static_assert(false,
-        //        "callback supposed to match signature either f(const T&) or f(iterator, iterator)");
-        //}
+        template <class ...Ux>
+        bool call_lambda_scan(Ux&&...)
+        {
+            // this declaration is fallback for wrong usage of `call_lambda_scan`, see other overloads for correct signature
+            // but for g++ compatibility issue I just cannot write `static_assert(false...`. Instead 
+            // condition just repeat existing methods' enable_if conditions
+            static_assert( !(sizeof ...(Ux) != 3
+                || std::is_invocable_v<Ux...>
+                ),
+                "callback supposed to match signature either f(const T&) or f(iterator, iterator)"
+            );
+        }
 
         /**
         * Apply indexers to a single bucket, and if it matches the given `query`,
