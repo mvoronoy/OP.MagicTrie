@@ -482,7 +482,7 @@ namespace OP::vtm
         template <class Q, class FCallback>
         void async_indexed_for_each(Q&& query, FCallback&& callback)
         {
-            constexpr size_t bucket_threshold_c = 3;
+            constexpr size_t bucket_threshold_c = 5;
             if (bucket_size() <= bucket_threshold_c)
                 return indexed_for_each(std::forward<Q>(query), std::forward<FCallback>(callback));
             boost::lockfree::spsc_queue<const bucket_t*, boost::lockfree::capacity<bucket_threshold_c> > queue;

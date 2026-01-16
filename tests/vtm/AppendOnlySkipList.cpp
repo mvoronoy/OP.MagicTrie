@@ -380,10 +380,10 @@ namespace
         // program is ill - formed.
         auto no_mt_ms = tresult.measured_run([&, &skplst = skplst]() {
             run1 = run_test_scan_by_sequence(skplst->indexed_for_each(median));
-            }, 20);
+            }, 100);
         auto mt_ms = tresult.measured_run([&, &skplst = skplst]() {
             run2 = run_test_scan_by_sequence(skplst->async_indexed_for_each(median));
-            }, 20);
+            }, 100);
         tresult.assert_that<equals>(run1, run2);
         tresult.info() << "Measured run("<<run1<<") for Non-mt indexed scan = " << no_mt_ms
             << "\nMeasured run("<<run2<<") for mt indexed scan = " << mt_ms << "\n";
@@ -397,14 +397,14 @@ namespace
                 for (const auto& probe : check_probes) // just to perform
                     run1 += payload._key.is_overlapped(probe) ? 1 : 0;
                 });
-            }, 20);
+            }, 100);
         mt_ms = tresult.measured_run([&, &skplst = skplst]() {
             run2 = 0;
             skplst->async_indexed_for_each(median, [&](const auto& payload) {
                 for (const auto& probe : check_probes) // just to perform
                     run2 += payload._key.is_overlapped(probe) ? 1 : 0;
                 });
-            }, 20);
+            }, 100);
         tresult.assert_that<equals>(run1, run2);
         tresult.info() << "Measured run(" << run1 << ") for callback Non-mt indexed scan = " << no_mt_ms
             << "\nMeasured run(" << run2 << ") for callback mt indexed scan = " << mt_ms << "\n";
