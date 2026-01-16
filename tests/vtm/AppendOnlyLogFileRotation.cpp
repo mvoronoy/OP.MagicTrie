@@ -45,8 +45,7 @@ namespace
         OP::utils::ThreadPool tp;
         using namespace std::string_literals;
 
-        using a0list_t = OP::vtm::AppendOnlySkipList<32, TestPayload>;
-        using file_rota_t = OP::vtm::AppendLogFileRotation<a0list_t>;
+        using file_rota_t = OP::vtm::AppendLogFileRotation;
         auto frt = file_rota_t::create_new(tp, 
             std::unique_ptr<OP::vtm::CreationPolicy>(
                 new OP::vtm::FileCreationPolicy(
@@ -54,6 +53,11 @@ namespace
                     std::filesystem::path("."),
                     "a0"s, ".tlog"s))
         );
+        constexpr int max_tran_n = 100;
+        for (auto tran_id = 0; tran_id < max_tran_n; ++tran_id)
+        {
+            frt->on_new_transaction(tran_id);
+        }
 
         //constexpr size_t test_tran_c = 11 * 11;
         //constexpr size_t test_range_from_c = 32;

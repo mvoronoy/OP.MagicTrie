@@ -273,6 +273,10 @@ namespace
 
         auto [list_address1, skplst1] = OP::vtm::create_a0_skip_list<std::int32_t, DummyIndexer>(a0l);
         auto [list_address2, skplst2] = OP::vtm::create_a0_skip_list<std::int64_t>(a0l); //no indexer
+
+        tresult.assert_that<equals>(skplst1->size(), 0);
+        tresult.assert_that<equals>(skplst2->size(), 0);
+
         //actually both list consumes same amount of memory because of alignment
         size_t counter = 0;
         //populate ...
@@ -323,6 +327,9 @@ namespace
 
         run_simultaneous_scan(skplst1->indexed_for_each(0), skplst2->indexed_for_each(0));
         run_simultaneous_scan(skplst1->async_indexed_for_each(0), skplst2->async_indexed_for_each(0));
+
+        tresult.assert_that<equals>(skplst1->size(), counter);
+        tresult.assert_that<equals>(skplst2->size(), counter);
     }
 
     void test_Perf(OP::utest::TestRuntime& tresult)
@@ -393,7 +400,7 @@ namespace
             }, 20);
         mt_ms = tresult.measured_run([&, &skplst = skplst]() {
             run2 = 0;
-            skplst->indexed_for_each(median, [&](const auto& payload) {
+            skplst->async_indexed_for_each(median, [&](const auto& payload) {
                 for (const auto& probe : check_probes) // just to perform
                     run2 += payload._key.is_overlapped(probe) ? 1 : 0;
                 });

@@ -7,8 +7,6 @@
 #include <list>
 
 #include <op/vtm/EventSourcingSegmentManager.h>
-#include <op/vtm/ShadowBufferCache.h>
-
 
 namespace OP::vtm
 {
@@ -79,7 +77,7 @@ namespace OP::vtm
             }
             else // no retains, just populate buffer with intersected blocks
             {
-                ShadowBuffer new_buffer = _shadow_buffer_cache.get(search_range.count());
+                ShadowBuffer new_buffer {new std::uint8_t[search_range.count()], search_range.count(), true};
                 //copy origin from init
                 if (init_data)
                     memcpy(new_buffer.get(), init_data, search_range.count());
@@ -107,6 +105,11 @@ namespace OP::vtm
         [[maybe_unused]] ReadIsolation read_isolation(ReadIsolation new_level) override
         {
             return _isolation.exchange(new_level);
+        }
+
+        void on_new_transaction(transaction_id_t ) override
+        {
+            //do nothing
         }
 
         void on_commit(transaction_id_t id) override
@@ -207,7 +210,6 @@ namespace OP::vtm
         };
 
         std::atomic<ReadIsolation> _isolation = ReadIsolation::ReadCommitted;
-        ShadowBufferCache _shadow_buffer_cache = {};
         BlockProfile *_global_history_begin = nullptr, **_global_history_end = &_global_history_begin;
         std::atomic<std::uint64_t> _epoch{0};
         std::shared_mutex _global_history_acc;

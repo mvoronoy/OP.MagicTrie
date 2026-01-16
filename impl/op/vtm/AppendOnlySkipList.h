@@ -304,6 +304,17 @@ namespace OP::vtm
                 }, bucket->_indexers);
         }
 
+        /** \return Number of items emplaced so far */
+        size_t size()
+        {
+            r_guard_t g(_header_acc);
+            if(!_header._size)
+                return 0;
+            auto result = (_header._size-1) * bucket_size_c;
+            auto [last_guard, last_bucket] = bucket_read(_header._last_bucket);
+            return result + last_bucket->_size;
+        }
+
         /**
         *
         * \tparam FCallback A callback functor that can be invoked in one of two ways:
@@ -320,7 +331,7 @@ namespace OP::vtm
         void indexed_for_each(const Q& query, FCallback&& f)
         {
             for_each_bucket([&](const Bucket& bucket) -> bool {
-                return bucket_scan(bucket, query, f);
+                    return bucket_scan(bucket, query, f);
                 });
         }
 
@@ -477,15 +488,16 @@ namespace OP::vtm
             boost::lockfree::spsc_queue<const bucket_t*, boost::lockfree::capacity<bucket_threshold_c> > queue;
             std::atomic_bool done = false;
             auto producer_job = _append_log->thread_pool().async([&]() {
-                for_each_bucket([&](const bucket_t& bucket) { 
-                    raii::ValueGuard<std::atomic_bool, bool> turn_true(done, true); //ensure true at exit to indicate stop for outer thread
+                raii::ValueGuard<std::atomic_bool, bool> turn_true(done, true); //ensure true at exit to indicate stop for outer thread
+                for_each_bucket([&](const bucket_t& bucket) {
                     BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
+                        
                         BucketNavigation nav = BucketNavigation::worth;
                         // use `&&` operator allows to find and stop immediately when condition other then `not_sure`
-                        bool dummy = (((nav = indexer.check(query)) == BucketNavigation::not_sure) && ...);
+                        bool dummy = (invoke_indexer_check(indexer, query, nav) && ...);
                         static_cast<void>(dummy);
                         return nav;
-                        }, bucket->_indexers);
+                        }, bucket._indexers);
                     switch (check_bucket)
                     {
                     case BucketNavigation::not_sure:
@@ -498,12 +510,11 @@ namespace OP::vtm
                         return false; //stop buckets iteration
                     }; //end:switch
 
-                    while (!done && !queue.push(bucket))
-                        ;
+                    while (!done && !queue.push(&bucket))
+                        std::this_thread::yield();
                     return true;
 
                     });
-                done = true;
             });
             auto consume_bucket = [&](const Bucket* bucket) {
                 r_guard_t guard = shared_mutex(bucket);
@@ -638,6 +649,22 @@ namespace OP::vtm
             );
         }
 
+        OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(check)
+        //template <typename C, typename ...Ax> static std::true_type test_check(decltype(&C::template Member<Ax ...>)); 
+        //template <typename C> static std::false_type test_check(...);
+
+        template <class Indexer, class Q>
+        static constexpr bool invoke_indexer_check(const Indexer& indexer, const Q& query, BucketNavigation& nav)
+        {
+            //if constexpr (std::is_same_v<decltype(&Indexer::check), const Indexer&, const Q&>)
+            if constexpr (has_check<Indexer, const Q&>::value)
+            {
+                nav = indexer.check(query);
+                return nav == BucketNavigation::not_sure;
+            }
+            else
+                return true; //indicate continue apply indexers
+        }
         /**
         * Apply indexers to a single bucket, and if it matches the given `query`,
         * invoke the callback `f` on the bucket's items.
@@ -652,17 +679,17 @@ namespace OP::vtm
         *
         *   \return true if next bucket must be processed and false to early stop.
         */
-        template <class FCallback>
-        bool bucket_scan(const Bucket& bucket, const T& query, FCallback& f)
+        template <class Q, class FCallback>
+        bool bucket_scan(const Bucket& bucket, const Q& query, FCallback& f)
         {
             BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
                 BucketNavigation nav = BucketNavigation::worth;
                 // use `&&` operator allows to find and stop immediately when condition other then `not_sure`
-                bool dummy = 
-                    (((nav = indexer.check(query)) == BucketNavigation::not_sure) && ...);
+                bool dummy = (invoke_indexer_check(indexer, query, nav) && ...);
                 static_cast<void>(dummy);
                 return nav;
                 }, bucket._indexers);
+
             switch (check_bucket)
             {
             case BucketNavigation::not_sure:
@@ -674,6 +701,7 @@ namespace OP::vtm
             case BucketNavigation::stop:
                 return false; //stop buckets iteration
             }; //end:switch
+            
             auto begin = bucket.data(), end = bucket.data() + bucket._size;
             return call_lambda_scan(f, begin, end);
         }

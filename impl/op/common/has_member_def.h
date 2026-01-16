@@ -50,12 +50,10 @@
 #define OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(Member)  template <typename A, typename ...Ts>\
     class has_##Member \
     { \
-        typedef char YesType[1]; \
-        typedef char NoType[2]; \
-        template <typename C> static YesType& test( decltype(&C::template Member<Ts ...>) ) ; \
-        template <typename C> static NoType& test(...); \
+        template <typename C> static std::true_type test( decltype(&C::template Member<Ts ...>) ) ; \
+        template <typename C> static std::false_type test(...); \
     public: \
-        enum { value = sizeof(test<A>(nullptr)) == sizeof(YesType) }; \
+        enum { value = std::is_same_v<decltype(test<A>(nullptr)), std::true_type> }; \
     };
 
 /** 

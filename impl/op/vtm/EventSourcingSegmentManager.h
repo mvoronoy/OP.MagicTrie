@@ -57,6 +57,7 @@ namespace OP::vtm
         MemoryChangeHistory& operator = (const MemoryChangeHistory&) = delete;
         MemoryChangeHistory& operator =(MemoryChangeHistory&&) = delete;
 
+
         /** \brief Inside specific transaction retrieve memory buffer that must be used for 
         *   read or write operations for logical range.
         * 
@@ -81,20 +82,27 @@ namespace OP::vtm
         */
         [[maybe_unused]] virtual ReadIsolation read_isolation(ReadIsolation new_level) = 0;
 
+        /**
+        *   Notify Notify implementation that new transaction has been started.
+        *
+        * \param tid - transaction id.
+        */
+        virtual void on_new_transaction(transaction_id_t tid) = 0;
+
         /** 
         * Notify implementation that transaction going to complete successfully. Method called right after
         * all change history records were applied to the storage.
         * 
         * \param tid - transaction id.
         */
-        virtual void on_commit(transaction_id_t  tid) = 0;
+        virtual void on_commit(transaction_id_t tid) = 0;
 
         /**
         * Notify implementation that transaction going to rollback.
         *
         * \param tid - transaction id.
         */
-        virtual void on_rollback(transaction_id_t) = 0;
+        virtual void on_rollback(transaction_id_t tid) = 0;
     };
 
 
@@ -106,9 +114,7 @@ namespace OP::vtm
 
         EventSourcingSegmentManager() = delete;
 
-        ~EventSourcingSegmentManager()
-        {
-        }
+        virtual ~EventSourcingSegmentManager() = default;
 
         [[nodiscard]] transaction_ptr_t begin_ro_transaction() 
         {
@@ -136,8 +142,11 @@ namespace OP::vtm
                 std::forward_as_tuple());
             if (insres.second) //just insert
             {
+                auto new_tran_id = _transaction_uid_gen.fetch_add(1);
                 insres.first->second = transaction_impl_ptr_t(
-                    new TransactionImpl(_transaction_uid_gen.fetch_add(1), *this));
+                    new TransactionImpl(new_tran_id, *this));
+                //notify history manager about upcoming loading 
+                _change_history_manager->on_new_transaction(new_tran_id);
                 return insres.first->second;
             }
             //transaction already exists, just create save-point
