@@ -8,6 +8,21 @@
 
 namespace OP::vtm
 {
+    namespace details
+    {
+        template <class T, class U>
+        constexpr inline T exchange(T& obj, U&& new_value) noexcept
+        {
+#ifdef OP_CPP20_FEATURES
+            return std::exchange(obj, std::forward<U>(new_value));
+#else
+            T old_value = std::move(obj);
+            obj = std::forward<U>(new_value);
+            return old_value;
+#endif
+        }
+
+    }
     /** Simple byte buffer. It is similar to std::unique_ptr, but allows to create
     * non-owning 'ghost'. Used as element for #ShadowBufferCache container to allow quick reuse memory
     * using size as a key.  
@@ -29,9 +44,9 @@ namespace OP::vtm
         }
 
         constexpr ShadowBuffer(ShadowBuffer&& other) noexcept
-            : _buffer(exchange(other._buffer, nullptr))
-            , _owner(exchange(other._owner, false))
-            , _size(exchange(other._size, 0))
+            : _buffer(details::exchange(other._buffer, nullptr))
+            , _owner(details::exchange(other._owner, false))
+            , _size(details::exchange(other._size, 0))
         {
         }
 
@@ -42,9 +57,9 @@ namespace OP::vtm
         {
             destroy();
 
-            _buffer = exchange(other._buffer, nullptr);
-            _owner = exchange(other._owner, false);
-            _size = exchange(other._size, 0);
+            _buffer = details::exchange(other._buffer, nullptr);
+            _owner = details::exchange(other._owner, false);
+            _size = details::exchange(other._size, 0);
 
             return *this;
         }
@@ -96,17 +111,6 @@ namespace OP::vtm
         }
 
     private:
-        template <class T, class U>
-        constexpr static T exchange(T& obj, U&& new_value) noexcept
-        {
-#ifdef OP_CPP20_FEATURES
-            return std::exchange(obj, std::forward<U>(new_value));
-#else
-            T old_value = std::move(obj);
-            obj = std::forward<U>(new_value);
-            return old_value;
-#endif
-        }
 
         void destroy()
         {
