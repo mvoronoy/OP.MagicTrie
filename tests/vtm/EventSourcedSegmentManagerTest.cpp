@@ -112,15 +112,14 @@ namespace
         OP_UTEST_ASSERT(future_block2_t2.get());
     }
 
-    void test_Locking(OP::utest::TestRuntime& tresult)
+    void test_Locking(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         const char seg_file_name[] = "t-segmentation.test";
 
         auto tmngr1 = SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             SegmentOptions()
             .segment_size(1024),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
-
+            mem_change_history
             );
         tmngr1->ensure_segment(0);
 
@@ -162,7 +161,7 @@ namespace
             tresult.assert_that<equals>(ca, ro_x40_x20.pos()[idx++]);
     }
 
-    void test_EvSrcSegmentManager(OP::utest::TestRuntime& tresult)
+    void test_EvSrcSegmentManager(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         tresult.info() << "test Transacted Segment Manager..." << std::endl;
 
@@ -171,7 +170,7 @@ namespace
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             OP::vtm::SegmentOptions()
                 .segment_size(1024),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
             );
         tmngr1->ensure_segment(0);
         std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
@@ -254,24 +253,26 @@ namespace
         //test block inclusion
     }
 
-    void test_EvSrcSegmentGenericMemoryAlloc(OP::utest::TestRuntime& tresult)
+    void test_EvSrcSegmentGenericMemoryAlloc(
+        OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         const char seg_file_name[] = "t-segmentation.test";
         //uncomment to debug...> auto& prev_os = OP::vtm::integrity::Stream::os(tresult.info()); 
         GenericMemoryTest::test_MemoryManager<EventSourcingSegmentManager>(seg_file_name, tresult,
-            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
         );
         //uncomment to debug...> OP::vtm::integrity::Stream::os(prev_os);//restore
     }
 
-    void test_EvSrcSegmentManagerMultithreadMemoryAllocator(OP::utest::TestRuntime& tresult)
+    void test_EvSrcSegmentManagerMultithreadMemoryAllocator(
+        OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         tresult.info() << "test Transacted Memory Allocation..." << std::endl;
         const char seg_file_name[] = "t-segmentation.test";
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
         );
         auto aa1 = tmngr1->segment_size();
         SegmentTopology<HeapManagerSlot> mngrToplogy(tmngr1);
@@ -385,14 +386,14 @@ namespace
         tmngr1.reset();
     }
 
-    void test_EvSrcMemmngrAllocDealloc(OP::utest::TestRuntime& tresult)
+    void test_EvSrcMemmngrAllocDealloc(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         tresult.info() << "Reproduce issue with dealloc-alloc in single transaction..." << std::endl;
         const char seg_file_name[] = "t-segmentation.test";
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
         );
         auto aa1 = tmngr1->segment_size();
         //tmngr1->ensure_segment(0);
@@ -426,14 +427,14 @@ namespace
         tmngr1.reset();
     }
 
-    void test_EvSrcReleaseReadBlock(OP::utest::TestRuntime& tresult)
+    void test_EvSrcReleaseReadBlock(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         tresult.info() << "Generic positive tests...\n";
         const char seg_file_name[] = "t-segmentation.test";
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory));
+            mem_change_history);
         tmngr1->ensure_segment(0);
         OP_CONSTEXPR(static const) segment_pos_t read_block_pos = 0x50;
         OP_CONSTEXPR(static const) segment_pos_t write_block_pos = 0x100;
@@ -505,14 +506,14 @@ namespace
         }
     }
 
-    void test_EvSrcNestedTransactions(OP::utest::TestRuntime& tresult)
+    void test_EvSrcNestedTransactions(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         tresult.info() << "Nesting transactions...\n";
         const char seg_file_name[] = "t-segmentation.test";
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
             );
         tmngr1->ensure_segment(0);
         OP_CONSTEXPR(static const) segment_pos_t write_block_len = 0x11;
@@ -625,7 +626,7 @@ namespace
             tmngr1.reset();
             tmngr1 = OP::vtm::SegmentManager::open<EventSourcingSegmentManager>(
                 seg_file_name,
-                std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+                mem_change_history
                 );
             tmngr1->ensure_segment(0);
         }
@@ -675,7 +676,7 @@ namespace
             tresult.assert_true(case3_r.get());
         }
     }
-    void test_EvSrcBlockInclude(OP::utest::TestRuntime& tresult)
+    void test_EvSrcBlockInclude(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         tresult.info() << "test Transacted Segment Manager..." << std::endl;
 
@@ -684,7 +685,7 @@ namespace
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             OP::vtm::SegmentOptions()
             .segment_size(1024),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
         );
         tmngr1->ensure_segment(0);
         std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
@@ -721,7 +722,7 @@ namespace
         do_test_overlap();
     }
 
-    void test_EvSrcBlockIncludeOnRead(OP::utest::TestRuntime& tresult)
+    void test_EvSrcBlockIncludeOnRead(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         tresult.info() << "test Transacted Segment Manager..." << std::endl;
 
@@ -730,7 +731,7 @@ namespace
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             OP::vtm::SegmentOptions()
                 .segment_size(1024),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
         );
         tmngr1->ensure_segment(0);
         std::fstream fdata_acc(seg_file_name, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
@@ -751,7 +752,7 @@ namespace
         g1.commit();
 
     }
-    void test_EvSrcBlockOverlapOnRead(OP::utest::TestRuntime& tresult)
+    void test_EvSrcBlockOverlapOnRead(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         tresult.info() << "Overlapped block inside read-only transactions..." << std::endl;
 
@@ -760,7 +761,7 @@ namespace
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             OP::vtm::SegmentOptions()
                 .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
         );
         tmngr1->ensure_segment(0);
         constexpr segment_pos_t write_block_pos1 = 0;
@@ -869,14 +870,14 @@ namespace
     }
 
 
-    void test_ROTransaction(TestRuntime& tresult)
+    void test_ROTransaction(TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         const char seg_file_name[] = "t-segmentation.test";
 
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(seg_file_name,
             OP::vtm::SegmentOptions()
                 .segment_size(5 * 1024),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
         );
         tmngr1->ensure_segment(0);
         constexpr segment_pos_t start_offset_c = 0x40;

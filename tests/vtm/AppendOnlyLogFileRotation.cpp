@@ -13,6 +13,7 @@
 #include <op/common/ThreadPool.h>
 #include <op/common/Bitset.h>
 #include <op/common/Range.h>
+#include "MemoryChangeHistoryTestHarness.h"
 
 namespace
 {
@@ -44,51 +45,28 @@ namespace
     {
         OP::utils::ThreadPool tp;
         using namespace std::string_literals;
+        using namespace OP::vtm;
 
-        using file_rota_t = OP::vtm::AppendLogFileRotation;
-        auto frt = file_rota_t::create_new(tp, 
+        using RWR = typename MemoryChangeHistory::RWR;
+        using transaction_id_t = typename MemoryChangeHistory::transaction_id_t;
+        using file_rota_t = AppendLogFileRotationChangeHistory;
+        
+        constexpr std::uint8_t transactions_per_file_c = 5;
+        constexpr size_t block_test_width_c = 32;
+
+
+        auto frt = file_rota_t::create_new(tp,
             std::unique_ptr<OP::vtm::CreationPolicy>(
-                new OP::vtm::FileCreationPolicy(
-                    tp, OP::vtm::FileRotationOptions{},
+                new OP::vtm::FileCreationPolicy(tp, 
+                    OP::vtm::FileRotationOptions{}
+                        .transactions_per_file(transactions_per_file_c),
                     std::filesystem::path("."),
                     "a0"s, ".tlog"s))
         );
-        constexpr int max_tran_n = 100;
-        for (auto tran_id = 0; tran_id < max_tran_n; ++tran_id)
-        {
-            frt->on_new_transaction(tran_id);
-        }
-
-        //constexpr size_t test_tran_c = 11 * 11;
-        //constexpr size_t test_range_from_c = 32;
-        //constexpr size_t test_range_to_c = 1 << 24;
-        //constexpr size_t test_range_length_c = 1024*10;
-        //constexpr double test_expected_c = 57.1;
-        //auto rand_range_gen = [&]() {
-        //    auto pos = tresult.randomizer().next_in_range<std::uint32_t>(test_range_from_c, test_range_to_c);
-        //    auto dim = tresult.randomizer().next_in_range<std::uint32_t>(8, test_range_length_c);
-        //    return MyRange(pos, dim);
-        //};
-
-        //for (auto i = 0; i < test_tran_c; ++i)
-        //{
-        //    for (auto j = 0; j < 5; ++j)
-        //    {
-        //        auto tran_id = i + j;
-        //        frt->on_new_transaction(tran_id);
-        //        for (auto k = 0; k < 1000; ++k)
-        //        {
-        //            TestPayload tst_value{ rand_range_gen(), 73, 57, test_expected_c };
-        //            frt->append(tran_id, tst_value);
-        //        }
-        //    }
-        //    auto key = rand_range_gen();
-        //    auto payload = TestPayload(key, 0, i, test_expected_c);
-        //}
-
+        test::vtm::test_memory_change_history(tresult, *frt);
     }
 
-    static auto& module_suite = OP::utest::default_test_suite("vtm.AppendOnlySkipList")
+    static auto& module_suite = OP::utest::default_test_suite("vtm.RotaryLogChangeHistory")
         .declare("emplace", test_Emplace)
         ;
 } //ns:

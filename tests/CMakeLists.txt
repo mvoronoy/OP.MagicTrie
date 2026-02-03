@@ -55,6 +55,9 @@ add_executable (trie_test
     "vtm/StringManagerTest.cpp"
     "vtm/SegmentManagerTest.cpp"
     "vtm/SegmentToplogyTest.cpp"
+    "vtm/InMemMemoryChangeHistory.cpp"
+    "vtm/MemoryChangeHistoryTestHarness.h"
+    "vtm/GenericMemoryTest.h"
 
     "SpanContainerTest.cpp"
     "tr.cpp"

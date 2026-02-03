@@ -64,12 +64,13 @@ namespace
 
     void testDefault(OP::utest::TestRuntime& tresult, const worload_t& workload)
     {
+        OP::utils::ThreadPool tp;
         using namespace OP::flur;
         auto tmngr = OP::vtm::SegmentManager::create_new<OP::vtm::EventSourcingSegmentManager>(
             test_file_name,
             OP::vtm::SegmentOptions()
                 .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
 
         );
 
@@ -115,11 +116,14 @@ namespace
     void testAtomStr(OP::utest::TestRuntime& tresult, const worload_t& workload)
     {
         using namespace OP::flur;
+
+        OP::utils::ThreadPool tp;
+
         auto tmngr = OP::vtm::SegmentManager::create_new<OP::vtm::EventSourcingSegmentManager>(
             test_file_name,
             OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
         );
 
         using trie_t = OP::trie::Trie<
@@ -157,7 +161,7 @@ namespace
     }
 
     static auto& module_suite = OP::utest::default_test_suite("Trie.fixed_string")
-        .before_suite(init_workload)
+        .with_fixture(init_workload)
         .declare("default", testDefault)
         .declare("compare-with-atomstr", testAtomStr)
        ;

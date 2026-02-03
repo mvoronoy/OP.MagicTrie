@@ -6,6 +6,8 @@
 #include <condition_variable>
 #include <list>
 
+#include <op/common/ThreadPool.h>
+
 #include <op/vtm/EventSourcingSegmentManager.h>
 
 namespace OP::vtm
@@ -15,16 +17,18 @@ namespace OP::vtm
     {
         using transaction_id_t = typename MemoryChangeHistory::transaction_id_t;
 
-        InMemoryChangeHistory()
-            : _garbage_collector(&InMemoryChangeHistory::collect_committed, this)
+        InMemoryChangeHistory(OP::utils::ThreadPool& thread_pool)
+            : _thread_pool(thread_pool)
         {
         }
         
         ~InMemoryChangeHistory()
         {
-            _stop_garbage_collection = true;
-            _need_garbage_condition.notify_one();
-            _garbage_collector.join();
+            std::unique_lock guard(_garbage_collection_future_acc);
+            if(_garbage_collection_future.valid())
+                static_cast<void>(_garbage_collection_future.get());
+            guard.release();
+
             std::unique_lock lock(_global_history_acc);
             while (_global_history_begin)
             {
@@ -34,7 +38,12 @@ namespace OP::vtm
             }
         }
 
-        [[nodiscard]] ShadowBuffer allocate(
+        OP::utils::ThreadPool& thread_pool() noexcept
+        {
+            return _thread_pool;
+        }
+
+        [[nodiscard]] std::optional<ShadowBuffer> buffer_of_region(
             const RWR& search_range, 
             transaction_id_t transaction_id, 
             MemoryRequestType hint, 
@@ -67,10 +76,12 @@ namespace OP::vtm
                     if (init_data)//copy origin from init
                         memcpy(result.get(), init_data, search_range.count());
                     std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
-                    populate_ro_block(search_range, result, transaction_id, &new_block, 
+                    if(!populate_ro_block(search_range, result, transaction_id, &new_block, 
                         // for writes need avoid races, so not looking at _isolation and keep always 'Prevent'
-                        ReadIsolation::Prevent
-                        );
+                        ReadIsolation::Prevent))
+                    {
+                        return {}; //concurrent lock exception
+                    }
                 }
                 block_leaking_guard.exchange(BlockType::wr); //block is ready for use
                 return result;
@@ -82,15 +93,19 @@ namespace OP::vtm
                 if (init_data)
                     memcpy(new_buffer.get(), init_data, search_range.count());
                 std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
-                populate_ro_block(search_range, new_buffer, transaction_id, nullptr,
-                    _isolation.load()
-                );
+                if(!populate_ro_block(search_range, new_buffer, transaction_id, nullptr,
+                    _isolation.load()) )
+                {
+                    return {}; //concurrent lock exception
+                }
                 return new_buffer;
             }
         }
 
         void destroy(transaction_id_t tid, ShadowBuffer buffer) override
         {
+            if (buffer.is_owner()) //memory allocated for RO and no entry in global_history
+                return; //there ShadowBuffer will automatically destroy memory
             // restore back pointer to BlockProfile
             std::uint8_t* field_buffer = buffer.get();
             BlockProfile* block = reinterpret_cast<BlockProfile*>(
@@ -119,14 +134,6 @@ namespace OP::vtm
 
         void on_rollback(transaction_id_t id) override
         {
-            std::shared_lock rlock(_global_history_acc);
-            //for (auto i = begin(), iend = end(); i != iend; ++i)
-            //{
-            //    auto& block = **i;
-            //    /* on rollback remove all collected in this scope blocks*/
-            //    block._type = BlockType::garbage; //mark block as garbage for future wipe
-
-            rlock.unlock();
             complete_transaction(id);
         }
 
@@ -214,11 +221,12 @@ namespace OP::vtm
         std::atomic<std::uint64_t> _epoch{0};
         std::shared_mutex _global_history_acc;
 
-        std::thread _garbage_collector;
+        OP::utils::ThreadPool& _thread_pool;
         std::unordered_set<transaction_id_t> _completed_transactions;
         std::mutex _completed_transactions_acc;
-        std::atomic<bool> _stop_garbage_collection = false;
-        std::condition_variable _need_garbage_condition;
+
+        std::future<void> _garbage_collection_future;
+        std::mutex _garbage_collection_future_acc;
 
         /** \return position in _global_history where item has been added. 
         *   \pre `_global_history_acc` is unique locked
@@ -239,7 +247,7 @@ namespace OP::vtm
             return *new_block;
         }
 
-        void populate_ro_block(
+        bool populate_ro_block(
             const RWR& search_range,
             ShadowBuffer& new_buffer, 
             transaction_id_t current_tran,
@@ -267,7 +275,7 @@ namespace OP::vtm
                     {
                         //block_leaking_guard ensures that: `new_block_iter->_type = garbage`
                         //exception, but caller may retry later
-                        throw ConcurrentLockException();
+                        return false;//throw ConcurrentLockException();
                     }
                     case ReadIsolation::ReadUncommitted:
                     { //DIRTY-READ logic, further code will copy this dirty chunk
@@ -315,49 +323,58 @@ namespace OP::vtm
                     joined_zone.count()
                 );
             }
+            return true;
         }
 
         void complete_transaction(transaction_id_t transaction_id)
         {
+            std::shared_lock rlock(_global_history_acc);
+            //only mark blocks to delete, cleaning logic is delegated to garbage collection process
+            for (auto** i = &_global_history_begin; *i != nullptr; i = &(*i)->_next)
+            {
+                if ((*i)->_used_in_transaction == transaction_id)
+                {
+                    (*i)->_type = BlockType::garbage; //mark block as garbage for future wipe
+                }
+            }
+            rlock.unlock();
+
             std::unique_lock lock(_completed_transactions_acc);
             _completed_transactions.emplace(transaction_id);
-            _need_garbage_condition.notify_one();
+        }
+
+        void push_gc_work()
+        {
+            std::unique_lock g(_garbage_collection_future_acc);
+            _garbage_collection_future = _thread_pool.async(
+                [garbage_collection_future = std::move(_garbage_collection_future), this]() mutable{
+                    collect_committed();    
+                    garbage_collection_future.get(); //complete previous future
+                }
+            );
         }
 
         /** background thread function to clean memory */
         void collect_committed() noexcept
         {
-            while (!_stop_garbage_collection.load())
-            {
-                std::unique_lock lock(_completed_transactions_acc);
-                if (_completed_transactions.empty())
-                { //wait until some transaction complete
-                    _need_garbage_condition.wait(lock,
-                        [this]() {
-                            return !_completed_transactions.empty()
-                                || _stop_garbage_collection.load()
-                                ;
-                        });
-                }
-                if (_stop_garbage_collection.load())
-                    return; //stop immediately
-                std::unordered_set<transaction_id_t> id_clone{ _completed_transactions };
-                _completed_transactions.clear();
-                lock.unlock(); //allow collect other completed transactions
-                std::unique_lock history_guard(_global_history_acc);
-                BlockProfile* prev = nullptr;
-                for (auto** i = &_global_history_begin; *i != nullptr; )
-                {
-                    if (id_clone.find((*i)->_used_in_transaction) != id_clone.end())
-                    {
-                        destroy_history_item(i); //i is updated automatically
-                    }
-                    else
-                        i = &(*i)->_next;
-                }
-            }
+            std::unique_lock lock(_completed_transactions_acc);
+            std::unordered_set<transaction_id_t> id_clone{ _completed_transactions };
+            _completed_transactions.clear();
+            lock.unlock(); //allow collect other completed transactions
             
+            std::unique_lock history_guard(_global_history_acc);
+            BlockProfile* prev = nullptr;
+            for (auto** i = &_global_history_begin; *i != nullptr; )
+            {
+                if (id_clone.find((*i)->_used_in_transaction) != id_clone.end())
+                {
+                    destroy_history_item(i); //i is updated automatically
+                }
+                else
+                    i = &(*i)->_next;
+            }
         }
+
         /**
         * \pre  _global_history_acc - acquired
         */

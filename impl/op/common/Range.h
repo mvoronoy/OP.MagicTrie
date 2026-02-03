@@ -235,6 +235,11 @@ namespace OP
             return _count;
         }
 
+        constexpr this_t offset(pos_t offset) const noexcept
+        {
+            return this_t{ _pos + offset, _count };
+        }
+
     private:
         pos_t _pos;
         Distance _count;

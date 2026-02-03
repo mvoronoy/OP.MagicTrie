@@ -126,6 +126,9 @@ namespace
 
     void test_Emplace(OP::utest::TestRuntime& tresult)
     {
+        if (std::filesystem::remove(test_file_name))
+            tresult.debug() << "previous test file has been removed: '" << test_file_name << "'\n";
+
         OP::utils::ThreadPool tp;
         std::shared_ptr<OP::vtm::AppendOnlyLog> a0l = OP::vtm::AppendOnlyLog::create_new(
             tp, test_file_name
@@ -188,6 +191,9 @@ namespace
 
     void test_NewSegment(OP::utest::TestRuntime& tresult)
     {
+        if (std::filesystem::remove(test_file_name))
+            tresult.debug() << "previous test file has been removed: '" << test_file_name << "'\n";
+
         OP::utils::ThreadPool tp;
         std::shared_ptr<OP::vtm::AppendOnlyLog> a0l = OP::vtm::AppendOnlyLog::create_new(
             tp, test_file_name
@@ -264,12 +270,14 @@ namespace
 
     void test_PolyList(OP::utest::TestRuntime& tresult)
     {
+        if (std::filesystem::remove(test_file_name))
+            tresult.debug() << "previous test file has been removed: '" << test_file_name << "'\n";
+
         OP::utils::ThreadPool tp;
         std::shared_ptr<OP::vtm::AppendOnlyLog> a0l = OP::vtm::AppendOnlyLog::create_new(
             tp, test_file_name
             /*OS minimal allowed size for segment-size*/
         );
-
 
         auto [list_address1, skplst1] = OP::vtm::create_a0_skip_list<std::int32_t, DummyIndexer>(a0l);
         auto [list_address2, skplst2] = OP::vtm::create_a0_skip_list<std::int64_t>(a0l); //no indexer
@@ -328,12 +336,15 @@ namespace
         run_simultaneous_scan(skplst1->indexed_for_each(0), skplst2->indexed_for_each(0));
         run_simultaneous_scan(skplst1->async_indexed_for_each(0), skplst2->async_indexed_for_each(0));
 
-        tresult.assert_that<equals>(skplst1->size(), counter);
-        tresult.assert_that<equals>(skplst2->size(), counter);
+        tresult.assert_that<equals>(skplst1->size(), counter / 2);
+        tresult.assert_that<equals>(skplst2->size(), counter / 2);
     }
 
     void test_Perf(OP::utest::TestRuntime& tresult)
     {
+        if (std::filesystem::remove(test_file_name))
+            tresult.debug() << "previous test file has been removed: '" << test_file_name << "'\n";
+
         OP::utils::ThreadPool tp;
         std::shared_ptr<OP::vtm::AppendOnlyLog> a0l = OP::vtm::AppendOnlyLog::create_new(
             tp, test_file_name

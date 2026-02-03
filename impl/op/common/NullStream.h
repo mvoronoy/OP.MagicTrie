@@ -6,7 +6,7 @@
 
 namespace OP
 {
-    /** no-op stream-buffer */
+    /** \brief no operations stream-buffer. */
     class NullStreamBuffer : public std::streambuf
     {
 
@@ -14,6 +14,7 @@ namespace OP
         int overflow(int c) final { return c; }
     };
 
+    /** \brief Stream that does nothing. */
     class NullStream : public std::ostream
     {
         NullStreamBuffer _null_buffer = {};

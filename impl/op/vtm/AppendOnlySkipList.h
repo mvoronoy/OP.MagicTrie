@@ -315,6 +315,16 @@ namespace OP::vtm
             return result + last_bucket->_size;
         }
 
+        template <class FCallback>
+        void for_each(FCallback&& f)
+        {
+            for_each_bucket([&](Bucket& bucket) -> bool {
+                auto begin = bucket.data(), end = bucket.data() + bucket._size;
+                return call_lambda_scan(f, begin, end);
+            });
+        }
+
+
         /**
         *
         * \tparam FCallback A callback functor that can be invoked in one of two ways:
@@ -327,8 +337,24 @@ namespace OP::vtm
         *
         *   \return true if next bucket must be processed and false to early stop.
         */
+        //template <class Q, class FCallback>
+        //void indexed_for_each(const Q& query, FCallback&& f) const
+        //{
+        //    for_each_bucket([&](const Bucket& bucket) -> bool {
+        //            return bucket_scan(bucket, query, f);
+        //        });
+        //}
+
         template <class Q, class FCallback>
-        void indexed_for_each(const Q& query, FCallback&& f)
+        void indexed_for_each(const Q& query, FCallback&& f) 
+        {
+            for_each_bucket([&](Bucket& bucket) -> bool {
+                    return bucket_scan(bucket, query, f);
+                });
+        }
+
+        template <class Q, class FCallback>
+        void indexed_for_each(const Q& query, FCallback&& f) const
         {
             for_each_bucket([&](const Bucket& bucket) -> bool {
                     return bucket_scan(bucket, query, f);
@@ -636,18 +662,19 @@ namespace OP::vtm
             return true; //continue buckets iteration
         }
 
-        template <class ...Ux>
-        bool call_lambda_scan(Ux&&...)
-        {
-            // this declaration is fallback for wrong usage of `call_lambda_scan`, see other overloads for correct signature
-            // but for g++ compatibility issue I just cannot write `static_assert(false...`. Instead 
-            // condition just repeat existing methods' enable_if conditions
-            static_assert( !(sizeof ...(Ux) != 3
-                || std::is_invocable_v<Ux...>
-                ),
-                "callback supposed to match signature either f(const T&) or f(iterator, iterator)"
-            );
-        }
+        //template <class ...Ux>
+        //bool call_lambda_scan(Ux&&...)
+        //{
+        //    // this declaration is fallback for wrong usage of `call_lambda_scan`, see other overloads for correct signature
+        //    // but for g++ compatibility issue I just cannot write `static_assert(false...`. Instead 
+        //    // condition just repeat existing methods' enable_if conditions
+        //    static_assert( !(sizeof ...(Ux) != 3
+        //        || std::is_invocable_v<Ux...>
+        //        ),
+        //        "callback supposed to match signature either f(const T&) or f(iterator, iterator)"
+        //    );
+        //    return false;
+        //}
 
         OP_DECLARE_CLASS_HAS_TEMPLATE_MEMBER(check)
         //template <typename C, typename ...Ax> static std::true_type test_check(decltype(&C::template Member<Ax ...>)); 
@@ -679,8 +706,8 @@ namespace OP::vtm
         *
         *   \return true if next bucket must be processed and false to early stop.
         */
-        template <class Q, class FCallback>
-        bool bucket_scan(const Bucket& bucket, const Q& query, FCallback& f)
+        template <class TBucket, class Q, class FCallback>
+        bool bucket_scan(TBucket&& bucket, const Q& query, FCallback& f)
         {
             BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
                 BucketNavigation nav = BucketNavigation::worth;

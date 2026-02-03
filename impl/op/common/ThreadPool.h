@@ -193,7 +193,7 @@ namespace OP::utils
         * \return std::future to control completion and get result or exception.
         */
         template< class F, class... TArgs>
-        [[nodiscard]] std::future<function_res_t<F, TArgs...> > async( F&& f, TArgs&&... args )
+        [[nodiscard]] auto async( F&& f, TArgs&&... args ) -> std::future<function_res_t<F, TArgs...>>
         {
             ensure_workers();
             using bind_t = decltype(make_bind(std::forward<F>(f), std::forward<TArgs>(args)...));

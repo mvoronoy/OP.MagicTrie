@@ -28,10 +28,11 @@
 #include <op/utest/details.h>
 #include <op/common/IoFlagGuard.h>
 #include <op/common/ftraits.h>
-#include <op/common/Console.h>
 #include <op/common/has_member_def.h>
 #include <op/common/Currying.h>
 #include <op/common/NullStream.h>
+#include <op/common/EventSupplier.h>
+#include <op/common/StringEnforce.h>
 
 #if defined( _MSC_VER ) 
 #if defined(max)
@@ -98,7 +99,7 @@ namespace OP::utest
         /** Number of times to execute test for the real metrics measurement */
         size_t _runs = 1;
         
-        [[nodiscard]] bool is_load_run() const
+        [[nodiscard]] constexpr bool is_load_run() const noexcept
         {
             return _runs > 1;
         }
@@ -230,6 +231,7 @@ namespace OP::utest
     };
 
     struct TestCase;
+    struct TestFixture;
     struct TestSuite;
     struct TestRun;
     struct TestRuntime;
@@ -263,13 +265,13 @@ namespace OP::utest
         friend struct TestCase;
         friend struct TestRun;
 
-        explicit TestResult(std::string name)
+        explicit TestResult(std::string name) noexcept
             : _name(std::move(name))
             , _status(Status::not_started)
             , _run_number(0)
         {}
 
-        [[maybe_unused]] [[nodiscard]] const std::string& test_name() const
+        [[maybe_unused]] [[nodiscard]] const std::string& test_name() const noexcept
         {
             return _name;
         }
@@ -288,34 +290,35 @@ namespace OP::utest
             ok,
             _last_
         };
-        constexpr static size_t status_size_c = ((size_t)Status::_last_ - (size_t)Status::_first_);
+        constexpr static size_t status_size_c = 
+            (static_cast<size_t>(Status::_last_) - static_cast<size_t>(Status::_first_));
 
-        constexpr bool operator !() const
+        constexpr bool operator !() const noexcept
         {
             return _status != Status::ok;
         }
-        [[nodiscard]] constexpr Status status() const
+        [[nodiscard]] constexpr Status status() const noexcept
         {
             return _status;
         }
         
-        [[nodiscard]] double ms_duration() const
+        [[nodiscard]] double ms_duration() const noexcept
         {
             return std::chrono::duration<double, std::milli>(_end_time - _start_time).count();
         }
 
-        [[nodiscard]] unsigned run_number() const
+        [[nodiscard]] unsigned run_number() const noexcept
         {
             return _run_number;
         }
 
-        [[nodiscard]] double avg_duration() const
+        [[nodiscard]] double avg_duration() const noexcept
         {
             return _run_number > 1 ? (ms_duration() / _run_number) : ms_duration();
         }
 
 
-        [[nodiscard]] static const std::string& status_to_str(Status status) 
+        [[nodiscard]] static const std::string& status_to_str(Status status) noexcept
         {
             static const std::string values[] = {
                 "not started", "failed", "exception", "aborted", "ok"
@@ -327,38 +330,84 @@ namespace OP::utest
             return status_to_str(_status);
         }
 
-        using colored_wrap_t = console::color_meets_value_t<std::string>;
-
-        [[nodiscard]] static colored_wrap_t status_to_colored_str(Status status) 
-        {
-            using fclr_t = colored_wrap_t(*)(const std::string&);
-            const std::string& str = status_to_str(status);
-            static const fclr_t coloring_seq[] = { 
-                /*not_started*/
-                console::esc<console::void_t>,
-                /*failed*/
-                console::esc<console::bright_yellow_t>,
-                /*exception*/
-                console::esc<console::red_t>,
-                /*aborted*/
-                console::esc<console::background_red_t>,
-                /*ok*/
-                console::esc<console::bright_green_t> 
-            };
-            return 
-                coloring_seq[((size_t)status - (size_t)Status::_first_) % status_size_c](str);
-
-        }
-        [[nodiscard]] colored_wrap_t status_to_colored_str() const
-        {
-            return status_to_colored_str(_status);
-        }
-        
     private:
         Status _status;
         unsigned _run_number;
         time_point_t _start_time, _end_time;
         const std::string _name;
+    };
+
+    class UnitTestEventSupplier
+    {
+    public:
+        using event_time_t = std::chrono::steady_clock::time_point;
+
+        enum Code
+        {
+            suite_start,
+            suite_end,
+            case_start,
+            case_end,
+            /** Notify that load-execution start warm-up cycle. Event parameter is 
+            *   defined by #load_exec_event_t type, where unsigned parameter specifies number of expected warm-up calls.
+            */
+            load_execute_warm,
+            /** Notify that load-execution finished warm-up cycle and starts real run. 
+             *  Event parameter is defined by #load_exec_event_t type, where unsigned parameter specifies number 
+             * of expected run calls.
+             */
+            load_execute_run
+        };
+
+        using suite_event_t = std::tuple<TestSuite&, event_time_t>;
+        using start_case_event_t = std::tuple<TestRuntime&, TestCase&, TestFixture&, event_time_t>;
+        using end_case_event_t = std::tuple<TestRuntime&, TestCase&, TestFixture&, TestResult&, event_time_t>;
+        using load_exec_event_t = std::tuple<TestRuntime&, TestCase&, TestResult&, unsigned>;
+
+        template <auto c, class T>
+        struct EventCode2Type
+        {
+            using key_t = decltype(c);
+            constexpr static key_t code = c;
+            using type = T;
+        };
+
+        using event_ingredients_t = OP::common::EventIngredient<Code>;
+
+        using test_event_manager_t = OP::common::EventSupplierMixer <
+            Code, event_ingredients_t::SupportPayload<
+            EventCode2Type<suite_start, suite_event_t>,
+            EventCode2Type<suite_end, suite_event_t>,
+            EventCode2Type<case_start, start_case_event_t>,
+            EventCode2Type<case_end, end_case_event_t>,
+            EventCode2Type<load_execute_warm, load_exec_event_t>,
+            EventCode2Type<load_execute_run, load_exec_event_t>
+            >
+        >;
+        
+        using unsubscriber_t = test_event_manager_t::unsubscriber_t;
+        using unsub_guard_t = OP::common::UnsubGuard<Code>;
+
+        template<Code code, class FHandler>
+        unsubscriber_t bind(FHandler&& handler) 
+        {
+            return _supplier.on<code>(std::move(handler));
+        }
+
+        template<class ... Tx>
+        unsub_guard_t make_unsub_guard(Tx&& ...tx)
+        {
+            return unsub_guard_t(_supplier, {std::forward<Tx>(tx)...});
+        }
+
+        template<Code code, class TPayload>
+        void send_event(TPayload payload)
+        {
+            _supplier.send_event<code>(std::move(payload));
+        }
+
+    private:
+        test_event_manager_t _supplier;
     };
 
     namespace tools //forward decl
@@ -383,16 +432,17 @@ namespace OP::utest
 
         TestRuntime(const TestRuntime&) = delete;
 
-        [[maybe_unused]] [[nodiscard]] TestSuite& suite() const
+        [[maybe_unused]] [[nodiscard]] TestSuite& suite() const noexcept
         {
             return _suite;
         }
-        const std::string& test_name() const
+
+        const std::string& test_name() const noexcept
         {
             return _name;
         }
 
-        const TestRunOptions& run_options() const
+        const TestRunOptions& run_options() const noexcept
         {
             return _run_options;
         }
@@ -595,6 +645,8 @@ namespace OP::utest
         Var<TestRuntime>,
         // Current instance of TestSuite
         Var<TestSuite>,
+        // Current instance of TestRun
+        Var<TestRun>,
         // Shared state from `before_suite`
         Unpackable<std::any> >;
 
@@ -636,41 +688,14 @@ namespace OP::utest
         }
 
         /**
-        *   Start same test multiple times
+        *   Start same test multiple times.
         *   @param result - accumulate results of all execution into single one. At exit this parameter
         *           contains summary time execution (without warm-up) and status of last executed test
         *   @param run_number - number of times to execute test-case
         *   @param warm_up - some number of executions before measure time begins. Allows
          *                  warm-up CPU, internal cache and so on...
         */
-        TestResult load_execute(test_run_shared_args_t& runtime, unsigned run_number, unsigned warm_up = 10)
-        {
-            auto &info_stream = runtime.eval_arg<TestRuntime>().info();
-            info_stream << "=> test is starting under loading...\n"
-                << console::esc<console::blue_t>("\twarm-up cycles:(")
-                << console::esc<console::bright_cyan_t>(warm_up)
-                << console::esc<console::blue_t>(")...\n");
-            while (warm_up--)
-            {
-                auto tr = single_execute(runtime);
-                if (!tr) //warm-up failed
-                    return tr;
-            }
-            info_stream
-                << console::esc<console::blue_t>("\tmeasurement cycles:(")
-                << console::esc<console::bright_cyan_t>(run_number)
-                << console::esc<console::blue_t>(")...\n");
-            TestResult result(_name);
-            result._start_time = std::chrono::steady_clock::now();
-            for (; run_number; --run_number, ++result._run_number)
-            {
-                isolate_exception_run(runtime, result);
-            }
-            result._end_time = std::chrono::steady_clock::now();
-            result._status = TestResult::Status::ok;
-
-            return result;
-        }
+        inline TestResult load_execute(test_run_shared_args_t& run_args, unsigned run_number, unsigned warm_up);
         
         /** Conduct particular test */
         virtual void run(test_run_shared_args_t& retval) = 0;
@@ -683,6 +708,10 @@ namespace OP::utest
             if (e.what() && *e.what())
             {
                 tr.error() << e.what();
+            }
+            else
+            {
+                tr.error() << "Exception of type:[" << typeid(Exception).name() << "] without details.";
             }
         }
         // apply RAII to set end test time
@@ -720,12 +749,7 @@ namespace OP::utest
             catch (std::exception const& e)
             {
                 retval._status = TestResult::Status::exception;
-
-                runtime.eval_arg<TestRuntime&>().error()
-                    << "\n----["
-                    << console::esc<console::red_t>("exception")<<"] - what:("
-                    << e.what() 
-                    << ")\n";
+                render_exception_status(runtime, e);
             }
             catch (...)
             { //stop propagation of any other exception
@@ -735,20 +759,167 @@ namespace OP::utest
         const std::string _name;
     };
 
-    /** Represent logical grouping of multiple test cases */
-    struct TestSuite :
+
+    /**
+    * \brief Abstract interface representing a test fixture (stateful run environment) for a TestSuite.
+    *
+    * TestFixture defines a lifecycle contract for providing shared setup and tear-down
+    * logic for a group of test cases within a TestSuite. A fixture instance is responsible
+    * for preparing resources before test execution and releasing them afterward.
+    *
+    * The fixture lifecycle consists of:
+    * - \ref setup — invoked before executing a test bundle to construct and return
+    *   fixture-specific state.
+    * - \ref tear_down — invoked after test execution to clean up resources associated
+    *   with the previously created state.
+    *
+    * The state produced by \ref setup is returned as a \c std::any object, allowing
+    * arbitrary user-defined types to be stored. This value may later be injected into
+    * test cases or passed to the tear-down phase.
+    *
+    * TestFixture instances are non-copyable and non-movable to ensure strict ownership
+    * and a well-defined lifecycle during test execution.
+    */
+    struct TestFixture
+    {
+        TestFixture() = default;
+
+        explicit TestFixture(std::string id) noexcept
+            : _id(std::move(id))
+        {
+        }
+
+        TestFixture(const TestFixture&) = delete;
+        TestFixture& operator = (const TestFixture&) = delete;
+        TestFixture(TestFixture&&) = delete;
+        TestFixture& operator = (TestFixture&&) = delete;
+
+        virtual ~TestFixture() = default;
+
+        const std::string& id() const
+        {
+            return _id;
+        }
+
+        /**
+        * \brief Prepare fixture state before executing a test bundle.
+        *
+        * This method is called once per configuration registered in the owning TestSuite.
+        * Implementations should allocate and initialize all resources required by test cases.
+        *
+        * \param suite Reference to the owning TestSuite.
+        * \return A \c std::any object containing fixture-specific state.
+        *         The returned value may later be injected into test cases and is guaranteed
+        *         to be passed to \ref tear_down.
+        */
+        virtual std::any setup(TestSuite&) = 0;
+
+        /**
+        * \brief Clean up fixture state after test execution.
+        *
+        * This method is called after all test cases associated with the fixture configuration
+        * have finished execution.
+        *
+        * \param suite Reference to the owning TestSuite.
+        * \param state The fixture state previously returned by \ref setup.
+        */
+        virtual void tear_down(TestSuite&, std::any&) noexcept = 0;
+
+    private:
+        const std::string _id;
+    };
+
+    namespace details
+    {
+        /** RAII helper to ensure that tear-down method of TestFixture has been called in any case.
+        */
+        struct FixtureRAII
+        {
+
+            FixtureRAII(TestSuite& owner, TestFixture& fixture) noexcept
+                : _owner(owner)
+                , _fixture(fixture)
+            {
+            }
+
+            ~FixtureRAII()
+            {
+                if(_shared_state.has_value())
+                    _fixture.tear_down(_owner, _shared_state);
+            }
+
+            void setup() noexcept
+            {
+                _shared_state = std::move(_fixture.setup(_owner));
+            }
+
+            bool has_value() const noexcept
+            {
+                return _shared_state.has_value();
+            }
+
+            std::any& value() noexcept
+            {
+                return _shared_state;
+            }
+
+        private:
+
+
+            TestSuite& _owner;
+            TestFixture& _fixture;
+            std::any _shared_state;
+        };
+    }//ns:details
+
+    /**
+    * \brief Logical container for grouping and executing related test cases.
+    *
+    * TestSuite represents a collection of test cases that share a common purpose,
+    * lifecycle, or execution context. Each suite is uniquely identified by its name
+    * and may be selectively executed using this name or tags.
+    *
+    * Test cases are registered into the suite via the `declare()` method.
+    *
+    * ### Fixtures / Configurations
+    * A TestSuite may define one or more execution configurations using
+    * `with_fixture()`. Each registered fixture provides a setup/teardown 
+    * context for executing the entire suite.
+    *
+    * Execution behavior:
+    * - If no fixture is registered, all test cases are executed once.
+    * - If exactly one fixture is registered, all test cases are executed once
+    *   under that fixture.
+    * - If multiple fixtures are registered, the entire bundle of test cases is
+    *   executed once per fixture.
+    *
+    * This allows the same logical test set to be validated under multiple
+    * configurations without duplicating test declarations.
+    *
+    * ### Tagging
+    * TestSuite supports tagging, enabling conditional execution (e.g. filtering
+    * by feature, environment, or test category).
+    *
+    * The class is designed for C++17 and does not impose any threading or execution
+    * policy by itself; execution semantics are controlled by the surrounding test
+    * runner.
+    */    
+    class TestSuite :
         public std::enable_shared_from_this<TestSuite>
     {
+    public:
         using this_t = TestSuite;
         using test_executor_ptr = std::unique_ptr<TestCase>;
         using test_container_t = std::deque<test_executor_ptr>;
         using iterator = typename test_container_t::iterator;
-        template <class Name>
+
+        template <class StringLike>
         TestSuite(
-            Name&& name, std::ostream& info_stream, std::ostream& error_stream)
-            : _name(std::forward<Name>(name))
-            ,_info_stream(info_stream)
-            ,_error_stream(error_stream)
+            const StringLike& name, 
+            std::ostream& info_stream, std::ostream& error_stream)
+            : _name(name)
+            , _info_stream(info_stream)
+            , _error_stream(error_stream)
         {
         }
 
@@ -756,70 +927,7 @@ namespace OP::utest
         {
             return _name;
         }
-        /**
-        * Declare optional startup function that is invoked before each suite start. This
-        * method useful
-        * to setup test environment or create data shared across all tests in this suite.
-        * \param init_function caller provided suite initialization. This function can
-        *   return void or `std::any` to share some data across test-cases in this suite.
-        *   Input parameters must accept 0 or 1 argument of `TestSuite&` type. \code
-        * static auto module_suite = OP::utest::default_test_suite("ExpensiveInitSuite")
-        *   .before_suite([]() -> std::any { return std::make_shared<VeryExpensiveClass>();}
-        *   .after_suite([](std::any& previous){ // some clean-up code }
-        *   .declare("basic", [](const VeryExpensiveClass& shared_across_many_cases){ ... })
-        *
-        * \endcode
-        * \sa #after_suite
-        */
-        template <class F>
-        [[maybe_unused]] TestSuite& before_suite(F init_function)
-        {
-            using namespace std::string_literals;
-            if ((bool)_init_suite)
-                throw std::runtime_error("TestSuite('"s + _name + "') already has definition `before_suite`"s);
 
-            using function_traits_t = OP::utils::function_traits<F>;
-            static_assert(std::is_invocable_v<F> || std::is_invocable_v<F, TestSuite&>,
-                "Functor for `before_suite` must accept 0 or 1 argument of `TestSuite&` type");
-            using result_t = typename function_traits_t::result_t;
-            //Create wrapper that has no return and 0 params
-            if constexpr (std::is_same_v<void, result_t>)
-            {//init function returns nothing, so use as is
-                _init_suite =
-                    OP::currying::arguments(
-                        std::ref(*this), of_unpackable(this->_suite_shared_state))
-                    .def(std::move(init_function));
-
-            }
-            else 
-            {//init function provides some shared value, store it for others cases
-                _init_suite = [
-                    fwrap = std::move(init_function),
-                    args = OP::currying::arguments(
-                        std::ref(*this), of_unpackable(this->_suite_shared_state)), 
-                    &suite_shared_state = _suite_shared_state
-                ] () mutable {
-                    if constexpr (std::is_same_v<std::any, result_t>)
-                        suite_shared_state = std::move(args.invoke(fwrap));
-                    else //not a std::any, need to assign
-                        suite_shared_state.emplace<result_t>(args.invoke(fwrap));
-                };
-            }
-
-            return *this;
-        }
-
-        template <class F>
-        [[maybe_unused]] TestSuite& after_suite(F tear_down)
-        {
-            using namespace std::literals;
-            using function_traits_t = OP::utils::function_traits<F>;
-            if ((bool)_shutdown_suite)
-                throw std::runtime_error("TestSuite('"s + _name + "') already has defined `after_suite`"s);
-            _shutdown_suite =
-                OP::currying::arguments(std::ref(*this)).def(std::move(tear_down));
-            return *this;
-        }
 
         /**
          *   Register a test case in this suite to execute.
@@ -879,6 +987,109 @@ namespace OP::utest
             return *this;
         }
 
+        /**
+        *  \brief Register a fixture providing setup and optional teardown logic
+        *        for executing the entire test suite.
+        *
+        * A fixture defines an execution context under which all test cases in the
+        * suite will be executed. The method may be called multiple times to register
+        * multiple fixtures; in that case, the full bundle of test cases is executed
+        * once per registered fixture.
+        *
+        * ### Setup function
+        * The setup functor is mandatory and must return a `std::any` object that
+        * represents the fixture state. This value is passed to the corresponding
+        * teardown function (if provided).
+        *
+        * Supported setup signatures:
+        * - `std::any ()`
+        * - `std::any (TestSuite&)`
+        *
+        * ### Tear-down function
+        * The tear-down functor is optional. When provided, it is invoked after all
+        * test cases in the suite have completed execution for the given fixture.
+        *
+        * Supported tear-down signatures:
+        * - `void (std::any&)`
+        * - `void (std::any&, TestSuite&)`
+        *
+        * ### Execution semantics
+        * - If no fixture is registered, test cases are executed once without any setup.
+        * - If exactly one fixture is registered, test cases are executed once under
+        *   that fixture.
+        * - If multiple fixtures are registered, the entire suite is executed once per
+        *   fixture in registration order.
+        *
+        * The returned `std::any` from setup is guaranteed to be passed unchanged to
+        * the corresponding tear-down invocation.
+        *
+        * The value contained in std::any returned by the setup function may optionally be passed to test cases.
+        * When a test case declares an arbitrary argument, the framework attempts to cast the fixture value
+        * to the requested type and inject it into the test. For example, a test case declared as
+        * `void my_test_case(const VeryExpensiveClass&)` will receive the stored fixture object by reference.
+        * If the type does not match, the framework throws `std::bad_any_cast `.
+        *
+        * \tparam FSetup    Callable type implementing setup logic.
+        * \tparam FTearDown Callable type implementing tear-down logic.
+        *
+        * \param setup_function Setup callable returning `std::any`.
+        * \param tear_down    Tear-down callable consuming the setup result.
+        *
+        * \return Reference to the TestSuite instance to allow fluent chaining.
+        *
+        * ### Example:
+        * \code
+        * static auto module_suite = OP::utest::default_test_suite("ExpensiveInitSuite")
+        *   .with_fixture(
+        *           []() -> std::any { return std::any(std::in_place_type<VeryExpensiveClass>);},
+        *           [](std::any& previous){
+        *                   // some clean-up code
+        *           })
+        *   .declare("basic", [](const VeryExpensiveClass& shared_across_many_cases){ ... })
+        *
+        * \endcode
+        */
+        template <class FSetup, class FTearDown>
+        [[maybe_unused]] TestSuite& with_fixture(FSetup&& setup_function, FTearDown&& tear_down_function)
+        {
+            using fixture_impl_t = FunctionalPairTestFixture<FSetup, FTearDown>;
+            return with_fixture(
+                std::shared_ptr<TestFixture>(new fixture_impl_t(std::move(setup_function), std::move(tear_down_function)))
+            );
+        }
+
+        template <class FSetup, class FTearDown>
+        [[maybe_unused]] TestSuite& with_fixture(std::string fixture_name, FSetup&& setup_function, FTearDown&& tear_down_function)
+        {
+            using fixture_impl_t = FunctionalPairTestFixture<FSetup, FTearDown>;
+            return with_fixture(
+                std::shared_ptr<TestFixture>(new fixture_impl_t(
+                    std::move(fixture_name), std::move(setup_function), std::move(tear_down_function)))
+            );
+        }
+
+        template <class FSetup>
+        [[maybe_unused]] TestSuite& with_fixture(FSetup&& init)
+        {
+            return with_fixture(
+                std::shared_ptr<TestFixture>(new InitOnlyTestFixture<FSetup>(std::move(init)))
+            );
+        }
+
+        template <class FSetup>
+        [[maybe_unused]] TestSuite& with_fixture(std::string fixture_name, FSetup&& init)
+        {
+            return with_fixture(
+                std::shared_ptr<TestFixture>(new InitOnlyTestFixture<FSetup>(std::move(fixture_name), std::move(init)))
+            );
+        }
+
+        [[maybe_unused]] TestSuite& with_fixture(std::shared_ptr<TestFixture> fixture)
+        {
+            _fixtures.emplace_back(std::move(fixture));
+            return *this;
+        }
+
         /**Enumerate all test cases without run
         * \sa end()
         */
@@ -910,71 +1121,101 @@ namespace OP::utest
             return info();
         }
         
-        /** Configurable options of this suite */
-        TestRunOptions& options()
+        template<class Predicate>
+        std::deque<TestResult> run_if(Predicate& predicate, TestRun& run_env)
         {
-            return _options;
+            std::deque<TestResult> result;
+            if (_fixtures.empty())
+            {
+                DummyTestFixture dummy;
+                run_if(predicate, dummy, run_env, result);
+            }
+            else
+            {
+                for (auto& fixture : _fixtures)
+                    if (!run_if(predicate, *fixture, run_env, result))
+                        break;
+            }
+            return result;
         }
-
-        template <class Predicate>
-        std::deque<TestResult> run_if(Predicate& predicate);
 
         template <class Predicate>
         std::deque<TestResult> load_run(Predicate& predicate);
 
-    protected:
-        /** Initialization right before suite run 
-        */
-        virtual void before_exec()
-        {
-            if (_init_suite)
-            {
-                _init_suite();
-            }
-        } 
-        /** Tear down right after suite run */
-        virtual void after_exec()
-        {
-            if (_shutdown_suite)
-            {
-                _shutdown_suite();
-            }
-            _suite_shared_state.reset();
-        } 
-
     private:
-        using bootstrap_t = std::function<void()>;
 
-        struct SuiteInitRAII
+        struct DummyTestFixture : TestFixture
         {
-            explicit SuiteInitRAII(this_t* owner)
-                :_owner(owner)
-            {
-                _owner->before_exec();
-                _initialized = true;
+            virtual std::any setup(TestSuite&)
+            { /*do nothing*/ 
+                return std::any{};
             }
 
-            ~SuiteInitRAII()
-            {
-                if (_initialized)
-                {
-                    _owner->after_exec();
-                }
-            }
-
-            this_t* _owner;
-            bool _initialized = false;
+            virtual void tear_down(TestSuite&, std::any&) noexcept
+            { /*do nothing*/ }
         };
 
-        TestRunOptions _options;
+        template <class FInit>
+        struct InitOnlyTestFixture : TestFixture
+        {
+            FInit _init;
+            explicit InitOnlyTestFixture(FInit&& init) noexcept
+                : _init(std::move(init))
+            {
+            }
+            
+            InitOnlyTestFixture(std::string fixture_name, FInit&& init) noexcept
+                : TestFixture(std::move(fixture_name))
+                , _init(std::move(init))
+            {
+            }
+
+            virtual std::any setup(TestSuite& suite) override
+            { 
+                if constexpr (std::is_invocable_v<FInit, TestSuite&>)
+                    return _init(suite);
+                else
+                    return _init();
+            }
+
+            virtual void tear_down(TestSuite&, std::any&) noexcept override
+            { /*do nothing*/
+            }
+        };
+
+        template <class FInit, class FTearDown>
+        struct FunctionalPairTestFixture : InitOnlyTestFixture<FInit>
+        {
+            FTearDown _tear_down;
+
+            FunctionalPairTestFixture(std::string fixture_name, FInit&& init, FTearDown&& tear_down) noexcept
+                : InitOnlyTestFixture<FInit>(std::move(fixture_name), std::move(init))
+                , _tear_down(std::move(tear_down))
+            {
+            }
+
+            FunctionalPairTestFixture(FInit&& init, FTearDown&& tear_down) noexcept
+                : InitOnlyTestFixture<FInit>(std::move(init))
+                , _tear_down(std::move(tear_down))
+            {
+            }
+
+            virtual void tear_down(TestSuite& suite, std::any& shared_state) noexcept override
+            { 
+                OP::currying::arguments(
+                    std::ref(suite), of_unpackable(shared_state))
+                    .invoke(_tear_down);
+            }
+        };
+
+        template <class Predicate>
+        bool run_if(Predicate& predicate, TestFixture& fixture, TestRun& run_env, std::deque<TestResult>& result);
+
         std::string _name;
         test_container_t _tests;
         std::ostream& _info_stream;
         std::ostream& _error_stream;
-
-        std::any _suite_shared_state;
-        bootstrap_t _init_suite, _shutdown_suite;
-
+        std::vector<std::shared_ptr<TestFixture>> _fixtures;
         template <class F>
         struct FunctionalTestCase : public TestCase
         {
@@ -1021,7 +1262,8 @@ namespace OP::utest
 
     struct TestRun
     {
-        using test_suite_ptr = std::shared_ptr<TestSuite> ;
+        using test_suite_ptr = std::shared_ptr<TestSuite>;
+
         explicit TestRun(TestRunOptions options = TestRunOptions())
             : _options(options)
         {
@@ -1042,6 +1284,11 @@ namespace OP::utest
         {
             return _options;
         }
+
+        UnitTestEventSupplier& event_supplier() noexcept
+        {
+            return _event_supplier;
+        }
         
         /**
         *   Just enumerate all test-suites without run
@@ -1057,61 +1304,41 @@ namespace OP::utest
             }
         }
 
+        std::shared_ptr<TestSuite> get_suite(const std::string& name) const
+        {
+            using namespace std::string_literals;
+            if (auto found = _suites.find(name); found != _suites.end())
+            {
+                return found->second;
+            }
+            throw std::runtime_error("Unknown suite: '"s + name + "'");
+        }
+
         [[maybe_unused]] std::deque<TestResult> run_all()
         {
-            return run_if([](TestSuite&, TestCase&) {return true; });
+            return run_if([](TestSuite&, TestCase&, TestFixture&) { return true; });
         }
 
         /**
-        * Run all tests that match to predicate specified
+        * Run all tests that match to the specified predicate.
+        *
         * \tparam Predicate predicate that matches to signature `bool F(TestSuite&, TestCase&)`
         */
         template <class Predicate>
-        std::deque< TestResult > run_if(Predicate predicate)
+        std::deque<TestResult> run_if(Predicate predicate)
         {
-            std::deque<TestResult> result;
             sig_abort_guard guard;
-
+            std::deque<TestResult> result;
             for (auto& suite_decl : _suites)
             {
-                raii::IoFlagGuard stream_guard(suite_decl.second->info());
-
-                suite_decl.second->info()
-                    << "==[" << suite_decl.first << "]"
-                    << std::setfill('=')
-                    << std::setw(
-                            static_cast<int>(_options.output_width() - suite_decl.first.length()))
-                    << ""
-                    << std::endl;
-
-                stream_guard.reset();
-                suite_decl.second->options() = _options;
-
-                try
-                { // This try allows intercept exceptions only from suite initialization
-                    auto single_res = suite_decl.second->run_if(predicate);
-                    for (auto& r : single_res)
-                        result.emplace_back(std::move(r));
-                }
-                catch (const std::exception& ex)
-                {
-                    result.push_back(handle_environment_crash(
-                            *suite_decl.second, &ex));
-                    if (_options.fail_fast())
-                        break;
-                }
-                catch (...)
-                {
-                    result.push_back(handle_environment_crash(
-                            *suite_decl.second, nullptr));
-                    if (_options.fail_fast())
-                        break;
-                }
+                if (!run_suite(*suite_decl.second, predicate, result))
+                    break;
             }
             return result;
         }
-
+        
     private:
+
         static TestResult handle_environment_crash(TestSuite&suite, const std::exception* pex)
         {
             TestResult crash_res("Suite");
@@ -1140,7 +1367,67 @@ namespace OP::utest
             void(*_prev_handler)(int);
         };
 
+        /** \brief Run single suite.
+        * \return true for normal flow or false if failed-fast and overall run must be stopped immediately.
+        */ 
+        template <class Predicate>
+        bool run_suite(TestSuite& suite, Predicate& predicate, std::deque<TestResult>& result)
+        {
+            struct RAIISendSuiteEnd
+            {
+                UnitTestEventSupplier& _event_supplier;
+                TestSuite& _suite;
+
+                RAIISendSuiteEnd(TestSuite& suite, UnitTestEventSupplier& event_supplier)
+                    : _suite(suite)
+                    , _event_supplier(event_supplier)
+                {
+                    _event_supplier
+                        .send_event<UnitTestEventSupplier::suite_start>(
+                            UnitTestEventSupplier::suite_event_t(_suite, std::chrono::steady_clock::now())
+                        );
+                }
+                
+                ~RAIISendSuiteEnd()
+                {
+                    _event_supplier
+                        .send_event<UnitTestEventSupplier::suite_end>(
+                            UnitTestEventSupplier::suite_event_t(_suite, std::chrono::steady_clock::now())
+                        );
+                }
+
+            } guard(suite, _event_supplier);
+
+            try
+            { // This try allows intercept exceptions only from suite initialization
+                auto single_res = suite.run_if(predicate, *this);
+                std::copy(
+                    std::make_move_iterator(single_res.begin()),
+                    std::make_move_iterator(single_res.end()),
+                    std::back_inserter(result));
+            }
+            catch (const std::exception& ex)
+            {
+                result.push_back(handle_environment_crash(suite, &ex));
+                if (_options.fail_fast())
+                {
+                    return false;
+                }
+            }
+            catch (...)
+            {
+                result.push_back(handle_environment_crash(suite, nullptr));
+                if (_options.fail_fast())
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+
         using suites_t = std::multimap<std::string, std::shared_ptr<TestSuite> >;
+        UnitTestEventSupplier _event_supplier;
         suites_t _suites;
         TestRunOptions _options;
     };
@@ -1157,7 +1444,7 @@ namespace OP::utest
     {
         /** Thread safe wrapper for centralized unit-test level random generation
          *  It is designed as a singleton, so use RandomGenerator::instance()
-         *  By default class inititialized by current time milliseconds, but it can
+         *  By default class initialized by current time milliseconds, but it can
          *  be anytime re-seeded with help of #reseed method.
          */
         struct RandomGenerator
@@ -1420,66 +1707,91 @@ namespace OP::utest
     }
 
     template<class Predicate>
-    std::deque<TestResult> TestSuite::run_if(Predicate& predicate)
+    bool TestSuite::run_if(Predicate& predicate, TestFixture& fixture, TestRun& run_env, std::deque<TestResult>& result)
     {
+        auto& options = run_env.options();
         //apply random seed if needed
-        if(_options.random_seed())
+        if(options.random_seed())
         {
-            tools::RandomGenerator::instance().seed(*_options.random_seed());
+            tools::RandomGenerator::instance().seed(*options.random_seed());
         }
         // RAII to wrap init_suite/shutdown_suite
-        std::unique_ptr<SuiteInitRAII> initializer; //delayed until real case need to run
+        details::FixtureRAII initializer(*this, fixture); //delayed setup until real case need to run
         test_run_shared_args_t runtime_vars;
+        runtime_vars.assign(of_var(run_env));
         runtime_vars.assign(of_var(*this));
-        runtime_vars.assign(of_unpackable(this->_suite_shared_state));
             
-        std::deque<TestResult> result;
         for (auto& tcase : _tests)
         {
-            if (!predicate(*this, *tcase))
+            if (!predicate(*this, *tcase, fixture))
                 continue;
 
-            if (!initializer) //not initialized yet
+            if (!initializer.has_value()) //not initialized yet
             {
-                initializer = std::make_unique<SuiteInitRAII>(this);
+                initializer.setup();
+                runtime_vars.assign(of_unpackable(initializer.value()));
             }
-            TestRuntime runtime(
-                    *this, tcase->id(), _options);
+
+            TestRuntime runtime(*this, tcase->id(), options);
             runtime_vars.assign(of_var(runtime));
 
-            //allow output error right after appear
-            info() << "\t[" << tcase->id() << "]...\n";
-            result.emplace_back( tcase->execute(runtime_vars, _options) );
+            run_env.event_supplier().send_event<UnitTestEventSupplier::case_start>(
+                UnitTestEventSupplier::start_case_event_t{
+                    runtime, *tcase, fixture, std::chrono::steady_clock::now() }
+            );
+
+            result.emplace_back( tcase->execute(runtime_vars, options) );
             auto& last_run = result.back();
-            raii::IoFlagGuard stream_guard(info());
-            info()
-                    << "\t[" << tcase->id() << "] done with status:"
-                    << "-=[" << last_run.status_to_colored_str()
-                    << "]=-"
-                    << " in:" 
-                    << std::fixed << std::setprecision(3) 
-                    << last_run.ms_duration() << "ms"
-                ;
-            if(result.back().run_number() > 1)
-            {
-                info() << ", (avg:"
-                    << console::esc<console::bright_cyan_t>(last_run.avg_duration() ) << "ms)"
-                    ;
-            }
-            info() <<'.' << std::endl //need flush
-                ;
-            if (_options.fail_fast() && result.back().status() != TestResult::Status::ok)
-                break;
+            run_env.event_supplier().send_event<UnitTestEventSupplier::case_end>(
+                UnitTestEventSupplier::end_case_event_t{
+                    runtime, *tcase, fixture, last_run, std::chrono::steady_clock::now() }
+            );
+
+            if (options.fail_fast() && last_run.status() != TestResult::Status::ok)
+                return false;
         }
+        return true;
+    }
+
+    TestResult TestCase::load_execute(test_run_shared_args_t& run_args, unsigned run_number, unsigned warm_up)
+    {
+        auto& runtime = run_args.eval_arg<TestRuntime>();
+        auto& env = run_args.eval_arg<TestRun>();
+        TestResult result(_name);
+
+        typename UnitTestEventSupplier::load_exec_event_t event_args{ runtime, *this, result, warm_up };
+
+        //test is starting under loading...
+        //warm-up cycles
+        env.event_supplier().send_event<UnitTestEventSupplier::load_execute_warm>(event_args);
+        while (warm_up--)
+        {
+            auto tr = single_execute(run_args);
+            if (!tr) //warm-up failed
+                return tr;
+        }
+        std::get<unsigned>(event_args) = run_number;
+        env.event_supplier().send_event<UnitTestEventSupplier::load_execute_run>(event_args);
+
+        //measurement cycles:
+        result._start_time = std::chrono::steady_clock::now();
+        for (; run_number; --run_number, ++result._run_number)
+        {
+            isolate_exception_run(run_args, result);
+        }
+        result._end_time = std::chrono::steady_clock::now();
+        //??? result._status = TestResult::Status::ok;
+
         return result;
     }
 
-    template <class Name>
-    TestSuite& default_test_suite(Name&& name)
+
+    template <class StringLike>
+    TestSuite& default_test_suite(const StringLike& name)
     {
         return TestRun::default_instance().declare(
             std::make_shared<TestSuite>(
-                std::forward<Name>(name), std::cout, std::cerr)
+                name, std::cout, std::cerr)
         );
     };
 

@@ -5,10 +5,13 @@
 #include <op/vtm/StringMemoryManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <op/vtm/InMemMemoryChangeHistory.h>
+#include <op/vtm/AppendOnlyLogFileRotation.h>
 
 #include <set>
 #include <cassert>
 #include <iterator>
+
+#include "../MemoryChangeHistoryFixture.h"
 
 namespace
 {
@@ -22,12 +25,13 @@ namespace
     {
         using namespace std::string_literals;
         using str_manager_t = OP::vtm::StringMemoryManager<>;
+        OP::utils::ThreadPool tp;
 
         auto tmngr1 = SegmentManager::template create_new<EventSourcingSegmentManager>(
             node_file_name,
             OP::vtm::SegmentOptions()
                 .segment_size(0x110000),
-            std::shared_ptr<MemoryChangeHistory>(new InMemoryChangeHistory)
+            std::shared_ptr<MemoryChangeHistory>(new InMemoryChangeHistory(tp))
         );
 
         SegmentTopology<
@@ -220,7 +224,7 @@ namespace
             << "all avail:" << heap_mngr.available(0) << "\n";
     }
 
-    void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult)
+    void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         using namespace std::string_literals;
         using str_manager_t = OP::vtm::StringMemoryManager<>;
@@ -229,7 +233,7 @@ namespace
             node_file_name,
             OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-            std::unique_ptr<MemoryChangeHistory>(new InMemoryChangeHistory)
+            mem_change_history
         );
 
         SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
@@ -293,5 +297,13 @@ namespace
         .declare("edgecase-transactional", test_StringManagerEdgeCase)
         .declare("edgecase-no-tran", test_StringManagerEdgeCaseNoTran)
         .declare("smart-str", test_SmartStr)
+        // define scenario parameter with InMemory implementation
+        .with_fixture(
+            test::init_InMemoryChangeHistory, 
+            test::tear_down_InMemoryChangeHistory)
+        // define scenario parameter with File-rotary implementation
+        .with_fixture(
+            test::init_event_source_with_AppendLogFileRotationChangeHistory, 
+            test::tear_down_AppendLogFileRotationChangeHistory)
         ;
 } //ns:

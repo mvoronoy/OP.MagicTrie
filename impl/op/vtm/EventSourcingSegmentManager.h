@@ -5,6 +5,7 @@
 #include <thread>
 #include <shared_mutex>
 #include <queue>
+#include <optional>
 
 #include <op/common/Exceptions.h>
 #include <op/common/SpanContainer.h>
@@ -59,18 +60,24 @@ namespace OP::vtm
 
 
         /** \brief Inside specific transaction retrieve memory buffer that must be used for 
-        *   read or write operations for logical range.
+        *   read or write operations for logical region. 
         * 
         * Method takes logical address space `range` and provides buffer where read/write operations
         * must be performed for specific transaction.
-        * \param range - logical specification of range;
+        * \param range - logical specification of region to retrieve;
         * \param tid - transaction id;
         * \param memory_type - type of memory to return;
         * \param init_data - optional source buffer to copy initialization data. May be nullptr.
+        * \return Buffer or emty if requested region causes ConcurrentLock  state. Depending on the following preconditions
+        *   return buffer can contain serialized copy of changes made in current transaction so far:
+        *   - Previous transaction state (that were already updated in current transaction for the region).
+        *   - Value of paramater memory_type (wr_no_history prevents copying). 
+        *   - Init data parameter to pre-populate buffer.
         */
-        [[nodiscard]] virtual ShadowBuffer allocate(
+        [[nodiscard]] virtual std::optional<ShadowBuffer> buffer_of_region(
             const RWR& range, transaction_id_t tid, MemoryRequestType memory_type, const void* init_data) = 0;
-        /** \brief Destroy previously allocated by #allocate buffer for specific transaction 
+
+        /** \brief Destroy previously allocated by #buffer_of_region buffer for specific transaction 
         *
         * \param tid - transaction id;
         * \param buffer - buffer to destroy.
@@ -170,10 +177,12 @@ namespace OP::vtm
                 
             RWR search_range(pos, size);
             //apply all event sourced to `new_buffer`
-            auto buffer = _change_history_manager->allocate(
+            auto buffer = _change_history_manager->buffer_of_region(
                 search_range, current_transaction->transaction_id(), 
                 MemoryRequestType::ro, result.at<std::uint8_t>(0));
-            return ReadonlyMemoryChunk(std::move(buffer), size, pos);
+            if(!buffer)
+                throw ConcurrentLockException();
+            return ReadonlyMemoryChunk(std::move(buffer.value()), size, pos);
         }
 
 
@@ -196,16 +205,17 @@ namespace OP::vtm
             
             auto buffer = 
                 (hint == WritableBlockHint::new_c) //no need for initial copy
-                ? _change_history_manager->allocate(
+                ? _change_history_manager->buffer_of_region(
                     search_range, current_transaction->transaction_id(),
                     MemoryRequestType::wr_no_history, nullptr)
-                :  _change_history_manager->allocate(
+                :  _change_history_manager->buffer_of_region(
                     search_range, current_transaction->transaction_id(),
                     MemoryRequestType::wr, result.at<std::uint8_t>(0))
                 ;
-
-            auto ghost = buffer.ghost();
-            current_transaction->store_log_record(std::move(buffer), result.pos());
+            if(!buffer)
+                throw ConcurrentLockException();
+            auto ghost = buffer->ghost();
+            current_transaction->store_log_record(std::move(buffer.value()), result.pos());
             return MemoryChunk(std::move(ghost), size, pos);
         }
 

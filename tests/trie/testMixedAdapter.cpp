@@ -11,7 +11,7 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <op/vtm/InMemMemoryChangeHistory.h>
-#include <op/vtm/InMemMemoryChangeHistory.h>
+#include <op/vtm/AppendOnlyLogFileRotation.h>
 
 #include <op/trie/MixedAdapter.h>
 #include <op/common/NamedArgs.h>
@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include "../test_comparators.h"
+#include "../MemoryChangeHistoryFixture.h"
 #include "TrieTestUtils.h"
 
 using namespace OP::vtm;
@@ -28,13 +29,13 @@ using namespace OP::utest;
 using namespace OP::common;
 static const char* test_file_name = "trie.test";
 
-void testDefault(OP::utest::TestRuntime& tresult)
+void testDefault(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
 {
     using namespace OP::flur;
     auto tmngr = SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         SegmentOptions()
         .segment_size(0x110000),
-        std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        mem_change_history
     );
 
     using trie_t = Trie<
@@ -73,13 +74,13 @@ void testDefault(OP::utest::TestRuntime& tresult)
     tresult.assert_that<eq_sets>(range_default, test_values, OP_CODE_DETAILS());
 }
 
-void testChildConfig(OP::utest::TestRuntime& tresult)
+void testChildConfig(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
 {
     using namespace OP::flur;
     auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::vtm::SegmentOptions()
         .segment_size(0x110000),
-        std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        mem_change_history
         );
 
     using trie_t = Trie<
@@ -145,15 +146,15 @@ void testChildConfig(OP::utest::TestRuntime& tresult)
     };
     tresult.assert_that<eq_sets>(test_range2, test_values, OP_CODE_DETAILS());
 }
+
 /**Issue with MixedRange when not all next_sibling returned*/
-void test_ISSUE_0002(OP::utest::TestRuntime& tresult)
+void test_ISSUE_0002(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
 {
     using namespace OP::flur;
     auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-        std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
-
+        mem_change_history
     );
 
     using trie_t = Trie<
@@ -205,7 +206,7 @@ void test_ISSUE_0002(OP::utest::TestRuntime& tresult)
     tresult.assert_that<eq_sets>(source_range, test_values, OP_CODE_DETAILS());
 }
 
-void test_PrefixJoin(TestRuntime& tresult)
+void test_PrefixJoin(TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
 {
     using namespace OP::flur;
     //just reusable lambda that takes key() from trie iterator
@@ -214,7 +215,7 @@ void test_PrefixJoin(TestRuntime& tresult)
     auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-        std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        mem_change_history
     );
 
     using trie_t = Trie<
@@ -288,7 +289,7 @@ void test_PrefixJoin(TestRuntime& tresult)
         OP_CODE_DETAILS(<< "failed empty case #2"));
 }
 
-void test_PrefixJoinUnordered(TestRuntime& tresult)
+void test_PrefixJoinUnordered(TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
 {
     using namespace OP::flur;
 
@@ -299,7 +300,7 @@ void test_PrefixJoinUnordered(TestRuntime& tresult)
         test_file_name,
         OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-        std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        mem_change_history
     );
     using trie_t = Trie<
         EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
@@ -428,7 +429,7 @@ void render_children_tree()
     wr_trie.reset();
 }
 
-void test_UnorderedOrderFlatMap(TestRuntime& tresult)
+void test_UnorderedOrderFlatMap(TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
 {
     using namespace OP::flur;
     using trie_t = Trie<
@@ -438,7 +439,7 @@ void test_UnorderedOrderFlatMap(TestRuntime& tresult)
     render_children_tree<NRoots, NChildren, SegmentManager>();
     auto tmngr = OP::vtm::SegmentManager::open<EventSourcingSegmentManager>(
         test_file_name,
-        std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        mem_change_history
         );
     std::shared_ptr<trie_t> trie = trie_t::open(tmngr);
     using trie_iter_t = typename trie_t::iterator;
@@ -483,13 +484,13 @@ void test_UnorderedOrderFlatMap(TestRuntime& tresult)
     //trie->prefixed_range("1"_astr);
 }
 
-void test_Prefix(TestRuntime& tresult)
+void test_Prefix(TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
 {
     using namespace OP::flur;
     auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
         OP::vtm::SegmentOptions()
         .segment_size(0x110000),
-        std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+        mem_change_history
     );
 
     using trie_t = Trie<
@@ -542,11 +543,12 @@ void test_Prefix(TestRuntime& tresult)
 }
 
 static auto& module_suite = OP::utest::default_test_suite("MixedAdapter")
-.declare("default", testDefault)
-.declare("child", testChildConfig)
-.declare("ISSUE_0002", test_ISSUE_0002)
-.declare("prefix-join", test_PrefixJoin)
-.declare("prefix-join-flat-map", test_UnorderedOrderFlatMap)
-.declare("prefix-join-unordered", test_PrefixJoinUnordered)
-.declare("prefix", test_Prefix)
+    .declare("default", testDefault)
+    .declare("child", testChildConfig)
+    .declare("ISSUE_0002", test_ISSUE_0002)
+    .declare("prefix-join", test_PrefixJoin)
+    .declare("prefix-join-flat-map", test_UnorderedOrderFlatMap)
+    .declare("prefix-join-unordered", test_PrefixJoinUnordered)
+    .declare("prefix", test_Prefix)
+    .with_fixture(test::init_InMemoryChangeHistory, test::tear_down_InMemoryChangeHistory)
 ;

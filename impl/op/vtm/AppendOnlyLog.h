@@ -16,6 +16,7 @@
 #include <op/common/ftraits.h>
 #include <op/common/Exceptions.h>
 #include <op/common/ThreadPool.h>
+#include <op/common/ExclusiveStream.h>
 
 #include <op/vtm/typedefs.h>
 #include <op/vtm/SegmentHelperCache.h>
@@ -84,8 +85,8 @@ namespace OP::vtm
             size_t min_page_size = bip::mapped_region::get_page_size();
             segment_size = OP::utils::align_on(
                 segment_size, static_cast<segment_pos_t>(min_page_size));
-            std::ofstream init_header_file(file_name,
-                io::out | io::binary | io::trunc);
+            std::ofstream init_header_file = OP::exclusive_open(
+                file_name.string().c_str(), io::out | io::binary | io::trunc );
             if (init_header_file.bad())
             {
                 std::string what = file_name.string();

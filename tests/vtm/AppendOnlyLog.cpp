@@ -38,6 +38,9 @@ namespace
 
     void test_Allocate(OP::utest::TestRuntime& tresult)
     {
+        if (std::filesystem::remove(test_file_name))
+            tresult.debug() << "previous test file has been removed: '" << test_file_name << "'\n";
+
         OP::utils::ThreadPool tp;
         std::shared_ptr<OP::vtm::AppendOnlyLog> a0l = OP::vtm::AppendOnlyLog::create_new(
             tp, test_file_name
@@ -65,6 +68,9 @@ namespace
     
     void test_NewSegment(OP::utest::TestRuntime& tresult)
     {
+        if (std::filesystem::remove(test_file_name))
+            tresult.debug() << "previous test file has been removed: '" << test_file_name << "'\n";
+
         OP::utils::ThreadPool tp;
         std::shared_ptr<OP::vtm::AppendOnlyLog> a0l = OP::vtm::AppendOnlyLog::create_new(
             tp, test_file_name

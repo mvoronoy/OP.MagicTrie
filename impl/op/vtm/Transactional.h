@@ -393,6 +393,14 @@ namespace OP::vtm
         return f(ax...);
     }
 
+    /** \brief calculate Bloom filter hash code for transaction id. 
+    */
+    constexpr inline std::uint64_t bloom_filter_code(typename Transaction::transaction_id_t tid) noexcept
+    {
+        //good spreading of sequential bits for average case when transaction_id grows monotony
+        return tid * 0x5fe14bf901200001ull; //(0x60ff8010405001)
+    }
+
 } //end of namespace OP::vtm
 #endif //_OP_VTM_TRANSACTIONAL__H_
 

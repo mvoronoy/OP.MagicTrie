@@ -253,9 +253,9 @@ namespace OP::currying
     }
 
     template <class T>
-    auto of_var(T&& t)
+    auto of_var(T& t)
     {
-        return Var<std::decay_t<T>>(std::forward<T>(t));
+        return Var<std::decay_t<T>>(t);
     }
 
     namespace det

@@ -7,6 +7,9 @@
 #include <set>
 #include <cassert>
 #include <iterator>
+
+#include "../MemoryChangeHistoryFixture.h"
+
 namespace
 {
     using namespace OP::vtm;
@@ -102,7 +105,7 @@ namespace
         }
     }
 
-    void test_NodeManager(OP::utest::TestRuntime& tresult)
+    void test_NodeManager(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         using namespace OP::vtm;
 
@@ -125,14 +128,14 @@ namespace
             node_file_name,
             SegmentOptions()
             .segment_size(0x110000),
-            std::unique_ptr<MemoryChangeHistory>(new InMemoryChangeHistory)
+            mem_change_history
         );
 
         SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
         test_Generic<test_node_manager_t>(tresult, mngrToplogy);
     }
 
-    void test_Multialloc(OP::utest::TestRuntime& tresult)
+    void test_Multialloc(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         struct TestPayload
         {
@@ -155,7 +158,7 @@ namespace
             node_file_name,
             OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
         );
 
         SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
@@ -247,7 +250,7 @@ namespace
             OP_CODE_DETAILS(<< "Free count must be:" << test_nodes_count_c));
     }
 
-    void test_NodeManagerSmallPayload(OP::utest::TestRuntime& tresult)
+    void test_NodeManagerSmallPayload(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
     {
         struct TestPayloadSmall
         {/*The size of Payload selected to be smaller than FixedSizeMemoryManager::ZeroHeader */
@@ -263,7 +266,7 @@ namespace
         auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(node_file_name,
             OP::vtm::SegmentOptions()
             .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory)
+            mem_change_history
         );
 
         SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
@@ -274,5 +277,13 @@ namespace
         .declare("general", test_NodeManager)
         .declare("multialloc", test_Multialloc)
         .declare("small-payload", test_NodeManagerSmallPayload)
+        // define scenario parameter with InMemory implementation
+        .with_fixture( "memory-only",
+            test::init_InMemoryChangeHistory, 
+            test::tear_down_InMemoryChangeHistory)
+        // define scenario parameter with File-rotary implementation
+        .with_fixture("file-rotary",
+            test::init_event_source_with_AppendLogFileRotationChangeHistory, 
+            test::tear_down_AppendLogFileRotationChangeHistory)
         ;
 } //ns:

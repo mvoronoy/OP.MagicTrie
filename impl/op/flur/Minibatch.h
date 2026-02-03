@@ -96,10 +96,12 @@ namespace flur
         details::CyclicBuffer< src_element_t, N> _batch;
 
         background_t _work;
+        mutable std::mutex _work_acc;
 
         /**Apply move operator to source, but wait until all background work done*/
         Src&& safe_take()
         {
+            std::lock_guard guard(_work_acc);
             if (_work.valid())
                 _work.get();
             return std::move(_src);
@@ -150,6 +152,7 @@ namespace flur
             if (_batch.has_elements())
                 return true;
             //cover potential issue: t0{r == w}, t1{drain, now r < w}, t1{src_in_range = false, but r < w}
+            std::lock_guard guard(_work_acc);
             if (_work.valid())
             {
                 const_cast<background_t&>(_work).get();
@@ -174,6 +177,7 @@ namespace flur
             }
             else
             {
+                std::lock_guard guard(_work_acc);
                 if (_work.valid())
                 {
                     _work.get();
@@ -194,6 +198,7 @@ namespace flur
         }
         void async_drain(size_t lim)
         {
+            std::lock_guard guard(_work_acc);
             if (_work.valid()) //something already in progress
                 _work = std::move(
                     _thread_pool.async([this](size_t lim2, background_t b) {

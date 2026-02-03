@@ -8,7 +8,7 @@
 
 namespace OP::vtm
 {
-    /** Simple byte buffer allocated on heap. It similar to std::unique_ptr, but allows to create
+    /** Simple byte buffer. It is similar to std::unique_ptr, but allows to create
     * non-owning 'ghost'. Used as element for #ShadowBufferCache container to allow quick reuse memory
     * using size as a key.  
     */
@@ -29,28 +29,22 @@ namespace OP::vtm
         }
 
         constexpr ShadowBuffer(ShadowBuffer&& other) noexcept
-            : _buffer(other._buffer)
-            , _owner(other._owner)
-            , _size(other._size)
+            : _buffer(exchange(other._buffer, nullptr))
+            , _owner(exchange(other._owner, false))
+            , _size(exchange(other._size, 0))
         {
-            other._buffer = nullptr;
-            other._owner = false;
         }
 
         constexpr ShadowBuffer(const ShadowBuffer& other) = delete;
-        
         ShadowBuffer& operator = (const ShadowBuffer&) = delete;
 
         ShadowBuffer& operator = (ShadowBuffer&& other) noexcept
         {
             destroy();
 
-            _buffer = other._buffer;
-            _owner = other._owner;
-            _size = other._size;
-
-            other._buffer = nullptr;
-            other._owner = false;
+            _buffer = exchange(other._buffer, nullptr);
+            _owner = exchange(other._owner, false);
+            _size = exchange(other._size, 0);
 
             return *this;
         }
@@ -102,6 +96,18 @@ namespace OP::vtm
         }
 
     private:
+        template <class T, class U>
+        constexpr static T exchange(T& obj, U&& new_value) noexcept
+        {
+#ifdef OP_CPP20_FEATURES
+            return std::exchange(obj, std::forward<U>(new_value));
+#else
+            T old_value = std::move(obj);
+            obj = std::forward<U>(new_value);
+            return old_value;
+#endif
+        }
+
         void destroy()
         {
             if(_owner && _buffer)
@@ -119,19 +125,5 @@ namespace OP::vtm
         
     
 } //ns::OP::vtm
-/*
-namespace std
-{
-    template<>
-    struct std::hash<S>
-    {
-        std::size_t operator()(const S& s) const noexcept
-        {
-            std::size_t h1 = std::hash<std::string>{}(s.first_name);
-            std::size_t h2 = std::hash<std::string>{}(s.last_name);
-            return h1 ^ (h2 << 1); // or use boost::hash_combine
-        }
-    };
-}//ns:std
-*/
+
 #endif //_OP_VTM_SHADOWBUFFER__H_
