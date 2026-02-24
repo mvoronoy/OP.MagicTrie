@@ -62,7 +62,7 @@ namespace OP::utest::frontend
 
         explicit ConsoleFrontend(TestRun& run_env)
             : _run_env(run_env)
-            , _unsubscribes( 
+            , _unsubscribes{
                 _run_env.event_supplier().bind<UnitTestEventSupplier::suite_start>(
                     std::bind(&ConsoleFrontend::on_suite_start, this, plh::_1)
                 ),
@@ -78,7 +78,7 @@ namespace OP::utest::frontend
                 _run_env.event_supplier().bind<UnitTestEventSupplier::load_execute_run>(
                     std::bind(&ConsoleFrontend::on_load_execute_run, this, plh::_1)
                 )
-            )
+            }
         {
         }
 

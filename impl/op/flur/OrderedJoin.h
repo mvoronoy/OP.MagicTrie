@@ -128,7 +128,7 @@ namespace OP::flur
             if constexpr (direction_c)
                 return _join_key_cmp(left, right);
             else
-                return -1* _join_key_cmp(right, left);
+                return -1*_join_key_cmp(right, left);
         }
         
         void seek()

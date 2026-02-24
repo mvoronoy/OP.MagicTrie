@@ -9,7 +9,7 @@
 namespace OP::currying
 {
     
-    /** Marker that allows add extra behaviour for Currying argument evaluation. This is a base
+    /** Marker that allows add extra behavior for Currying argument evaluation. This is a base
     * class that in implementation must provide some no-arg `operator ()()`;
     */
     struct CurryingArgSpec{};
@@ -149,26 +149,38 @@ namespace OP::currying
     /** Similar to Var but deals with types that packed to some wrapper (like std::variant or std::any).
     * Allows to extract expected argument type
     */
-    template <class T>
-    struct Unpackable : CurryingArgSpec
+    struct UnpackAny: CurryingArgSpec
     {
-        template <typename U>
-        static constexpr bool can_handle() noexcept;
-
-        template <typename U>
-        auto& extract();
-    };
-
-    template <>
-    struct Unpackable<std::any> : CurryingArgSpec
-    {
-        explicit constexpr Unpackable(std::any& val) noexcept
-            : _val(&val)
+        explicit constexpr UnpackAny(std::any* val) noexcept
+            : _val(val)
         {}
 
-        constexpr Unpackable() noexcept
+        constexpr UnpackAny() noexcept
             : _val(nullptr)
         {}
+
+        constexpr UnpackAny(const UnpackAny& other) noexcept 
+            : _val(other._val)
+        {
+        }
+
+        constexpr UnpackAny(UnpackAny&& other) noexcept
+            : _val(other._val)
+        {
+        }
+
+        constexpr UnpackAny& operator = (const UnpackAny& other) noexcept
+        {
+            _val = other._val;
+            return *this;
+        }
+
+        constexpr UnpackAny& operator = (UnpackAny&& other) noexcept
+        {
+            _val = other._val;
+            return *this;
+        }
+
 
         template <typename >
         static constexpr bool can_handle() noexcept
@@ -182,23 +194,23 @@ namespace OP::currying
         template <typename U>
         auto& extract()
         {
+            if (!_val)
+                throw std::bad_any_cast{};//any_cast produces nullptr
             if constexpr(std::is_same_v<std::decay_t<U>, std::any>)
-                return *_val;
+                return *_val; //argument is expected as std::any
             else
             {
-                return std::any_cast<std::add_lvalue_reference_t<std::decay_t<U>>>(*_val);
+                //default any resolves by-value, so apply trick to extract as a pointer 
+                auto * result = std::any_cast<std::decay_t<U>>(_val);
+                if (!result)
+                    throw std::bad_any_cast{};//any_cast produces nullptr
+                return *result;
             }
         }
 
     private:
         std::any* _val;
     };
-
-    template <class T>
-    auto of_unpackable(T&& t)
-    {
-        return Unpackable<std::decay_t<T>>(std::forward<T>(t));
-    }
 
     template <class T>
     auto of_callable(T t)

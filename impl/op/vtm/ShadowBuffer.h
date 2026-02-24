@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 namespace OP::vtm
 {

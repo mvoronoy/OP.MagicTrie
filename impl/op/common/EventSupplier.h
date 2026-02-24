@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <list>
 #include <shared_mutex>
 #include <optional>

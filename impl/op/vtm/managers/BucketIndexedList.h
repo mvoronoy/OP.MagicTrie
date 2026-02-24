@@ -8,6 +8,7 @@
 #include <list>
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <limits>
 
 #include <op/common/Bitset.h>
@@ -172,13 +173,14 @@ namespace OP::vtm
         std::atomic<size_t> _empty_buckets = 0;
 
 
-        static inline auto _check_lifter_ = [](const auto& index, auto&&... args) 
+        constexpr static inline auto _check_lifter_ = [](const auto& index, auto&&... args) 
             -> decltype(index.check(std::forward<decltype(args)>(args)...)) {
             return index.check(std::forward<decltype(args)>(args)...);
             };
-        template <class TIndexer, class Query>
-        requires std::invocable<decltype(_check_lifter_), const TIndexer&, const Query&>
-        static bool _call_indexer_check(const TIndexer& indexer, const Query& query)
+
+        template <class TChecker, class Query>
+        requires std::invocable<decltype(_check_lifter_), const TChecker&, const Query&>
+        static bool _call_indexer_check(const TChecker& indexer, const Query& query)
         {
             return indexer.check(query);
         }
@@ -283,7 +285,7 @@ namespace OP::vtm
         }
 
         template <class Query, class F>
-        [[maybe_ignored]] size_t soft_remove_if_all(const Query& query, F&& callback)
+        [[maybe_unused]] size_t soft_remove_if_all(const Query& query, F&& callback)
         {
             size_t result = 0;
             std::shared_lock r_guard(_buckets_acc);

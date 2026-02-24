@@ -36,7 +36,7 @@ namespace OP::utest::frontend
         JsonFrontend(TestRun& run_env, std::ofstream&& json_file)
             : _run_env(run_env)
             , _json_file(std::move(json_file))
-            , _unsubscribes( 
+            , _unsubscribes{
                 _run_env.event_supplier().bind<UnitTestEventSupplier::test_run_start>(
                     std::bind(&JsonFrontend::on_run_start, this/*, plh::_1*/)
                 ),
@@ -61,7 +61,7 @@ namespace OP::utest::frontend
                 _run_env.event_supplier().bind<UnitTestEventSupplier::load_execute_run>(
                     std::bind(&JsonFrontend::on_load_execute_run, this, plh::_1)
                 )
-            )
+            }
         {
         }
 

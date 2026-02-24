@@ -85,7 +85,18 @@ namespace OP::trie
             return _container->value_of(_position_stack.back());
         }
 
-        inline bool operator == (const this_t& other) const  noexcept
+#ifdef OP_CPP20_FEATURES
+        auto operator <=> (const this_t& other) const 
+        {
+            if (is_end())
+                return other.is_end() ? std::strong_ordering::equal : std::strong_ordering::greater;
+            if (other.is_end())
+                return std::strong_ordering::less;
+            return _prefix <=> other._prefix;
+        }
+#endif //OP_CPP20_FEATURES
+
+        inline bool operator == (const this_t& other) const noexcept
         {
             if (is_end())
                 return other.is_end();
@@ -95,7 +106,7 @@ namespace OP::trie
             return _position_stack.back() == other._position_stack.back();
         }
 
-        inline bool operator < (const this_t& other) const  noexcept
+        inline bool operator < (const this_t& other) const noexcept
         {
             if (is_end())
                 return false; //even if other is 'end' too it is not less
@@ -106,12 +117,12 @@ namespace OP::trie
             return _prefix < other._prefix;
         }
 
-        inline bool operator != (const this_t& other) const  noexcept
+        inline bool operator != (const this_t& other) const noexcept
         {
             return !operator == (other);
         }
 
-        inline bool is_end() const  noexcept
+        inline bool is_end() const noexcept
         {
             return _position_stack.empty();
         }

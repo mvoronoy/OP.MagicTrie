@@ -55,9 +55,9 @@ namespace
         };
         bool evidence = false;
         std::any shared_data;
-        CurryingTuple <Var<bool>, Unpackable<std::any> > attrs{
+        CurryingTuple <Var<bool>, UnpackAny > attrs{
             of_var(evidence),
-            of_unpackable(shared_data)
+            UnpackAny(&shared_data)
         };
 
         auto f1 = attrs.def(src1);

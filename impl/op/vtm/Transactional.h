@@ -9,6 +9,7 @@
 #include <string>
 #include <typeinfo>
 #include <cassert>
+#include <thread>
 
 #include <op/vtm/vtm_error.h>
 

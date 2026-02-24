@@ -15,12 +15,14 @@ namespace OP::flur
     struct full_compare_t
     {
 #ifdef OP_CPP20_FEATURES
-        std::compare_three_way _impl;
-        
+                
         template <class T, class U>
-        constexpr auto operator()(T&& left, U&& right) const
+        constexpr int operator()(T&& left, U&& right) const
         {
-            return _impl(left, right);
+            auto res = std::compare_three_way{}(left, right);
+            return std::strong_ordering::less == res
+                ? -1
+                : (std::strong_ordering::greater == res) ? 1 : 0;
         }
 #else
         template <class T, class U>

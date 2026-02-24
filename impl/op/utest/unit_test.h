@@ -690,7 +690,7 @@ namespace OP::utest
         // Current instance of TestRun
         Var<TestRun>,
         // Shared state from `TestFixture`
-        Unpackable<std::any> >;
+        UnpackAny >;
 
     /** Abstract definition of single test */
     struct TestCase : Identifiable
@@ -978,7 +978,7 @@ namespace OP::utest
     {
     public:
         using this_t = TestSuite;
-        using test_executor_ptr = std::unique_ptr<TestCase>;
+        using test_executor_ptr = std::shared_ptr<TestCase>;
         using test_container_t = std::deque<test_executor_ptr>;
         using iterator = typename test_container_t::iterator;
 
@@ -1268,7 +1268,7 @@ namespace OP::utest
             virtual void tear_down(TestSuite& suite, std::any& shared_state) noexcept override
             { 
                 OP::currying::arguments(
-                    std::ref(suite), of_unpackable(shared_state))
+                    std::ref(suite), UnpackAny(&shared_state))
                     .invoke(_tear_down);
             }
         };
@@ -1455,35 +1455,28 @@ namespace OP::utest
         template <class Predicate>
         bool run_suite(TestSuite& suite, Predicate& predicate, std::deque<TestResult>& result)
         {
-
+            bool has_error = false;
             try
             { // This try allows intercept exceptions only from suite initialization
                 auto single_res = suite.run_if(predicate, *this);
-                bool has_error = false;
                 for (auto& res_to_move : single_res)
                 {
+                    result.emplace_back(std::move(res_to_move));
                     if (!res_to_move)
                         has_error = true;
-                    result.emplace_back(std::move(res_to_move));
                 }
-                return !has_error;
             }
             catch (const std::exception& ex)
             {
                 result.push_back(handle_environment_crash(suite, &ex));
-                if (_options.fail_fast())
-                {
-                    return false;
-                }
+                has_error = true;
             }
             catch (...)
             {
                 result.push_back(handle_environment_crash(suite, nullptr));
-                if (_options.fail_fast())
-                {
-                    return false;
-                }
+                has_error = true;
             }
+            return !has_error;
         }
 
 
@@ -1791,7 +1784,7 @@ namespace OP::utest
             if (!initializer.has_value()) //not initialized yet
             {
                 initializer.setup();
-                runtime_vars.assign(of_unpackable(initializer.value()));
+                runtime_vars.assign(UnpackAny(&initializer.value()));
                 suite_event_guard.start(); //ensure suite_start been send
             }
 
