@@ -293,7 +293,7 @@ namespace OP::events
                 , _subscriber(std::move(other._subscriber))
                 , _subject_pos(std::move(other._subject_pos))
             {
-                other._subscriber.reset(); // because doc doesn't specify explictly that value reset during move.
+                other._subscriber.reset(); // because doc doesn't specify explicitly that value reset during move.
             }
 
             void _unsub() noexcept
