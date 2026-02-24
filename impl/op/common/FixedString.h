@@ -525,7 +525,7 @@ namespace OP
         }
 #ifdef OP_CPP20_FEATURES
         // note! operator less follows compatibility with std::string instead of lexico-compare
-        constexpr auto operator <=> (const FixedString& other) -> decltype(this->compare(other)) const noexcept
+        constexpr auto operator <=> (const FixedString& other) const noexcept
         {
             return std::lexicographical_compare_three_way(
                 begin(), end(), other.begin(), other.end());
