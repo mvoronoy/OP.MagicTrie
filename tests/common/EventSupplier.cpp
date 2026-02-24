@@ -91,49 +91,55 @@ namespace
         }
     };
 
-    OP_DECLARE_TEST_CASE("EventSupplier", "basic",
-        [](OP::utest::TestRuntime& result){
-            
-            supplier_t supplier;
-            TestProgram program(supplier, result);
+    void test_General(OP::utest::TestRuntime& result) {
 
-            {
-                auto unsub1 = std::make_tuple(
-                    supplier.on<SomeEv::a>(std::bind(&TestProgram::handle_a, &program, _1)),
-                    //can subscribe on same event (SomeEv::a) and same method even twice if needed
-                    supplier.on<SomeEv::a>(std::bind(&TestProgram::handle_a, &program, _1)),
-                    //same event (SomeEv::a) but another handler and using #subscribe
-                    supplier.subscribe(SomeEv::a, std::bind(&TestProgram::handle_a2, &program, _1))
-                );
+        supplier_t supplier;
+        TestProgram program(supplier, result);
 
-                supplier.send<SomeEv::b>({ 1, 15.f, expected_b_value }); //makes payload b_payload then send all subscribers (so far single Program::handle_b)
-                supplier.send<SomeEv::a>(57); // send all subscribers 57 as a_payload
-                supplier.send<SomeEv::c>({ 0, 0, 0 }); // send to nowhere, since no single subscriber 
+        {
+            auto unsub1 = std::make_tuple(
+                supplier.on<SomeEv::a>(std::bind(&TestProgram::handle_a, &program, _1)),
+                //can subscribe on same event (SomeEv::a) and same method even twice if needed
+                supplier.on<SomeEv::a>(std::bind(&TestProgram::handle_a, &program, _1)),
+                //same event (SomeEv::a) but another handler and using #subscribe
+                supplier.subscribe(SomeEv::a, std::bind(&TestProgram::handle_a2, &program, _1))
+            );
 
-                result.assert_that<equals>(program._evidence_of_a, 3);
-                result.assert_that<equals>(program._evidence_of_b, 3);
-                result.assert_that<equals>(program._evidence_of_c, 0);
-                //unsubscribe all `a`
-            }
-            supplier.send<SomeEv::a>(57); // send 57 to nowhere
-            result.assert_that<equals>(program._evidence_of_a, 3, 
-                "unsubscribe all `a` failed, send `a` to nowhere must keep the same evidence value");
+            supplier.send<SomeEv::b>({ 1, 15.f, expected_b_value }); //makes payload b_payload then send all subscribers (so far single Program::handle_b)
+            supplier.send<SomeEv::a>(57); // send all subscribers 57 as a_payload
+            supplier.send<SomeEv::c>({ 0, 0, 0 }); // send to nowhere, since no single subscriber 
 
-            result.info() << "Test unsubscribe is allowed during event handling...\n";
-            typename supplier_t::unsubscriber_t hx;
-            size_t hx_invoke_count = 0;
-            hx = supplier.on<SomeEv::c>([&]() {
-                ++hx_invoke_count;
-                hx->unsubscribe(); 
+            result.assert_that<equals>(program._evidence_of_a, 3);
+            result.assert_that<equals>(program._evidence_of_b, 3);
+            result.assert_that<equals>(program._evidence_of_c, 0);
+            //unsubscribe all `a`
+        }
+        supplier.send<SomeEv::a>(57); // send 57 to nowhere
+        result.assert_that<equals>(program._evidence_of_a, 3,
+            "unsubscribe all `a` failed, send `a` to nowhere must keep the same evidence value");
+
+        result.info() << "Test unsubscribe is allowed during event handling...\n";
+        typename supplier_t::unsubscriber_t hx;
+        size_t hx_invoke_count = 0;
+        hx = supplier.on<SomeEv::c>([&]() {
+            ++hx_invoke_count;
+            hx->unsubscribe();
             });
 
-            supplier.send<SomeEv::c>({ 0, 0, 0 });
-            result.assert_that<equals>(hx_invoke_count, 1); 
-            result.assert_that<equals>(program._evidence_of_c, 0);
+        supplier.send<SomeEv::c>({ 0, 0, 0 });
+        result.assert_that<equals>(hx_invoke_count, 1);
+        result.assert_that<equals>(program._evidence_of_c, 0);
 
-            auto c_unsub = supplier.on<SomeEv::c>(std::bind(&TestProgram::handle_c, &program));
-            supplier.send<SomeEv::c>({ 0, 0, 0 });
-            result.assert_that<equals>(program._evidence_of_c, 1, "check later bind success");
-            result.assert_that<equals>(hx_invoke_count, 1, "no more increments for unsubscribed handler");
-        });
+        auto c_unsub = supplier.on<SomeEv::c>(std::bind(&TestProgram::handle_c, &program));
+        supplier.send<SomeEv::c>({ 0, 0, 0 });
+        result.assert_that<equals>(program._evidence_of_c, 1, "check later bind success");
+        result.assert_that<equals>(hx_invoke_count, 1, "no more increments for unsubscribed handler");
+    }
+
+    static auto& module_suite = OP::utest::default_test_suite("EventSupplier")
+        .declare("general", test_General)
+        ;
+
+    //OP_DECLARE_TEST_CASE(, "basic",
+    //    []);
 } //ns:
