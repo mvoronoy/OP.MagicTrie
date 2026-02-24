@@ -288,11 +288,15 @@ namespace
         //actually both list consumes same amount of memory because of alignment
         size_t counter = 0;
         //populate ...
-        for (; a0l->segments_count() < 5; ++counter)
+        for (; a0l->segments_count() < 5 || (counter & 1); //ensure counter is even
+            ++counter)
             if (counter & 1)
                 skplst1->emplace(static_cast<std::int32_t>(counter));
             else
                 skplst2->emplace(counter);
+
+        tresult.assert_that<equals>(skplst1->size(), counter / 2);
+        tresult.assert_that<equals>(skplst2->size(), counter / 2);
 
         //test...
         std::int32_t eval1 = 1;
