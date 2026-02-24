@@ -244,21 +244,6 @@ namespace OP::events
         using sub_by_event_code_t = std::tuple_element_t<
             0, utils::type_filter_t<PickEvent<c>, all_events_t> >;
 
-        template <class T>
-        struct IntRaii
-        {
-            T& _ref;
-            explicit IntRaii(T& ref)
-                :_ref(ref)
-            {
-                ++_ref;
-            }
-            ~IntRaii()
-            {
-                --_ref;
-            }
-        };
-
         template <class TEvent, class TSubscriber>
         struct UnsubImpl : Unsubscriber
         {

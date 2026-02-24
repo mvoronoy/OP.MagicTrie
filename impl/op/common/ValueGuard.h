@@ -49,11 +49,20 @@ namespace OP::raii
     template<class T> RestoreValueGuard(T&) -> RestoreValueGuard<T>;
 
     /** Allowed template argument constant for RefCountGuard to increase value either on enter or leave */
-    constexpr static inline auto op_increase = [](auto& v){++v;};
+    struct op_increase { 
+        template <class T>
+        static void action(T& v){++v;}
+    };
     /** Allowed template argument constant for RefCountGuard to decrease value either on enter or leave */
-    constexpr static inline auto op_decrease = [](auto& v){--v;};
+    struct op_decrease {
+        template <class T>
+        static void action(T& v){ --v;}
+    };
     /** Allowed template argument constant for RefCountGuard to do nothing with value either on enter or leave */
-    constexpr static inline auto no_op = [](auto& ){};
+    struct no_op {
+        template <class T>
+        static void action(T&){}
+    };
 
     /**
     * RAII pattern to increase / decrease value at scope exit.
@@ -71,7 +80,7 @@ namespace OP::raii
     *  \tparam on_leave constant operator to specify what to to on leave of raii use: custom or one of:
     *       op_increase, op_decrease, no_op. Default is decrease (op_decrease).
     */
-    template <class T, auto on_enter = op_increase, auto on_leave = op_decrease>
+    template <class T, typename on_enter = op_increase, typename on_leave = op_decrease>
     struct RefCountGuard
     {
         explicit RefCountGuard(T& ref) noexcept
