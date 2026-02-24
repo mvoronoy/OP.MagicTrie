@@ -6,9 +6,10 @@
 
 #include <op/common/astr.h>
 
-#include <op/vtm/EventSourcingSegmentManager.h>
+#include <op/vtm/managers/EventSourcingSegmentManager.h>
+#include <op/vtm/managers/BaseSegmentManager.h>
 #include <op/vtm/StringMemoryManager.h>
-#include <op/vtm/InMemMemoryChangeHistory.h>
+#include <op/vtm/managers/InMemMemoryChangeHistory.h>
 
 #include <op/flur/flur.h>
 
@@ -116,11 +117,11 @@ namespace
     {
         OP::utils::ThreadPool tp;
         using namespace OP::flur;
-        auto tmngr = SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            SegmentOptions()
-                .segment_size(0x110000),
+        std::shared_ptr<EventSourcingSegmentManager> tmngr (new EventSourcingSegmentManager(
+            BaseSegmentManager::create_new(
+                test_file_name, SegmentOptions().segment_size(0x110000)),
             std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
-        );
+        ));
 
         using test_payload_t = TestStruct;
 
@@ -159,11 +160,12 @@ namespace
         using namespace OP::flur;
 
         OP::utils::ThreadPool tp;
-        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-                .segment_size(0x110000),
+
+        std::shared_ptr<EventSourcingSegmentManager> tmngr(new EventSourcingSegmentManager(
+            BaseSegmentManager::create_new(
+                test_file_name, SegmentOptions().segment_size(0x110000)),
             std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
-        );
+        ));
 
         using test_variant_t = std::variant<
             std::monostate,
@@ -247,11 +249,11 @@ namespace
         
         OP::utils::ThreadPool tp;
 
-        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
+        std::shared_ptr<EventSourcingSegmentManager> tmngr(new EventSourcingSegmentManager(
+            BaseSegmentManager::create_new(
+                test_file_name, SegmentOptions().segment_size(0x110000)),
             std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
-            );
+        ));
 
         using var_t = std::variant<std::monostate, short, double, TestStruct>;
         using test_tuple_t = 
@@ -296,11 +298,11 @@ namespace
 
         OP::utils::ThreadPool tp;
 
-        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
+        std::shared_ptr<EventSourcingSegmentManager> tmngr(new EventSourcingSegmentManager(
+            BaseSegmentManager::create_new(
+                test_file_name, SegmentOptions().segment_size(0x110000)),
             std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
-        );
+        ));
 
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<std::string>, OP::common::atom_string_t
@@ -326,10 +328,11 @@ namespace
 
         OP::utils::ThreadPool tp;
 
-        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>("trie2.test",
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp)));
+        std::shared_ptr<EventSourcingSegmentManager> tmngr(new EventSourcingSegmentManager(
+            BaseSegmentManager::create_new(
+                test_file_name, SegmentOptions().segment_size(0x110000)),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
+        ));
 
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<std::string, 16>, 
@@ -355,11 +358,11 @@ namespace
     {
         OP::utils::ThreadPool tp;
 
-        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            std::shared_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
-            );
+        std::shared_ptr<EventSourcingSegmentManager> tmngr(new EventSourcingSegmentManager(
+            BaseSegmentManager::create_new(
+                test_file_name, SegmentOptions().segment_size(0x110000)),
+            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
+        ));
 
         using test_variant_t = std::variant<
             std::monostate,

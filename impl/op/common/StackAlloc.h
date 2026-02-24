@@ -33,7 +33,7 @@ namespace OP
     *   \tparam T type of object to support.
     */
     template <typename T>
-    struct MemBuf 
+    struct MemBuf
     {
         using element_t = T;
         using this_t = MemBuf<T>;
@@ -546,7 +546,7 @@ namespace OP
         template <class F, size_t ...Ix>
         constexpr void apply_by_index_impl(size_t index, F applicator, std::index_sequence<Ix...>)
         {
-            //use && to laverage immediate stop when functor was applied
+            //use && to leverage immediate stop when functor was applied
             bool is_apply_succeed = ((index != Ix ||
                 (applicator( std::launder(reinterpret_cast<target_t<Ix>*>(_data))), false ) ) 
             && ...);

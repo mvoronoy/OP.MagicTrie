@@ -5,31 +5,20 @@
 
 #include <type_traits>
 #include <cstdint>
-#include <set>
-#include <unordered_map>
-#include <mutex>
 #include <memory>
-#include <fstream>
-#include <sstream>
 #include <string>
 
 #include <op/common/Utils.h>
 #include <op/common/Exceptions.h>
 #include <op/common/Range.h>
-#include <op/common/ThreadPool.h>
 
 #include <op/vtm/typedefs.h>
-#include <op/vtm/SegmentHelperCache.h>
 #include <op/vtm/Transactional.h>
 #include <op/vtm/MemoryChunks.h>
-#include <op/vtm/SegmentHelper.h>
-
 #include <op/vtm/vtm_error.h>
 
 namespace OP::vtm
-{
-        namespace bip = boost::interprocess;
-        
+{        
         struct SegmentManager;
 
         struct SegmentEventListener
@@ -42,251 +31,75 @@ namespace OP::vtm
             virtual void on_segment_releasing(segment_idx_t new_segment, SegmentManager& manager){}
         };
 
-        struct SegmentOptions
-        {
-            SegmentOptions() 
-                :_segment_size(1) //assume reasonable value will be assigned later
-            {
-            }
-
-            /**
-            * Segment is a big chunk of virtual memory where the all other memory blocks are allocated.
-            * @param hint allows specify value of segment, but real value will be aligned on operation-system value of page-size
-            */
-            SegmentOptions& segment_size(segment_pos_t hint)
-            {
-                _segment_size = hint;
-                return *this;
-            }
-            
-            /**The same as segment_size but allows specify memory basing on heuristic - how many objects of type Ta and Tb will be allocated*/
-            template <class ... Tx>
-            SegmentOptions& heuristic_size(Tx&& ... restarg)
-            {
-                eval_size(std::forward<Tx>(restarg)...);
-                return *this;
-            }
-
-            /**@return result size that obtained from user preference either of #segment_size(segment_pos_t hint) or #heuristic_size and alligned for OS-depended
-            *   page size
-            */
-            segment_pos_t segment_size() const
-            {
-                auto r = _segment_size;
-
-                size_t min_page_size = bip::mapped_region::get_page_size();
-                r = OP::utils::align_on(r, static_cast<segment_pos_t>(min_page_size));
-
-                return r;
-            }
-            
-            segment_pos_t raw_size() const
-            {
-                return _segment_size;
-            }
-
-        private:
-            
-            template <class Ta>
-            void eval_size(Ta&& obj)
-            {
-                segment_size(_segment_size + static_cast<segment_pos_t>(obj(*this)));
-            }
-            
-            void eval_size()
-            {
-            }
-            
-            template <class Ta, class ... Tx>
-            void eval_size(Ta&& obj, Tx&& ... rest)
-            {
-                eval_size<Ta>(std::forward<Ta>(obj));
-                eval_size(std::forward<Tx>(rest)...);
-            }
-
-            segment_pos_t _segment_size;
-        };
-
-        /**Namespace place together utilities to evaluate size of segment in heuristic way. Each item from namespace can be an argument to SegmentOptions::heuristic_size*/
-        namespace size_heuristic
-        {
-            /**Specify heuristic size to reserve 'n'-items array of 'T'. Used with SegmentOptions::heuristic_size. For example:
-            *\code
-            *   SegmentOptions options;
-            *   ...
-            *   options.heuristic_size(size_heuristic::of_array<int, 100>); //reserve int-array of 100 items
-            *\endcode
-            */
-            template <class T, size_t n>
-            constexpr inline size_t of_array(const SegmentOptions& previous) noexcept
-            {
-                return
-                    OP::utils::align_on(
-                        OP::utils::memory_requirement<T, n>::requirement, SegmentHeader::align_c
-                    ) + SegmentHeader::align_c/*for memory-control-structure*/;
-            }
-
-            template <class T>
-            struct of_array_dyn
-            {
-                of_array_dyn(size_t count) :
-                    _count(count)
-                {
-
-                }
-                size_t operator ()(const SegmentOptions& previous) const
-                {
-                    return
-                        OP::utils::align_on(
-                            OP::utils::memory_requirement<T>::array_size(_count), SegmentHeader::align_c) 
-                        + SegmentHeader::align_c/*for memory-control-structure*/;
-                }
-            private:
-                size_t _count;
-            };
-            /**Specify heuristic size to reserve 'n' assorted items of 'T'. Used with SegmentOptions::heuristic_size. For example:
-            *\code
-            *   SegmentOptions options;
-            *   ...
-            *   options.heuristic_size(size_heuristic::of_assorted<int, 100>); //reserve place for 100 ints (don't do it for small types because memory block consumes 16bytes+ of memory)
-            *\endcode*/
-            template <class T, size_t n = 1>
-            inline size_t of_assorted(const SegmentOptions& previous)
-            {
-                return n*(OP::utils::aligned_sizeof<T>(SegmentHeader::align_c) + SegmentHeader::align_c);
-            }
-            /**Increase total amount of already reserved bytes by some percentage value. Used with SegmentOptions::heuristic_size. For example:
-            *\code
-            *   SegmentOptions options;
-            *   ...
-            *   options.heuristic_size(size_heuristic::add_percentage(5)); //reserve +5% basing on already reserved memory
-            *\endcode*/
-            struct add_percentage
-            {
-                add_percentage(std::int8_t percentage) :
-                    _percentage(percentage)
-                {
-                }
-                size_t operator()(const SegmentOptions& previous) const
-                {
-                    return previous.raw_size() * _percentage / 100;
-                }
-            private:
-                std::int8_t _percentage;
-            };
-        }
-        
-        
         /**
-        * Wrap together boost's class to manage segments
+        * \brief Abstraction that represents transactional access to memory blocks placed inside big page called segment.
+        *
         */
         struct SegmentManager 
         {
-            friend struct SegmentOptions;
             using transaction_ptr_t = OP::vtm::transaction_ptr_t;
+
+            SegmentManager() noexcept = default;
 
             virtual ~SegmentManager() = default;
 
-            template <class Manager, class ...Ax>
-            static std::shared_ptr<Manager> create_new(const char * file_name,
-                const SegmentOptions& options, Ax&& ...extra_args)
-            {
-                using io = std::ios_base;
-                //file is opened always in RW mode
-
-                auto file = open_file(file_name, io::in | io::out | io::binary | io::trunc);
-                return std::shared_ptr<Manager>(
-                    new Manager(
-                        file_name, 
-                        std::move(file),
-                        make_file_mapping(file_name), 
-                        options.segment_size(), 
-                        std::forward<Ax>(extra_args)...)
-                );
-            }
-
-            template <class Manager, class ...Ax>
-            static std::shared_ptr<Manager> open(const char * file_name, Ax&&...ax)
-            {
-                using io = std::ios_base;
-                auto file = open_file(file_name, io::in | io::out | io::binary);
-
-                auto result = std::shared_ptr<Manager>(
-                    new Manager(
-                        file_name, 
-                        std::move(file),
-                        make_file_mapping(file_name), 
-                        1/*dummy*/,
-                        std::forward<Ax>(ax)...)
-                );
-
-                //try to read header of segment if previous exists
-                guard_t l(result->_file_lock);
-
-                SegmentHeader header;
-                result->do_read(&header, 1);
-                if (!header.check_signature())
-                    throw Exception(vtm::ErrorCodes::er_invalid_signature, file_name);
-                result->_segment_size = header.segment_size();
-                return result;
-            }
-
-            constexpr segment_pos_t segment_size() const noexcept
-            {
-                return this->_segment_size;
-            }
+            virtual segment_pos_t segment_size() const noexcept = 0;
             
-            constexpr segment_pos_t header_size() const noexcept
-            {
-                return OP::utils::aligned_sizeof<SegmentHeader>(SegmentHeader::align_c);
-            }
+            /** \brief Amount of bytes reserved in each segment for internal implementation purposes */
+            virtual segment_pos_t header_size() const noexcept = 0;
 
-            /** @return address of segment beginning */
-            constexpr FarAddress start_address(segment_idx_t index) const noexcept
-            {
-                return FarAddress{ index, 0 };
-            }
+            /** \brief Check if specified segment exists, create new segment if needed. */
+            virtual void ensure_segment(segment_idx_t index) = 0;
 
-            /**create new segment if needed*/
-            void ensure_segment(segment_idx_t index)
-            {
-                guard_t l(this->_file_lock);
-                _fbuf.seekp(0, std::ios_base::end);
-                file_t::pos_type pos = _fbuf.tellp();
-                size_t total_pages = pos / segment_size();
-                
-                while (total_pages <= index )
-                {//no such page yet
-                    this->allocate_segment();
-                    total_pages++;
-                }
-            }
+            /** \brief number of segments allocated so far. */
+            virtual segment_idx_t available_segments() = 0;
             
-            segment_idx_t available_segments()
-            {
-                guard_t l(this->_file_lock);
-                _fbuf.seekp(0, std::ios_base::end);
-                file_t::pos_type pos = _fbuf.tellp();
-                return static_cast<segment_idx_t>(pos / segment_size());
-            }
-            
-            /**This operation does nothing, returns just null referenced wrapper*/
-            [[nodiscard]] virtual transaction_ptr_t begin_transaction() 
-            {
-                return transaction_ptr_t();
-            }
+            /** Starts new transaction. 
+            *   \return instance that controls scope of transaction. Caller is fully responsible to manage 
+            *   lifecycle by commit/rollback operations. Try avoid long living instances.
+            */
+            [[nodiscard]] virtual transaction_ptr_t begin_transaction() = 0;
             
             /**
-            *   @param hint - default behavior is to release lock after ReadonlyMemoryChunk destroyed.
-            * @throws ConcurrentLockException if block is already locked for write
+            *  \brief Get memory for read-only purposes.
+            *  \return raw block of memory for reading. Review use #view method for strongly typed access to the same memory.
+            *
+            *  \param hint - give implementation optional hint how block will be used. Default behavior is to release lock 
+            *       after ReadonlyMemoryChunk destroyed.
+            *  \throws ConcurrentLockException if block is already locked for write by another transaction.
             */
             [[nodiscard]] virtual ReadonlyMemoryChunk readonly_block(
-                FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) 
-            {
-                assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
-                return ReadonlyMemoryChunk(0, make_buffer(pos, size), size, pos);
-            }
-            
+                FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) = 0;
+
+            /**
+            *  \brief Get memory for write purposes.
+            * \throws ConcurrentLockException if block is already locked by another transaction.
+            */
+            [[nodiscard]] virtual MemoryChunk writable_block(
+                FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c) = 0;
+
+            /**
+            * Implementation based integrity checking of this instance
+            */
+            virtual void _check_integrity(bool verbose) = 0;
+
+            /**
+            * \brief change read-only block to writable block.
+            *
+            * Implementation may not support this kind of upgrade, that is why default implementation provided and just call #writable_block method.
+            *    
+            * \throws ConcurrentLockException if block is already locked for concurrent write or concurrent read (by the other transaction).
+            */
+            [[nodiscard]] virtual MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro) = 0;
+                
+            virtual void subscribe_event_listener(SegmentEventListener* listener) = 0;
+
+            /** Ensure underlying storage is synchronized */
+            virtual void flush() = 0;
+
+            /** \brief Get strong typed access to memory for read-only purposes.
+            *   The method just wrap #readonly_block with typed access
+            */
             template <class T>
             ReadonlyAccess<T> view(FarAddress pos, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c)
             {
@@ -295,6 +108,9 @@ namespace OP::vtm
                        );
             }
             
+            /** \brief Get strong typed access to memory for write purposes.
+            *   The method just wrap #writable_block with typed access.
+            */
             template <class T>
             WritableAccess<T> accessor(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
@@ -303,231 +119,18 @@ namespace OP::vtm
                 );
             }
 
-            /**
-            * @throws ConcurrentLockException if block is already locked for concurrent write or concurrent read (by the other transaction)
-            */
-            [[nodiscard]] virtual MemoryChunk writable_block(
-                FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
-            {
-                assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
-                return MemoryChunk(make_buffer(pos, size), size, pos);
-            }
-
-            /**
-            * @throws ConcurrentLockException if block is already locked for concurrent write or concurrent read (by the other transaction)
-            */
-            [[nodiscard]] virtual MemoryChunk upgrade_to_writable_block(ReadonlyMemoryChunk& ro)
-            {
-                return MemoryChunk(make_buffer(ro.address(), ro.count()), ro.count(), ro.address());
-            }
-            
             /** Shorthand for \code
-                writable_block(pos, sizeof(T)).at<T>(0)
-            \endcode
+            *    writable_block(pos, sizeof(T)).at<T>(0)
+            *   \endcode
             */
             template <class T>
             inline T* wr_at(FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
             {
-                return this
-                    ->writable_block(
+                return this->writable_block(
                         pos, OP::utils::memory_requirement<T>::requirement, hint)
                     .template at<T>(0);
             }
 
-            void subscribe_event_listener(SegmentEventListener *listener)
-            {
-                _listener = listener;
-            }
-            
-            /**Invoke functor 'f' for each segment.
-            * @tparam F functor that accept 2 arguments of type ( segment_idx_t index_of segment, SegmentManager& segment_manager )
-            */
-            template <class F>
-            void foreach_segment(F f)
-            {
-                _fbuf.seekp(0, std::ios_base::end);
-                auto end = (size_t)_fbuf.tellp();
-                for (size_t p = 0; p < end; p += _segment_size)
-                {
-                    segment_idx_t idx = static_cast<segment_idx_t>(p / _segment_size);
-                    f(idx, *this);
-                }
-            }
-            
-            void _check_integrity()
-            {
-                //this->_cached_segments._check_integrity();
-            }
-
-        protected:
-            using file_t = std::fstream;
-
-            SegmentManager(const char * file_name, std::fstream file, bip::file_mapping mapping, segment_idx_t segment_size)
-                : _file_name(file_name)
-                , _cached_segments(10)
-                , _listener(nullptr)
-                , _segment_size(segment_size)
-                , _fbuf(std::move(file))
-                , _mapping(std::move(mapping))
-            {
-            }
-
-            /** Create memory buffer on raw memory, so associated deleter does nothing. */
-            ShadowBuffer make_buffer(FarAddress address, size_t size)
-            {
-                return ShadowBuffer{
-                    this->get_segment(address.segment()).at<std::uint8_t>(address.offset()),
-                    size,
-                    /*dummy deleter since memory address from segment is not allocated in a heap*/
-                    false
-                };
-            }
-
-            template <class T>
-            inline SegmentManager& do_write(const T& t)
-            {
-                do_write(&t, 1);
-                return *this;
-            }
-
-            template <class T>
-            inline SegmentManager& do_write(const T* t, size_t n)
-            {
-                const auto to_write = OP::utils::memory_requirement<T>::array_size(n);
-                _fbuf.write(reinterpret_cast<const file_t::char_type*>(t), to_write);
-                if (_fbuf.bad())
-                {
-                    std::stringstream ose;
-                    ose << "Cannot write:(" << to_write << ") bytes to file:" << _file_name;
-
-                    throw Exception(vtm::ErrorCodes::er_write_file, ose.str().c_str());
-                }
-                return *this;
-            }
-
-            template <class T>
-            inline SegmentManager& do_read(T* t, size_t n)
-            {
-                const auto to_read = OP::utils::memory_requirement<T>::array_size(n);
-                _fbuf.read(reinterpret_cast<file_t::char_type*>(t), to_read);
-                if (_fbuf.bad())
-                {
-                    std::stringstream ose;
-                    ose << "Cannot read:(" << to_read << ") bytes from file:" << _file_name;
-
-                    throw Exception(vtm::ErrorCodes::er_read_file, ose.str().c_str());
-                }
-                return *this;
-            }
-            
-            void file_flush()
-            {
-                _fbuf.flush();
-            }
-            
-            void memory_flush()
-            {
-
-            }
-
-            inline static far_pos_t _far(segment_idx_t segment_idx, segment_pos_t offset)
-            {
-                return (static_cast<far_pos_t>(segment_idx) << 32) | offset;
-            }
-
-            details::SegmentHelper& get_segment(segment_idx_t index)
-            {
-                bool render_new = false;
-                details::SegmentHelper& region = _cached_segments.get(
-                    index,
-                    [&](segment_idx_t key)
-                    {
-                        render_new = true;
-                        auto offset = key * this->_segment_size;
-                        return details::SegmentHelper{
-                            this->_mapping,
-                            offset,
-                            this->_segment_size};
-                    }
-                );
-                if (render_new)
-                {
-                    //notify listeners that some segment was opened
-                    if (_listener)
-                    {
-                        _listener->on_segment_opening(index, *this);
-                    }
-                }
-                return region;
-            }
-            
-
-        private:
-
-            /**Per boost documentation file_lock cannot be used between 2 threads (only between process) on POSIX sys, so use named mutex*/
-            using file_lock_t = std::recursive_mutex;
-            using guard_t = std::lock_guard<file_lock_t> ;
-            using cache_region_t = SegmentHelperCache<details::SegmentHelper, segment_idx_t>;
-            using slot_address_range_t = Range<const std::uint8_t*, segment_pos_t>;
-
-
-            segment_idx_t _segment_size;
-            SegmentEventListener *_listener;
-            std::string _file_name;
-            file_t _fbuf;
-            mutable bip::file_mapping _mapping;
-            file_lock_t _file_lock;
-                                   
-            mutable cache_region_t _cached_segments;
-
-            static bip::file_mapping make_file_mapping(const char* file_name)
-            {
-                try
-                {
-                    return bip::file_mapping(file_name, bip::read_write);
-                }
-                catch (boost::interprocess::interprocess_exception& e)
-                {
-                    throw Exception(vtm::ErrorCodes::er_memory_mapping, e.what());
-                }
-            }
-
-            static file_t open_file(const char* file_name, std::ios_base::openmode mode)
-            {
-                file_t new_file(file_name, mode);
-
-                if (new_file.bad())
-                {
-                    std::system_error sys_err(errno, std::system_category(), file_name);
-                    throw Exception(vtm::ErrorCodes::er_file_open, sys_err.what());
-                }
-                return new_file;
-            }
-
-            segment_idx_t allocate_segment()
-            {
-                guard_t l(_file_lock);
-                _fbuf.seekp(0, std::ios_base::end);
-                auto segment_offset = (std::streamoff)_fbuf.tellp();
-                auto new_pos = OP::utils::align_on(segment_offset, _segment_size);
-                segment_idx_t result = static_cast<segment_idx_t>(new_pos / _segment_size);
-                SegmentHeader header(_segment_size);
-                do_write(header);
-                //place empty memory block
-                auto current = OP::utils::align_on((std::streamoff)_fbuf.tellp(), SegmentHeader::align_c);
-                
-                _fbuf.seekp(new_pos + std::streamoff(_segment_size - 1), std::ios_base::beg);
-                _fbuf.put(0);
-                file_flush();
-                _cached_segments.put(result, details::SegmentHelper{
-                    this->_mapping,
-                    segment_offset,
-                    this->_segment_size });
-                if (_listener)
-                    _listener->on_segment_allocated(result, *this);
-                return result;
-            }
-            
         };
 
         /**Stub that return the same SegmentManager, but compatible with other owning classes */

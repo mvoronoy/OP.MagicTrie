@@ -7,17 +7,36 @@
 #include <list>
 
 #include <op/common/ThreadPool.h>
+#include <op/common/Bitset.h>
+#include <op/common/atomic_utils.h>
 
-#include <op/vtm/EventSourcingSegmentManager.h>
+#include <op/vtm/managers/EventSourcingSegmentManager.h>
+#include <op/vtm/managers/BucketIndexedList.h>
 
 namespace OP::vtm
 {
+    struct Recovery
+    {
+        using transaction_id_t = typename MemoryChangeHistory::transaction_id_t;
+
+        virtual std::uint32_t serialize_size() const = 0;
+        virtual void serialize(void* buffer) const = 0;
+        virtual void deserialize(const void* buffer) = 0;
+
+        virtual void begin_transaction(transaction_id_t) = 0;
+        virtual void store_origin(transaction_id_t, FarAddress origin, const void* init_data, size_t buffer_size) = 0;
+
+        virtual void commit_begin(transaction_id_t) = 0;
+        virtual void commit_end(transaction_id_t) = 0;
+
+        virtual void recovery(EventSourcingSegmentManager&) = 0;
+    };
     
     struct InMemoryChangeHistory : MemoryChangeHistory
     {
         using transaction_id_t = typename MemoryChangeHistory::transaction_id_t;
 
-        InMemoryChangeHistory(OP::utils::ThreadPool& thread_pool)
+        explicit InMemoryChangeHistory(OP::utils::ThreadPool& thread_pool)
             : _thread_pool(thread_pool)
         {
         }
@@ -29,13 +48,7 @@ namespace OP::vtm
                 static_cast<void>(_garbage_collection_future.get());
             guard.release();
 
-            std::unique_lock lock(_global_history_acc);
-            while (_global_history_begin)
-            {
-                auto temp = _global_history_begin->_next;
-                delete _global_history_begin;
-                _global_history_begin = temp;
-            }
+            _global_history.clear();
         }
 
         OP::utils::ThreadPool& thread_pool() noexcept
@@ -51,7 +64,6 @@ namespace OP::vtm
         {
             if(hint >= MemoryRequestType::wr)
             { //need to retain block
-                std::unique_lock guard_history_wr(_global_history_acc);
                 auto& new_block = add_global_history(
                     hint,
                     search_range,
@@ -68,14 +80,12 @@ namespace OP::vtm
                 //guard that BlockType::init will be altered
                 RAIIBlockGuard block_leaking_guard(new_block);
 
-                guard_history_wr.unlock(); // no more changes of global history list are needed
                 ShadowBuffer result = new_block.buffer();
                 
                 if (hint != MemoryRequestType::wr_no_history)
                 {
                     if (init_data)//copy origin from init
                         memcpy(result.get(), init_data, search_range.count());
-                    std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
                     if(!populate_ro_block(search_range, result, transaction_id, &new_block, 
                         // for writes need avoid races, so not looking at _isolation and keep always 'Prevent'
                         ReadIsolation::Prevent))
@@ -92,16 +102,16 @@ namespace OP::vtm
                 //copy origin from init
                 if (init_data)
                     memcpy(new_buffer.get(), init_data, search_range.count());
-                std::shared_lock guard_history_ro(_global_history_acc); //shared ro access are enough to iterate
                 if(!populate_ro_block(search_range, new_buffer, transaction_id, nullptr,
                     _isolation.load()) )
                 {
-                    return {}; //concurrent lock exception
+                    return {}; //means concurrent lock exception will be raised
                 }
                 return new_buffer;
             }
         }
 
+        /** cheap way to mark block as garbage */
         void destroy(transaction_id_t tid, ShadowBuffer buffer) override
         {
             if (buffer.is_owner()) //memory allocated for RO and no entry in global_history
@@ -147,7 +157,6 @@ namespace OP::vtm
         };
 
 
-
         /**Properties of captured block in particular transaction*/
         struct BlockProfile
         {
@@ -174,16 +183,94 @@ namespace OP::vtm
             /** position/size of block */
             const RWR _range;
             /** type of retain readonly/writable (and init state) */ 
-            std::atomic<BlockType> _type = BlockType::init;
+            OP::utils::Waitable<BlockType> _type = { BlockType::init, std::memory_order_release, std::memory_order_acquire };
             /** what transaction retains the block */
             const transaction_id_t _used_in_transaction;
             const std::uint64_t _epoch;
-            BlockProfile* _next = nullptr;
             const std::uint32_t _signature = signature_c;
             /** shadow memory of changes */
             alignas(ShadowBuffer) std::uint8_t _memory[1] = {};
         };
 
+        struct BlockByRWRIndexer
+        {
+            std::atomic<std::uint64_t>
+                _bloom_filter = 0,
+                _min_left = std::numeric_limits<transaction_id_t>::max(),
+                _max_right = 0;
+
+            static inline constexpr std::uint64_t bloom_calc(const RWR& range) noexcept
+            {
+                auto bit_width = OP::common::log2(range.count()) + 1;
+                return ((1ull << bit_width) - 1)
+                    << OP::common::log2(range.pos());
+            }
+
+            void index(const BlockProfile& block) noexcept
+            {
+                _bloom_filter.fetch_or(bloom_calc(block._range));
+                //c++26?: _min.fetch_min(r._value);
+                OP::utils::cas_extremum<std::less>(_min_left, block._range.pos());
+                //c++26?: _max.fetch_max(r._value);
+                OP::utils::cas_extremum<std::greater>(_max_right, block._range.right());
+            }
+
+            bool check(const BlockProfile& block) const noexcept
+            {
+                return check(block._range);
+            }
+
+            bool check(const RWR& query) const noexcept
+            {
+                auto bloom = bloom_calc(query);
+
+                return (bloom & _bloom_filter.load(std::memory_order_acquire)) != 0
+                    && query.pos() < _max_right.load(std::memory_order_acquire)
+                    && query.right() > _min_left.load(std::memory_order_acquire)
+                    ;
+            }
+        };
+
+        struct BlockByTransactionIdIndexer
+        {
+            std::atomic<transaction_id_t>
+                _bloom_filter = 0, 
+                _min = std::numeric_limits<transaction_id_t>::max(), 
+                _max = 0;
+            
+            constexpr static transaction_id_t hash(transaction_id_t v) noexcept
+            {
+                return 0x5fe14bf901200001ull * v;
+            }
+
+            void index(const BlockProfile& block) noexcept
+            {
+                _bloom_filter.fetch_or(hash(block._used_in_transaction));
+                //c++26?: _min.fetch_min(r._value);
+                OP::utils::cas_extremum<std::less>(_min, block._used_in_transaction);
+                //c++26?: _max.fetch_max(r._value);
+                OP::utils::cas_extremum<std::greater>(_max, block._used_in_transaction);
+            }
+
+            bool check(const BlockProfile& block) const noexcept
+            {
+                return check(block._used_in_transaction);
+            }
+
+            bool check(transaction_id_t query) const noexcept
+            {
+                const auto hash_v = hash(query);
+
+                return (hash_v & _bloom_filter.load(std::memory_order_acquire)) == hash_v
+                    && query >= _min.load(std::memory_order_acquire)
+                    && query <= _max.load(std::memory_order_acquire)
+                    ;
+            }
+
+        };
+        /** Aggregates several BlockProfile to speed up lookup by RWR and/or transaction-id */
+        using indexed_history_list_t =
+            BucketIndexedList<BlockProfile, BlockByRWRIndexer, BlockByTransactionIdIndexer>;
 
         /** Allows guard just created BlockProfile from memory leaks. If explicit #exchange is not
         * called block automatically marked to #BlockType::garbage at guard scope exit.
@@ -200,14 +287,14 @@ namespace OP::vtm
             {
                 if (_origin_type != BlockType::garbage)
                 {
-                    _block._type = BlockType::garbage;
+                    _block._type.store(BlockType::garbage);//notifies if some thread(s) wait
                 }
             }
 
             /** @return previous block type value. */
             [[maybe_unused]] BlockType exchange(BlockType new_type) noexcept
             {
-                auto result = _block._type.exchange(new_type);
+                auto result = _block._type.exchange(new_type); //notifies if some thread(s) wait
                 _origin_type = BlockType::garbage; //prevent destroying at destructor
                 return result;
             }
@@ -217,9 +304,8 @@ namespace OP::vtm
         };
 
         std::atomic<ReadIsolation> _isolation = ReadIsolation::ReadCommitted;
-        BlockProfile *_global_history_begin = nullptr, **_global_history_end = &_global_history_begin;
+
         std::atomic<std::uint64_t> _epoch{0};
-        std::shared_mutex _global_history_acc;
 
         OP::utils::ThreadPool& _thread_pool;
         std::unordered_set<transaction_id_t> _completed_transactions;
@@ -228,45 +314,66 @@ namespace OP::vtm
         std::future<void> _garbage_collection_future;
         std::mutex _garbage_collection_future_acc;
 
+        indexed_history_list_t _global_history;
+
         /** \return position in _global_history where item has been added. 
         *   \pre `_global_history_acc` is unique locked
         */
         BlockProfile& add_global_history(
             MemoryRequestType hint,
-            RWR search_range, 
+            const RWR& search_range, 
             BlockType type, 
             transaction_id_t transaction_id)
         {
             segment_pos_t mem_block_size = sizeof(BlockProfile) + search_range.count();
             std::byte* buffer = new std::byte[mem_block_size];
-            BlockProfile* new_block = new (buffer) BlockProfile(
+            
+            std::unique_ptr<BlockProfile> new_block (new (buffer) BlockProfile(
                 search_range, type, transaction_id,
-                ++_epoch);
-            *_global_history_end = new_block;
-            _global_history_end = &new_block->_next;                
-            return *new_block;
+                ++_epoch));
+
+            BlockProfile* result = new_block.get();
+            _global_history.append(std::move(new_block));
+            return *result;
         }
 
+        template <class F>
+        void indexed_for_each(const RWR& query, F&& callback)
+        {
+            _global_history.indexed_for_each(query, callback);
+        }
+
+
+        template <class F>
+        void for_each(F&& callback)
+        {
+            _global_history.for_each(callback);
+        }
+
+        
+        /** \return true on success and false if ConcurrentException must be raised */
         bool populate_ro_block(
             const RWR& search_range,
             ShadowBuffer& new_buffer, 
             transaction_id_t current_tran,
             BlockProfile* current, 
-            ReadIsolation current_isolation)
+            ReadIsolation current_isolation) noexcept
         {
             // find all previously used block that have any intersection with query
             // to check if readonly block is allowed
-            for (auto i = _global_history_begin; i != nullptr && i != current; i = i->_next)
-            { // iterate transaction log from oldest to newest and apply changes on result memory block
+            bool concurrent_violation = false;
+            // iterate transaction log from oldest to newest and apply changes on result memory block
+            indexed_for_each(search_range, [&](BlockProfile& block)->bool{ 
+                if (&block == current) //reach the end
+                    return false;
 
-                auto& block = *i;
-                if (block._type == BlockType::garbage)
-                    continue;
                 //Zone check goes first because it valid for all types of concurrency check
                 auto joined_zone = OP::zones::join_zones(search_range, block._range);
                 if (joined_zone.empty())  //no intersection => no race
-                    continue;
-                                    
+                    return true;
+                if (block._type.load() == BlockType::garbage)
+                    return true;
+
                 if (block._used_in_transaction != current_tran)
                 {//another WR- tran exists over this block
                     switch (current_isolation)
@@ -275,7 +382,8 @@ namespace OP::vtm
                     {
                         //block_leaking_guard ensures that: `new_block_iter->_type = garbage`
                         //exception, but caller may retry later
-                        return false;//throw ConcurrentLockException();
+                        concurrent_violation = true;//throw ConcurrentLockException();
+                        return false;//stop iteration
                     }
                     case ReadIsolation::ReadUncommitted:
                     { //DIRTY-READ logic, further code will copy this dirty chunk
@@ -285,13 +393,13 @@ namespace OP::vtm
                         [[fallthrough]];
                     default:
                         //do nothing, Ignore this WR block, proceed with origin RO memory. 
-                        continue; //jump to next of for
+                        return true; //jump to next of for
                     }
                 }
                 else
                 { //same tran, but another thread => wait until init complete
-                    if (_wait_atomic_value(block._type, BlockType::wr) == BlockType::garbage)
-                        continue;
+                    if (block._type.wait_condition<std::less>(BlockType::wr) == BlockType::garbage)
+                        return true;
                     //there BlockType::wr for sure.
                 }
                 /** there are 4 relative positions of intersection existing block and new one:
@@ -322,84 +430,46 @@ namespace OP::vtm
                     block._memory + offset_in_src,
                     joined_zone.count()
                 );
-            }
-            return true;
+
+                return true; //iterate next
+            });
+            return !concurrent_violation;
         }
 
         void complete_transaction(transaction_id_t transaction_id)
         {
-            std::shared_lock rlock(_global_history_acc);
-            //only mark blocks to delete, cleaning logic is delegated to garbage collection process
-            for (auto** i = &_global_history_begin; *i != nullptr; i = &(*i)->_next)
+            // soft remove of associated blocks, cleaning logic is delegated to garbage collection process
+            _global_history.soft_remove_if_all(transaction_id, [transaction_id](BlockProfile& block) {
+                    if(block._used_in_transaction == transaction_id)
+                    {
+                        //mark block as garbage to exclude from history review
+                        block._type.store(BlockType::garbage); //notifies if some thread(s) wait
+                        return true; //soft remove
+                    }
+                    return false;
+            });
+            if (_global_history.empty_buckets_count()) //nudge garbage collection
             {
-                if ((*i)->_used_in_transaction == transaction_id)
-                {
-                    (*i)->_type = BlockType::garbage; //mark block as garbage for future wipe
-                }
+                initiate_garbage_collection();
             }
-            rlock.unlock();
-
-            std::unique_lock lock(_completed_transactions_acc);
-            _completed_transactions.emplace(transaction_id);
         }
 
-        void push_gc_work()
+        void initiate_garbage_collection()
         {
-            std::unique_lock g(_garbage_collection_future_acc);
-            _garbage_collection_future = _thread_pool.async(
-                [garbage_collection_future = std::move(_garbage_collection_future), this]() mutable{
-                    collect_committed();    
-                    garbage_collection_future.get(); //complete previous future
-                }
+            std::unique_lock guard(_garbage_collection_future_acc);
+            
+            _garbage_collection_future = thread_pool().async([this](decltype(_garbage_collection_future) && previous) {
+                    if(previous.valid())
+                        previous.get(); //wait until previous gc cycle done
+                    collect_committed();
+                }, std::move(_garbage_collection_future)
             );
         }
 
         /** background thread function to clean memory */
         void collect_committed() noexcept
         {
-            std::unique_lock lock(_completed_transactions_acc);
-            std::unordered_set<transaction_id_t> id_clone{ _completed_transactions };
-            _completed_transactions.clear();
-            lock.unlock(); //allow collect other completed transactions
-            
-            std::unique_lock history_guard(_global_history_acc);
-            BlockProfile* prev = nullptr;
-            for (auto** i = &_global_history_begin; *i != nullptr; )
-            {
-                if (id_clone.find((*i)->_used_in_transaction) != id_clone.end())
-                {
-                    destroy_history_item(i); //i is updated automatically
-                }
-                else
-                    i = &(*i)->_next;
-            }
-        }
-
-        /**
-        * \pre  _global_history_acc - acquired
-        */
-        void destroy_history_item(BlockProfile** holder)
-        {
-            auto to_delete = *holder;
-            if (_global_history_end == &(to_delete->_next)) //last item
-            {
-                _global_history_end = holder;
-            }
-            *holder = to_delete->_next;
-            delete to_delete;
-        }
-
-        /** Wait until atomic `ref` get value `old` */
-        template <class T>
-        static inline T _wait_atomic_value(std::atomic<T>& ref, T expected) noexcept
-        {
-            T result = ref.load();
-            while (result < expected)
-            {
-                std::this_thread::yield();
-                result = ref.load();
-            }
-            return result;
+            _global_history.clean();
         }
 
     };

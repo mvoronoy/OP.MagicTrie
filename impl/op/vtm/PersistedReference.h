@@ -4,7 +4,6 @@
 #define _OP_VTM_PERSISTEDREFERENCE__H_
 
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/SegmentHelper.h>
 
 namespace OP::vtm
 {

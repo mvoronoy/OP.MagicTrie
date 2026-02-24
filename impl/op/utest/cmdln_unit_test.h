@@ -4,9 +4,11 @@
 
 #include <string>
 #include <functional>
+#include <filesystem>
 
 #include <op/utest/unit_test.h>
 #include <op/utest/frontend/Console.h>
+#include <op/utest/frontend/JsonFrontend.h>
 
 #include <op/common/IoFlagGuard.h>
 #include <op/common/CmdLine.h>
@@ -37,12 +39,14 @@ namespace OP::utest::cmdline
     {
         using namespace OP::console;
         using namespace OP::utest;
+        namespace fs = std::filesystem;
         
         //default is run all
         std::function<bool(TestSuite&, TestCase&, TestFixture&)> test_case_filter
             = [](TestSuite&, TestCase&, TestFixture&) { return true; };
 
         bool fail_fast = false;
+        bool render_json = false;
 
         OP::utest::TestRunOptions opts;
 
@@ -60,7 +64,7 @@ namespace OP::utest::cmdline
             ),
             arg(
                 key("-d"),
-                desc("Specify level of logging 1-3 (1=error, 2=info, 3=debug)."),
+                desc("Specify level of logging details: 1=error (default), 2=info, 3=debug."),
                 action([&opts](std::uint64_t level) {opts.log_level(static_cast<ResultLevel>(level)); })
             ), 
             arg(
@@ -83,11 +87,11 @@ namespace OP::utest::cmdline
                 })
             ),
             arg(
-                key("-rt"), key("-rc"),
+                key("-rc"),
                 desc("<test-case-regex> - Regular expression to match name of Test Case to run.\n" 
                     "\tFor example:\n"
-                    "\t\t-rt \".+\" - run all test cases;\n"
-                    "\t\t-rt \"test-[^1-3]\" - run all test cases named 'test-4'...'test-9'."
+                    "\t\t-rc \".+\" - run all test cases;\n"
+                    "\t\t-rc \"test-[^1-3]\" - run all test cases named 'test-4'...'test-9'."
                     ),
                 action( [&](const std::string& arg){
                     
@@ -103,7 +107,75 @@ namespace OP::utest::cmdline
                 })
             ),
             arg(
-                key("-b"),
+                key("-rf"),
+                desc("<test-fixture-regex> - Regular expression to match name of Test Fixture to run. If test suite has unnamed fixture, it can be matched by \"^$\".\n"
+                    "\tFor example:\n"
+                    "\t\t-rf \".+\" - run test cases sequentially enumerating all available test fixtures;\n"
+                    "\t\t-rf \"(simple|base)\" - run test cases with fixtures named as 'simple' or 'base'."
+                ),
+                action([&](const std::string& arg) {
+
+                    test_case_filter = [previous_predicate = std::move(test_case_filter), expression = std::regex(arg)](
+                        TestSuite& suite, TestCase& cs, TestFixture& fixture) {
+                            if (previous_predicate)
+                            {
+                                if (!previous_predicate(suite, cs, fixture))
+                                    return false;
+                            }
+                            return std::regex_match(fixture.id(), expression);
+                        };
+                    })
+            ),
+
+            arg(
+                key("-t"), key("-tw"),
+                desc("<tag regex> - White list tag regular expression. Only Test Cases that contain matched tag are selected to run.\n" 
+                    "\tFor example:\n"
+                    "\t\t-t \"long\" - run all test cases tagged 'long';\n"
+                    "\t\t-rt \"ISSUE-00[0-9]\" - run all test cases tagged with one of: 'ISSUE-000'...'ISSUE-009'."
+                    ),
+                action( [&](const std::string& arg){
+                    
+                    test_case_filter = [previous_predicate = std::move(test_case_filter), expression = std::regex(arg)](
+                                        TestSuite& suite, TestCase& cs, TestFixture& fixture) {
+                            if (previous_predicate)
+                            {
+                                if (!previous_predicate(suite, cs, fixture))
+                                    return false;
+                            }
+                            for(const auto& tag: cs.tags())
+                                if(std::regex_match(tag, expression))
+                                    return true;
+                            return false;
+                    };
+                })
+            ),
+
+            arg(
+                key("-tb"),
+                desc("<tag regex> - Black list tag regular expression. Only Test Cases that does NOT match tag are selected to run.\n" 
+                    "\tFor example:\n"
+                    "\t\t-t \"long\" - prevent running any test case tagged as 'long';\n"
+                    "\t\t-rt \"ISSUE-00[1-8]\" - run all test cases tagged as: 'ISSUE-000', 'ISSUE-009'."
+                    ),
+                action( [&](const std::string& arg){
+                    
+                    test_case_filter = [previous_predicate = std::move(test_case_filter), expression = std::regex(arg)](
+                                        TestSuite& suite, TestCase& cs, TestFixture& fixture) {
+                            if (previous_predicate)
+                            {
+                                if (!previous_predicate(suite, cs, fixture))
+                                    return false;
+                            }
+                            for(const auto& tag: cs.tags())
+                                if(std::regex_match(tag, expression))
+                                    return false;
+                            return true;
+                    };
+                })
+            ),
+            arg(
+                key("-n"),
                 desc("<N> - Run test in bulk mode N times."),
                 action([&opts](std::uint64_t runs) {
                     LoadRunOptions local;
@@ -119,6 +191,10 @@ namespace OP::utest::cmdline
             arg( key("-f"),
                 desc("Fail fast. Stop test process on unhandled exception or first failed test. By default this option is off - test engine tries to execute rest of the cases."),
                 assign(&fail_fast)
+            ),
+            arg( key("-j"),
+                desc("Render json report"),
+                assign(&render_json)
             )
         );
 
@@ -144,6 +220,29 @@ namespace OP::utest::cmdline
         opts.fail_fast(fail_fast);
         OP::utest::TestRun::default_instance().options() = opts;
         OP::utest::frontend::ConsoleFrontend frontend(OP::utest::TestRun::default_instance());
+        std::unique_ptr<OP::utest::frontend::JsonFrontend> json_frontend;
+        
+        if (render_json)
+        {
+            std::time_t t = std::time(nullptr);
+            std::tm tm = *std::localtime(&t);
+            std::ostringstream file_name;
+            file_name << "test_at_" << std::put_time(&tm, "%Y-%m-%dT%H_%M_%S");
+            auto report_path = fs::path(file_name.str()).replace_extension(".json");
+            std::ofstream json_file(
+                report_path,
+                std::ios_base::out | std::ios_base::trunc);
+            if (json_file.bad() || json_file.fail())
+            {
+                std::cerr << "Failed to create JSON report file:" << report_path << std::endl;
+                return 1;
+            }
+
+            json_frontend.reset(new OP::utest::frontend::JsonFrontend(
+                OP::utest::TestRun::default_instance(),
+                std::move(json_file)));
+        }
+
 
         // keep origin out formatting
         raii::IoFlagGuard cout_flags(std::cout);

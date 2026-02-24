@@ -12,6 +12,9 @@
 #include <fstream>
 #include <filesystem>
 
+#include <boost/interprocess/file_mapping.hpp>
+#include <boost/interprocess/mapped_region.hpp>
+
 #include <op/common/Utils.h>
 #include <op/common/ftraits.h>
 #include <op/common/Exceptions.h>
@@ -19,10 +22,7 @@
 #include <op/common/ExclusiveStream.h>
 
 #include <op/vtm/typedefs.h>
-#include <op/vtm/SegmentHelperCache.h>
-#include <op/vtm/Transactional.h>
-#include <op/vtm/MemoryChunks.h>
-#include <op/vtm/SegmentHelper.h>
+#include <op/vtm/vtm_error.h>
 
 namespace OP::vtm
 {
@@ -93,7 +93,7 @@ namespace OP::vtm
                 throw Exception(vtm::ErrorCodes::er_file_open, what.c_str());
             }
             constexpr auto zero_offset =
-                OP::utils::aligned_sizeof<Header>(SegmentHeader::align_c);
+                OP::utils::aligned_sizeof<Header>(SegmentDef::align_c);
             //assign new Header
             Header init(segment_size, 1, FarAddress(0, zero_offset), FarAddress(0, zero_offset));
 
@@ -264,7 +264,7 @@ namespace OP::vtm
          * Allocates a byte buffer in the file-mapped space.
          *
          * \param byte_count Number of bytes to allocate. The method will align this value
-         *        up to `SegmentHeader::align_c`.
+         *        up to `SegmentDef::align_c`.
          *
          * \return A `std::pair<FarAddress, std::uint8_t*>` where:
          *         - The first element is a `FarAddress` that can be persisted and later
@@ -274,9 +274,9 @@ namespace OP::vtm
          */
         [[nodiscard]] std::pair<FarAddress, std::uint8_t*> allocate(segment_pos_t byte_count)
         {
-            byte_count = OP::utils::align_on(byte_count, SegmentHeader::align_c);
+            byte_count = OP::utils::align_on(byte_count, SegmentDef::align_c);
             auto real_size =
-                OP::utils::aligned_sizeof<LogEntry>(SegmentHeader::align_c)
+                OP::utils::aligned_sizeof<LogEntry>(SegmentDef::align_c)
                 + byte_count
                 ;
 
@@ -388,7 +388,7 @@ namespace OP::vtm
             std::uint8_t* buffer() noexcept
             {
                 return reinterpret_cast<std::uint8_t*>(this) +
-                    OP::utils::aligned_sizeof<LogEntry>(SegmentHeader::align_c);
+                    OP::utils::aligned_sizeof<LogEntry>(SegmentDef::align_c);
             }
 
             bool check_signature() const noexcept
@@ -432,7 +432,7 @@ namespace OP::vtm
         [[nodiscard]] T* _at_impl(FarAddress address)
         {
             return reinterpret_cast<T*>(
-                raw(address, OP::utils::aligned_sizeof<T>(SegmentHeader::align_c))
+                raw(address, OP::utils::aligned_sizeof<T>(SegmentDef::align_c))
                 );
         }
 

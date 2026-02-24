@@ -36,14 +36,14 @@ struct GenericMemoryTest{
     0xAE, 0x35, 0xE4, 0xB0, 0x38, 0xE3, 0xB3, 0x3D, 0xE6, 0xBB, 0x44, 0xE9, 0xC0, 0x4C, 0xE2, 0xBB,
     0x4E, 0xD5, 0xAE, 0x4B, 0xCE, 0xA4, 0x4B, 0x00, 0x00, 0x00 };
 
-    template <class Sm, class ...ExtraArgs>
-    static void test_MemoryManager(const char * seg_file_name, OP::utest::TestRuntime& result, ExtraArgs&& ...extra_args)
+    template <class FSegmenManagerCreate, class FSegmentManagerOpen>
+    static void test_MemoryManager(OP::utest::TestRuntime& result, 
+        FSegmenManagerCreate create, FSegmentManagerOpen open)
     {
 
         using namespace OP::trie;
         using namespace OP::vtm;
 
-        result.info() << "test HeapManagerSlot on" << typeid(Sm).name() << "..." << std::endl;
         std::uint32_t tst_size = -1;
         struct TestMemAlloc1
         {
@@ -68,9 +68,10 @@ struct GenericMemoryTest{
         FarAddress one_byte_pos;
         if (1 == 1)
         {       
-            result.info() << "Test create new...\n";
-            auto options = SegmentOptions().segment_size(0x110000);
-            auto mngr1 = Sm::template create_new<Sm>(seg_file_name, options, extra_args... );
+            result.info() << "Test create new...";
+            std::shared_ptr<SegmentManager> mngr1 = create();
+            result.info() << " on" << typeid(*mngr1).name() << "..." << std::endl;
+
             tst_size = mngr1->segment_size();
             SegmentTopology<HeapManagerSlot> mngrTopology (mngr1);
 
@@ -80,10 +81,12 @@ struct GenericMemoryTest{
 
             auto one_byte_block = mngr1->readonly_block(one_byte_pos, 1);
             one_byte_block.template at<std::uint8_t>(0);
-            mngrTopology._check_integrity();
+            mngrTopology._check_integrity(
+                result.run_options().log_level() > ResultLevel::info
+            );
         }
         result.info() << "Test reopen existing...\n";
-        auto segmentMngr2 = Sm::template open<Sm>(seg_file_name, extra_args...);
+        std::shared_ptr<SegmentManager> segmentMngr2 = open();
         result.assert_true(tst_size == segmentMngr2->segment_size(), OP_CODE_DETAILS());
         SegmentTopology<HeapManagerSlot>& mngr2 = *new SegmentTopology<HeapManagerSlot>(segmentMngr2);
 
@@ -91,7 +94,9 @@ struct GenericMemoryTest{
         auto half_block = mngr2.slot<HeapManagerSlot>().allocate(tst_size / 2);
         g2.commit();
 
-        mngr2._check_integrity();
+        mngr2._check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
         //try consume bigger than available
         //try
         {
@@ -106,13 +111,17 @@ struct GenericMemoryTest{
         //{
         //    result.assert_true(e.code() == OP::trie::er_no_memory);
         //}
-        mngr2._check_integrity();
+        mngr2._check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
         //consume almost all
         OP::vtm::TransactionGuard g4(segmentMngr2->begin_transaction());
         auto rest = mngr2.slot<HeapManagerSlot>().allocate( mngr2.slot<HeapManagerSlot>().available(0) - SegmentDef::align_c );
         g4.commit();
 
-        mngr2._check_integrity();
+        mngr2._check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
         try
         {
             OP::vtm::TransactionGuard g5(segmentMngr2->begin_transaction());
@@ -123,22 +132,30 @@ struct GenericMemoryTest{
         {
             result.assert_true(e.code() == OP::vtm::ErrorCodes::er_invalid_block, OP_CODE_DETAILS());
         }
-        mngr2._check_integrity();
+        mngr2._check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
 
         OP::vtm::TransactionGuard g6(segmentMngr2->begin_transaction());
         mngr2.slot<HeapManagerSlot>().forcible_deallocate(one_byte_pos);
         g6.commit();
-        mngr2._check_integrity();
+        mngr2._check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
 
         OP::vtm::TransactionGuard g7(segmentMngr2->begin_transaction());
         mngr2.slot<HeapManagerSlot>().forcible_deallocate(rest);
         g7.commit();
-        mngr2._check_integrity();
+        mngr2._check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
 
         OP::vtm::TransactionGuard g8(segmentMngr2->begin_transaction());
         mngr2.slot<HeapManagerSlot>().forcible_deallocate(half_block);
         g8.commit();
-        mngr2._check_integrity();
+        mngr2._check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
 
         OP::vtm::TransactionGuard g9(segmentMngr2->begin_transaction());
         auto bl_control = mngr2.slot<HeapManagerSlot>().allocate(100);
@@ -160,17 +177,21 @@ struct GenericMemoryTest{
             g.commit();
             stripes[i] = b_pos;
         }
-        mngr2._check_integrity();
+        mngr2._check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
         //check closing and reopening
         delete&mngr2;//mngr2.reset();//causes delete
         segmentMngr2.reset();
 
-        auto segmentMngr3 = Sm::template open<Sm>(seg_file_name, extra_args...);
+        std::shared_ptr<SegmentManager> segmentMngr3 = open();
         SegmentTopology<HeapManagerSlot>* mngr3 = new SegmentTopology<HeapManagerSlot>(segmentMngr3);
         auto& mm = mngr3->slot<HeapManagerSlot>();
         /**Flag must be set if memory management allows merging of free adjacent blocks*/
         const bool has_block_compression = mm.has_block_merging(); 
-        mngr3->_check_integrity();
+        mngr3->_check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
     
         //make each odd block free
         for (size_t i = 1; i < 7; i += 2)
@@ -182,7 +203,9 @@ struct GenericMemoryTest{
             mm.forcible_deallocate(stripes[i]);
             g.commit();
         }
-        mngr3->_check_integrity();
+        mngr3->_check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
         //now test merging of adjacency blocks
         for (size_t i = 0; i < 7; i += 2)
         {
@@ -199,7 +222,9 @@ struct GenericMemoryTest{
             mm.forcible_deallocate(stripes[i]);
             g.commit();
 
-            mngr3->_check_integrity();
+            mngr3->_check_integrity(
+                result.run_options().log_level() > ResultLevel::info
+            );
         }
         result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
         //repeat prev test on condition of releasing even blocks
@@ -217,13 +242,17 @@ struct GenericMemoryTest{
             g.commit();
         }
 
-        mngr3->_check_integrity();
+        mngr3->_check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
         for (size_t i = 1; i < 7; i += 2)
         {
             OP::vtm::TransactionGuard g(segmentMngr3->begin_transaction());
             mm.forcible_deallocate(stripes[i]);
             g.commit();
-            mngr3->_check_integrity();
+            mngr3->_check_integrity(
+                result.run_options().log_level() > ResultLevel::info
+            );
         }
         result.assert_true(test_size == mm.available(0), OP_CODE_DETAILS());
     
@@ -244,7 +273,9 @@ struct GenericMemoryTest{
 
         std::shuffle(std::begin(rnd_indexes), std::end(rnd_indexes), tools::RandomGenerator::instance().generator());
 
-        mngr3->_check_integrity();
+        mngr3->_check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
         auto now = std::chrono::steady_clock::now();
         for (size_t i = 0; i < 1000; ++i)
         {
@@ -257,7 +288,9 @@ struct GenericMemoryTest{
         std::cout << "\tTook:" 
             << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() 
             << "ms" << std::endl;
-        mngr3->_check_integrity();
+        mngr3->_check_integrity(
+            result.run_options().log_level() > ResultLevel::info
+        );
         delete mngr3;
         segmentMngr3.reset();
     

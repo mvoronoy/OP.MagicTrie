@@ -7,7 +7,7 @@
 
 #include <op/flur/flur.h>
 
-#include <op/vtm/InMemMemoryChangeHistory.h>
+#include <op/vtm/managers/InMemMemoryChangeHistory.h>
 
 #include <op/common/ThreadPool.h>
 #include <op/common/Bitset.h>

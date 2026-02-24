@@ -33,6 +33,14 @@ namespace OP::vtm
     constexpr static inline const segment_pos_t eos_c           = ~segment_pos_t{0};
     constexpr static inline const far_pos_t     far_null_c      = ~far_pos_t{0};
 
+    struct SegmentDef
+    {
+        constexpr static segment_idx_t null_block_idx_c = OP::vtm::null_block_idx_c;
+        constexpr static segment_pos_t eos_c = OP::vtm::eos_c;
+        constexpr static far_pos_t far_null_c = OP::vtm::far_null_c;
+        constexpr static size_t align_c = alignof(std::max_align_t);//16;
+    };
+
 
     /** Define unsigned character that has an unassigned indicator (nullable) */
     struct NullableAtom
@@ -199,4 +207,17 @@ namespace OP::vtm
 
 }//ns:OP::vtm
 
+namespace std
+{
+    /** Define specialization of std::has for FarAddress */
+    template<>
+    struct hash<OP::vtm::FarAddress>
+    {
+        std::size_t operator()(const OP::vtm::FarAddress& addr) const noexcept
+        {
+            return std::hash<OP::vtm::far_pos_t>{}(addr.address);
+        }
+    };
+
+} //ns: std
 #endif //_OP_VTM_TYPEDEFS__H_

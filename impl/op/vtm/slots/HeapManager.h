@@ -7,10 +7,8 @@
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/SegmentTopology.h>
-#include <op/vtm/MemoryBlock.h>
-#include <op/vtm/Skplst.h>
+#include <op/vtm/datastructure/Skplst.h>
 
-#include <op/vtm/integrity/Stream.h>
 
 namespace OP::vtm
 {
@@ -43,29 +41,29 @@ namespace OP::vtm
         */
         virtual FarAddress allocate(segment_pos_t size)
         {
-            size = OP::utils::align_on(size, SegmentHeader::align_c);
+            size = OP::utils::align_on(size, SegmentDef::align_c);
 
             //try pull existing blocks
 
-            auto [header_pos, user_size] =
+            auto [header_pos, free_block_size] =
                 _free_blocks->pull_not_less(size);
 
             if (header_pos.is_nil())
             { //no available free memory block, ask segment manager to allocate new                    
                 auto avail_segments = segment_manager().available_segments(); //ask for number
                 segment_manager().ensure_segment(avail_segments); //used number-of-segments as an index so don't need +1
-                std::tie(header_pos, user_size) = _free_blocks->pull_not_less(size);
+                std::tie(header_pos, free_block_size) = _free_blocks->pull_not_less(size);
                 if (header_pos.is_nil())
                     throw Exception(vtm::ErrorCodes::er_no_memory);
             }
-            constexpr segment_pos_t mbh = OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c);
-            segment_pos_t deposit = user_size;
-            if(user_size > (size + HeapBlockHeader::minimal_space_c))
+            constexpr segment_pos_t mbh = OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
+            segment_pos_t offset = free_block_size - size; //offcut
+            segment_pos_t deposit = free_block_size;
+            if((HeapBlockHeader::minimal_space_c + mbh) < offset)
             { //block can be split onto 2 smaller
+                offset -= mbh;
                 HeapBlockHeader* to_spilt = segment_manager().wr_at<HeapBlockHeader>(header_pos);
                     //alloc new block at the end of current
-                segment_pos_t offset = user_size - size - mbh; //offcut
-                assert(offset >= HeapBlockHeader::minimal_space_c);
                 //make available to alloc
                 to_spilt
                     ->size(offset)
@@ -125,7 +123,7 @@ namespace OP::vtm
 
         void forcible_deallocate(FarAddress address)
         {
-            if (!OP::utils::is_aligned(address.offset(), SegmentHeader::align_c)
+            if (!OP::utils::is_aligned(address.offset(), SegmentDef::align_c)
                 //|| !check_pointer(memblock)
                 )
                 throw Exception(vtm::ErrorCodes::er_invalid_block);
@@ -152,40 +150,53 @@ namespace OP::vtm
             return result;
         }
 
-        void _check_integrity(FarAddress segment_addr) override
+        void _check_integrity(FarAddress segment_addr, bool verbose) override
         {
-            auto& integrity = integrity::Stream::os();
+        #define _CHECK_INTEGRITY_VERBOSE_LOG(msg)  if( verbose ) integrity
+            auto& integrity = std::clog;
             raii::IoFlagGuard g(integrity);
-            integrity << std::hex << std::boolalpha;
-            integrity << "HeapManager at segment: 0x" << segment_addr.segment() << ", offset: 0x" << segment_addr.offset() <<"\n";
+            
+            _CHECK_INTEGRITY_VERBOSE_LOG( 
+                << std::hex << std::boolalpha
+                << "HeapManager at segment: 0x" << segment_addr.segment() << ", offset: 0x" << segment_addr.offset() <<"\n"
+            );
+    
             if(segment_addr.segment() == 0 )
             {
-                integrity << "\tSkip-list size = 0x" << _free_blocks->byte_size() << "\n";
+                _CHECK_INTEGRITY_VERBOSE_LOG(  << "\tSkip-list size = 0x" << _free_blocks->byte_size() << "\n");
                 segment_addr += _free_blocks->byte_size();
             }
             auto heap_header = segment_manager().view<HeapHeader>(segment_addr);
-            integrity << "\tSegment-header:{ _size = 0x" << heap_header->_size 
-                << ", _total = 0x"<< heap_header->_total << "}\n";
-            segment_addr += OP::utils::aligned_sizeof<HeapHeader>(SegmentHeader::align_c);
+            _CHECK_INTEGRITY_VERBOSE_LOG( 
+                << "\tSegment-header:{ _size = 0x" << heap_header->_size 
+                << ", _total = 0x"<< heap_header->_total << "}\n");
+
+            segment_addr += OP::utils::aligned_sizeof<HeapHeader>(SegmentDef::align_c);
             size_t i = 0;
             for(auto offset = segment_addr.offset(); offset < heap_header->_total; ++i)
             {
                 FarAddress mbh_addr{segment_addr.segment(), offset};
-                integrity << "\tmbh #" << i << " (at: " << mbh_addr << "){";
+                _CHECK_INTEGRITY_VERBOSE_LOG(
+                     << "\tmbh #" << i << " (at: " << mbh_addr << "){");
                 auto block_header = segment_manager().view<HeapBlockHeader>(mbh_addr);
-                integrity << "free = " << static_cast<bool>(block_header->_free) 
+
+                _CHECK_INTEGRITY_VERBOSE_LOG( << "free = " << static_cast<bool>(block_header->_free) 
                     << ", signature = 0x" << block_header->_signature 
                     << ", _size = 0x" << block_header->_size 
-                    << ", _next = ";
+                    << ", _next = ");
                 if( block_header->_next.is_nil() )
-                    integrity << "(nil)";
+                    _CHECK_INTEGRITY_VERBOSE_LOG(<< "(nil)");
                 else
-                    integrity << block_header->_next;
-                integrity << "}\n";
+                    _CHECK_INTEGRITY_VERBOSE_LOG( << block_header->_next);
+                _CHECK_INTEGRITY_VERBOSE_LOG( << "}\n");
                 if( !block_header->check_signature() )
+                {
+                    _CHECK_INTEGRITY_VERBOSE_LOG("mbh signature check failed!\n");
                     throw std::runtime_error("mbh signature check failed");
-                offset += block_header->_size + OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c);
+                }
+                offset += block_header->_size + OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
             }
+        #undef _CHECK_INTEGRITY_VERBOSE_LOG
         }
 
     protected:
@@ -221,13 +232,13 @@ namespace OP::vtm
             segment_presence._heap_start = first_block_pos; //points to HeapHeader
             //Each segment has HeapHeader
             auto heap_header = segment_manager().accessor<HeapHeader>(first_block_pos, WritableBlockHint::new_c);
-            first_block_pos += OP::utils::aligned_sizeof<HeapHeader>(SegmentHeader::align_c);
+            first_block_pos += OP::utils::aligned_sizeof<HeapHeader>(SegmentDef::align_c);
             //make first big memory block for this segment
             auto first_block = segment_manager().accessor<HeapBlockHeader>(first_block_pos, WritableBlockHint::new_c);
             
             segment_presence._size = //free size as the new block without header size
                 segment_manager().segment_size() - 
-                OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c) - 
+                OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c) - 
                 first_block_pos.offset();
             heap_header->_total = heap_header->_size = segment_presence._size;
             ::new (first_block.pos()) HeapBlockHeader{ segment_presence._size };
@@ -283,7 +294,9 @@ namespace OP::vtm
 
     private:
 
-        /**Ensure that _opened_segments contains specific index. Call must be locked vefore with _segments_map_lock*/
+        /**Ensure that _opened_segments contains specific index. 
+        * \pre #_segments_map_lock - must be locked 
+        */
         [[nodiscard]] SegmentPresenceInfo& ensure_index(segment_idx_t segment)
         {
             if (segment >= _opened_segments.size())
@@ -310,8 +323,6 @@ namespace OP::vtm
         }
 
     };
-
-
 
 }//ns: OP:vtm
 

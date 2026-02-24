@@ -13,8 +13,9 @@
 
 #include <op/vtm/Transactional.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/HeapBlockHeader.h>
 #include <op/vtm/PersistedReference.h>
+
+#include <op/vtm/slots/HeapBlockHeader.h>
 
 namespace OP::vtm
 {
@@ -36,7 +37,7 @@ namespace OP::vtm
             {
                 return OP::utils::align_on(
                     memory_requirement<ForwardListBase>::array_size( bitmask_size_c ),
-                    SegmentHeader::align_c);
+                    SegmentDef::align_c);
             }
 
             constexpr size_t entry_index(size_t key) const noexcept

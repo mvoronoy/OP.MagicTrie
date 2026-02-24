@@ -291,10 +291,8 @@ namespace OP::vtm
     WritableAccess<T> accessor(SMProvider& segment_manager_provider, FarAddress pos, WritableBlockHint hint = WritableBlockHint::update_c)
     {
         return WritableAccess<T>(
-            std::move(
                 resolve_segment_manager(segment_manager_provider)
                 .writable_block(pos, OP::utils::memory_requirement<T>::requirement, hint)
-            )
         );
     }
         
@@ -315,10 +313,8 @@ namespace OP::vtm
         using A = WritableAccess<T>;
             
         const auto size = OP::utils::memory_requirement<T>::array_size( number_elements );
-        return A(std::move(
-            resolve_segment_manager(segment_manager_provider)
-            .writable_block(pos, size, hint)
-            )
+        return A(
+            resolve_segment_manager(segment_manager_provider).writable_block(pos, size, hint)
         );
     }
 
@@ -451,10 +447,9 @@ namespace OP::vtm
     ReadonlyAccess<T> view(SMProvider& segment_manager_provider, FarAddress pos, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c)
     {
         return ReadonlyAccess<T>(
-            std::move(
                 resolve_segment_manager(segment_manager_provider)
                 .readonly_block(pos, OP::utils::memory_requirement<T>::requirement, hint)
-            ));
+            );
     }
         
     /**
@@ -471,10 +466,9 @@ namespace OP::vtm
     {
         using A = ReadonlyAccess<T>;
         return A(
-            std::move(
                 resolve_segment_manager(segment_manager_provider)
                 .readonly_block(pos, OP::utils::memory_requirement<T>::array_size( number_elements ), hint)
-            ));
+            );
     }
         
 } //ns::OP::vtm

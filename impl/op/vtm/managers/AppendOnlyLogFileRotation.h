@@ -9,14 +9,14 @@
 #include <op/common/Utils.h>
 #include <op/common/Bitset.h>
 #include <op/common/ThreadPool.h>
-#include <op/common/ValueGuard.h>
 #include <op/common/Exceptions.h>
 
 #include <op/vtm/AppendOnlyLog.h>
 #include <op/vtm/AppendOnlySkipList.h>
-#include <op/vtm/EventSourcingSegmentManager.h>
+#include <op/vtm/managers/EventSourcingSegmentManager.h>
 #include <op/vtm/ShadowBufferCache.h>
 
+#include <op/flur/flur.h>
 
 namespace OP::vtm
 {
@@ -46,6 +46,7 @@ namespace OP::vtm
         
         virtual void utilize_file(std::shared_ptr<AppendOnlyLog> a0log) = 0;
 
+        virtual std::map<std::uint64_t, std::shared_ptr<AppendOnlyLog>> all() = 0;
     };
 
     struct FileCreationPolicy : public CreationPolicy
@@ -69,18 +70,36 @@ namespace OP::vtm
             'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
             'u', 'v'
         };
+
+        constexpr static size_t lm2map_c = 5; //ln2(char_map.size())
+        constexpr static size_t number_char_size_c = (std::numeric_limits<std::uint64_t>::digits + lm2map_c - 1) / lm2map_c;
         
         static std::string u2base32(std::uint64_t n)
         {
-            constexpr size_t lm2map = 5;
-            constexpr size_t char_size = 
-                (std::numeric_limits<decltype(n)>::digits + lm2map - 1) / lm2map; 
-            constexpr size_t bitmask = (1 << lm2map) - 1;
-            std::string vary(char_size, '0');
+            constexpr size_t bitmask = (1 << lm2map_c) - 1;
+            std::string vary(number_char_size_c, '0');
             //auto last = --vary.end();
-            for(auto i = char_size; i; --i, n >>= lm2map)
+            for(auto i = number_char_size_c; i; --i, n >>= lm2map_c)
                 vary[i - 1] = char_map[n & bitmask];
             return vary;
+        }
+
+        template <class StringLike>
+        static std::optional<std::uint64_t> base32to_u(const StringLike& str) noexcept
+        {
+            // binary search not the best by performance but simple in use
+            // str->int in this case is not time critical
+            std::uint64_t n = 0;
+            for(auto c: str)
+            {
+                auto pos = std::lower_bound(char_map.begin(), char_map.end(), c);
+                if(pos == char_map.end() || *pos != c)
+                    return {};
+                n <<= lm2map_c;
+                auto delta = std::distance(char_map.begin(), pos);
+                n |= delta;
+            }
+            return n;
         }
 
         std::shared_ptr<AppendOnlyLog> make_new_file(
@@ -121,6 +140,33 @@ namespace OP::vtm
             }
         }
 
+        virtual std::map<std::uint64_t, std::shared_ptr<AppendOnlyLog>> all() override
+        {
+            std::map<std::uint64_t, std::shared_ptr<AppendOnlyLog>> result;
+            // Iterate over directory entries
+            for (const auto& entry : std::filesystem::directory_iterator(_data_dir)) 
+            {
+                // Check if the entry is a regular file
+                if (!std::filesystem::is_regular_file(entry))
+                    continue;
+                auto pure_name = entry.path().filename().stem().string();
+                // Check if the file extension matches the desired extension
+                if (entry.path().extension() == _file_ext 
+                    && OP::utils::subview<std::string_view>(pure_name, 0, _file_prefix.size()) == _file_prefix
+                    && pure_name.size() == (_file_prefix.size() + number_char_size_c)
+                )
+                { // matches to pattern
+                    //extract id from file-name
+                    auto optn = base32to_u(OP::utils::subview<std::string_view>(pure_name, _file_prefix.size()));
+                    if(!optn) //bad file name
+                        continue;
+                    result.emplace(*optn, 
+                        OP::vtm::AppendOnlyLog::open(_thread_pool, entry.path()));
+                }
+            }
+            return result;
+        }
+
     private:
 
         OP::utils::ThreadPool& _thread_pool;
@@ -153,19 +199,19 @@ namespace OP::vtm
             garbage = 4
         };
 
-        static std::shared_ptr<AppendLogFileRotationChangeHistory> create_new(
+        static std::unique_ptr<MemoryChangeHistory> create_new(
             OP::utils::ThreadPool& thread_pool, 
             std::unique_ptr<CreationPolicy> create_policy
         )
         {
-            std::shared_ptr<AppendLogFileRotationChangeHistory> file_rotation{
+            std::unique_ptr<AppendLogFileRotationChangeHistory> file_rotation{
                 new AppendLogFileRotationChangeHistory(
                     thread_pool, 
                     std::move(create_policy))
             };
             //don't need to guard - since no shared thread are possible there
             file_rotation->_promote_new_file_job =
-                thread_pool.async([file_rotation]() { return file_rotation->warm_file(); });
+                thread_pool.async([zhis = file_rotation.get()]() { return zhis->warm_file(); });
             return file_rotation;
         }
 
@@ -192,6 +238,7 @@ namespace OP::vtm
             else
             {
                 auto& last = _all_lists.back();
+                assert(transaction_id > last._transactions_list->last()._transaction_id); //logic assumes that transaction_id grows
                 auto in_bunch_index = last._transactions_list->size();
                 std::unique_lock guard(_promote_new_file_job_acc);
                 if ((in_bunch_index == _options._warm_size)
@@ -378,9 +425,9 @@ namespace OP::vtm
             /*[serialized in A0Log]*/ std::uint64_t _bloom_filter = 0;
             static inline constexpr std::uint64_t bloom_calc(const RWR& range) noexcept
             {
-                auto bit_width = OP::trie::log2(range.count()) + 1;
+                auto bit_width = OP::common::log2(range.count()) + 1;
                 return ((1ull << bit_width) - 1)
-                    << OP::trie::log2(range.pos());
+                    << OP::common::log2(range.pos());
             }
             /**  calculate bloom-filter index of RWR inside BlockProfile */
             inline void index(const BlockProfile& profile) noexcept

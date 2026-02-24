@@ -268,12 +268,8 @@ namespace OP::vtm
             auto [result_address, new_header] = append_log->construct<Header>(
                 append_log->construct<Bucket>().first, 1
             );
-            return { result_address,
-                    std::shared_ptr<this_t>(
-                        new this_t{
-                            std::move(append_log),
-                            *new_header
-                        })
+            return { result_address, std::shared_ptr<this_t>(
+                        new this_t{std::move(append_log), *new_header})
             };
         }
 
@@ -302,6 +298,17 @@ namespace OP::vtm
             std::apply([&](auto& ...indexer) {
                 (indexer.index(*new_instance), ...);
                 }, bucket->_indexers);
+        }
+
+        const T& last() const
+        {
+            r_guard_t header_guard(_header_acc);
+            if (!_header._size)
+                throw std::out_of_range("`last` called on empty list");
+            auto [guard, bucket] = bucket_read(_header._last_bucket);
+            if (!bucket->_size)
+                throw std::out_of_range("`last` called on empty list");
+            return *bucket->data();
         }
 
         /** \return Number of items emplaced so far */
@@ -514,7 +521,7 @@ namespace OP::vtm
             boost::lockfree::spsc_queue<const bucket_t*, boost::lockfree::capacity<bucket_threshold_c> > queue;
             std::atomic_bool done = false;
             auto producer_job = _append_log->thread_pool().async([&]() {
-                raii::ValueGuard<std::atomic_bool, bool> turn_true(done, true); //ensure true at exit to indicate stop for outer thread
+                raii::RestoreValueGuard<std::atomic_bool, bool> turn_true(done, true); //ensure true at exit to indicate stop for outer thread
                 for_each_bucket([&](const bucket_t& bucket) {
                     BucketNavigation check_bucket = std::apply([&](const auto& ...indexer)->BucketNavigation {
                         

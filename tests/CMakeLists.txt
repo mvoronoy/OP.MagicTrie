@@ -28,9 +28,11 @@ find_package(Threads REQUIRED)
 
 enable_testing()
 
+if(MSVC)
 # Allow /P preprocess file   
 # set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /P")
 #set_source_files_properties("tests/tr.cpp" PROPERTIES COMPILE_FLAGS /P)
+endif(MSVC)
 
 
 # Add source to this project's executable.
@@ -38,6 +40,7 @@ add_executable (trie_test
     
     "common/BitsetTest.cpp"
     "common/UtilsTest.cpp"
+    "common/EventSupplier.cpp"
     "common/CmdLine.cpp"
     "common/ZoneTest.cpp"
     "common/ThreadPool.cpp"
@@ -58,6 +61,7 @@ add_executable (trie_test
     "vtm/InMemMemoryChangeHistory.cpp"
     "vtm/MemoryChangeHistoryTestHarness.h"
     "vtm/GenericMemoryTest.h"
+    "vtm/AppendAtomicList.cpp"
 
     "SpanContainerTest.cpp"
     "tr.cpp"
@@ -100,7 +104,7 @@ add_executable (trie_test
  
 )
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
+set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 set(TR_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../impl )
 
@@ -110,6 +114,10 @@ target_include_directories(trie_test
     )
 
 target_link_libraries(${PROJECT_NAME} Threads::Threads)
+
+if(MSVC)
+target_link_options(trie_test PRIVATE "/PROFILE")
+endif(MSVC)
 
 # Unit tests
 add_test(NAME "root.OP.tests.all" COMMAND trie_test -r ".+/.+")

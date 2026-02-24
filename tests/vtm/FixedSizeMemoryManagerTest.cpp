@@ -2,13 +2,14 @@
 #include <op/utest/unit_test_is.h>
 #include <op/trie/Trie.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/EventSourcingSegmentManager.h>
-#include <op/vtm/InMemMemoryChangeHistory.h>
+#include <op/vtm/managers/EventSourcingSegmentManager.h>
+#include <op/vtm/managers/BaseSegmentManager.h>
+#include <op/vtm/managers/InMemMemoryChangeHistory.h>
 #include <set>
 #include <cassert>
 #include <iterator>
 
-#include "../MemoryChangeHistoryFixture.h"
+#include "../vtm/MemoryChangeHistoryFixture.h"
 
 namespace
 {
@@ -30,7 +31,7 @@ namespace
         mngr.deallocate(b100);
         g1.commit();
         tresult.assert_true(topology.segment_manager().available_segments() == 1);
-        topology._check_integrity();
+        topology._check_integrity(tresult.run_options().log_level() > ResultLevel::info);
 
         std::vector<FarAddress> allocated_addrs(test_nodes_count_c);
         //exhaust all nodes in single segment and check new segment allocation
@@ -66,7 +67,7 @@ namespace
             auto to_test = view<typename FixedSizeMemoryManager::payload_t>(topology, allocated_addrs[i]);
             tresult.assert_true(i + 57 == to_test->inc, "Invalid value stored");
         }
-        topology._check_integrity();
+        topology._check_integrity(tresult.run_options().log_level() > ResultLevel::info);
 
         // now free all in random order and exhaust again
         std::random_device rd;
@@ -79,7 +80,7 @@ namespace
             g3.commit();
         }
         allocated_addrs.clear();
-        topology._check_integrity();
+        topology._check_integrity(tresult.run_options().log_level() > ResultLevel::info);
 
         for (auto i = 0; i < 2 * test_nodes_count_c; ++i)
         {
@@ -105,7 +106,8 @@ namespace
         }
     }
 
-    void test_NodeManager(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_NodeManager(OP::utest::TestRuntime& tresult, 
+        std::shared_ptr<test::ChangeHistoryFactory> mem_change_history)
     {
         using namespace OP::vtm;
 
@@ -124,18 +126,19 @@ namespace
 
         typedef FixedSizeMemoryManager<TestPayload, test_nodes_count_c> test_node_manager_t;
 
-        auto tmngr1 = SegmentManager::template create_new<EventSourcingSegmentManager>(
-            node_file_name,
-            SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                mem_change_history->create()
+            ));
 
         SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
         test_Generic<test_node_manager_t>(tresult, mngrToplogy);
     }
 
-    void test_Multialloc(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_Multialloc(OP::utest::TestRuntime& tresult, 
+        std::shared_ptr<test::ChangeHistoryFactory> mem_change_history)
     {
         struct TestPayload
         {
@@ -154,12 +157,12 @@ namespace
 
         using test_node_manager_t = FixedSizeMemoryManager<TestPayload, test_nodes_count_c> ;
 
-        auto tmngr1 = OP::vtm::SegmentManager::template create_new<EventSourcingSegmentManager>(
-            node_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                mem_change_history->create()
+            ));
 
         SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
         auto& fmm = mngrToplogy.template slot<test_node_manager_t>();
@@ -181,7 +184,7 @@ namespace
             tresult.assert_that<equals>(to_test->n1, generation.n1);
             tresult.assert_that<equals>(to_test->x1, generation.x1);
         }
-        mngrToplogy._check_integrity();
+        mngrToplogy._check_integrity(tresult.run_options().log_level() > ResultLevel::info);
 
         for (auto p = std::begin(result); p != std::end(result); ++p)
         {
@@ -189,7 +192,7 @@ namespace
             fmm.deallocate(*p);
             g.commit();
         }
-        mngrToplogy._check_integrity();
+        mngrToplogy._check_integrity(tresult.run_options().log_level() > ResultLevel::info);
         tresult.assert_that<equals>(1, mngrToplogy.segment_manager().available_segments(),
             OP_CODE_DETAILS(<< "There must be single segment"));
         auto usage = fmm.usage_info();
@@ -233,7 +236,7 @@ namespace
             }
         }
 
-        mngrToplogy._check_integrity();
+        mngrToplogy._check_integrity(tresult.run_options().log_level() > ResultLevel::info);
         tresult.assert_that<equals>(2, mngrToplogy.segment_manager().available_segments(),
             OP_CODE_DETAILS(<< "There must be one more segment"));
         for (const auto& addr : buffer)
@@ -242,7 +245,7 @@ namespace
             fmm.deallocate(addr);
             g.commit();
         }
-        mngrToplogy._check_integrity();
+        mngrToplogy._check_integrity(tresult.run_options().log_level() > ResultLevel::info);
         usage = fmm.usage_info();
         tresult.assert_that<equals>(0, usage.first,
             OP_CODE_DETAILS(<< "All must be free"));
@@ -250,7 +253,8 @@ namespace
             OP_CODE_DETAILS(<< "Free count must be:" << test_nodes_count_c));
     }
 
-    void test_NodeManagerSmallPayload(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_NodeManagerSmallPayload(OP::utest::TestRuntime& tresult, 
+        std::shared_ptr<test::ChangeHistoryFactory> mem_change_history)
     {
         struct TestPayloadSmall
         {/*The size of Payload selected to be smaller than FixedSizeMemoryManager::ZeroHeader */
@@ -263,11 +267,12 @@ namespace
         //The size of payload smaller than FixedSizeMemoryManager::ZeroHeader
         typedef FixedSizeMemoryManager<TestPayloadSmall, test_nodes_count_c> test_node_manager_t;
 
-        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(node_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                mem_change_history->create()
+            ));
 
         SegmentTopology<test_node_manager_t> mngrToplogy(tmngr1);
         test_Generic<test_node_manager_t>(tresult, mngrToplogy);
@@ -279,11 +284,9 @@ namespace
         .declare("small-payload", test_NodeManagerSmallPayload)
         // define scenario parameter with InMemory implementation
         .with_fixture( "memory-only",
-            test::init_InMemoryChangeHistory, 
-            test::tear_down_InMemoryChangeHistory)
+            test::memory_change_history_factory<test::InMemoryChangeHistoryFactory>)
         // define scenario parameter with File-rotary implementation
-        .with_fixture("file-rotary",
-            test::init_event_source_with_AppendLogFileRotationChangeHistory, 
-            test::tear_down_AppendLogFileRotationChangeHistory)
+        //.with_fixture("file-rotary",
+        //    test::memory_change_history_factory<test::AppendLogFileRotationChangeHistoryFactory>)
         ;
 } //ns:

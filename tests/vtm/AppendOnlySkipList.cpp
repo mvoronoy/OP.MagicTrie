@@ -21,9 +21,9 @@ namespace
 
     inline constexpr std::uint64_t bloom_calc(const MyRange& r) noexcept
     {
-        auto bit_width = OP::trie::log2(r.count()) + 1;
+        auto bit_width = OP::common::log2(r.count()) + 1;
         return ((1ull << bit_width) - 1)
-            << OP::trie::log2(r.pos());
+            << OP::common::log2(r.pos());
     }
 
     struct RandomRangeGenerator
@@ -288,11 +288,13 @@ namespace
         //actually both list consumes same amount of memory because of alignment
         size_t counter = 0;
         //populate ...
-        for (; a0l->segments_count() < 5; ++counter)
+        for (; a0l->segments_count() < 5 || (counter & 1); ++counter) //ensure counter is even number
             if (counter & 1)
                 skplst1->emplace(static_cast<std::int32_t>(counter));
             else
                 skplst2->emplace(counter);
+        tresult.assert_that<equals>(skplst1->size(), counter / 2);
+        tresult.assert_that<equals>(skplst2->size(), counter / 2);
 
         //test...
         std::int32_t eval1 = 1;

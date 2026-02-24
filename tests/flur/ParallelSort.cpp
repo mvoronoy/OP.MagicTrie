@@ -109,6 +109,6 @@ namespace {
 
     static auto& module_suite = OP::utest::default_test_suite("flur.then.parallel_sort")
         .declare("simple", test_simple)
-        .declare("big", test_big, {"long"})
+        .declare("big", test_big, "long")
         ;
 }//ns: empty

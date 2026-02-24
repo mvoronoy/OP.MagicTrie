@@ -76,10 +76,11 @@ namespace
             tp, test_file_name
             /*OS minimal allowed size for segment-size*/
         );
+        size_t space = 0, order = 0;
         //now overflow single segment
-        for (size_t space = 0, order = 0; space < a0l->segment_size();
+        for (; space < a0l->segment_size();
             //very rough estimate of memory consumed by TestPayload:
-            space += 3 * OP::utils::aligned_sizeof<TestPayload>(OP::vtm::SegmentHeader::align_c) / 2,
+            space += 5 * OP::utils::aligned_sizeof<TestPayload>(OP::vtm::SegmentDef::align_c) / 4,
             ++order
             )
         {
@@ -94,7 +95,7 @@ namespace
         );
         //check consistency
         tresult.assert_that<equals>(2, a0l->segments_count());
-        size_t order = 0;
+        order = 0;
         a0l->for_each([&](TestPayload* payload) {
             std::ostringstream line_info; 
             line_info << "equality check failed at step #" << order;

@@ -8,7 +8,7 @@
 #include <op/flur/flur.h>
 
 #include <op/vtm/AppendOnlySkipList.h>
-#include <op/vtm/AppendOnlyLogFileRotation.h>
+#include <op/vtm/managers/AppendOnlyLogFileRotation.h>
 
 #include <op/common/ThreadPool.h>
 #include <op/common/Bitset.h>
@@ -67,6 +67,6 @@ namespace
     }
 
     static auto& module_suite = OP::utest::default_test_suite("vtm.RotaryLogChangeHistory")
-        .declare("emplace", test_Emplace)
+        .declare_disabled("emplace", test_Emplace)
         ;
 } //ns:

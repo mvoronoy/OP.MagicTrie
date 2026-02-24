@@ -52,17 +52,17 @@ namespace OP::vtm
             */
             virtual void on_new_segment(FarAddress start_address) = 0;
             /**
-            *   Perform slot opening in the specified segment as specified offset
+            *   Perform opening of already existing slot in the specified segment as specified offset
             */
             virtual void open(FarAddress start_address) = 0;
 
-            /**Notify slot that some segment should release resources. It is not about deletion of segment, but deactivating it*/
+            /**Notify slot that some segment should release resources. It is not about deletion of segment, but deactivating it.*/
             virtual void release_segment(segment_idx_t segment_index) = 0;
 
-            /**Allows on debug check integrity of particular segment. Default impl does nothing.
+            /**Allows check integrity of particular segment. Default impl does nothing.
             *   Implementation can use exception or `assert` (in debug mode) to discover failures in contracted structures.
             */
-            virtual void _check_integrity(FarAddress segment_addr)
+            virtual void _check_integrity(FarAddress segment_addr, bool verbose)
             {
                 /*Do nothing*/
             }
@@ -73,7 +73,7 @@ namespace OP::vtm
 
         /**
         *   SegmentTopology is a way to declare how interior memory of virtual memory segment will be used.
-        *   Topology is described as linear (one by one) applying of slots. Each slot is controlled by corresponding 
+        *   Topology is described as linear (one by one) sequence of slots. Each slot is controlled by corresponding 
         *   Slot-inherited object that is specified as template argument.
         *   For example SegmentTopology <FixedSizeMemoryManager, HeapMemorySlot> declares that Segment have to accommodate 
         *   FixedSizeMemoryManager in the beginning and HeapMemory after all
@@ -115,11 +115,16 @@ namespace OP::vtm
                 _segments->subscribe_event_listener(this);
                 
                 OP::vtm::TransactionGuard g(_segments->begin_transaction());
-                _segments->foreach_segment([this](segment_idx_t segment_idx, SegmentManager& segment_manager){
-                    on_segment_opening(segment_idx, segment_manager);
-                });
-                //force to have at least 1 segment
-                _segments->ensure_segment(0);
+                
+                segment_idx_t i = 0;
+                for(; i < _segments->available_segments(); ++i)
+                {
+                    _segments->ensure_segment(0);
+                    on_segment_opening(i, *_segments);
+                }
+
+                if(i == 0)//force to have at least 1 segment
+                    _segments->ensure_segment(0);
                 g.commit();
             }
 
@@ -131,13 +136,17 @@ namespace OP::vtm
                 return *std::get<std::unique_ptr<T>>(_slots);
             }
 
-            void _check_integrity()
+            void _check_integrity(bool verbose)
             {
-                _segments->_check_integrity();
-                _segments->foreach_segment([this](segment_idx_t idx, SegmentManager& segments){
-                    segment_pos_t current_offset = segments.header_size();
+                _segments->_check_integrity(verbose);
+                OP::vtm::TransactionGuard g(_segments->begin_transaction());
+                segment_idx_t n = _segments->available_segments();
+                for(segment_idx_t idx = 0; idx < n; ++idx)
+                {
+                    segment_pos_t current_offset = _segments->header_size();
                     //start write topology right after header
-                    ReadonlyMemoryChunk topology_address = segments.readonly_block(FarAddress(idx, current_offset), 
+                    ReadonlyMemoryChunk topology_address = _segments->readonly_block(
+                        FarAddress(idx, current_offset), 
                         addres_table_size_c);
                     current_offset += addres_table_size_c;
                     std::apply(
@@ -147,11 +156,11 @@ namespace OP::vtm
                             if (slot.has_residence(idx))
                             {
                                 FarAddress addr(idx, current_offset);
-                                slot._check_integrity(addr);
+                                slot._check_integrity(addr, verbose);
                                 current_offset += slot.byte_size(addr);
                             }
                         },  _slots);
-                });
+                }
             }
 
             SegmentManager& segment_manager()
