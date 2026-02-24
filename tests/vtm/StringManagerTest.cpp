@@ -3,14 +3,15 @@
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/StringMemoryManager.h>
-#include <op/vtm/EventSourcingSegmentManager.h>
-#include <op/vtm/InMemMemoryChangeHistory.h>
+#include <op/vtm/managers/EventSourcingSegmentManager.h>
+#include <op/vtm/managers/BaseSegmentManager.h>
+#include <op/vtm/managers/InMemMemoryChangeHistory.h>
 
 #include <set>
 #include <cassert>
 #include <iterator>
 
-#include "../MemoryChangeHistoryFixture.h"
+#include "../vtm/MemoryChangeHistoryFixture.h"
 
 namespace
 {
@@ -26,12 +27,13 @@ namespace
         using str_manager_t = OP::vtm::StringMemoryManager<>;
         OP::utils::ThreadPool tp;
 
-        auto tmngr1 = SegmentManager::template create_new<EventSourcingSegmentManager>(
-            node_file_name,
-            OP::vtm::SegmentOptions()
-                .segment_size(0x110000),
-            std::shared_ptr<MemoryChangeHistory>(new InMemoryChangeHistory(tp))
-        );
+        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::unique_ptr<MemoryChangeHistory>(new InMemoryChangeHistory(tp))
+            ));
+
 
         SegmentTopology<
             HeapManagerSlot
@@ -223,17 +225,19 @@ namespace
             << "all avail:" << heap_mngr.available(0) << "\n";
     }
 
-    void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult,
+        std::shared_ptr<test::ChangeHistoryFactory> mem_change_history)
     {
         using namespace std::string_literals;
         using str_manager_t = OP::vtm::StringMemoryManager<>;
 
-        auto tmngr1 = SegmentManager::template create_new<EventSourcingSegmentManager>(
-            node_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                mem_change_history->create()
+            ));
+
 
         SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
         string_manager_edge_case(mngr_toplogy, tresult);
@@ -242,10 +246,11 @@ namespace
     void test_StringManagerEdgeCaseNoTran(OP::utest::TestRuntime& tresult)
     {
 
-        auto tmngr1 = OP::vtm::SegmentManager::create_new<SegmentManager>(
-            node_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000));
+        std::shared_ptr<SegmentManager> tmngr1(
+                BaseSegmentManager::create_new(
+                    node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000))
+        );
+
 
         SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
         string_manager_edge_case(mngr_toplogy, tresult);
@@ -253,10 +258,11 @@ namespace
 
     void test_SmartStr(OP::utest::TestRuntime& tresult)
     {
-        auto tmngr1 = OP::vtm::SegmentManager::create_new<SegmentManager>(
-            node_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000));
+        std::shared_ptr<SegmentManager> tmngr1(
+            BaseSegmentManager::create_new(
+                node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000))
+        );
+
 
         SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
         using str_manager_t = OP::vtm::StringMemoryManager<>;
@@ -297,9 +303,6 @@ namespace
         .declare("edgecase-no-tran", test_StringManagerEdgeCaseNoTran)
         .declare("smart-str", test_SmartStr)
         // define scenario parameter with InMemory implementation
-        .with_fixture(
-            test::init_InMemoryChangeHistory, 
-            test::tear_down_InMemoryChangeHistory)
-        // define scenario parameter with File-rotary implementation
+        .with_fixture("memory-only", test::memory_change_history_factory<test::InMemoryChangeHistoryFactory>)
         ;
 } //ns:

@@ -34,7 +34,7 @@ namespace OP
             using stem_str_address_t = vtm::smm::SmartStringAddress<>;
 
             /*declare 256-bit presence bitset*/
-            using presence_t = Bitset<4, std::uint64_t>;
+            using presence_t = common::Bitset<4, std::uint64_t>;
 
             struct NodeData
             {

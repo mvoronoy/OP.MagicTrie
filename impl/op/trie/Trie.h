@@ -14,10 +14,11 @@
 
 #include <op/common/astr.h>
 #include <op/trie/Containers.h>
-#include <op/vtm/FixedSizeMemoryManager.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryChunks.h>
-#include <op/vtm/HeapManager.h>
+
+#include <op/vtm/slots/HeapManager.h>
+#include <op/vtm/slots/FixedSizeMemoryManager.h>
 
 #include <op/trie/TrieNode.h>
 #include <op/trie/TrieIterator.h>
@@ -967,7 +968,7 @@ namespace OP
             * \endcode
             */
             template <class F>
-            auto apply(F& f) -> typename std::result_of<F(this_t&)>::type
+            auto apply(F& f) -> decltype(f(*this))
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true); //autocommit on return
                 try {
@@ -988,7 +989,7 @@ namespace OP
             * \endcode
             */
             template <class F>
-            auto apply(F const& f) const -> typename std::result_of<F(const this_t&)>::type
+            auto apply(F const& f) const -> decltype(f(*this))
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true); //autocommit on return
                 return f(*this);

@@ -70,7 +70,7 @@ namespace OP::vtm
         /**@return real occupied bytes size()+sizeof(*this)*/
         segment_pos_t real_size() const noexcept
         {
-            return size() + OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c);
+            return size() + OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
         }
 
         FarAddress next() const noexcept
@@ -107,7 +107,7 @@ namespace OP::vtm
         {
             assert(_free);
             constexpr segment_pos_t header_size_c = 
-                OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c);
+                OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
             //alloc new block at the end of current
             segment_pos_t offset = size() - byte_size;
             assert(offset >= minimal_space_c);
@@ -136,7 +136,7 @@ namespace OP::vtm
         */
         static FarAddress get_header_addr(FarAddress this_addr) noexcept
         {
-            return this_addr + (-static_cast<segment_off_t>(OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c)));
+            return this_addr + (-static_cast<segment_off_t>(OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c)));
         }
 
         /**
@@ -144,12 +144,22 @@ namespace OP::vtm
         */
         static FarAddress get_addr_by_header(FarAddress header_addr) noexcept
         {
-            return header_addr + OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c);
+            return header_addr + OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
         }
 
-        void _check_integrity() const noexcept
+        void _check_integrity() const
         {
-            assert(this->check_signature());
+            if(!this->check_signature())
+            {
+                std::ostringstream os;
+                os << "HeapBlockHeader::_check_integrity() failed - wrong signature. this:{_free=" << std::hex
+                    << _free 
+                    << ", _signature = 0x" << _signature
+                    << ", _size = 0x" << _size
+                    << ", _next = " << _next
+                    ;
+                throw std::runtime_error(os.str().c_str());
+            }
         }
 
         std::uint32_t _free : 1;
@@ -179,7 +189,7 @@ namespace OP::vtm
         */
         static FarAddress get_header_addr(FarAddress this_addr) noexcept
         {
-            return this_addr + (- static_cast<segment_off_t>(OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c)));
+            return this_addr + (- static_cast<segment_off_t>(OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c)));
         }
 
         /**
@@ -187,7 +197,7 @@ namespace OP::vtm
         */
         static FarAddress get_addr_by_header(FarAddress header_addr) noexcept
         {
-            return header_addr + OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentHeader::align_c);
+            return header_addr + OP::utils::aligned_sizeof<HeapBlockHeader>(SegmentDef::align_c);
         }
 
     };

@@ -21,9 +21,9 @@ namespace
 
     inline constexpr std::uint64_t bloom_calc(const MyRange& r) noexcept
     {
-        auto bit_width = OP::trie::log2(r.count()) + 1;
+        auto bit_width = OP::common::log2(r.count()) + 1;
         return ((1ull << bit_width) - 1)
-            << OP::trie::log2(r.pos());
+            << OP::common::log2(r.pos());
     }
 
     struct RandomRangeGenerator

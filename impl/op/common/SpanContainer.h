@@ -157,13 +157,13 @@ namespace OP::zones
                 
             bool in_range(std::uint8_t idx) const
             {
-                return idx < _interrior.size() //aka < Cardinality
-                    && _interrior[idx] //non-null, since values go without gap
+                return idx < _interior.size() //aka < Cardinality
+                    && _interior[idx] //non-null, since values go without gap
                     ;
             }
 
             key_t _span;
-            std::array< slot_t, Cardinality > _interrior;
+            std::array< slot_t, Cardinality > _interior;
         };
         using index_slot_t = std::unique_ptr<Index, OP::common::details::CacheRecycleDeleter>;
 
@@ -299,7 +299,7 @@ namespace OP::zones
                 {
                     for(auto* pos = &_breadcrumbs.top(); pos->first->in_range(pos->second); )
                     {
-                        Node* child = pos->first->_interrior[pos->second].get();
+                        Node* child = pos->first->_interior[pos->second].get();
                         ++pos->second;
                         if( _boundary_check(child) )
                         {
@@ -434,7 +434,7 @@ namespace OP::zones
             {
                 auto current = std::move(postponed.back());
                 postponed.pop_back();
-                for(auto& node : current->_interrior)
+                for(auto& node : current->_interior)
                 {
                     if(!node)
                         break;
@@ -473,11 +473,11 @@ namespace OP::zones
         {
             auto* current = &breadcrumbs.top();
             // (-1) used since tracker already advanced index by +1
-            current->first->_interrior[current->second-1].reset();
+            current->first->_interior[current->second-1].reset();
             _move_items(
-                current->first->_interrior.begin() + current->second, 
-                current->first->_interrior.end(),
-                current->first->_interrior.begin() + current->second - 1
+                current->first->_interior.begin() + current->second, 
+                current->first->_interior.end(),
+                current->first->_interior.begin() + current->second - 1
                 );
         }
         /**When node deleted need to check if parent indexed node became empty*/
@@ -495,7 +495,7 @@ namespace OP::zones
             for(auto* current = &breadcrumbs.top(); ; ) 
             {
                 current->first->_span = typename traits_t::key_t{};
-                for(auto& uptr: current->first->_interrior)
+                for(auto& uptr: current->first->_interior)
                 {
                     if(!uptr)
                         break;//null means last item, since no gaps are allowed
@@ -530,7 +530,7 @@ namespace OP::zones
             else {
                 auto* index_node = static_cast<Index*>(current);
                 os << "i{" << index_node->span() << ":\n";
-                for (auto& i : index_node->_interrior)
+                for (auto& i : index_node->_interior)
                 {
                     dump(os, ident + 1, i.get());
                 }
@@ -546,7 +546,7 @@ namespace OP::zones
             int i = 0; //must be signed-value!!!
             for (; i < Index::Cardinality; ++i)
             {
-                auto& node = current->_interrior[i];
+                auto& node = current->_interior[i];
                 if (!node)//empty slot => just occupy
                 {
                     node = _terminal_cache.allocate(position);
@@ -566,7 +566,7 @@ namespace OP::zones
                         _append_data_ref(*static_cast<Terminal*>(node.get()), position/*!modified inside*/);
                         return position;
                     }
-                    if (current->_interrior.back()) //cannot shift right since last slot is already occupied
+                    if (current->_interior.back()) //cannot shift right since last slot is already occupied
                     {
                         auto new_index = _index_cache.allocate(
                             OP::zones::unite_zones(node->span(), position.span()));
@@ -574,14 +574,14 @@ namespace OP::zones
                         if( node->span().pos() < position.span().pos() )
                             std::swap(i_exist, i_new);
 
-                        new_index->_interrior[i_new] = _terminal_cache.allocate(position);
-                        new_index->_interrior[i_exist] = std::move(current->_interrior[i]);
-                        current->_interrior[i] = std::move(new_index);
+                        new_index->_interior[i_new] = _terminal_cache.allocate(position);
+                        new_index->_interior[i_exist] = std::move(current->_interior[i]);
+                        current->_interior[i] = std::move(new_index);
                     }
                     else //may shift all elements right
                     {
-                        std::rotate(current->_interrior.rbegin(), current->_interrior.rbegin() + 1, current->_interrior.rend() - i);
-                        current->_interrior[i] = _terminal_cache.allocate(position);
+                        std::rotate(current->_interior.rbegin(), current->_interior.rbegin() + 1, current->_interior.rend() - i);
+                        current->_interior[i] = _terminal_cache.allocate(position);
                     }
                 } else {
                     if (node->span().pos() < position.span().pos())
@@ -590,29 +590,29 @@ namespace OP::zones
                     }
                     //here since not-equal but bigger
                     //here since position is candidate to paste
-                    if (current->_interrior.back()) //cannot shift right since last slot is already occupied
+                    if (current->_interior.back()) //cannot shift right since last slot is already occupied
                     {  //let's create new Index without over-occupied slots
 
                         auto new_index = _index_cache.allocate(
-                            OP::zones::unite_zones(current->_interrior[i]->span(), position.span()));
-                        new_index->_interrior[0] = _terminal_cache.allocate(position);
-                        new_index->_interrior[1] = std::move(current->_interrior[i]);
-                        current->_interrior[i] = std::move(new_index);
+                            OP::zones::unite_zones(current->_interior[i]->span(), position.span()));
+                        new_index->_interior[0] = _terminal_cache.allocate(position);
+                        new_index->_interior[1] = std::move(current->_interior[i]);
+                        current->_interior[i] = std::move(new_index);
                     }
                     else //may shift all elements right
                     {
-                        std::rotate(current->_interrior.rbegin(), current->_interrior.rbegin() + 1, current->_interrior.rend() - i);
-                        current->_interrior[i] = _terminal_cache.allocate(position);
+                        std::rotate(current->_interior.rbegin(), current->_interior.rbegin() + 1, current->_interior.rend() - i);
+                        current->_interior[i] = _terminal_cache.allocate(position);
                     }
                 }
                 return position;
             }//for: over interrior
             //`position` is still bigger than max in current, create rightmost non-terminal leaf
             auto new_index = _index_cache.allocate(
-                OP::zones::unite_zones(current->_interrior.back()->span(), position.span()));
-            new_index->_interrior[0] = std::move(current->_interrior.back());
-            new_index->_interrior[1] = _terminal_cache.allocate(position);
-            current->_interrior.back() = std::move(new_index);
+                OP::zones::unite_zones(current->_interior.back()->span(), position.span()));
+            new_index->_interior[0] = std::move(current->_interior.back());
+            new_index->_interior[1] = _terminal_cache.allocate(position);
+            current->_interior.back() = std::move(new_index);
 
             return position;
         }

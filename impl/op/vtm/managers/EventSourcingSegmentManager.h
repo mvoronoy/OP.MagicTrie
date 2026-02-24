@@ -67,11 +67,11 @@ namespace OP::vtm
         * \param tid - transaction id;
         * \param memory_type - type of memory to return;
         * \param init_data - optional source buffer to copy initialization data. May be nullptr.
-        * \return Buffer or emty if requested region causes ConcurrentLock  state. Depending on the following preconditions
-        *   return buffer can contain serialized copy of changes made in current transaction so far:
-        *   - Previous transaction state (that were already updated in current transaction for the region).
-        *   - Value of paramater memory_type (wr_no_history prevents copying). 
-        *   - Init data parameter to pre-populate buffer.
+        * \return Buffer or empty if requested region can causes ConcurrentLock state.
+        *  Depending on the following preconditions return buffer may contain serialized copy of changes made in current transaction so far:
+        *   - For `memory_type` flags other than `wr_no_history` buffer contains actual value of current transaction state. That includes
+        *     copy of `init_data` (if specifed) then previous updates related to region `range` in the current transaction).
+        *   - For `memory_type` flag `wr_no_history` result is just random noise. 
         */
         [[nodiscard]] virtual std::optional<ShadowBuffer> buffer_of_region(
             const RWR& range, transaction_id_t tid, MemoryRequestType memory_type, const void* init_data) = 0;
@@ -114,15 +114,55 @@ namespace OP::vtm
 
     class EventSourcingSegmentManager : public SegmentManager
     {
-        friend SegmentManager;
     public:
+        using transaction_ptr_t = typename SegmentManager::transaction_ptr_t;
         using transaction_id_t = typename Transaction::transaction_id_t;
 
         EventSourcingSegmentManager() = delete;
 
+        EventSourcingSegmentManager(
+            std::unique_ptr<SegmentManager> base_manager,
+            std::shared_ptr<MemoryChangeHistory> history_manager
+            ) 
+            : _base_manager(std::move(base_manager))
+            , _transaction_uid_gen(121)//just a magic number, actually it can be any number
+            , _change_history_manager(std::move(history_manager))
+        {
+        }
+
         virtual ~EventSourcingSegmentManager() = default;
 
-        [[nodiscard]] transaction_ptr_t begin_ro_transaction() 
+
+        virtual segment_pos_t segment_size() const noexcept override
+        {
+            return _base_manager->segment_size();
+        }
+
+        virtual segment_pos_t header_size() const noexcept override
+        {
+            auto result = _base_manager->header_size();
+            if(_change_history_manager)
+                result += 0;
+            return OP::utils::align_on(result, SegmentDef::align_c);
+        }
+
+        virtual void ensure_segment(segment_idx_t index) override
+        {
+            return _base_manager->ensure_segment(index);
+        }
+
+        virtual segment_idx_t available_segments() override
+        {
+            return _base_manager->available_segments();
+        }
+
+        virtual void subscribe_event_listener(SegmentEventListener* listener) override
+        {
+            return _base_manager->subscribe_event_listener(listener);
+        }
+
+
+        [[nodiscard]] transaction_ptr_t begin_ro_transaction()
         {
             const ro_guard_t g(_opened_transactions_lock);
             if (!_opened_transactions.empty())
@@ -168,7 +208,7 @@ namespace OP::vtm
             transaction_impl_ptr_t current_transaction = 
                 get_current_transaction().static_pointer_cast<TransactionImpl>();
 
-            auto result = SegmentManager::readonly_block(pos, size, hint);
+            auto result = _base_manager->readonly_block(pos, size, hint);
             if (_ro_tran)
                 return result;
             if( !current_transaction ) //no tran
@@ -199,8 +239,7 @@ namespace OP::vtm
                 throw Exception(ErrorCodes::er_transaction_not_started);
                 
             RWR search_range(pos, size);
-            auto result = SegmentManager::writable_block(pos, size);
-            
+            auto result = _base_manager->writable_block(pos, size);
             
             auto buffer = 
                 (hint == WritableBlockHint::new_c) //no need for initial copy
@@ -227,20 +266,6 @@ namespace OP::vtm
         {
             return _change_history_manager;
         }
-    protected:
-        EventSourcingSegmentManager(
-            const char* file_name, 
-            std::fstream file, 
-            bip::file_mapping mapping, 
-            segment_idx_t segment_size,
-            std::shared_ptr<MemoryChangeHistory> _history_manager
-            ) 
-            : SegmentManager(file_name, std::move(file), std::move(mapping), segment_size)
-            , _transaction_uid_gen(121)//just a magic number, actually it can be any number
-            , _change_history_manager(std::move(_history_manager))
-        {
-
-        }
 
         virtual transaction_ptr_t get_current_transaction()
         {
@@ -250,6 +275,20 @@ namespace OP::vtm
             return found == _opened_transactions.end() ? transaction_ptr_t{} : found->second;
         }
             
+        /**
+        * Implementation based integrity checking of this instance
+        */
+        virtual void _check_integrity(bool verbose) override
+        {
+            _base_manager->_check_integrity(verbose);
+        }
+
+        /** Ensure underlying storage is synchronized */
+        virtual void flush() override
+        {
+            _base_manager->flush();
+        }
+
     private:
 
         using wr_guard_t = std::lock_guard<std::shared_mutex>;
@@ -258,7 +297,8 @@ namespace OP::vtm
         /** Must use 64 * 64 instead of 'segment_pos_t' as a size because merge of 2 segment_pos_t may produce 
         overflow of segment_pos_t */
         using RWR = typename MemoryChangeHistory::RWR;
-            
+        
+        std::unique_ptr<SegmentManager> _base_manager;
         std::shared_ptr<MemoryChangeHistory> _change_history_manager;
 
         enum class TransactionState : std::uint8_t
@@ -300,7 +340,7 @@ namespace OP::vtm
                     throw Exception(OP::vtm::ErrorCodes::er_transaction_ghost_state);
                 bool has_something_to_erase = false;
                 // No real commit for WR
-                next_state(_tr_state); //disable changes in this
+                next_state(_tr_state); //disable accept changes in this
             }
 
             void rollback() override
@@ -311,7 +351,7 @@ namespace OP::vtm
                 _framed_tran->utilize_unused_blocks(
                     _framed_tran->_transaction_log.begin() + _from
                 );
-                next_state(_tr_state);
+                next_state(_tr_state); //disable accept changes in this
             }
 
             log_iterator_t begin() const
@@ -345,7 +385,7 @@ namespace OP::vtm
             {
             }
 
-            /**Client code may claim nested transaction. Instead of real transaction just provide save-point
+            /** Client code may claim nested transaction. Instead of real transaction just provide save-point
             * @return new instance of SavePoint with the same transaction-id as current one
             */
             transaction_ptr_t recursive()
@@ -385,7 +425,8 @@ namespace OP::vtm
                 {
                     ev->on_rollback();
                 }
-                utilize_unused_blocks(_transaction_log.begin());
+                //??????>>>   utilize_unused_blocks(_transaction_log.begin());
+                _transaction_log.clear(); //<<<??????????
                 _owner._change_history_manager->on_rollback(transaction_id());
                 _owner.dispose_transaction(transaction_id());
             }
@@ -403,8 +444,9 @@ namespace OP::vtm
                 for (auto& [from, to] : _transaction_log)
                 {
                     memcpy(to, from.get(), from.size());
-                    _owner._change_history_manager->destroy(transaction_id(), std::move(from));
+                    //??????>>>_owner._change_history_manager->destroy(transaction_id(), std::move(from));
                 }
+                _transaction_log.clear(); //<<<<<??????
                 _owner._change_history_manager->on_commit(transaction_id());
                 _owner.dispose_transaction(transaction_id());
             }

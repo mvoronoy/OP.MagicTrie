@@ -63,7 +63,12 @@ namespace OP
             typename = std::enable_if_t<OP::details::buffer_is_compatible_c<TExpectingChar, T> > >
         using BasicStringEnforce = T;
 
-    
+       template <typename T>
+       using StringEnforce = BasicStringEnforce<typename std::string::value_type, T>;
+
+       template <typename T>
+       using WstringEnforce = BasicStringEnforce<typename std::wstring::value_type, T>;
+
 } //ns:OP
 
 

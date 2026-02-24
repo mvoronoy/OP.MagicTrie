@@ -9,7 +9,7 @@
 #include <fstream>
 #include <op/common/has_member_def.h>
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/HeapManager.h>
+#include <op/vtm/slots/HeapManager.h>
 #include <op/vtm/PersistedReference.h>
 
 namespace OP::vtm 

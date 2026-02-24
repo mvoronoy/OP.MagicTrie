@@ -352,7 +352,7 @@ namespace OP::vtm
     *   exceeding ConcurrentLockException exception just propagated to caller
     */
     template <auto N, typename  F, typename  ... Args>
-    inline typename std::result_of<F(Args ...)>::type transactional_retry_n(F f, Args ... ax)
+    inline decltype(auto) transactional_retry_n(F f, Args ... ax) 
     {
         for (auto i = 0; i < N; ++i)
         {
@@ -369,7 +369,7 @@ namespace OP::vtm
     }
 
     template <size_t N, typename F, typename  ... Args>
-    inline typename std::result_of<F(Args ...)>::type transactional_yield_retry_n(F f, Args ... ax)
+    inline decltype(auto) transactional_yield_retry_n(F f, Args ... ax)
     {
         static_assert(N > 0, "set number of retries greater than zero");
         constexpr size_t limit = N - 1;

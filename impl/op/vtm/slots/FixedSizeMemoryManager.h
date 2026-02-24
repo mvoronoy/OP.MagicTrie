@@ -49,8 +49,7 @@ namespace OP::vtm
         {
             FarAddress result;
             allocate_n(&result, 1,
-                [&](size_t, auto* raw)
-                {
+                [&](size_t, auto* raw){
                     return new(raw) payload_t(std::forward<Args>(args)...);
                 }
             );
@@ -68,8 +67,7 @@ namespace OP::vtm
 
             auto avail_segments = segment_manager().available_segments();
             //capture ZeroHeader for write during 10 tries
-            ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<60>([this]()
-                {
+            ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<60>([this](){
                     return segment_manager().template wr_at<ZeroHeader>(_zero_header_address);
                 });
             size_t i = 0;
@@ -151,7 +149,7 @@ namespace OP::vtm
             --header->_in_alloc;
         }
 
-        void _check_integrity(FarAddress segment_addr) override
+        void _check_integrity(FarAddress segment_addr, bool) override
         {
             if (segment_addr.segment() != 0)
                 return;
@@ -189,6 +187,7 @@ namespace OP::vtm
                     << " total number of free blocks {"
                     << n_free_blocks
                     << "} exceeds Capacity in all segments";
+                throw std::runtime_error(error.str());
             }
         }
 

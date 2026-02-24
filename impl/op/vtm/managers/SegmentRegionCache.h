@@ -1,45 +1,35 @@
 #pragma once
-#ifndef _OP_VTM_SEGMENTHELPERCACHE__H_
-#define _OP_VTM_SEGMENTHELPERCACHE__H_
+#ifndef _OP_VTM_SEGMENTREGIONCACHE__H_
+#define _OP_VTM_SEGMENTREGIONCACHE__H_
 
 #include <mutex> 
 #include <shared_mutex>
 #include <cassert>
 #include <optional>
 #include <vector>
+#include <op/vtm/managers/SegmentRegion.h>
 
 namespace OP::vtm
 {
     /**Simple thread-safe read-optimized storage of elements indexed in range [0...).*/
-    template <class T, class K = size_t>
-    struct SegmentHelperCache
+    struct SegmentRegionCache
     {
-        using reference_t = T&;
-        using index_t = K;
+        using reference_t = SegmentRegion&;
 
-        explicit SegmentHelperCache(index_t capacity)
+        explicit SegmentRegionCache(size_t capacity)
         {
             _data.resize(capacity);
         }
 
-        void put(index_t pos, T&& value)
+        void put(size_t pos, SegmentRegion&& value)
         {
             std::unique_lock guard(_lock);
             ensure(pos);
             _data[pos].emplace(std::move(value));
         }
 
-        /**
-        *@throws std::out_of_range
-        */
-        reference_t get(index_t pos) const
-        {
-            std::shared_lock guard(_lock);
-            return *_data.at(pos); //raises std::out_of_range 
-        }
-
         template <class Factory>
-        reference_t get(index_t pos, Factory factory)
+        reference_t get(size_t pos, Factory factory)
         {
             if(std::shared_lock guard(_lock); pos <_data.size())
             { //control block to demarcate scope of guard
@@ -59,14 +49,26 @@ namespace OP::vtm
             return *opt_data;
         }
 
+        template <class FCallback>
+        void for_each(FCallback f)
+        {
+            std::shared_lock guard(_lock);
+            for(container_t& ref: _data)
+            {
+                if(ref.has_value())
+                    f(*ref);
+            }
+
+        }
+
     private:
         
-        using container_t = std::optional<T>;
+        using container_t = std::optional<SegmentRegion>;
 
         std::vector<container_t> _data;
-        mutable std::shared_mutex _lock;
+        std::shared_mutex _lock;
 
-        void ensure(index_t pos)
+        void ensure(size_t pos)
         {
             if (pos >= _data.size())
                 _data.resize(pos + 1);
@@ -75,4 +77,4 @@ namespace OP::vtm
 
 }//ns: OP::vtm
 
-#endif //_OP_VTM_SEGMENTHELPERCACHE__H_
+#endif //_OP_VTM_SEGMENTREGIONCACHE__H_

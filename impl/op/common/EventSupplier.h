@@ -3,367 +3,450 @@
 #ifndef _OP_COMMON_EVENTSUPPLIER_H_
 #define _OP_COMMON_EVENTSUPPLIER_H_
 
-#include <map>
-#include <unordered_map>
-#include <vector>
 #include <functional>
 #include <memory>
+#include <list>
+#include <shared_mutex>
+#include <optional>
 
-namespace OP::common
+#include <op/common/Utils.h>
+#include <op/common/Currying.h>
+#include <op/common/Assoc.h>
+#include <op/common/ValueGuard.h>
+
+namespace OP::events
 {
     
-    template <class C>
-    struct EventSupplier;
-
-    /** Plain structure to support unsubscription from events */
-    template <class C>
-    struct EventUnsubscriber
+    /**
+     * \brief Polymorphic base for event subscriptions.
+     *
+     * Subscription<TPayload> represents a callable entity capable of
+     * receiving an event payload of type TPayload.
+     *
+     * \tparam TPayload Event payload type.
+     */
+    template <class TPayload>
+    struct Subscription
     {
-        static_assert(std::is_enum<C>::value || std::is_integral<C>::value,
-            "Event code must be enum or integral type");
-        friend EventSupplier<C>;
-        using event_code_t = C;
-        using unsubscribe_order_t = std::uint32_t;
-        using this_t = EventUnsubscriber<C>;
-
-        constexpr event_code_t event_code() const noexcept
-        {
-            return _code;
-        }
-
-    private:
-        constexpr EventUnsubscriber(
-            event_code_t code, unsubscribe_order_t order) noexcept
-            : _code(code)
-            , _order(order)
-        {}
-        event_code_t _code;
-        unsubscribe_order_t _order;
-
-        friend inline bool operator == (const this_t& left, const this_t& right)
-        {
-            return left._code == right._code && left._order == right._order;
-        }
-        friend inline bool operator != (const this_t& left, const this_t& right)
-        {
-            return left._code != right._code || left._order != right._order;
-        }
-        friend inline bool operator < (const this_t& left, const this_t& right)
-        {
-            return left._code < right._code || (left._code == right._code && left._order < right._order);
-        }
-        friend inline bool operator > (const this_t& left, const this_t& right)
-        {
-            return left._code > right._code || (left._code == right._code && left._order > right._order);
-        }
-    };
-
-    /** Simple RAII guard wrapper that allows aggregate many EventUnsubscriber to unsubscribe multiple subscribers */
-    template <class C>
-    class UnsubGuard
-    {
-        using event_code_t = C;
-    public:
-        using this_t = UnsubGuard<event_code_t>;
-        using unsubscriber_t = EventUnsubscriber<event_code_t>;
-        using supplier_t = EventSupplier<event_code_t>;
-            
-        explicit UnsubGuard(supplier_t& supplier) noexcept
-            : _supplier(supplier)
-        {}
-            
-        UnsubGuard(supplier_t& supplier, std::initializer_list<unsubscriber_t> unsub_set)
-            : _supplier(supplier)
-            , _unsub(std::move(unsub_set))
-        {}
-
-        ~UnsubGuard()
-        {
-            unsubscribe_all();
-        }
-
-        [[nodiscard]] bool empty() const
-        {
-            return _unsub.empty();
-        }
-
-        void unsubscribe_all()
-        {
-            for(auto i = _unsub.rbegin(); i != _unsub.rend(); ++i) //release in reverse order
-                _supplier.unsubscribe(*i);
-            _unsub.clear();
-        }
-
-        this_t& append(unsubscriber_t u)
-        {
-            _unsub.emplace_back(std::move(u));
-            return *this;
-        }
-            
-        friend inline this_t& operator << (this_t& target, unsubscriber_t u)
-        {
-            return target.append(std::move(u));
-        }
-    private:
-        supplier_t& _supplier;
-        std::vector<unsubscriber_t> _unsub;
-    };
-
-    /** Represent base event,
-    * \tparam C some enumeration or integral data type to distinguish event.
-    * The payload may be added by inheritance to introduce expected attributes.
-    */
-    template <class C>
-    struct Event
-    {
-        static_assert(std::is_enum<C>::value || std::is_integral<C>::value,
-            "Event code must be enum or integral type");
-        using event_code_t = C;
-
-        event_code_t code() const
-        {
-            return _code;
-        }
-
-    protected:
-        Event(event_code_t event)
-            : _code(event)
-        {
-        }
-
-    private:
-        event_code_t _code;
-    };
-
-
-    /** Provide implmentation of Event with attached payload
-    \tparam T any payload data propagated with event
-    \tparam C enum or uint32
-    \tparam code - associated constant with specific payload
-    */
-    template <class T, class C, C c>
-    struct EventImpl : public Event<C>
-    {
-        using base_t = Event<C>;
-        static constexpr C code = c;
-        EventImpl(T t)
-            : base_t(code)
-            , _payload(std::move(t))
-        {}
-
-        T _payload;
-    };
-
-    template <class C>
-    struct EventSupplier
-    {
-        using event_code_t = C;
-        using unsubscriber_t = EventUnsubscriber<event_code_t>;
-        using base_event_t = Event<event_code_t>;
-        using action_t = std::function<void(const base_event_t&)>;
-
-        EventSupplier()
-        {
-        }
-
-        /** Register action handler with specific event- code
-        * @return some value that may be used to unsubscribe later. If you don't need unsubscribe functionality - just 
-        * ignore this value. For multiple unsubscribers review UnsubGuard and #unsub_guard
+        virtual ~Subscription() = default;
+        /** \brief Handle the event.
+        * \return* - `true`  - continue propagation to next subscriber.
+        *          - `false` - stop propagation immediately.
         */
-        unsubscriber_t subscribe(event_code_t event, action_t&& action)
+        virtual bool call(const TPayload&) = 0;
+    };
+
+    /**
+     * \brief Concrete subscription wrapper for arbitrary callable handlers.
+     *
+     * FunctorSubscription adapts a callable object (lambda, function,
+     * member function wrapper, std::bind, etc.) to the Subscription interface.
+     *
+     * ### Payload Decomposition
+     *
+     * If the payload is a std::tuple or std::pair, the handler may:
+     *
+     * - Accept the entire tuple/pair as a single parameter. Example: \code
+     *  enum class SomeEv {a};
+     *  using a_event = std::tuple<int, float>;
+     * 
+     *  void handler_of_a(const a_event&) ... 
+     * \endcode
+     * - Accept decomposed arguments corresponding to individual elements. Example: \code
+     *  void handler2_of_a(int num1, float num2) ... 
+     * \endcode
+     * - Omit trailing arguments. Example: \code
+     *  void handler3_of_a(float num2) ... 
+     * \endcode
+     * - Ignore all arguments entirely. Example: \code
+     *  void handler4_of_a() ... 
+     * \endcode
+     *
+     * \tparam F Callable type. If the handler returns bool, then - `true`  - continue propagation to next subscriber.
+     *      - `false` - stop propagation immediately.
+     *      - Otherwise, the handler is assumed to return void,  and event propagated to all subscribers.
+     *
+     * \tparam TPayload Event payload type.
+     */
+    template <class F, class TPayload = std::tuple_element_t<0, typename OP::utils::function_traits<F>::arguments_t> >
+    struct FunctorSubscription : Subscription<TPayload>
+    {
+        F _method;
+        constexpr FunctorSubscription(F method) noexcept
+            : _method(std::move(method))
         {
-            //_CONTATA5_EVENT_LOGGING_TRACE(<< "Subscribe on:'" << std::to_string(event) << "'");
-            auto subscriber_id = generate_unsubscriber(event);
-            register_handle(event, subscriber_id, std::forward<action_t>(action));
-            return subscriber_id;
         }
 
-        /** Send specific event to all subscribers */
-        void send(event_code_t event, const base_event_t& param) const
+        virtual bool call(const TPayload& body)
         {
-            using namespace std::string_literals;
-            //_CONTATA5_EVENT_LOGGING_TRACE(<< "Send event:'" << std::to_string(event) << "'");
-            //set the tag so all consumers can see the root cause
-            //_CONTATA5_EVENT_LOGGING_TAG("event:"s + std::to_string(event)); 
-
-            auto range = _event2action.equal_range(event);
-            for (auto it = range.first; it != range.second; ++it)
+            if constexpr (std::is_convertible_v<decltype(_call(_method, body)), bool>)
+                return _call(_method, body);
+            else
             {
-                it->second->second(param);
+                _call(_method, body);
+                return true;
             }
         }
 
-        /** Remove action handler previously registered with `subscribe` */
-        bool unsubscribe(unsubscriber_t un)
+    private:
+        template <class M2>
+        static constexpr decltype(auto) _call(M2& method, const TPayload& body)
         {
-            //_CONTATA5_EVENT_LOGGING_TRACE(<< "Unsubscribe from: '" << std::to_string(un.event_code()) << "'");
-            auto found = _all_actions.find(un);
-            if (found == _all_actions.end())
-                return false;
-            //extract event_code_t associated with unique_id
-            auto event_code = un ._code;
-            //wipe from event2action
-            auto range = _event2action.equal_range(event_code);
-            for (auto it = range.first; it != range.second; ++it)
-            { //iterate through multiple values to find that with unique number
-                if (it->second == found)
+            return std::apply(
+                [&](const auto& ...argx) {
+                    return currying::recomb_call(method, body, argx...);
+                },
+                body
+            );
+        }
+    };
+
+    /**
+     * \brief RAII handle controlling lifetime of a subscription.
+     *
+     * When the returned std::unique_ptr<Unsubscriber> is destroyed,
+     * the corresponding subscription is automatically removed.
+     *
+     * Users may explicitly call unsubscribe() or simply let the
+     * object go out of scope.
+     *
+     * Thread-safe with respect to concurrent event dispatch and
+     * subscription operations.
+     */
+    struct Unsubscriber
+    {
+        Unsubscriber() = default;
+
+        Unsubscriber(const Unsubscriber&) = delete;
+        Unsubscriber(Unsubscriber&&) = delete;
+        Unsubscriber& operator =(const Unsubscriber&) = delete;
+        Unsubscriber& operator =(Unsubscriber&&) = delete;
+
+        virtual ~Unsubscriber() = default;
+        virtual void unsubscribe() noexcept = 0;
+    };
+
+    /**
+     * \brief Compile-time typed, thread-safe event broadcasting system.
+     *
+     * EventSupplier defines a fixed set of event types at compile time.
+     * Each event is identified by a unique code (enum, enum-class,
+     * integral constant, static string, or any constexpr comparable value)
+     * and associated with a specific payload type.
+     *
+     * The class provides:
+     *
+     * - Type-safe subscription;
+     * - Deterministic invocation order (FIFO by subscription time);
+     * - Propagation control: subscribers may stop further event delivery;
+     * - Thread-safe event broadcasting via send<EventCode>();
+     * - RAII-based unsubscription;
+     * - Optional optimized subscription path (`on`) and lookup-based path (`subscribe`).
+     *
+     * ### Threading Model ####
+     *
+     * Subscription:
+     *   - Multiple threads may concurrently subscribe/unsubscribe.
+     *   - Internally protected by std::shared_mutex (read for send, write for subscribe/unsubscribe).
+     *
+     * Sending:
+     *   - Multiple threads may call send() concurrently.
+     *   - Ordering of handler execution is unspecified.
+     *   - Handlers are invoked under shared lock.
+     *
+     * Unsubscription:
+     *   - Safe while other threads are sending events.
+     *   - Occurs automatically when Unsubscriber is destroyed.
+     *   - Unsubscribe allowed from within an event handler (directly or indirectly).
+     *
+     * ### Guarantees ###
+     *
+     * - Compile-time error if subscribing to an undefined event.
+     * - Payload type is strongly bound to event code.
+     * - No dynamic type casting required.
+     * - Subscription lifetime managed via RAII.
+     * - The same handler may subscribe to the same event multiple times. Each subscription is treated
+     *      as an independent registration and will receive the event independently.
+     *     Example: \code
+     *
+     *      auto h1 = supplier.on<SomeEv::a>(handler);
+     *      auto h2 = supplier.on<SomeEv::a>(handler);
+     *      \endcode
+     *     When event `SomeEv::a` is sent, `handler` will be invoked twice,
+     *     in the order the subscriptions were registered. Unsubscribing one handle does not affect the other.
+     *
+     *
+     * \note Using sending event from multiple threads should be supported by thread-safety of handlers.
+     *
+     * \tparam TEventDef... Compile-time list of event definitions. Single event is defined using `Assoc<EventCode, PayloadType>` 
+     *      and combined together in class definition.For example: \code
+     *        enum class SomeEv{a, b, c};
+     *        using supplier_t = EventSupplier<
+     *            Assoc<SomeEv::a, std::tuple<int>>,
+     *            Assoc<SomeEv::b, std::tuple<int, float, const char*>>,
+     *            Assoc<SomeEv::c, std::tuple<int, int, int>>
+     *        >;
+     *        \endcode 
+     *       Payload may be:
+     *
+     *        - std::tuple<...> (and empty tuple as well),
+     *        - std::pair<...>,
+     *        - user-defined structs,
+     *        - plain scalar types.
+     *
+     */
+    template <class ... TEventDef>
+    class EventSupplier
+    {
+        using all_events_t = std::tuple<TEventDef...>;
+
+        template <class TPayload>
+        using subscribers_list_t = std::list<Subscription<TPayload>*>;
+
+        template <class TEvent>
+        struct SingleEventSubscription
+        {
+            using event_t = TEvent;
+            using event_payload_t = typename TEvent::type;
+            using list_t = subscribers_list_t<event_payload_t>;
+
+            std::atomic<size_t> _owned = 0;
+            list_t _subscribers;
+            std::shared_timed_mutex _subscribers_acc;
+
+            /** special temp storage that collects Subscription marked for delete during event
+            * handling. To avoid deadlock on _subscribers_acc unsuccessfully removed subscriptions temporary
+            * placed there.
+            */ 
+            std::vector<std::unique_ptr<Unsubscriber>> _unsubscribe_later;
+            std::mutex _unsubscribe_later_acc;
+            std::atomic<bool> _has_unsubscribe_later = false;
+        };
+
+        template <class TEvent>
+        using single_event_subscription_ptr = std::shared_ptr<SingleEventSubscription<TEvent>>;
+
+        /** helper to lookup event type definition by code */
+        template <auto EventCode>
+        struct PickEvent
+        {
+            template <class T>
+            static constexpr bool check = (T::code == EventCode);
+        };
+
+        /**
+        * Resolve subscription type by event code.
+        *
+        * If any compile time error concerned with this line - it means event code `c` is not a registered event.
+        */
+        template <auto c>
+        using sub_by_event_code_t = std::tuple_element_t<
+            0, utils::type_filter_t<PickEvent<c>, all_events_t> >;
+
+        template <class T>
+        struct IntRaii
+        {
+            T& _ref;
+            explicit IntRaii(T& ref)
+                :_ref(ref)
+            {
+                ++_ref;
+            }
+            ~IntRaii()
+            {
+                --_ref;
+            }
+        };
+
+        template <class TEvent, class TSubscriber>
+        struct UnsubImpl : Unsubscriber
+        {
+            using event_def_t = TEvent;
+            using list_t = subscribers_list_t<typename event_def_t::type>;
+            using iterator_t = typename list_t::iterator;
+            using single_event_sub_ptr = single_event_subscription_ptr<event_def_t>;
+                
+            template <class ...Ax>
+            UnsubImpl(single_event_sub_ptr global_sub, Ax&& ...subscriber_args)
+                : _global_sub(std::move(global_sub))
+                , _subscriber(std::in_place, std::forward<Ax>(subscriber_args)...)
+            {
+                std::unique_lock w_guard(_global_sub->_subscribers_acc);
+                _subject_pos = _global_sub->_subscribers.emplace(
+                        _global_sub->_subscribers.end(), &*_subscriber);
+            }
+
+            virtual ~UnsubImpl() noexcept
+            {
+                _unsub();
+            }
+
+            void unsubscribe() noexcept override
+            {
+                _unsub();
+            }
+
+        private:
+            UnsubImpl(UnsubImpl&& other) noexcept 
+                : _global_sub(std::move(other._global_sub))
+                , _subscriber(std::move(other._subscriber))
+                , _subject_pos(std::move(other._subject_pos))
+            {
+                other._subscriber.reset(); // because doc doesn't specify explictly that value reset during move.
+            }
+
+            void _unsub() noexcept
+            {
+                if (_subscriber.has_value())
                 {
-                    _event2action.erase(it);
-                    break;
+                    do
+                    {
+                        if (_global_sub->_owned)
+                        { // case when unsubscribe happens inside same event processing, 
+                          //postpone unsubscribe until the end
+                            std::unique_lock g(_global_sub->_unsubscribe_later_acc);
+                            _global_sub->_has_unsubscribe_later = true;
+                            _global_sub->_unsubscribe_later.emplace_back(new UnsubImpl(std::move(*this)));
+                            return;
+                        }
+                        std::unique_lock w_guard(_global_sub->_subscribers_acc, std::defer_lock);
+                        if (w_guard.try_lock_for(std::chrono::milliseconds(500)))
+                        {
+                            _global_sub->_subscribers.erase(_subject_pos);
+                            _subscriber.reset();
+                            return;
+                        }
+                    } while (true);
                 }
             }
-            _all_actions.erase(found);
-            return true;
-        }
 
-        UnsubGuard<event_code_t> unsub_guard()
-        {
-            return UnsubGuard< event_code_t >(*this);
-        }
-
-        template <class T, class... Args>
-        T event(Args&&... args)
-        {
-            return T{ *this, std::forward<Args>(args)... };
-        }
-
-
-    private:
-        unsubscriber_t generate_unsubscriber(event_code_t event)
-        {
-            return unsubscriber_t{ event, _subscriber_numbering++ };
-        }
-            
-        void register_handle(event_code_t event, unsubscriber_t unsub_id, std::function<void(const base_event_t&)>&& action)
-        {
-            auto ins_res = _all_actions.emplace(std::make_pair(unsub_id, std::move(action)));
-            _event2action.emplace(std::make_pair(event, ins_res.first));
-        }
-
-        //end-to-end numbering, where each "subscribe" get unique key to allow unique identify unsubscribe routine later
-        typename unsubscriber_t::unsubscribe_order_t _subscriber_numbering = 1;
-
-        // unsubscribers associated with unique number, map used as iterator-stable container, Worst case for unsubscribe - O(lnN)
-        using unsubscribe_map_t = std::map<unsubscriber_t, action_t>;
-        unsubscribe_map_t _all_actions;
-
-        //multimap event-code to all registered actions
-        using event2action_t = std::unordered_multimap<event_code_t, typename unsubscribe_map_t::iterator>;
-        event2action_t _event2action;
-    };
-
-    template <class C, class ... Ingredient >
-    struct EventSupplierMixer : public virtual EventSupplier<C>, public Ingredient ...
-    {
-        EventSupplierMixer()
-            : EventSupplier<C>(), Ingredient(*this) ...
-        {}
-    };
-
-    template <class C>
-    struct EventIngredient
-    {
-        using event_code_t = C;
-        using unsubscriber_t = EventUnsubscriber<event_code_t>;
-        using core_supplier_t = EventSupplier<C>;
-        /**When added to EventSupplierMixer allows associate event code with payload data structure. As result
-        you don't need manually override Event class to provide payload. Instead use just your domain specific
-        data object. For example:\code
-            //declare some payload
-            struct P1{ int order; double amount; }
-            //declare another payload
-            struct P2 {float x, y; }
-            // declare domain events
-            enum class DDEvents
-            {
-                kind1,
-                kind2,
-                kind3
-            };
-
-            //simplified Ingredient namespace
-            using dd_ing_t = Ingredient<DDEvents>;
-            //Now define EventSupplier with strict code-to-type association
-            using ev_supplier_t = EventSupplierMixer<
-                DDEvents,
-                dd_ing_t::SupportPayload<
-                    Assoc<DDEvents::kind1, P1>, //specify that code `kind1` associated with data P1
-                    Assoc<DDEvents::kind2, P2>, //another type declaration
-                    Assoc<DDEvents::kind3, P1> //Same type P1 may be used for several codes
-                >
-            >;
-            // ... Later:
-            ev_supplier_t ev_supplier;
-            //subscribe action:
-            ev_supplier.on(DDEvents::kind1, [](const P1& arg){ //strongly typed P1
-                std::cout << "amount = " << arg.amount << "\n"
-            });
-            // send an event
-            ev_supplier.event<DDEvents::kind1>(P1{5, 57.75});
-        \endcode
-        */
-        template <class A1, class ... AssocPairs>
-        class SupportPayload: public virtual EventSupplier<C>
-        {
-            /** Allows resolve type of event payload associated with specified code */
-            template <C c, class ... Ts > struct get_type_by_c;
-
-            template <C c, class T, class ... Ts > struct get_type_by_c<c, T, Ts...>
-            {
-                using type = typename std::conditional<
-                    T::code == c,
-                    typename T::type,
-                    typename get_type_by_c<c, Ts ...>::type >::type;
-            };
-
-            template <C c > struct get_type_by_c<c>
-            {
-                using type = void;
-            };
-            using base_event_t = typename core_supplier_t::base_event_t;
-            using action_t = typename core_supplier_t::action_t;
-            std::function< unsubscriber_t(event_code_t, action_t&&) > _do_subscribe;
-            std::function< void(event_code_t, const base_event_t&) > _do_send;
-
-        public:
-            using base_supplier_t = EventSupplier<C>;
-            template <C c>
-            using payload_t = typename get_type_by_c<c, A1, AssocPairs ...>::type;
-
-            template <C c>
-            using event_t = EventImpl<payload_t<c>, C, c>;
-
-            template <class Context>
-            SupportPayload(Context& context)
-            {
-            }
-
-            /**Subscribe `action` to event `c` */
-            template <C c>
-            unsubscriber_t on(std::function<void(const payload_t<c>&)> action)
-            {
-                return base_supplier_t::subscribe(c, [action = std::move(action)](const base_event_t& event){
-                    action(static_cast<const event_t<c>&>(event)._payload);
-                });
-            }
-
-            /** Create and broadcast event with payload */
-            template <C c>
-            void send_event(payload_t<c> data) const
-            {
-                /*_do_send(c, event_t<c>(std::move(data)));
-                */
-                base_supplier_t::send(c, event_t<c>(std::move(data)));
-            }
-
-            template <C c>
-            void send(payload_t<c> data) const
-            {
-                base_supplier_t::send(c, event_t<c>(std::move(data)));
-            }
-            using base_supplier_t::send;
+            single_event_sub_ptr _global_sub;
+            std::optional<TSubscriber> _subscriber;
+            iterator_t _subject_pos;
         };
-    };//EventIngredient
-} //ns:OP::common
+
+        // all event-subscriptions are stored in this tuple as shared ptr to allow unsubscribers 
+        // work safely. 
+        using all_evets_subscription_t = std::tuple< 
+            AssocVal<TEventDef::code, single_event_subscription_ptr<TEventDef> > ...>;
+
+        all_evets_subscription_t _subscriptions;
+
+    public:
+        
+        using unsubscriber_t = std::unique_ptr<Unsubscriber>;
+
+        /** Resolve payload type for specific event code */
+        template <auto code>
+        using event_payoad_t = typename sub_by_event_code_t<code>::type;
+
+        EventSupplier()
+            : _subscriptions{
+                new SingleEventSubscription<TEventDef>...
+            }
+        {
+        }
+
+        /** \brief register handler of event
+        * 
+        * \tparam EventCode Compile-time event identifier. 
+        * \tparam F Callable handler type. Use lambdas, functions, member function wrapped with `std::bind`, etc. Optional 
+        *       argument can specify a payload of event. If payload is a tuple or pair, handlers may:
+        *
+        *        - Accept the entire payload as const reference
+        *        - Accept decomposed arguments
+        *        - Omit some tuple parameters
+        *        - Accept no arguments at all
+        *
+        *        Examples: \code
+        *        void handler1(std::tuple<int, float> const&);
+        *        void handler2(int, float); // decomposed tuple 
+        *        void handler3(int); // omit float parameter of tuple 
+        *        void handler4(); // no arg
+        *        \endcode
+        *
+        * \return Unique pointer to Unsubscriber. The returned object must be kept alive to 
+        *       continue receiving events. Destroying it automatically unsubscribes.
+        */ 
+        template <auto EventCode, class F>
+        [[nodiscard]] unsubscriber_t on(F f)
+        {
+            using assoc_to_ptr_t =
+                std::tuple_element_t<0, utils::type_filter_t<PickEvent<EventCode>, all_evets_subscription_t> >;
+            using event_sub_t = sub_by_event_code_t<EventCode>;
+            using payload_t = typename event_sub_t::type;
+            using subscriber_t = FunctorSubscription<F, payload_t>;
+
+            auto& event_sub_assoc = std::get<assoc_to_ptr_t >(_subscriptions);
+            return std::unique_ptr<Unsubscriber>{
+                new UnsubImpl<event_sub_t, subscriber_t>(event_sub_assoc.value, std::move(f)) };
+        }
+
+        /** \brief register handler of event.
+        * In compare with `on` it uses lookup-based search of code as an argument.
+        * \return A unique pointer to Unsubscriber, similar to the `on` method.
+        *         If the provided `code` does not match any registered event,
+        *         the function returns nullptr.
+        *         In contrast, the `on` method performs compile-time resolution
+        *         and fails to compile if the specified event code does not exist.
+        */ 
+        template <class TEventCode, class F>
+        unsubscriber_t subscribe(TEventCode code, F handler) //requires std::is_invocable<F>
+        {
+            std::unique_ptr<Unsubscriber> result;
+            auto sel_subscription = [&](auto& single) -> bool {
+                using assoc_t = std::decay_t<decltype(single)>;
+                using event_sub_t = sub_by_event_code_t<assoc_t::code>;
+                if (assoc_t::code == code)
+                {
+                    using payload_t = typename event_sub_t::type;
+                    using subscriber_t = FunctorSubscription<F, payload_t>;
+                    result = std::unique_ptr<Unsubscriber>{
+                        new UnsubImpl<event_sub_t, subscriber_t>(single.value, std::move(handler)) };
+                    return true;
+                }
+                return false;
+                };
+
+            std::apply([&](auto& ...single_sub) {
+                static_cast<void>((... || sel_subscription(single_sub))); //lasts until `true`
+                }, _subscriptions);
+            return result; //may be null
+        }
+
+        /**
+         * \brief Send an event with associated payload.
+         *
+         * \tparam EventCode Compile-time event identifier.
+         *
+         * \param payload Event payload.
+         *
+         * All current subscribers of the event will be invoked.
+         * Execution order is unspecified.
+         */
+        template <auto EventCode>
+        void send(const event_payoad_t<EventCode>& payload)
+        {
+            using assoc_to_ptr_t =
+                std::tuple_element_t<0, utils::type_filter_t<PickEvent<EventCode>, all_evets_subscription_t> >;
+            auto& single_event_sub = std::get<assoc_to_ptr_t>(_subscriptions);
+            {
+                std::shared_lock r_guard(single_event_sub.value->_subscribers_acc);
+                raii::RefCountGuard guard(single_event_sub.value->_owned);
+                for (auto& handler : single_event_sub.value->_subscribers)
+                    if(!handler->call(payload))
+                        break; //stop event propagation
+            }
+
+            if (single_event_sub.value->_has_unsubscribe_later)//clean delayed unsubscribers
+            {
+                std::unique_lock w_guard(single_event_sub.value->_unsubscribe_later_acc);
+                single_event_sub.value->_unsubscribe_later.clear();
+                single_event_sub.value->_has_unsubscribe_later = false;
+            }
+        }
+    };
+
+} //ns:OP::events
 
 #endif // _OP_COMMON_EVENTSUPPLIER_H_

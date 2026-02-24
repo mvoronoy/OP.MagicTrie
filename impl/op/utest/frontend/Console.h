@@ -12,10 +12,43 @@
 
 namespace OP::utest::frontend
 {
-    namespace {// unnamed namespace to make liases
+    namespace {// unnamed namespace to make aliases
         namespace plh = std::placeholders;
     }
 
+    /**
+    * \brief Console-based frontend responsible for displaying unit test execution flow and results.
+    *
+    * ConsoleFrontend provides a textual user interface for observing test execution
+    * in real time within a standard console environment. It reports test suite
+    * lifecycle events, fixture execution, individual test case results, and
+    * aggregated statistics.
+    *
+    * The frontend is designed for:
+    * - Clear and structured output suitable for CI logs.
+    * - Optional colorized output when supported by the target console platform.
+    *
+    * ### Output Features
+    * - Displays suite names, fixture configurations, and test case identifiers.
+    * - Reports execution status (e.g., ok, failed, exception, aborted).
+    * - Shows diagnostics and exception messages.
+    * - Provides summary statistics after execution completes.
+    *
+    * ### Color Support
+    * If the underlying console supports ANSI escape sequences (or platform-specific
+    * color APIs like Windows), selected output elements may be highlighted:
+    * - Test result status (e.g., green for passed, red for failed).
+    * - Fixture names and suite identifiers.
+    *
+    * Color output is optional and may be automatically disabled when the platform
+    * does not support it or when running in non-interactive environments.
+    *
+    * The class focuses solely on presentation and does not influence test execution
+    * semantics.
+    *
+    * \note ConsoleFrontend is intended for regular terminal usage and is not
+    *       optimized for structured machine-readable reporting (e.g., XML/JSON).
+    */
     class ConsoleFrontend
     {
         using unsubscriber_t = UnitTestEventSupplier::unsubscriber_t;
@@ -27,9 +60,9 @@ namespace OP::utest::frontend
 
         using colored_wrap_t = console::color_meets_value_t<std::string>;
 
-        ConsoleFrontend(TestRun& run_env)
+        explicit ConsoleFrontend(TestRun& run_env)
             : _run_env(run_env)
-            , _unsubscribes( _run_env.event_supplier().make_unsub_guard(
+            , _unsubscribes( 
                 _run_env.event_supplier().bind<UnitTestEventSupplier::suite_start>(
                     std::bind(&ConsoleFrontend::on_suite_start, this, plh::_1)
                 ),
@@ -45,7 +78,7 @@ namespace OP::utest::frontend
                 _run_env.event_supplier().bind<UnitTestEventSupplier::load_execute_run>(
                     std::bind(&ConsoleFrontend::on_load_execute_run, this, plh::_1)
                 )
-            ))
+            )
         {
         }
 
@@ -100,12 +133,11 @@ namespace OP::utest::frontend
         virtual void on_case_end(const end_case_event_t& payload)
         {
             TestRuntime& runtime = std::get<TestRuntime&>(payload);
-            TestCase& tcase = std::get<TestCase&>(payload);
             TestResult& result = std::get<TestResult&>(payload);
             TestFixture& fixture = std::get<TestFixture&>(payload);
-
+            assert(result.test_case()); //since the event is about TestCase, the value must not be null
             raii::IoFlagGuard stream_guard(runtime.info());
-            print_case_label(runtime.info() << "\t", tcase, fixture)
+            print_case_label(runtime.info() << "\t", *result.test_case(), fixture)
                     << " done with status:"
                     << "-=[" << status_to_colored_str(result.status())
                     << "]=-"
@@ -146,17 +178,17 @@ namespace OP::utest::frontend
     private:
         template <class Os>
         static Os& print_case_label(
-            Os& os, TestCase& tcase, TestFixture& fixture )
+            Os& os, const TestCase& tcase, const TestFixture& fixture )
         {
             os << "[" << tcase.id();
-            if(! std::empty(fixture.id()) )
+            if( !std::empty(fixture.id()) )
                 os << console::esc<console::magenta_t>("(") << fixture.id() << console::esc<console::magenta_t>(")");
             os << "]";
             return os;
         }
 
         TestRun& _run_env;
-        typename UnitTestEventSupplier::unsub_guard_t _unsubscribes;
+        std::array<unsubscriber_t, UnitTestEventSupplier::_event_code_count_> _unsubscribes;
 
     };
 }//ns:OP::utest::frontend

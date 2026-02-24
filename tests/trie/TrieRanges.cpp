@@ -10,16 +10,17 @@
 #include <op/trie/Trie.h>
 #include <op/trie/PlainValueManager.h>
 
-#include <op/vtm/InMemMemoryChangeHistory.h>
+#include <op/vtm/managers/InMemMemoryChangeHistory.h>
 
 #include <op/common/astr.h>
 
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/EventSourcingSegmentManager.h>
+#include <op/vtm/managers/EventSourcingSegmentManager.h>
+#include <op/vtm/managers/BaseSegmentManager.h>
 
 #include <algorithm>
 #include "../test_comparators.h"
-#include "../MemoryChangeHistoryFixture.h"
+#include "../vtm/MemoryChangeHistoryFixture.h"
 
 namespace
 {
@@ -56,16 +57,20 @@ namespace
 #include "TrieTestUtils.h"
 #include <random>
 
-    void test_TrieSubtree(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_TrieSubtree(OP::utest::TestRuntime& tresult, 
+        std::shared_ptr<test::ChangeHistoryFactory> history_factory)
     {
+        auto mem_change_history = history_factory->create();
         //take randomizer configured by test engine
         auto random_gen = tools::RandomGenerator::instance().generator();
 
-        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::move(mem_change_history)
+            ));
+
         using trie_t = test_trie_t;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         std::map<atom_string_t, double> test_values;
@@ -99,10 +104,13 @@ namespace
         }
         compare_containers(tresult, *trie, test_values);
         trie.reset();
-        tmngr1 = OP::vtm::SegmentManager::open<EventSourcingSegmentManager>(
-            test_file_name,
-            mem_change_history
-        );
+        auto mem_change_history2 = history_factory->create();
+
+        tmngr1.reset(new EventSourcingSegmentManager(
+            BaseSegmentManager::open(test_file_name),
+            std::move(mem_change_history2)
+        ));
+
         trie = trie_t::open(tmngr1);
         //
         compare_containers(tresult, *trie, test_values);
@@ -158,13 +166,18 @@ namespace
         tresult.assert_that<eq_sets>(result2, expected, OP_CODE_DETAILS());
     }
 
-    void test_TrieSubtreeLambdaOperations(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_TrieSubtreeLambdaOperations(
+        OP::utest::TestRuntime& tresult, 
+        std::shared_ptr<test::ChangeHistoryFactory> history_factory)
     {
-        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        auto mem_change_history = history_factory->create();
+        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::move(mem_change_history)
+            ));
+
         using trie_t = test_trie_t;
 
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
@@ -298,14 +311,21 @@ namespace
         //    OP_CODE_DETAILS());
     }
 
-    void test_Flatten(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_Flatten(OP::utest::TestRuntime& tresult, 
+        std::shared_ptr<test::ChangeHistoryFactory> history_factory
+        )
     {
         using namespace OP::flur;
-        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+
+        auto mem_change_history = history_factory->create();
+
+        std::shared_ptr<EventSourcingSegmentManager> tmngr(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::move(mem_change_history)
+            ));
+
 
         using trie_t = test_trie_t;
 
@@ -430,13 +450,17 @@ namespace
     }
 
 
-    void test_ChildSelector(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_ChildSelector(OP::utest::TestRuntime& tresult, 
+        std::shared_ptr<test::ChangeHistoryFactory> history_factory
+        )
     {
-        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        auto mem_change_history = history_factory->create();
+        std::shared_ptr<EventSourcingSegmentManager> tmngr(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::move(mem_change_history)
+            ));
 
         using trie_t = test_trie_t;
 
@@ -514,14 +538,19 @@ namespace
 
     }
 
-    void test_Range(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_Range(OP::utest::TestRuntime& tresult, 
+        std::shared_ptr<test::ChangeHistoryFactory> history_factory)
     {
         using namespace OP::flur;
-        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        auto mem_change_history = history_factory->create();
+
+        std::shared_ptr<EventSourcingSegmentManager> tmngr(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::move(mem_change_history)
+            ));
+
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
@@ -567,6 +596,7 @@ namespace
 
         tresult.assert_that<equals>(7, std::distance(range_rest.begin(), range_rest.end()), "wrong counter");
     }
+
     void test_NativeRangeSupport(OP::utest::TestRuntime& tresult)
     {
         using namespace OP::flur;
@@ -584,10 +614,11 @@ namespace
         src1.emplace("xyz"_atom, 1.0);
 
         //note: no transactions!
-        auto tmngr1 = OP::vtm::SegmentManager::create_new<OP::vtm::SegmentManager>("trie2range.test",
+        std::shared_ptr<SegmentManager> tmngr1(
+            BaseSegmentManager::create_new("trie2range.test",
             OP::vtm::SegmentOptions()
             .segment_size(0x110000)
-        );
+        ));
 
         using trie_t = OP::trie::Trie<
             OP::vtm::SegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
@@ -626,25 +657,36 @@ namespace
         return retval;
     }
 
-    void test_JoinRangeOverride(TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+    void test_JoinRangeOverride(TestRuntime& tresult, 
+        std::shared_ptr<test::ChangeHistoryFactory> history_factory)
     {
         using namespace OP::flur;
 
-        auto tmngr1 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
-        auto tmngr2 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>((std::string("2_") + test_file_name).c_str(),
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
-        auto tmngr3 = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>((std::string("3_") + test_file_name).c_str(),
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        auto mem_change_history1 = history_factory->create();
+
+        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::move(mem_change_history1)
+            ));
+
+        auto mem_change_history2 = history_factory->create();
+        std::shared_ptr<EventSourcingSegmentManager> tmngr2(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    (std::string("2_") + test_file_name).c_str(), OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::move(mem_change_history2)
+            ));
+
+        auto mem_change_history3 = history_factory->create();
+        std::shared_ptr<EventSourcingSegmentManager> tmngr3(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    (std::string("3_") + test_file_name).c_str(), OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::move(mem_change_history3)
+            ));
+
 
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<size_t>, OP::common::atom_string_t>;
@@ -739,143 +781,11 @@ namespace
         //compare_containers(tresult, t2r1, test_values);
 
     }
-    //void test_AllPrefixesRange(OP::utest::TestRuntime& tresult) {
-    //    
-    //    using namespace OP::flur;
-    //
-    //    auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-    //        OP::vtm::SegmentOptions()
-    //        .segment_size(0x110000));
-    //
-    //    typedef Trie<EventSourcingSegmentManager, double> trie_t;
-    //    std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
-    //    using testmap_t = std::map<atom_string_t, double, lexicographic_less<atom_string_t> >;
-    //    using testset_t = std::set<atom_string_t, lexicographic_less<atom_string_t> >;
-    //    auto map_cast = [](const auto& i) {
-    //        using p_t = typename testmap_t::value_type;
-    //        return p_t(i.key(), i.value());
-    //    };
-    //    testmap_t test_values{
-    //        {"a"_astr, 1.},
-    //        {"aa"_astr, 1.1},
-    //        {"abc"_astr, 1.2},
-    //        {"abca"_astr, 1.2},
-    //        {"abd"_astr, 1.2},
-    //    };
-    //
-    //    for(const auto& pair : test_values){
-    //        trie->insert(pair.first, pair.second);
-    //    };
-    //    auto arg_range = src::of_container(testset_t{{"a"_astr}});
-    //    auto inm = OP::trie::prefixes_continuation_range(trie->range(), arg_range)
-    //        //>> then::mapping(map_cast)
-    //        ;
-    //    for (const auto& x : inm)
-    //        std::cout << (const char*)x.key().c_str() << "\n";
-    //    tresult.assert_that<eq_sets>(
-    //        OP::trie::prefixes_continuation_range (trie->range(), arg_range)
-    //        >> then::mapping(map_cast)
-    //        , 
-    //        test_values,
-    //        OP_CODE_DETAILS()
-    //        );
-    //
-    //    arg_range = src::of_container(testmap_t{ {"ab"_astr, 2.0} });
-    //    tresult.assert_that<eq_sets>(
-    //        OP::trie::prefixes_continuation_range(trie->range(), arg_range)
-    //        >> then::mapping(map_cast),
-    //        testmap_t{ 
-    //            {"abc"_astr, 1.2},
-    //            {"abca"_astr, 1.2},
-    //            {"abd"_astr, 1.2},
-    //        });
-    //
-    //    arg_range = src::of_container(testmap_t{ {"0"_astr, 2.0}, {"aa"_astr, 2.0}, {"abcd"_astr, 2.0}, });
-    //    tresult.assert_that<eq_sets>( 
-    //        OP::trie::prefixes_continuation_range(
-    //            trie->range(), arg_range)
-    //        >> then::mapping(map_cast),
-    //        testmap_t{
-    //            {"aa"_astr, 1.1},
-    //        });
-    //
-    //    testmap_t suffixes { {"aaa"_astr, 1.1},
-    //        {"b"_astr, 1.2},
-    //        {"ba"_astr, 1.2},
-    //        {"bax"_astr, 1.2},
-    //        {"x"_astr, 1.2},
-    //        {"xy"_astr, 1.2},
-    //    };
-    //    test_values.clear();
-    //    const auto control_pref = "klm"_astr;
-    //    for(auto& s : {"k"_astr, "l"_astr, "m"_astr, "n"_astr })
-    //    {   //create bunch of similar prefixes
-    //        auto root_pair = trie->insert(s, 1.0);
-    //        bool is_in_control = control_pref.find(s[0]) != control_pref.npos;
-    //        if(is_in_control)
-    //            test_values.emplace(s, 1.0);
-    //        for(const auto& ent : suffixes){
-    //            auto sufix_pair = trie->prefixed_insert(root_pair.first, ent.first, ent.second);
-    //            auto long_suffix_pair = trie->prefixed_insert(sufix_pair.first, "aa"_astr, 1.3);
-    //            if (is_in_control)
-    //            {
-    //                test_values.emplace(sufix_pair.first.key(), sufix_pair.first.value());
-    //                test_values.emplace(long_suffix_pair.first.key(), long_suffix_pair.first.value());
-    //            }
-    //        }
-    //    }
-    //    arg_range = src::of_container(
-    //        testmap_t{ {"0"_astr, 2.0}, {"k"_astr, 2.0}, {"l"_astr, 2.0}, {"m"_astr, 2.0}, {"x"_astr, 2.0} });
-    //    //atom_string_t previous;
-    //    //OP::trie::prefixes_continuation_range(trie->range(), arg_range)->for_each([&tresult](const auto& i){
-    //    //    tresult.debug() <<"{" << (const char*)i.key().c_str() << " = " << i.value() << "}\n";
-    //    //    });
-    //    tresult.assert_that<eq_sets>( 
-    //        OP::trie::prefixes_continuation_range(trie->range(), arg_range)
-    //        >> then::mapping(map_cast), 
-    //        test_values);
-    //
-    //    //erase from test_values all started with 'l' or not containing 'ba'
-    //    for(auto er = test_values.begin(); er !=test_values.end(); )
-    //    {
-    //        if( er->first.find("l"_astr) == 0 || er->first.find("ba"_astr) == er->first.npos)
-    //            er = test_values.erase(er);
-    //        else
-    //            ++er;
-    //    }
-    //    arg_range = src::of_container(
-    //        testmap_t{ {"0ba"_astr, 2.0}, {"kba"_astr, 2.0}, {"mba"_astr, 2.0}, {"xba"_astr, 2.0} });
-    //    tresult.assert_that<eq_sets>( 
-    //        OP::trie::prefixes_continuation_range(trie->range(), arg_range)
-    //        >> then::mapping(map_cast), 
-    //        test_values
-    //        );
-    //    //just curious ....
-    //    auto k_range = 
-    //        make_mixed_sequence_factory(std::static_pointer_cast<trie_t const>(trie),
-    //            typename Ingredient<trie_t>::PrefixedBegin("k"_astr),
-    //            typename Ingredient<trie_t>::PrefixedLowerBound("k"_astr),
-    //            typename Ingredient<trie_t>::PrefixedInRange(StartWithPredicate("k"_astr)))
-    //        ;
-    //    for (auto er = test_values.begin(); er != test_values.end(); )
-    //    {
-    //        if (er->first.find("k"_astr) != 0 )
-    //            er = test_values.erase(er);
-    //        else
-    //            ++er;
-    //    }
-    //    auto cont_set = src::of_container(testset_t{ 
-    //        "0ba"_astr, "kba"_astr, "mba"_astr, "xba"_astr });
-    //
-    //    tresult.assert_that<eq_sets>( 
-    //        OP::trie::prefixes_continuation_range(k_range, cont_set)
-    //        >> then::mapping(map_cast)
-    //        , 
-    //        test_values, OP_CODE_DETAILS());
-    //}
 
-    void test_ISSUE_0001(OP::utest::TestRuntime& tresult, std::shared_ptr<OP::vtm::MemoryChangeHistory> mem_change_history)
+
+    void test_ISSUE_0001(OP::utest::TestRuntime& tresult, std::shared_ptr<test::ChangeHistoryFactory> history_factory)
     {
+        auto mem_change_history = history_factory->create();
         atom_string_t source_seq[] = {
             { 0x13,0x04,0x10,0x50,0x12,0xc1,0x5b,0xa1,0x0e,0x9e,0x16,0xdc,0xef,0x4c,0x6e,0x34,0x9b,0x96 },
             { 0x14,0x44,0xa2,0xfa,0xdb,0x41,0xa1,0xd8,0x45,0xe0,0x12,0xfe,0x98,0x10,0x4d,0x55,0x87,0x04,0xf5,0x02,0x87,0x52,0x41,0xa1,0xd8,0x45,0xc0,0x12,0xfe,0x98,0x9c,0xbf,0x89,0xaa },
@@ -1099,11 +1009,12 @@ namespace
         typedef std::pair<atom_string_t, double> p_t;
         std::map<atom_string_t, double> test_values;
 
-        auto tmngr = OP::vtm::SegmentManager::create_new<EventSourcingSegmentManager>(test_file_name,
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000),
-            mem_change_history
-        );
+        std::shared_ptr<EventSourcingSegmentManager> tmngr(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                std::move(mem_change_history) ));
+        
         using trie_t = Trie<
             EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
 
@@ -1146,14 +1057,13 @@ namespace
 
     void test_10k(OP::utest::TestRuntime& tresult)
     {
-        using segment_manager_t = SegmentManager;//EventSourcingSegmentManager;
-        auto tmngr = OP::vtm::SegmentManager::create_new<segment_manager_t>(
+        std::shared_ptr<SegmentManager> tmngr = OP::vtm::BaseSegmentManager::create_new(
             "10k.trie",
             OP::vtm::SegmentOptions()
             .segment_size(0x110000)
         );
         using trie_t = Trie<
-            segment_manager_t, PlainValueManager<std::uint64_t>, OP::common::atom_string_t>;
+            SegmentManager, PlainValueManager<std::uint64_t>, OP::common::atom_string_t>;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
         constexpr std::uint32_t N = 0x3000;
         constexpr std::uint32_t expecting_sum_c = (N * (N - 1)) / 2;
@@ -1281,7 +1191,7 @@ namespace
         .declare("override_join_range", test_JoinRangeOverride)
         .declare("ISSUE_0001", test_ISSUE_0001)
         .declare("10k", test_10k)
-        .with_fixture(test::init_InMemoryChangeHistory, test::tear_down_InMemoryChangeHistory)
+        .with_fixture(test::memory_change_history_factory<test::InMemoryChangeHistoryFactory>)
         //
         ;
 }//ns:""
