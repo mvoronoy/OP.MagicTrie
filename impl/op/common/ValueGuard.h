@@ -86,12 +86,12 @@ namespace OP::raii
         explicit RefCountGuard(T& ref) noexcept
             : _control_unit(ref)
         {
-            on_enter(_control_unit);
+            on_enter::action(_control_unit);
         }
         
         ~RefCountGuard() noexcept
         {
-            on_leave(_control_unit);
+            on_leave::action(_control_unit);
         }
 
     private:
