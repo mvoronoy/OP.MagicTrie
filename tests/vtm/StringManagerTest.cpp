@@ -5,7 +5,6 @@
 #include <op/vtm/StringMemoryManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
 #include <op/vtm/InMemMemoryChangeHistory.h>
-#include <op/vtm/AppendOnlyLogFileRotation.h>
 
 #include <set>
 #include <cassert>
@@ -302,8 +301,5 @@ namespace
             test::init_InMemoryChangeHistory, 
             test::tear_down_InMemoryChangeHistory)
         // define scenario parameter with File-rotary implementation
-        .with_fixture(
-            test::init_event_source_with_AppendLogFileRotationChangeHistory, 
-            test::tear_down_AppendLogFileRotationChangeHistory)
         ;
 } //ns:

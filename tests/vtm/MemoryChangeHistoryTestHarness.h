@@ -9,7 +9,6 @@
 #include <op/flur/flur.h>
 
 #include <op/vtm/AppendOnlySkipList.h>
-#include <op/vtm/AppendOnlyLogFileRotation.h>
 
 #include <op/common/ThreadPool.h>
 #include <op/common/Bitset.h>

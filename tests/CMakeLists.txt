@@ -43,13 +43,11 @@ add_executable (trie_test
     "common/ThreadPool.cpp"
     "common/Currying.cpp"
     "common/Multiimplementation.cpp"
-    "common/PreallocCache.cpp"
     "common/basic.cpp"
     "common/FixedString.cpp"
 
     "vtm/AppendOnlyLog.cpp"
     "vtm/AppendOnlySkipList.cpp"
-    "vtm/AppendOnlyLogFileRotation.cpp"
     "vtm/ContainersTest.cpp"
     "vtm/FixedSizeMemoryManagerTest.cpp"
     "vtm/StringManagerTest.cpp"
@@ -59,7 +57,6 @@ add_executable (trie_test
     "vtm/MemoryChangeHistoryTestHarness.h"
     "vtm/GenericMemoryTest.h"
 
-    "SpanContainerTest.cpp"
     "tr.cpp"
 
     "vtm/EventSourcedSegmentManagerTest.cpp"

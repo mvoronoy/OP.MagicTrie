@@ -8,7 +8,6 @@
 #include <optional>
 
 #include <op/common/Exceptions.h>
-#include <op/common/SpanContainer.h>
 #include <op/common/Unsigned.h>
 
 #include <op/flur/flur.h>

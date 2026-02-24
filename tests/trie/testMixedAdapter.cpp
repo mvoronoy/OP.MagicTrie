@@ -10,8 +10,6 @@
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/EventSourcingSegmentManager.h>
-#include <op/vtm/InMemMemoryChangeHistory.h>
-#include <op/vtm/AppendOnlyLogFileRotation.h>
 
 #include <op/trie/MixedAdapter.h>
 #include <op/common/NamedArgs.h>

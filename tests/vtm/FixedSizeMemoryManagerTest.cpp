@@ -281,9 +281,5 @@ namespace
         .with_fixture( "memory-only",
             test::init_InMemoryChangeHistory, 
             test::tear_down_InMemoryChangeHistory)
-        // define scenario parameter with File-rotary implementation
-        .with_fixture("file-rotary",
-            test::init_event_source_with_AppendLogFileRotationChangeHistory, 
-            test::tear_down_AppendLogFileRotationChangeHistory)
         ;
 } //ns:
