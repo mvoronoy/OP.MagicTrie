@@ -184,10 +184,14 @@ namespace OP::vtm
                     << ", signature = 0x" << block_header->_signature 
                     << ", _size = 0x" << block_header->_size 
                     << ", _next = ");
-                if( block_header->_next.is_nil() )
+                if (block_header->_next.is_nil())
+                {
                     _CHECK_INTEGRITY_VERBOSE_LOG(<< "(nil)");
+                }
                 else
-                    _CHECK_INTEGRITY_VERBOSE_LOG( << block_header->_next);
+                {
+                    _CHECK_INTEGRITY_VERBOSE_LOG(<< block_header->_next);
+                }
                 _CHECK_INTEGRITY_VERBOSE_LOG( << "}\n");
                 if( !block_header->check_signature() )
                 {

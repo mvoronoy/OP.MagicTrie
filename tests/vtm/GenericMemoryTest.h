@@ -70,7 +70,7 @@ struct GenericMemoryTest{
         {       
             result.info() << "Test create new...";
             std::shared_ptr<SegmentManager> mngr1 = create();
-            result.info() << " on" << typeid(*mngr1).name() << "..." << std::endl;
+            result.info() << " on" << typeid(decltype(*mngr1)).name() << "..." << std::endl;
 
             tst_size = mngr1->segment_size();
             SegmentTopology<HeapManagerSlot> mngrTopology (mngr1);

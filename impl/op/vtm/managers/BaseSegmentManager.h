@@ -284,7 +284,7 @@ namespace OP::vtm
             /**
             * Implementation based integrity checking of this instance
             */
-            virtual void _check_integrity(bool verbose)
+            virtual void _check_integrity(bool verbose) override
             {
                 auto& log = std::clog;
                 for(auto i = 0; i < available_segments(); ++i)
