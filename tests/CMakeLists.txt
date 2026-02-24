@@ -118,5 +118,5 @@ target_link_options(trie_test PRIVATE "/PROFILE")
 endif(MSVC)
 
 # Unit tests
-add_test(NAME "root.OP.tests.all" COMMAND trie_test -r ".+/.+")
+add_test(NAME "root.OP.tests.all" COMMAND trie_test -j -f)
 # add_test(NAME "ABC.OP.namespace.Tests.SomeTest" COMMAND trie_test -r ".+/.+")

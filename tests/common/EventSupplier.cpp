@@ -8,8 +8,8 @@
 #include <op/utest/unit_test_is.h>
 
 
-namespace
-{
+//namespace
+//{
     enum class SomeEv : int
     {
         a = 0, b, c
@@ -91,11 +91,12 @@ namespace
         }
     };
 
-    void test_General(OP::utest::TestRuntime& result) {
+    static void test_General(OP::utest::TestRuntime& result) 
+    {
 
         supplier_t supplier;
         TestProgram program(supplier, result);
-
+        if(1==1)
         {
             auto unsub1 = std::make_tuple(
                 supplier.on<SomeEv::a>(std::bind(&TestProgram::handle_a, &program, _1)),
@@ -142,4 +143,4 @@ namespace
 
     //OP_DECLARE_TEST_CASE(, "basic",
     //    []);
-} //ns:
+//} //ns:

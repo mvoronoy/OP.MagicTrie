@@ -69,7 +69,7 @@ namespace OP::events
      *
      * \tparam TPayload Event payload type.
      */
-    template <class F, class TPayload/* = std::tuple_element_t<0, typename OP::utils::function_traits<F>::arguments_t>*/ >
+    template <class F, class TPayload>
     struct FunctorSubscription : Subscription<TPayload>
     {
         F _method;
@@ -267,7 +267,7 @@ namespace OP::events
                 _unsub();
             }
 
-            void unsubscribe() noexcept override
+            virtual void unsubscribe() noexcept override
             {
                 _unsub();
             }
