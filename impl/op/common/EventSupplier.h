@@ -262,7 +262,7 @@ namespace OP::events
                         _global_sub->_subscribers.end(), &*_subscriber);
             }
 
-            virtual ~UnsubImpl() noexcept
+            virtual ~UnsubImpl() noexcept override
             {
                 _unsub();
             }

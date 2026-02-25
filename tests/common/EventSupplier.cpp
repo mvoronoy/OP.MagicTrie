@@ -8,8 +8,8 @@
 #include <op/utest/unit_test_is.h>
 
 
-//namespace
-//{
+namespace
+{
     enum class SomeEv : int
     {
         a = 0, b, c
@@ -143,4 +143,4 @@
 
     //OP_DECLARE_TEST_CASE(, "basic",
     //    []);
-//} //ns:
+} //ns:

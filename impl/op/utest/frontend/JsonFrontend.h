@@ -160,7 +160,7 @@ namespace OP::utest::frontend
             os << "\": ";
             if (measure.has_value())
             {
-                os << std::fixed << std::setprecision(3) << measure.value();
+                os << std::fixed << std::setprecision(2) << measure.value();
             }
             else
             {
