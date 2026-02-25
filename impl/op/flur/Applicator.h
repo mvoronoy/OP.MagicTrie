@@ -702,8 +702,7 @@ namespace OP::flur
             {
                 for(;_cartesian_sequence.in_range(); _cartesian_sequence.next())
                 {
-                    decltype(auto) current = _cartesian_sequence.current();//consume
-                    static_cast<void>(current);
+                    _cartesian_sequence.current();//consume
                 }
             }
         };

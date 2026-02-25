@@ -242,7 +242,7 @@ namespace
         tresult.assert_true(future_read_committed_block1_t2.get());
         //without transaction check that write not allowed
         try {
-            decltype(auto) skip //ignore result
+            decltype(auto) skip = //ignore result
                 tmngr1->writable_block(FarAddress(read_only_data_fpos), 1);
             static_cast<void>(skip);
             tresult.assert_true(false);//exception must be raised

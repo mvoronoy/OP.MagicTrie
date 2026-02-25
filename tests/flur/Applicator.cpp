@@ -22,7 +22,7 @@ namespace {
         rt.assert_that<equals>(7, src::of_container(std::array{ 1, 2, 3 }) >>= apply::sum(start));
         rt.assert_that<equals>(7, start);
 
-        //test alterantive operator
+        //test alternative operator
         start = 1;
         rt.assert_that<equals>(24,
             src::of_iota(1, 5) >>= apply::sum<std::multiplies>(start));
