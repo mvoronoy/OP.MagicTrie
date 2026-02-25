@@ -418,7 +418,7 @@ namespace OP::vtm
             {
                 const bucket_t* bucket = nullptr;
                 while (_queue.pop(bucket))
-                    static_cast<void>(bucket);
+                    ;
             }
 
             bool bucket_callback(const bucket_t* bucket)

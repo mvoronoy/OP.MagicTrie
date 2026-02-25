@@ -84,7 +84,8 @@ namespace
             ++order
             )
         {
-            static_cast<void>(a0l->construct<TestPayload>(expected_value, order, expected_v2));
+            decltype(auto) skip = a0l->construct<TestPayload>(expected_value, order, expected_v2);
+            static_cast<void>(skip);
         }
         tresult.assert_that<equals>(2, a0l->segments_count());
         a0l = nullptr; //close

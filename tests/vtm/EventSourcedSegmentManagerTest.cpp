@@ -242,8 +242,9 @@ namespace
         tresult.assert_true(future_read_committed_block1_t2.get());
         //without transaction check that write not allowed
         try {
-            static_cast<void>( //ignore result
-                tmngr1->writable_block(FarAddress(read_only_data_fpos), 1));
+            decltype(auto) skip //ignore result
+                tmngr1->writable_block(FarAddress(read_only_data_fpos), 1);
+            static_cast<void>(skip);
             tresult.assert_true(false);//exception must be raised
         }
         catch (OP::Exception const& e) {
@@ -933,8 +934,9 @@ namespace
         { //exploit ro-sequence 
             OP::vtm::TransactionGuard op_g(tmngr1->begin_ro_transaction());
             tresult.assert_exception<OP::Exception>([&]() {
-                    static_cast<void>(
-                        tmngr1->writable_block(FarAddress(0, start_offset_c), test_seq_len_c));
+                    auto skip =
+                        tmngr1->writable_block(FarAddress(0, start_offset_c), test_seq_len_c);
+                    static_cast<void>(skip);
                 })
                 .then([](const auto& ex) {
                     return ex.code() == OP::vtm::ErrorCodes::er_ro_transaction_started;

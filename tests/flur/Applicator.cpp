@@ -122,7 +122,8 @@ namespace {
     void test_first(TestRuntime& rt)
     {
         rt.assert_exception<std::out_of_range>([]() {
-            static_cast<void>(apply::first(src::null<int>()));//manage [[nodiscard]]
+            auto skip = apply::first(src::null<int>());//manage [[nodiscard]]
+            static_cast<void>(skip);
             });
 
         auto const range = src::of_value(57);
@@ -146,7 +147,8 @@ namespace {
     void test_last(TestRuntime& rt)
     {
         rt.assert_exception<std::out_of_range>([]() {
-            static_cast<void>(apply::last(src::null<int>()));//manage [[nodiscard]]
+            auto skip = apply::last(src::null<int>());//manage [[nodiscard]]
+            static_cast<void>(skip);
             });
         
         auto const range = src::of_value(57);

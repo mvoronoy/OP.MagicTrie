@@ -45,7 +45,9 @@ namespace OP::vtm
         {
             std::unique_lock guard(_garbage_collection_future_acc);
             if(_garbage_collection_future.valid())
-                static_cast<void>(_garbage_collection_future.get());
+            {
+                _garbage_collection_future.get();
+            }
             guard.release();
 
             _global_history.clear();
