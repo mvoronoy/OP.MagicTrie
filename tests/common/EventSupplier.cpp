@@ -13,7 +13,8 @@ namespace
 {
     enum class SomeEv : int
     {
-        a = 0, b, c
+        a = 0, b, c,
+        no_match
     };
 
     using a_payload = std::tuple<int>;
@@ -27,8 +28,6 @@ namespace
         OP::Assoc<SomeEv::b, b_payload>,
         OP::Assoc<SomeEv::c, c_payload>>;
     
-    static supplier_t _fix_issue_inst;
-
     using namespace std::placeholders;
     using namespace OP::utest;
 
@@ -145,6 +144,16 @@ namespace
         .declare("general", test_General)
         ;
 
-    //OP_DECLARE_TEST_CASE("EventSupplier", "general",
-    //    []);
+    OP_DECLARE_TEST_CASE("EventSupplier", "unknown-event", [](OP::utest::TestRuntime& tresult) {
+
+        supplier_t supplier;
+
+        tresult.assert_exception<std::invalid_argument>([&]() {
+            auto un = supplier.subscribe(
+                SomeEv::no_match, [&]() {tresult.fail("this code must never be called"); });
+            //never reach code
+            tresult.fail("this code must never be reached");
+            });
+
+        });
 } //ns:

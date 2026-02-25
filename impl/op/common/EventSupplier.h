@@ -375,15 +375,16 @@ namespace OP::events
         *         the function returns nullptr.
         *         In contrast, the `on` method performs compile-time resolution
         *         and fails to compile if the specified event code does not exist.
+        * \throws std::invalid_argument if `code` provided unregistered event code.
         */ 
         template <class TEventCode, class F>
-        unsubscriber_t subscribe(TEventCode code, F handler) //requires std::is_invocable<F>
+        [[nodiscard]] unsubscriber_t subscribe(TEventCode event_code, F handler) //requires std::is_invocable<F>
         {
             std::unique_ptr<Unsubscriber> result;
             auto sel_subscription = [&](auto& single) -> bool {
                 using assoc_t = std::decay_t<decltype(single)>;
                 using event_sub_t = sub_by_event_code_t<assoc_t::code>;
-                if (assoc_t::code == code)
+                if (assoc_t::code == event_code)
                 {
                     using payload_t = typename event_sub_t::type;
                     using subscriber_t = FunctorSubscription<F, payload_t>;
@@ -394,9 +395,11 @@ namespace OP::events
                 return false;
                 };
 
-            std::apply([&](auto& ...single_sub) {
-                static_cast<void>((... || sel_subscription(single_sub))); //lasts until `true`
+            bool has_result = std::apply([&](auto& ...single_sub) -> bool {
+                return (... || sel_subscription(single_sub)); //lasts until `true`
                 }, _subscriptions);
+            if (!has_result)
+                throw std::invalid_argument("event_code");
             return result; //may be null
         }
 
