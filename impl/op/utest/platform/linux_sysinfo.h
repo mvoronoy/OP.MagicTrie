@@ -21,7 +21,7 @@ namespace OP::utest::sysinfo::platform
                 for(; pos < line.size(); ++pos)
                 {
                     if( std::isdigit(line[pos]) )
-                        return std::stof(line, pos);
+                        return std::stof(line.substr(pos));
                 }
                 //something wrong with info
                 return {};
