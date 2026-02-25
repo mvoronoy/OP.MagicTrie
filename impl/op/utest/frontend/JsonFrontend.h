@@ -11,6 +11,7 @@
 #include <op/common/Assoc.h>
 
 #include <op/utest/unit_test.h>
+#include <op/utest/sysinfo.h>
 
 namespace OP::utest::frontend
 {
@@ -118,7 +119,7 @@ namespace OP::utest::frontend
         template <class Os, class Ratio>
         static void ratio_time(Os& os, Ratio)
         {
-            os << "10^-" << Ratio::den << "s";
+            os << "10e-" << Ratio::den << "s";
         }
 
         template <class Os>
@@ -138,7 +139,37 @@ namespace OP::utest::frontend
         {
             os << "ns";
         }
+        
+        template <class Os>
+        static void ratio_fq(Os& os, std::giga)
+        {
+            os << "GHz";
+        }
                                        
+        template <class Os>
+        static void ratio_fq(Os& os, std::mega)
+        {
+            os << "MHz";
+        }
+                                       
+        template <class Rep, class Ratio>
+        static std::string as_value(const OP::utest::sysinfo::Measure<Rep, Ratio>& measure)
+        {
+            std::ostringstream os;
+            ratio_fq(os << "{ \"", Ratio{});
+            os << "\": ";
+            if (measure.has_value())
+            {
+                os << std::fixed << std::setprecision(3) << measure.value();
+            }
+            else
+            {
+                os << "null";
+            }
+            os << " }";
+            return std::move(os).str();
+        }
+
         template <class Rep, class Ratio>
         static std::string as_value(const std::chrono::duration<Rep, Ratio>& dur)
         {
@@ -277,6 +308,7 @@ namespace OP::utest::frontend
         static inline const char kw_start_time[] = "start_time";
         static inline const char kw_end_time[] = "end_time";
         static inline const char kw_duration[] = "duration";
+        static inline const char kw_cpu[] = "cpu";
         static inline const char kw_total[] = "total";
         static inline const char kw_test_cases[] = "cases";
         static inline const char kw_fixture[] = "fixture";
@@ -312,7 +344,8 @@ namespace OP::utest::frontend
             }
             formatter(
                 kv(kw_duration, duration),
-                kv(kw_total, all_result.size())
+                kv(kw_total, all_result.size()),
+                kv(kw_cpu, OP::utest::sysinfo::cpu_frequency())
             );
             for(auto i = 0; i < _summary_aggregate_by_status.size(); ++i)
             {

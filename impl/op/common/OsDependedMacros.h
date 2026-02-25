@@ -61,7 +61,9 @@
 
 #elif __linux__ //LINUX platform
     #define OP_COMMON_OS_LINUX
-#endif // _WINDOWS
+#elif __APPLE__
+    #define OP_COMMON_OS_MACOS
+#endif // _WINDOWS/__linux__/__APPLE__
 
 
 #endif //_OP_COMMON_OSDEPENDEDMACROS__H_
