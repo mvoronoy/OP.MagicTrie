@@ -4,6 +4,7 @@
 #include <array>
 
 #include <op/common/EventSupplier.h>
+
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 
@@ -25,6 +26,8 @@ namespace
         OP::Assoc<SomeEv::a, a_payload>,
         OP::Assoc<SomeEv::b, b_payload>,
         OP::Assoc<SomeEv::c, c_payload>>;
+    
+    static supplier_t _fix_issue_inst;
 
     using namespace std::placeholders;
     using namespace OP::utest;
@@ -91,11 +94,12 @@ namespace
         }
     };
 
-    static void test_General(OP::utest::TestRuntime& result) 
+    void test_General(OP::utest::TestRuntime& result) 
     {
-
         supplier_t supplier;
+
         TestProgram program(supplier, result);
+
         if(1==1)
         {
             auto unsub1 = std::make_tuple(
@@ -141,6 +145,6 @@ namespace
         .declare("general", test_General)
         ;
 
-    //OP_DECLARE_TEST_CASE(, "basic",
+    //OP_DECLARE_TEST_CASE("EventSupplier", "general",
     //    []);
 } //ns:
