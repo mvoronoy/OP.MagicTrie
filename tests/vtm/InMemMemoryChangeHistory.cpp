@@ -19,16 +19,16 @@ namespace
     using namespace std::string_literals;
     using namespace OP::vtm;
 
+    using transaction_id_t = typename MemoryChangeHistory::transaction_id_t;
+    using RWR = typename MemoryChangeHistory::RWR;
+
 
     void test_Emplace(OP::utest::TestRuntime& tresult)
     {
-        using RWR = typename MemoryChangeHistory::RWR;
-        using transaction_id_t = typename MemoryChangeHistory::transaction_id_t;
 
-        OP::utils::ThreadPool tp;
-        OP::vtm::InMemoryChangeHistory m_history(tp);
+        OP::utils::ThreadPool thread_pool;
+        OP::vtm::InMemoryChangeHistory m_history(thread_pool);
 
-        constexpr std::uint8_t transactions_per_file_c = 5;
         constexpr size_t block_test_width_c = 32;
 
         // data generator for specific transaction
@@ -39,7 +39,8 @@ namespace
             return result;
             };
 
-        constexpr transaction_id_t max_tran_n = transactions_per_file_c * 5 + 3;
+        constexpr transaction_id_t max_tran_n = 28;
+
         constexpr auto as_buf = [](auto history) {
             return std::get<ShadowBuffer>(std::move(history));
             };
@@ -73,11 +74,11 @@ namespace
         std::vector<std::future<void>> test_tasks;
         constexpr size_t parallel_factor_c = 5;
         constexpr size_t threads_count_c = parallel_factor_c * 2;
-        OP::utils::ThreadPool thr_pool(threads_count_c);
+
         OP::utils::Waitable<bool, OP::utils::WaitableSemantic::all> sync_start(false);
 
         for (int current_thread = 0; current_thread < threads_count_c; ++current_thread)
-            test_tasks.emplace_back(thr_pool.async([&](transaction_id_t current_tran) {
+            test_tasks.emplace_back(thread_pool.async([&](transaction_id_t current_tran) {
             auto init_buf = test_block_gen(current_tran);
             std::ostringstream os;  //render some noise stuff
             os << std::setfill('-')
@@ -120,7 +121,7 @@ namespace
         ///////////////////////////////////////////////////////////////////////////
         /// Test altering of memory
         ///////////////////////////////////////////////////////////////////////////
-        tresult.info() << "Test `destroy` and concurrent access\n";
+        tresult.info() << "Test altering of memory\n";
 
         //alter some buffers
         rwr = RWR{ 1, block_test_width_c / 2 };
@@ -195,8 +196,96 @@ namespace
         }
 
     }
+    
+    void test_ROConcurrent(OP::utest::TestRuntime& tresult)
+    {
+        OP::utils::ThreadPool thread_pool;
+        OP::vtm::InMemoryChangeHistory m_history(thread_pool);
+
+        const std::string wr_data( { 'w', 'r', 'w', 'r', 'w', 'r', 'w', 'r', 'w', 'r', 'w', 'r', 'w', 'r', '0', '1' });
+        const std::string ro_data( { 'r', 'o', 'r', 'o', 'r', 'o', 'r', 'o', 'r', 'o', 'r', 'o', 'r', 'o', '3', '4', });
+        const transaction_id_t wr_tran = 1;
+        const transaction_id_t ro_tran = 2;
+
+        //check memory isolation
+        auto check_memory_isolation = [&](const RWR& range, transaction_id_t transaction, ReadIsolation isolation, const std::string& expected) {
+            auto current = m_history.read_isolation(isolation);
+            assert(expected.size() == range.count());
+            try {
+                std::string random_data(range.count(), 'R');
+                auto ro_block = m_history.buffer_of_region(range, transaction, MemoryRequestType::ro, 
+                    isolation == ReadIsolation::ReadCommitted 
+                    ? expected.data()
+                    : random_data.data());
+                auto& buf = std::get<ShadowBuffer>(ro_block);
+                tresult.assert_that<eq_ranges>(
+                    expected.begin(), expected.end(),
+                    buf.get(), buf.get() + buf.size(),
+                    OP_CODE_DETAILS() << "RO-tran #" << transaction << " resolved wrong data\n"
+                );
+                //restore previous isolation
+                m_history.read_isolation(current);
+            }
+            catch (...) {
+                //restore previous
+                m_history.read_isolation(current);
+                throw;
+            }
+            };
+
+
+        m_history.on_new_transaction(wr_tran);
+        RWR wr_range{ 10, wr_data.size() };
+        auto wr_block = m_history.buffer_of_region(wr_range, wr_tran, MemoryRequestType::wr, wr_data.data());
+        auto& buf1 = std::get<ShadowBuffer>(wr_block);
+        tresult.assert_that<eq_ranges>(
+            buf1.get(), buf1.get() + buf1.size(),
+            wr_data.begin(), wr_data.end());
+
+        tresult.info() << "Test same tran, RO request can see changes of data...\n";
+        for (ReadIsolation l : {ReadIsolation::Prevent, ReadIsolation::ReadCommitted, ReadIsolation::ReadUncommitted})
+            check_memory_isolation(wr_range, wr_tran, l, wr_data);
+
+        tresult.info() << "Test other tran, RO request for dirty-read can see changes of data...\n";
+        check_memory_isolation(wr_range, ro_tran, ReadIsolation::ReadUncommitted, wr_data);
+
+        tresult.info() << "Test other tran, RO request cannot see changes of data...\n";
+        check_memory_isolation(wr_range, ro_tran, ReadIsolation::ReadCommitted, ro_data);
+
+        tresult.info() << "Test other tran, RO request prevents changes of data...\n";
+        tresult.assert_exception<std::bad_variant_access>([&]() {
+            check_memory_isolation(wr_range, ro_tran, ReadIsolation::Prevent, ro_data);
+            });
+
+        RWR wr_no_history_range{ 100, 12 };
+
+        auto wr_block_no_history = m_history.buffer_of_region(wr_no_history_range, wr_tran, MemoryRequestType::wr_no_history, nullptr);
+        auto& buf4 = std::get<ShadowBuffer>(wr_block_no_history);
+        for (auto i = 0; i < wr_no_history_range.count(); ++i) //alter chunk with 'x'*12 string
+            buf4.get()[i] = 'x';
+
+        auto ro_block_no_history = m_history.buffer_of_region(wr_no_history_range, wr_tran, MemoryRequestType::ro, nullptr);
+        auto& buf5 = std::get<ShadowBuffer>(ro_block_no_history);
+        tresult.assert_that<eq_ranges>(
+            buf4.get(), buf4.get() + buf4.size(),
+            buf5.get(), buf5.get() + buf5.size(), "Same tran ro buffer must see changes");
+
+        std::string other_tran_ro_data2(wr_no_history_range.count(), '-');
+        tresult.info() << "Test other tran, RO request cannot see changes of data from wr_no_history...\n";
+        check_memory_isolation(wr_no_history_range, ro_tran, ReadIsolation::ReadCommitted, other_tran_ro_data2);
+
+        tresult.info() << "Test other tran, RO request for dirty-read can see changes of data from wr_no_history...\n";
+        check_memory_isolation(wr_no_history_range, ro_tran, ReadIsolation::ReadUncommitted, 
+            std::string(buf4.get(), buf4.get()+buf4.size()));
+
+        tresult.info() << "Test other tran, RO request prevents changes of data from wr_no_history...\n";
+        tresult.assert_exception<std::bad_variant_access>([&]() {
+            check_memory_isolation(wr_no_history_range, ro_tran, ReadIsolation::Prevent, other_tran_ro_data2);
+            });
+    }
 
     static auto& module_suite = OP::utest::default_test_suite("vtm.InMemMemoryChangeHistory")
         .declare("emplace", test_Emplace)
+        .declare("ro-concurrent", test_ROConcurrent)
         ;
 } //ns:

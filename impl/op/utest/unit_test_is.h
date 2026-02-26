@@ -79,13 +79,13 @@ namespace OP::utest
     };
 
     template <const auto& marker>
-    constexpr static inline negate_t<std::decay_t<decltype(marker)> > negate(marker);
+    constexpr static inline negate_t<std::decay_t<decltype(marker)> > negate{ marker };
 
     template <class Marker>
     using logical_not_t = negate_t<Marker>;
 
     template <const auto& marker>
-    constexpr static inline logical_not_t<std::decay_t<decltype(marker)>> logical_not(marker);
+    constexpr static inline logical_not_t<std::decay_t<decltype(marker)>> logical_not{ marker };
 
     /** Marker specifies equality operation between two arguments */
     struct equals_t : details::marker_arity<2>
