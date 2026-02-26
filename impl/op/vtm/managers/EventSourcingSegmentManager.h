@@ -5,7 +5,7 @@
 #include <thread>
 #include <shared_mutex>
 #include <queue>
-#include <optional>
+#include <variant>
 
 #include <op/common/Exceptions.h>
 #include <op/common/Unsigned.h>
@@ -37,6 +37,7 @@ namespace OP::vtm
         wr_no_history
     };
 
+    
     /** \brief Interface to manage storage of history change log.
     * 
     * This is supposed to work together with EventSourcingSegmentManager allowing separate memory management operations from
@@ -48,6 +49,16 @@ namespace OP::vtm
         overflow of segment_pos_t */
         using RWR = OP::Range<far_pos_t, far_pos_t>;
         using transaction_id_t = typename Transaction::transaction_id_t;
+
+        struct ConcurrentAccessError
+        {
+            RWR _requested_range;
+            transaction_id_t _requesting_transaction;
+            RWR _locked_range;
+            transaction_id_t _locking_transaction;
+        };
+        
+        using query_region_result_t = std::variant<ShadowBuffer, ConcurrentAccessError>;
             
         MemoryChangeHistory() noexcept = default;
         virtual ~MemoryChangeHistory() = default;
@@ -67,13 +78,13 @@ namespace OP::vtm
         * \param tid - transaction id;
         * \param memory_type - type of memory to return;
         * \param init_data - optional source buffer to copy initialization data. May be nullptr.
-        * \return Buffer or empty if requested region can causes ConcurrentLock state.
+        * \return Buffer or error information if requested region can causes ConcurrentLock state.
         *  Depending on the following preconditions return buffer may contain serialized copy of changes made in current transaction so far:
         *   - For `memory_type` flags other than `wr_no_history` buffer contains actual value of current transaction state. That includes
         *     copy of `init_data` (if specifed) then previous updates related to region `range` in the current transaction).
         *   - For `memory_type` flag `wr_no_history` result is just random noise. 
         */
-        [[nodiscard]] virtual std::optional<ShadowBuffer> buffer_of_region(
+        [[nodiscard]] virtual query_region_result_t buffer_of_region(
             const RWR& range, transaction_id_t tid, MemoryRequestType memory_type, const void* init_data) = 0;
 
         /** \brief Destroy previously allocated by #buffer_of_region buffer for specific transaction 
@@ -219,9 +230,15 @@ namespace OP::vtm
             auto buffer = _change_history_manager->buffer_of_region(
                 search_range, current_transaction->transaction_id(), 
                 MemoryRequestType::ro, result.at<std::uint8_t>(0));
-            if(!buffer)
-                throw ConcurrentLockException();
-            return ReadonlyMemoryChunk(std::move(buffer.value()), size, pos);
+            using access_error_t = typename MemoryChangeHistory::ConcurrentAccessError;
+            if (std::holds_alternative<access_error_t>(buffer))
+            {
+                const auto& error = std::get<access_error_t>(buffer);
+                throw ConcurrentLockException(
+                    pos, current_transaction->transaction_id(), 
+                    FarAddress(error._locked_range.pos()), error._locking_transaction);
+            }
+            return ReadonlyMemoryChunk(std::move(std::get<ShadowBuffer>(buffer)), size, pos);
         }
 
 
@@ -239,21 +256,28 @@ namespace OP::vtm
                 throw Exception(ErrorCodes::er_transaction_not_started);
                 
             RWR search_range(pos, size);
-            auto result = _base_manager->writable_block(pos, size);
+            auto real_iamge = _base_manager->writable_block(pos, size);
             
-            auto buffer = 
+            auto result = 
                 (hint == WritableBlockHint::new_c) //no need for initial copy
                 ? _change_history_manager->buffer_of_region(
                     search_range, current_transaction->transaction_id(),
                     MemoryRequestType::wr_no_history, nullptr)
                 :  _change_history_manager->buffer_of_region(
                     search_range, current_transaction->transaction_id(),
-                    MemoryRequestType::wr, result.at<std::uint8_t>(0))
+                    MemoryRequestType::wr, real_iamge.at<std::uint8_t>(0))
                 ;
-            if(!buffer)
-                throw ConcurrentLockException();
-            auto ghost = buffer->ghost();
-            current_transaction->store_log_record(std::move(buffer.value()), result.pos());
+            using access_error_t = typename MemoryChangeHistory::ConcurrentAccessError;
+            if (std::holds_alternative<access_error_t>(result))
+            {
+                const auto& error = std::get<access_error_t>(result);
+                throw ConcurrentLockException(
+                    pos, current_transaction->transaction_id(),
+                    FarAddress(error._locked_range.pos()), error._locking_transaction);
+            }
+            auto buffer = std::move(std::get<ShadowBuffer>(result));
+            auto ghost = buffer.ghost();
+            current_transaction->store_log_record(std::move(buffer), real_iamge.pos());
             return MemoryChunk(std::move(ghost), size, pos);
         }
 

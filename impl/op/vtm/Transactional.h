@@ -15,17 +15,6 @@
 
 namespace OP::vtm
 {
-    /**Exception is raised when impossible to obtain lock over memory block*/
-    struct ConcurrentLockException 
-    {
-        ConcurrentLockException() = default;
-        
-        Exception to_exception()
-        {
-            return Exception(vtm::ErrorCodes::er_transaction_concurrent_lock);
-        }
-    };
-
     /**Handler allows intercept end of transaction*/
     struct BeforeTransactionEnd
     {
@@ -90,6 +79,37 @@ namespace OP::vtm
         const transaction_id_t _transaction_id;
         std::atomic<ref_count_t> _ref_count = { 1 };
     };
+
+    /**Exception is raised when impossible to obtain lock over memory block*/
+    struct ConcurrentLockException
+    {
+        using transaction_id_t = typename Transaction::transaction_id_t;
+        
+        ConcurrentLockException() = default;
+        ConcurrentLockException(
+            FarAddress requested,
+            transaction_id_t requesting_transaction,
+            FarAddress locked_range,
+            transaction_id_t locking_transaction
+        )
+            : _requested(requested)
+            , _requesting_transaction(requesting_transaction)
+            , _locked_range(locked_range)
+            , _locking_transaction(locking_transaction)
+        {
+        }
+
+        FarAddress _requested;
+        transaction_id_t _requesting_transaction;
+        vtm::FarAddress _locked_range;
+        transaction_id_t _locking_transaction;
+
+        Exception to_exception()
+        {
+            return Exception(vtm::ErrorCodes::er_transaction_concurrent_lock);
+        }
+    };
+
 
     struct TransactionShareMode {};
 

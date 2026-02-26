@@ -35,6 +35,8 @@ namespace OP::vtm
     struct InMemoryChangeHistory : MemoryChangeHistory
     {
         using transaction_id_t = typename MemoryChangeHistory::transaction_id_t;
+        using query_region_result_t = typename MemoryChangeHistory::query_region_result_t;
+        using query_region_error_t = typename MemoryChangeHistory::ConcurrentAccessError;
 
         explicit InMemoryChangeHistory(OP::utils::ThreadPool& thread_pool)
             : _thread_pool(thread_pool)
@@ -58,14 +60,14 @@ namespace OP::vtm
             return _thread_pool;
         }
 
-        [[nodiscard]] std::optional<ShadowBuffer> buffer_of_region(
+        [[nodiscard]] query_region_result_t buffer_of_region(
             const RWR& search_range, 
             transaction_id_t transaction_id, 
             MemoryRequestType hint, 
             const void* init_data) override
         {
             if(hint >= MemoryRequestType::wr)
-            { //need to retain block
+            { //need to retain block immediately, forming linear history
                 auto& new_block = add_global_history(
                     hint,
                     search_range,
@@ -82,21 +84,35 @@ namespace OP::vtm
                 //guard that BlockType::init will be altered
                 RAIIBlockGuard block_leaking_guard(new_block);
 
-                ShadowBuffer result = new_block.buffer();
-                
-                if (hint != MemoryRequestType::wr_no_history)
+                if (hint == MemoryRequestType::wr)
                 {
+                    ShadowBuffer new_block_buffer = new_block.buffer();
                     if (init_data)//copy origin from init
-                        memcpy(result.get(), init_data, search_range.count());
-                    if(!populate_ro_block(search_range, result, transaction_id, &new_block, 
+                        memcpy(new_block_buffer.get(), init_data, search_range.count());
+                    query_region_result_t result = populate_ro_block(search_range,
+                        std::move(new_block_buffer),
+                        transaction_id,
+                        &new_block,
                         // for writes need avoid races, so not looking at _isolation and keep always 'Prevent'
-                        ReadIsolation::Prevent))
+                        ReadIsolation::Prevent);
+                    if(std::holds_alternative<query_region_error_t>(result))
                     {
-                        return {}; //concurrent lock exception
+                        return result; //concurrent lock exception
                     }
+                    // expose block to all waiters
+                    block_leaking_guard.exchange(BlockType::wr); //block is ready for use
+                    return result;
                 }
-                block_leaking_guard.exchange(BlockType::wr); //block is ready for use
-                return result;
+                else //strongly MemoryRequestType::wr_no_history
+                {
+                    query_region_result_t result = check_no_locks(
+                        new_block, new_block.buffer(), transaction_id);
+                    if (std::holds_alternative<query_region_error_t>(result))
+                        return result; //concurrent lock exception
+                    // expose block to all waiters
+                    block_leaking_guard.exchange(BlockType::wr); //block is ready for use
+                    return result;
+                }
             }
             else // no retains, just populate buffer with intersected blocks
             {
@@ -104,12 +120,11 @@ namespace OP::vtm
                 //copy origin from init
                 if (init_data)
                     memcpy(new_buffer.get(), init_data, search_range.count());
-                if(!populate_ro_block(search_range, new_buffer, transaction_id, nullptr,
-                    _isolation.load()) )
-                {
-                    return {}; //means concurrent lock exception will be raised
-                }
-                return new_buffer;
+                return populate_ro_block(
+                    search_range,
+                    std::move(new_buffer),
+                    transaction_id, nullptr,
+                    _isolation.load());
             }
         }
 
@@ -354,16 +369,16 @@ namespace OP::vtm
 
         
         /** \return true on success and false if ConcurrentException must be raised */
-        bool populate_ro_block(
+        query_region_result_t populate_ro_block(
             const RWR& search_range,
-            ShadowBuffer& new_buffer, 
+            ShadowBuffer&& new_buffer, 
             transaction_id_t current_tran,
             BlockProfile* current, 
             ReadIsolation current_isolation) noexcept
         {
+            query_region_result_t result = std::move(new_buffer); //optimistic scenario
             // find all previously used block that have any intersection with query
             // to check if readonly block is allowed
-            bool concurrent_violation = false;
             // iterate transaction log from oldest to newest and apply changes on result memory block
             indexed_for_each(search_range, [&](BlockProfile& block)->bool{ 
                 if (&block == current) //reach the end
@@ -384,7 +399,9 @@ namespace OP::vtm
                     {
                         //block_leaking_guard ensures that: `new_block_iter->_type = garbage`
                         //exception, but caller may retry later
-                        concurrent_violation = true;//throw ConcurrentLockException();
+                        result = query_region_error_t{//throw ConcurrentLockException();
+                            search_range, current_tran,
+                            block._range, block._used_in_transaction };
                         return false;//stop iteration
                     }
                     case ReadIsolation::ReadUncommitted:
@@ -395,7 +412,7 @@ namespace OP::vtm
                         [[fallthrough]];
                     default:
                         //do nothing, Ignore this WR block, proceed with origin RO memory. 
-                        return true; //jump to next of for
+                        return true; //jump to the next of iteration
                     }
                 }
                 else
@@ -428,14 +445,37 @@ namespace OP::vtm
                 assert(offset_in_dest >= 0);
 
                 memcpy(
-                    new_buffer.get() + offset_in_dest,
+                    std::get<ShadowBuffer>(result).get() + offset_in_dest,
                     block._memory + offset_in_src,
                     joined_zone.count()
                 );
-
                 return true; //iterate next
             });
-            return !concurrent_violation;
+            return result;
+        }
+
+        query_region_result_t check_no_locks(
+            BlockProfile& current,
+            ShadowBuffer&& new_buffer,
+            transaction_id_t current_tran) noexcept
+        {
+            query_region_result_t result = std::move(new_buffer); //optimistic scenario
+            indexed_for_each(current._range, [&](BlockProfile& block)->bool {
+                if (&block == &current) //reach the end
+                    return false;
+                if (current_tran == block._used_in_transaction) //not interesting of same transaction blocks, skip it
+                    return true;
+                if (block._type.load() == BlockType::garbage)
+                    return true;
+                auto joined_zone = OP::zones::join_zones(current._range, block._range);
+                if (joined_zone.empty())  //no intersection => no race
+                    return true;
+                result = query_region_error_t{//throw ConcurrentLockException();
+                    current._range, current_tran,
+                    block._range, block._used_in_transaction };
+                return false;//stop iteration
+                });
+            return result;
         }
 
         void complete_transaction(transaction_id_t transaction_id)
