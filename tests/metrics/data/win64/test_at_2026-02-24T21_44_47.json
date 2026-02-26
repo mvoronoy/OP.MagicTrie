@@ -1,0 +1,2118 @@
+
+{
+    "suites": [
+        {
+            "id": "AppendAtomicList", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:326Z" }, 
+            "cases": [
+                {
+                    "id": "general", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:327Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4216700 }
+                }, 
+                {
+                    "id": "indexing", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:331Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 36037100 }
+                }
+            ], 
+            "duration": { "ns": 45968400 }
+        }, 
+        {
+            "id": "Arbitrary", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:370Z" }, 
+            "cases": [
+                {
+                    "id": "align", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:370Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 30700 }
+                }
+            ], 
+            "duration": { "ns": 1216000 }
+        }, 
+        {
+            "id": "Bitset", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:371Z" }, 
+            "cases": [
+                {
+                    "id": "general", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:371Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1386200 }
+                }, 
+                {
+                    "id": "finds", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:373Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 18300 }
+                }, 
+                {
+                    "id": "count", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:374Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4100 }
+                }
+            ], 
+            "duration": { "ns": 3511300 }
+        }, 
+        {
+            "id": "CmdLine", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:375Z" }, 
+            "cases": [
+                {
+                    "id": "basic", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:375Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 501100 }
+                }, 
+                {
+                    "id": "required", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:376Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 284900 }
+                }, 
+                {
+                    "id": "usage", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:376Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 10100 }
+                }
+            ], 
+            "duration": { "ns": 3031800 }
+        }, 
+        {
+            "id": "Currying", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:377Z" }, 
+            "cases": [
+                {
+                    "id": "basic", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:378Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 7200 }
+                }, 
+                {
+                    "id": "cast", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:378Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 900 }
+                }, 
+                {
+                    "id": "retval", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:379Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 100 }
+                }, 
+                {
+                    "id": "example", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:379Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 5800 }
+                }, 
+                {
+                    "id": "member", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:380Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 2400 }
+                }
+            ], 
+            "duration": { "ns": 3438600 }
+        }, 
+        {
+            "id": "EventSupplier", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:381Z" }, 
+            "cases": [
+                {
+                    "id": "general", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:381Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 37600 }
+                }
+            ], 
+            "duration": { "ns": 885300 }
+        }, 
+        {
+            "id": "FixedString", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:382Z" }, 
+            "cases": [
+                {
+                    "id": "basic", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:382Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 28900 }
+                }, 
+                {
+                    "id": "append", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:382Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 42900 }
+                }, 
+                {
+                    "id": "cmp", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:383Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 400 }
+                }, 
+                {
+                    "id": "replace", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:383Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 26100 }
+                }, 
+                {
+                    "id": "substr", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:384Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 10200 }
+                }
+            ], 
+            "duration": { "ns": 2928000 }
+        }, 
+        {
+            "id": "MixedAdapter", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:385Z" }, 
+            "cases": [
+                {
+                    "id": "default", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:385Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1876300 }
+                }, 
+                {
+                    "id": "child", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:390Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1593900 }
+                }, 
+                {
+                    "id": "ISSUE_0002", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:393Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                        "issue"
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1529000 }
+                }, 
+                {
+                    "id": "prefix-join", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:395Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1459000 }
+                }, 
+                {
+                    "id": "prefix-join-flat-map", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:396Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 125776400 }
+                }, 
+                {
+                    "id": "prefix-join-unordered", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:523Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1760900 }
+                }, 
+                {
+                    "id": "prefix", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:525Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1274700 }
+                }
+            ], 
+            "duration": { "ns": 142334200 }
+        }, 
+        {
+            "id": "Multiimplementation", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:527Z" }, 
+            "cases": [
+                {
+                    "id": "construct", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:527Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 16100 }
+                }, 
+                {
+                    "id": "destruct", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:528Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 8900 }
+                }, 
+                {
+                    "id": "destruct-no-vdtor", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:528Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1900 }
+                }
+            ], 
+            "duration": { "ns": 1661100 }
+        }, 
+        {
+            "id": "Trie.core", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:529Z" }, 
+            "cases": [
+                {
+                    "id": "creation", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:530Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1819500 }
+                }, 
+                {
+                    "id": "insertion", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:532Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 16032800 }
+                }, 
+                {
+                    "id": "insertion-grow", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:549Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4055200 }
+                }, 
+                {
+                    "id": "update values", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:554Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1599700 }
+                }, 
+                {
+                    "id": "lower_bound", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:556Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1947200 }
+                }, 
+                {
+                    "id": "lower_bound_ISSUE001", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:559Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1304100 }
+                }, 
+                {
+                    "id": "prefixed-find", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:561Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 3555900 }
+                }, 
+                {
+                    "id": "trie-no-tran", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:565Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 14960100 }
+                }, 
+                {
+                    "id": "erase", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:581Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 129381500 }
+                }, 
+                {
+                    "id": "siblings", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:711Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1449300 }
+                }, 
+                {
+                    "id": "sync-iterator", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:713Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1360900 }
+                }, 
+                {
+                    "id": "upsert", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:715Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1817500 }
+                }, 
+                {
+                    "id": "updateStem", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:718Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1182300 }
+                }, 
+                {
+                    "id": "prefixed-insert", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:720Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 2043600 }
+                }, 
+                {
+                    "id": "prefixed-upsert", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:723Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 2165400 }
+                }, 
+                {
+                    "id": "prefixed-iterator", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:726Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1401000 }
+                }, 
+                {
+                    "id": "prefixed-erase_all", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:728Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1914100 }
+                }, 
+                {
+                    "id": "prefixed-erase_all_by_key", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:730Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1731400 }
+                }, 
+                {
+                    "id": "check_exists", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:733Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1330800 }
+                }, 
+                {
+                    "id": "children_count", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:735Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1927000 }
+                }, 
+                {
+                    "id": "next_lower_bound", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:739Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1532300 }
+                }, 
+                {
+                    "id": "issue_erase_seq_of_4", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:741Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1768000 }
+                }, 
+                {
+                    "id": "issue_next_sibling", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:743Z" }, 
+                    "fixture": "in-memory-history", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1476300 }
+                }
+            ], 
+            "duration": { "ns": 216851800 }
+        }, 
+        {
+            "id": "Trie.fixed_string", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:748Z" }, 
+            "cases": [
+                {
+                    "id": "default", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:748Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 58133800 }
+                }, 
+                {
+                    "id": "compare-with-atomstr", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:807Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 56315700 }
+                }
+            ], 
+            "duration": { "ns": 115755900 }
+        }, 
+        {
+            "id": "Trie.range", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:47:865Z" }, 
+            "cases": [
+                {
+                    "id": "subtree of prefix", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:865Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 23674000 }
+                }, 
+                {
+                    "id": "lambda on subtree", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:889Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1650700 }
+                }, 
+                {
+                    "id": "flatten", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:891Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 2328500 }
+                }, 
+                {
+                    "id": "child", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:894Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1437100 }
+                }, 
+                {
+                    "id": "iterate all by range", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:895Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1661500 }
+                }, 
+                {
+                    "id": "test native ranges of Trie", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:898Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1480400 }
+                }, 
+                {
+                    "id": "override_join_range", 
+                    "start_time": { "UTC": "2026-02-24T19:44:47:900Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 129904200 }
+                }, 
+                {
+                    "id": "ISSUE_0001", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:30Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 8578300 }
+                }, 
+                {
+                    "id": "10k", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:41Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 29435500 }
+                }
+            ], 
+            "duration": { "ns": 206795000 }
+        }, 
+        {
+            "id": "Utils", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:48:71Z" }, 
+            "cases": [
+                {
+                    "id": "uint_diff", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:71Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1900 }
+                }, 
+                {
+                    "id": "uint_diff_overflow", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:73Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 25400 }
+                }
+            ], 
+            "duration": { "ns": 2974800 }
+        }, 
+        {
+            "id": "Zones", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:48:74Z" }, 
+            "cases": [
+                {
+                    "id": "zone", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:74Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 2100 }
+                }
+            ], 
+            "duration": { "ns": 965500 }
+        }, 
+        {
+            "id": "flur.apply", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:48:75Z" }, 
+            "cases": [
+                {
+                    "id": "sum", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:75Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 12700 }
+                }, 
+                {
+                    "id": "count", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:75Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 8600 }
+                }, 
+                {
+                    "id": "for_each", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:76Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 7100 }
+                }, 
+                {
+                    "id": "drain", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:76Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 18800 }
+                }, 
+                {
+                    "id": "reduce", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:77Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1700 }
+                }, 
+                {
+                    "id": "first", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:77Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 34100 }
+                }, 
+                {
+                    "id": "last", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:77Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 23000 }
+                }, 
+                {
+                    "id": "fsum_pairwise", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:78Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 63300 }
+                }, 
+                {
+                    "id": "fsum_kahan", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:78Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 47500 }
+                }, 
+                {
+                    "id": "fsum_neumaier", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:79Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 102800 }
+                }
+            ], 
+            "duration": { "ns": 4621000 }
+        }, 
+        {
+            "id": "flur.generator", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:48:80Z" }, 
+            "cases": [
+                {
+                    "id": "noarg", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:80Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 13200 }
+                }, 
+                {
+                    "id": "bool-arg", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:80Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 11600 }
+                }, 
+                {
+                    "id": "exceptions", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:80Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 36200 }
+                }, 
+                {
+                    "id": "ptr", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:81Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 8800 }
+                }
+            ], 
+            "duration": { "ns": 1904200 }
+        }, 
+        {
+            "id": "flur.lazy_value", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:48:81Z" }, 
+            "cases": [
+                {
+                    "id": "noarg", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:82Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 6100 }
+                }, 
+                {
+                    "id": "lazy_with_state", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:82Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 9100 }
+                }
+            ], 
+            "duration": { "ns": 1246300 }
+        }, 
+        {
+            "id": "flur.minibatch", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:48:83Z" }, 
+            "cases": [
+                {
+                    "id": "base", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:83Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 615700 }
+                }
+            ], 
+            "duration": { "ns": 1412800 }
+        }, 
+        {
+            "id": "flur.multithread", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:48:84Z" }, 
+            "cases": [
+                {
+                    "id": "mt", 
+                    "start_time": { "UTC": "2026-02-24T19:44:48:84Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 9804146300 }
+                }, 
+                {
+                    "id": "exceptions", 
+                    "start_time": { "UTC": "2026-02-24T19:44:57:891Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 419574200 }
+                }
+            ], 
+            "duration": { "ns": 10240053300 }
+        }, 
+        {
+            "id": "flur.of_iter", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:326Z" }, 
+            "cases": [
+                {
+                    "id": "default", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:327Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 291600 }
+                }
+            ], 
+            "duration": { "ns": 4460100 }
+        }, 
+        {
+            "id": "flur.ordered_join", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:332Z" }, 
+            "cases": [
+                {
+                    "id": "filter", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:332Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 8624500 }
+                }, 
+                {
+                    "id": "with-single", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:342Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4900 }
+                }, 
+                {
+                    "id": "shared", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:343Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 87300 }
+                }, 
+                {
+                    "id": "ordered_no_low_bound", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:344Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 22300 }
+                }
+            ], 
+            "duration": { "ns": 16462700 }
+        }, 
+        {
+            "id": "flur.polymorphic", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:346Z" }, 
+            "cases": [
+                {
+                    "id": "basic", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:346Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 13900 }
+                }, 
+                {
+                    "id": "back", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:347Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 6700 }
+                }
+            ], 
+            "duration": { "ns": 3087800 }
+        }, 
+        {
+            "id": "flur.stl", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:350Z" }, 
+            "cases": [
+                {
+                    "id": "vector", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:350Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 231300 }
+                }, 
+                {
+                    "id": "map", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:352Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 23500 }
+                }, 
+                {
+                    "id": "set", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:353Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 3500 }
+                }, 
+                {
+                    "id": "optional", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:354Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1000 }
+                }, 
+                {
+                    "id": "optional_ptr", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:355Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1700 }
+                }, 
+                {
+                    "id": "value", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:356Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 3000 }
+                }, 
+                {
+                    "id": "iota", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:357Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 2400 }
+                }, 
+                {
+                    "id": "iterate", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:358Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4800 }
+                }
+            ], 
+            "duration": { "ns": 10209500 }
+        }, 
+        {
+            "id": "flur.string", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:359Z" }, 
+            "cases": [
+                {
+                    "id": "split", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:359Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 14800 }
+                }, 
+                {
+                    "id": "split-separator", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:360Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 7600 }
+                }
+            ], 
+            "duration": { "ns": 2402200 }
+        }, 
+        {
+            "id": "flur.then", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:361Z" }, 
+            "cases": [
+                {
+                    "id": "ordered-distinct", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:362Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 65300 }
+                }, 
+                {
+                    "id": "unordered-distinct", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:381Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 78100 }
+                }, 
+                {
+                    "id": "auto-distinct", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:382Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 14300 }
+                }
+            ], 
+            "duration": { "ns": 23996500 }
+        }, 
+        {
+            "id": "flur.then.cartesian", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:386Z" }, 
+            "cases": [
+                {
+                    "id": "cartesian", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:386Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 95700 }
+                }, 
+                {
+                    "id": "applicator", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:387Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 21300 }
+                }
+            ], 
+            "duration": { "ns": 3242800 }
+        }, 
+        {
+            "id": "flur.then.default", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:389Z" }, 
+            "cases": [
+                {
+                    "id": "or_default", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:389Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 10100 }
+                }, 
+                {
+                    "id": "or_default_sorted", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:390Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 10000 }
+                }
+            ], 
+            "duration": { "ns": 2587600 }
+        }, 
+        {
+            "id": "flur.then.diff", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:391Z" }, 
+            "cases": [
+                {
+                    "id": "diff-small-dup", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:391Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 54500 }
+                }, 
+                {
+                    "id": "ordered-diff", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:392Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 180600 }
+                }, 
+                {
+                    "id": "unordered-diff", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:393Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 16235400 }
+                }, 
+                {
+                    "id": "adaptive", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:413Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 442900 }
+                }
+            ], 
+            "duration": { "ns": 25064700 }
+        }, 
+        {
+            "id": "flur.then.exception", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:416Z" }, 
+            "cases": [
+                {
+                    "id": "on-start", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:417Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1530000 }
+                }, 
+                {
+                    "id": "on-next", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:436Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 109400 }
+                }, 
+                {
+                    "id": "on-in_range", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:438Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 46700 }
+                }, 
+                {
+                    "id": "on-current", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:439Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 95600 }
+                }, 
+                {
+                    "id": "multi", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:448Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 331000 }
+                }
+            ], 
+            "duration": { "ns": 35850200 }
+        }, 
+        {
+            "id": "flur.then.filter", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:453Z" }, 
+            "cases": [
+                {
+                    "id": "filter", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:454Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 103200 }
+                }, 
+                {
+                    "id": "filter-edge", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:455Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1700 }
+                }, 
+                {
+                    "id": "with-state", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:472Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 722900 }
+                }
+            ], 
+            "duration": { "ns": 23175700 }
+        }, 
+        {
+            "id": "flur.then.flatmap", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:476Z" }, 
+            "cases": [
+                {
+                    "id": "flatmap", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:477Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 24100 }
+                }, 
+                {
+                    "id": "rref-flatmap", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:478Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 86400 }
+                }, 
+                {
+                    "id": "cref-flatmap", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:480Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 7000 }
+                }, 
+                {
+                    "id": "flatmap-with-empty", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:481Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 9300 }
+                }, 
+                {
+                    "id": "flatmap-shared", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:483Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 19300 }
+                }, 
+                {
+                    "id": "flatmap-arb_args", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:486Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4600 }
+                }
+            ], 
+            "duration": { "ns": 22574100 }
+        }, 
+        {
+            "id": "flur.then.hierarchy", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:498Z" }, 
+            "cases": [
+                {
+                    "id": "hierarchy-deep-first-simple", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:499Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 47100 }
+                }, 
+                {
+                    "id": "hierarchy-deep-first", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:501Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 126500 }
+                }, 
+                {
+                    "id": "hierarchy-breadth-first", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:504Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 123500 }
+                }, 
+                {
+                    "id": "hierarchy-graph", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:505Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 135700 }
+                }
+            ], 
+            "duration": { "ns": 10017500 }
+        }, 
+        {
+            "id": "flur.then.maf", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:509Z" }, 
+            "cases": [
+                {
+                    "id": "maf", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:510Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 92200 }
+                }
+            ], 
+            "duration": { "ns": 3803300 }
+        }, 
+        {
+            "id": "flur.then.map", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:512Z" }, 
+            "cases": [
+                {
+                    "id": "map", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:513Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 33700 }
+                }, 
+                {
+                    "id": "mutable", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:514Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4200 }
+                }, 
+                {
+                    "id": "multichain", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:516Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 19400 }
+                }
+            ], 
+            "duration": { "ns": 18543800 }
+        }, 
+        {
+            "id": "flur.then.ord-flatmap", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:531Z" }, 
+            "cases": [
+                {
+                    "id": "ord-flatmap", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:531Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 3102500 }
+                }, 
+                {
+                    "id": "ord-flatmap-no-ord", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:537Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 41500 }
+                }
+            ], 
+            "duration": { "ns": 8459700 }
+        }, 
+        {
+            "id": "flur.then.parallel_sort", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:539Z" }, 
+            "cases": [
+                {
+                    "id": "simple", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:539Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 5816700 }
+                }, 
+                {
+                    "id": "big", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:588Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                        "long"
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 196306700 }
+                }
+            ], 
+            "duration": { "ns": 394360300 }
+        }, 
+        {
+            "id": "flur.then.zip", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:58:989Z" }, 
+            "cases": [
+                {
+                    "id": "src_zip", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:990Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 98500 }
+                }, 
+                {
+                    "id": "then_zip", 
+                    "start_time": { "UTC": "2026-02-24T19:44:58:991Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 62600 }
+                }
+            ], 
+            "duration": { "ns": 60257100 }
+        }, 
+        {
+            "id": "flur.union_all", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:59:0Z" }, 
+            "cases": [
+                {
+                    "id": "basic", 
+                    "start_time": { "UTC": "2026-02-24T19:44:59:0Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 291100 }
+                }, 
+                {
+                    "id": "shared", 
+                    "start_time": { "UTC": "2026-02-24T19:44:59:2Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 110900 }
+                }
+            ], 
+            "duration": { "ns": 11154400 }
+        }, 
+        {
+            "id": "flur.union_merge", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:59:6Z" }, 
+            "cases": [
+                {
+                    "id": "basic", 
+                    "start_time": { "UTC": "2026-02-24T19:44:59:6Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1375200 }
+                }
+            ], 
+            "duration": { "ns": 4471600 }
+        }, 
+        {
+            "id": "flur.unordered_join", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:59:18Z" }, 
+            "cases": [
+                {
+                    "id": "u-u", 
+                    "start_time": { "UTC": "2026-02-24T19:44:59:18Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 482900 }
+                }, 
+                {
+                    "id": "adaptive", 
+                    "start_time": { "UTC": "2026-02-24T19:44:59:20Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 27300 }
+                }
+            ], 
+            "duration": { "ns": 14025600 }
+        }, 
+        {
+            "id": "thread-pool", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:44:59:26Z" }, 
+            "cases": [
+                {
+                    "id": "integration", 
+                    "start_time": { "UTC": "2026-02-24T19:44:59:26Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 3012994000 }
+                }
+            ], 
+            "duration": { "ns": 3027779700 }
+        }, 
+        {
+            "id": "trie-values", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:02:63Z" }, 
+            "cases": [
+                {
+                    "id": "default", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:65Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4460300 }
+                }, 
+                {
+                    "id": "variant", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:80Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 5057400 }
+                }, 
+                {
+                    "id": "tuple", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:92Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 7332100 }
+                }, 
+                {
+                    "id": "str", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:100Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 35939000 }
+                }, 
+                {
+                    "id": "str-compact", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:143Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 35083900 }
+                }, 
+                {
+                    "id": "erase", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:180Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 64752800 }
+                }
+            ], 
+            "duration": { "ns": 195683000 }
+        }, 
+        {
+            "id": "vtm.AppendOnlyLog", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:02:247Z" }, 
+            "cases": [
+                {
+                    "id": "allocate", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:247Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 3434600 }
+                }, 
+                {
+                    "id": "new_segment", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:251Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 7720900 }
+                }
+            ], 
+            "duration": { "ns": 13249400 }
+        }, 
+        {
+            "id": "vtm.AppendOnlySkipList", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:02:260Z" }, 
+            "cases": [
+                {
+                    "id": "emplace", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:260Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4758200 }
+                }, 
+                {
+                    "id": "new_segment", 
+                    "start_time": { "UTC": "2026-02-24T19:45:02:271Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 933617800 }
+                }, 
+                {
+                    "id": "poly_list", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:206Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 62031400 }
+                }, 
+                {
+                    "id": "perf", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:269Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 181075800 }
+                }
+            ], 
+            "duration": { "ns": 1191829500 }
+        }, 
+        {
+            "id": "vtm.Containers", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:03:452Z" }, 
+            "cases": [
+                {
+                    "id": "Hash(Insert)", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:452Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 7300 }
+                }, 
+                {
+                    "id": "Hash(Erase)", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:453Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 39900 }
+                }
+            ], 
+            "duration": { "ns": 2527900 }
+        }, 
+        {
+            "id": "vtm.EventSourcingSegmentManager", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:03:454Z" }, 
+            "cases": [
+                {
+                    "id": "general", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:454Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1992600 }
+                }, 
+                {
+                    "id": "locking", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:457Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1305100 }
+                }, 
+                {
+                    "id": "memoryAlloc", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:460Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 14569800 }
+                }, 
+                {
+                    "id": "multithreadAlloc", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:475Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1841500 }
+                }, 
+                {
+                    "id": "dealloc-alloc issue in single tran", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:478Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1197200 }
+                }, 
+                {
+                    "id": "release read block", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:480Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1657200 }
+                }, 
+                {
+                    "id": "nested transactions", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:482Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 2022700 }
+                }, 
+                {
+                    "id": "test write-block include capability", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:485Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1251400 }
+                }, 
+                {
+                    "id": "test read-block include capability", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:487Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1959000 }
+                }, 
+                {
+                    "id": "transaction on overlapped blocks", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:490Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1385000 }
+                }, 
+                {
+                    "id": "ro-transaction", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:492Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1166800 }
+                }
+            ], 
+            "duration": { "ns": 40356800 }
+        }, 
+        {
+            "id": "vtm.FixedSizeMemoryManager", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:03:495Z" }, 
+            "cases": [
+                {
+                    "id": "general", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:495Z" }, 
+                    "fixture": "memory-only", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 4331300 }
+                }, 
+                {
+                    "id": "multialloc", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:506Z" }, 
+                    "fixture": "memory-only", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 2080800 }
+                }, 
+                {
+                    "id": "small-payload", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:509Z" }, 
+                    "fixture": "memory-only", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 3793400 }
+                }
+            ], 
+            "duration": { "ns": 19866700 }
+        }, 
+        {
+            "id": "vtm.InMemMemoryChangeHistory", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:03:514Z" }, 
+            "cases": [
+                {
+                    "id": "emplace", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:515Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 2987500 }
+                }
+            ], 
+            "duration": { "ns": 3923300 }
+        }, 
+        {
+            "id": "vtm.SegmentManager", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:03:519Z" }, 
+            "cases": [
+                {
+                    "id": "HeapManagerSlot", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:519Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 3596300 }
+                }
+            ], 
+            "duration": { "ns": 5121900 }
+        }, 
+        {
+            "id": "vtm.SegmentTopology", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:03:524Z" }, 
+            "cases": [
+                {
+                    "id": "general", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:524Z" }, 
+                    "fixture": "<default>", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1158500 }
+                }
+            ], 
+            "duration": { "ns": 2606600 }
+        }, 
+        {
+            "id": "vtm.StringManager", 
+            "tags": [
+            ], 
+            "start_time": { "UTC": "2026-02-24T19:45:03:527Z" }, 
+            "cases": [
+                {
+                    "id": "basic", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:527Z" }, 
+                    "fixture": "memory-only", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 5551500 }
+                }, 
+                {
+                    "id": "edgecase-transactional", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:534Z" }, 
+                    "fixture": "memory-only", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 36122200 }
+                }, 
+                {
+                    "id": "edgecase-no-tran", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:572Z" }, 
+                    "fixture": "memory-only", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 45808800 }
+                }, 
+                {
+                    "id": "smart-str", 
+                    "start_time": { "UTC": "2026-02-24T19:45:03:619Z" }, 
+                    "fixture": "memory-only", 
+                    "tags": [
+                    ], 
+                    "status": "ok", 
+                    "duration": { "ns": 1422500 }
+                }
+            ], 
+            "duration": { "ns": 95587200 }
+        }
+    ], 
+    "summary": {
+        "duration": { "ms": 15648.524 }, 
+        "total": 183, 
+        "ok": 183
+    }
+}
