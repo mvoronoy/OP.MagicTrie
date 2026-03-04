@@ -344,8 +344,8 @@ namespace OP::utest::frontend
             }
             formatter(
                 kv(kw_duration, duration),
-                kv(kw_total, all_result.size()),
-                kv(kw_cpu, OP::utest::sysinfo::cpu_frequency())
+                kv(kw_cpu, OP::utest::sysinfo::cpu_frequency()),
+                kv(kw_total, all_result.size())
             );
             for(auto i = 0; i < _summary_aggregate_by_status.size(); ++i)
             {

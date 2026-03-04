@@ -11,16 +11,40 @@
 #include <cassert>
 #include <thread>
 
+#include <op/common/EventSupplier.h>
+#include <op/common/Assoc.h>
+
 #include <op/vtm/vtm_error.h>
 
 namespace OP::vtm
 {
-    /**Handler allows intercept end of transaction*/
-    struct BeforeTransactionEnd
+    struct Transaction;
+
+    /** Events of transaction lifecycle */
+    struct TransactionEvent
     {
-        virtual ~BeforeTransactionEnd() = default;
-        virtual void on_commit() = 0;
-        virtual void on_rollback() = 0;
+        using transaction_id_t = std::uint64_t;
+        enum
+        {
+            /** transaction has been started, argument: Transaction& */
+            started = 1,
+            /** transaction going to commit, argument: Transaction& */
+            before_commit,
+            /** transaction has been committed, argument: Transaction& */
+            committed,
+            /** transaction going to rollback, argument: Transaction& */
+            before_rollback,
+            /** transaction has been rolled back, argument: Transaction& */
+            rolledback,
+        };
+        
+        using event_supplier_t = OP::events::EventSupplier<
+            Assoc<started, transaction_id_t>,
+            Assoc<before_commit, transaction_id_t>,
+            Assoc<committed, transaction_id_t>,
+            Assoc<before_rollback, transaction_id_t>,
+            Assoc<rolledback, transaction_id_t>
+        >;
     };
 
     /**
@@ -28,56 +52,35 @@ namespace OP::vtm
     */
     struct Transaction
     {
-        using transaction_id_t = std::uint64_t;
-        using ref_count_t = std::ptrdiff_t;
+        using transaction_id_t = typename TransactionEvent::transaction_id_t;
 
-        friend struct TransactionGuard;
+        explicit Transaction(transaction_id_t id) noexcept:
+            _transaction_id(id)
+        {
+        }
+
+        virtual ~Transaction() noexcept = default;
+
 
         Transaction() = delete;
         Transaction(const Transaction&) = delete;
         Transaction& operator = (const Transaction&) = delete;
         Transaction& operator = (Transaction&& other) = delete;
 
-        //Transaction(Transaction && other) noexcept :
-        //    _transaction_id(other._transaction_id)
-        //{
-        //}
-
-        ref_count_t add_ref() noexcept
-        {
-            return ++_ref_count;
-        }
-
-        ref_count_t release() noexcept
-        {
-            auto r = --_ref_count;
-            assert(r >= 0);
-            if (!r)
-                delete this;
-            return r;
-        }
-
-        virtual transaction_id_t transaction_id() const noexcept
+        constexpr transaction_id_t transaction_id() const noexcept
         {
             return _transaction_id;
         }
 
-        /**Register handler that is invoked during rollback/commit process*/
-        virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) = 0;
+        virtual std::shared_ptr<Transaction> recurrent() = 0;
+
         virtual void rollback() = 0;
         virtual void commit() = 0;
-
-    protected:
-        Transaction(transaction_id_t id) :
-            _transaction_id(id)
-        {
-        }
-        virtual ~Transaction() noexcept = default;
+        virtual std::shared_ptr<Transaction> merge_thread() = 0;
+        virtual void unmerge_thread() = 0;
 
     private:
-
         const transaction_id_t _transaction_id;
-        std::atomic<ref_count_t> _ref_count = { 1 };
     };
 
     /**Exception is raised when impossible to obtain lock over memory block*/
@@ -111,176 +114,11 @@ namespace OP::vtm
     };
 
 
-    struct TransactionShareMode {};
 
-    template <class T = Transaction>
-    struct TransactionPtr
-    {
-        constexpr TransactionPtr() noexcept
-            :_instance{ nullptr }
-        {
-        }
-
-        constexpr explicit TransactionPtr(T* instance) noexcept
-            :_instance{ instance }
-        {
-        }
-
-        /** special constructor to capture instance with automatic `add_ref`.
-        *
-        */
-        constexpr TransactionPtr(TransactionShareMode, T* instance) noexcept
-            :_instance{ instance }
-        {
-            if (_instance)
-                _instance->add_ref();
-        }
-
-
-        constexpr TransactionPtr(const TransactionPtr<T>& other) noexcept
-            :_instance{ other.get() }
-        {
-            if (_instance)
-                _instance->add_ref();
-        }
-
-        template <class U>
-        constexpr TransactionPtr(const TransactionPtr<U>& other) noexcept
-            :_instance{ other.get() }
-        {
-            if (_instance)
-                _instance->add_ref();
-        }
-
-        template <class U>
-        constexpr TransactionPtr(TransactionPtr<U>&& other) noexcept
-            :_instance{ static_cast<T*>(other.detach()) }
-        {
-        }
-
-        ~TransactionPtr() noexcept
-        {
-            destroy();
-        }
-
-        void destroy() noexcept
-        {
-            if (_instance)
-            {
-                _instance->release();
-                _instance = nullptr;
-            }
-        }
-
-        T* detach()
-        {
-            T* temp = _instance;
-            _instance = nullptr;
-            return temp;
-        }
-
-        template <class U>
-        TransactionPtr& operator = (const TransactionPtr<U>& other) noexcept
-        {
-            if (other._instance)
-                other._instance->add_ref();
-            destroy();
-            _instance = other._instance;
-            return *this;
-        }
-
-        template <class U>
-        TransactionPtr& operator = (TransactionPtr<U>&& other) noexcept
-        {
-            destroy();
-            _instance = other.detach();
-            return *this;
-        }
-
-        T* get() const noexcept
-        {
-            return _instance;
-        }
-
-        T* operator ->() noexcept
-        {
-            return _instance;
-        }
-
-        const T* operator ->() const noexcept
-        {
-            return _instance;
-        }
-
-        T& operator *() const noexcept
-        {
-            assert(_instance);
-            return *_instance;
-        }
-
-        const T& operator *() noexcept
-        {
-            assert(_instance);
-            return *_instance;
-        }
-
-        constexpr operator bool() const noexcept
-        {
-            return _instance;
-        }
-
-        constexpr bool operator !() const noexcept
-        {
-            return !_instance;
-        }
-
-        constexpr bool operator ==(std::nullptr_t) const noexcept
-        {
-            return !_instance;
-        }
-
-        constexpr bool operator !=(std::nullptr_t) const noexcept
-        {
-            return operator bool();
-        }
-
-        template <class U>
-        auto static_pointer_cast() const& noexcept
-        {
-            using dest_type_t = std::remove_pointer_t<U>;
-            using dest_ptr_t = std::add_pointer_t<U>;
-            using dest_t = TransactionPtr<dest_type_t>;
-            if (_instance)
-            {
-                _instance->add_ref();
-                return dest_t{ static_cast<dest_ptr_t>(_instance) };
-            }
-            return dest_t{};
-        }
-
-        template <class U>
-        auto static_pointer_cast() && noexcept
-        {
-            using dest_type_t = std::remove_pointer_t<U>;
-            using dest_ptr_t = std::add_pointer_t<U>;
-            using dest_t = TransactionPtr<dest_type_t>;
-            if (_instance)
-            {
-                auto temp = _instance;
-                _instance = nullptr;
-                return dest_t{ static_cast<dest_ptr_t>(temp) };
-            }
-            return dest_t{};
-        }
-
-    private:
-        T* _instance;
-    };
-
-    using transaction_ptr_t = TransactionPtr<Transaction>;
+    using transaction_ptr_t = std::shared_ptr<Transaction>;
 
     /** No-op transaction implementation */
-    struct NoOpTransaction : public Transaction
+    struct NoOpTransaction : public Transaction, std::enable_shared_from_this<Transaction>
     {
 
         explicit NoOpTransaction(transaction_id_t id) noexcept
@@ -288,41 +126,89 @@ namespace OP::vtm
         {
         }
 
-        virtual void register_handle(std::unique_ptr<BeforeTransactionEnd> handler) override
+        virtual std::shared_ptr<Transaction> recurrent()
         {
-            _end_listener.emplace_back(std::move(handler));
+            return shared_from_this();
         }
 
         virtual void rollback() override
         {
             //invoke events on transaction end
-            for (auto& ev : _end_listener)
-            {
-                ev->on_rollback();
-            }
         }
 
         virtual void commit() override
         {
             //invoke events on transaction end
-            for (auto& ev : _end_listener)
+        }
+
+        virtual std::shared_ptr<Transaction>  merge_thread() override
+        {
+            return shared_from_this();
+        }
+
+        virtual void unmerge_thread() override
+        {
+            //do nothing
+        }
+    };
+
+    /** \brief RAII guard that grants pair methods Transaction::merge_thread/Transaction::unmerge_thread be called.
+    */
+    struct ThreadMergeGuard final
+    {
+        template <class T>
+        explicit ThreadMergeGuard(T&& ro_transaction_ptr)
+            : _ro_instance(std::forward<T>(ro_transaction_ptr))
+            , _is_merged(true)
+        {
+        }
+
+        ThreadMergeGuard(ThreadMergeGuard&& other) noexcept
+            : _ro_instance(std::move(other._ro_instance))
+            , _is_merged(other._is_merged)
+        {
+            other._is_merged = false;
+        }
+
+        ThreadMergeGuard& operator = (ThreadMergeGuard&& other)
+        {
+            unmerge_thread();
+            _ro_instance = std::move(other._ro_instance);
+            _is_merged = other._is_merged;
+            other._is_merged = false;
+
+            return *this;
+        }
+
+        ThreadMergeGuard(const ThreadMergeGuard&) = delete;
+        ThreadMergeGuard& operator = (const ThreadMergeGuard&) = delete;
+
+        ~ThreadMergeGuard()
+        {
+            unmerge_thread();
+        }
+
+        void unmerge_thread()
+        {
+            if(_is_merged)
             {
-                ev->on_commit();
+                _ro_instance->unmerge_thread();
+                _is_merged = false;
             }
         }
 
-
     private:
-        using listeners_t = std::vector<std::unique_ptr<BeforeTransactionEnd>>;
-        listeners_t _end_listener;
+        transaction_ptr_t _ro_instance;
+        bool _is_merged;
     };
+
 
     /**
     *   Guard wrapper that grants transaction accomplishment.
     *   Depending on policy `commit_on_close` this RAII pattern implementation is responsible to
     *   automatically rollback or commit transaction at exit.
     */
-    struct TransactionGuard
+    struct TransactionGuard final
     {
         template <class Sh>
         explicit TransactionGuard(Sh&& instance, bool do_commit_on_close = false)
@@ -335,9 +221,15 @@ namespace OP::vtm
         TransactionGuard(const TransactionGuard&) = delete;
         TransactionGuard& operator = (const TransactionGuard&) = delete;
 
+        ~TransactionGuard()
+        {
+            if (!_is_closed)
+                _do_commit_on_close ? _instance->commit() : _instance->rollback();
+        }
+
         void commit()
         {
-            if (!!_instance)//be polite to null transactions
+            if (!!_instance)//tolerate null transactions
             {
                 assert(!_is_closed);
                 _instance->commit();
@@ -347,7 +239,7 @@ namespace OP::vtm
 
         void rollback()
         {
-            if (!!_instance)//be polite to null transactions
+            if (!!_instance)//tolerate null transactions
             {
                 assert(!_is_closed);
                 _instance->rollback();
@@ -355,12 +247,15 @@ namespace OP::vtm
             }
         }
 
-        ~TransactionGuard()
+        [[nodiscard]] ThreadMergeGuard merge_thread()
         {
-            if (!_is_closed)
-                _do_commit_on_close ? _instance->commit() : _instance->rollback();
+            return ThreadMergeGuard(_instance->merge_thread());
         }
 
+        transaction_ptr_t transaction()
+        {
+            return _instance;
+        }
     private:
         transaction_ptr_t _instance;
         bool _is_closed;
@@ -369,7 +264,7 @@ namespace OP::vtm
 
     /**
     *   Utility to repeat some operation after ConcurrentLockException has been raised.
-    *   Number of repeating peformed by N template parameter, after this number
+    *   Number of repeating performed by N template parameter, after this number
     *   exceeding ConcurrentLockException exception just propagated to caller
     */
     template <auto N, typename  F, typename  ... Args>

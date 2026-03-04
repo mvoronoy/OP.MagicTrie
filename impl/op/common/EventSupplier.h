@@ -90,8 +90,15 @@ namespace OP::events
         }
 
     private:
-        template <class M2>
-        static constexpr decltype(auto) _call(M2& method, const TPayload& body)
+        template <class M2, class TArg>
+        static constexpr decltype(auto) _call(M2& method, const TArg& body)
+        {
+            //non tuple use as-is
+            currying::recomb_call(method, body);
+        }
+
+        template <class M2, class ...Tx>
+        static constexpr decltype(auto) _call(M2& method, const std::tuple<Tx...>& body)
         {
             return std::apply(
                 [&](const auto& ...argx) {

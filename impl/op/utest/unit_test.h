@@ -397,11 +397,17 @@ namespace OP::utest
 
         enum Code
         {
+            /** Notify test execution starting */
             test_run_start = 0,
+            /** Notify full test plan execution has been completed */
             test_run_end,
+            /** Notify single suite start */
             suite_start,
+            /** Notify single suite end */
             suite_end,
+            /** Notify single case start */
             case_start,
+            /** Notify single case end */
             case_end,
             /** Notify that load-execution start warm-up cycle. Event parameter is 
             *   defined by #load_exec_event_t type, where unsigned parameter specifies number of expected warm-up calls.
@@ -531,8 +537,8 @@ namespace OP::utest
         }
 
         /**
-        *   Most generic way to check result and assert. Method takes template parameter Marker
-        *   then applied multiple Args to it. Marker can be custom or one of the standard existing in
+        *   Most generic way to check result and assert. Method takes template parameter AssertOperation
+        *   then applied multiple Args to it. AssertOperation can be custom or one of the standard existing in
          *  the namespace `OP::utest`:
         * \li equals/not_equals - to assert equality of 2 comparable arguments (including STL containers);
 
@@ -555,6 +561,7 @@ namespace OP::utest
         void assert_that(Args&& ...args)
         {
             using Marker = std::decay_t<decltype(AssertOperation)>;
+
             //consciously don't use make_tuple to have reference to argument
             auto pack_arg = std::forward_as_tuple(std::forward<Args>(args)...);
             auto that_result = details::apply_prefix(AssertOperation, pack_arg, std::make_index_sequence<Marker::args_c>());
@@ -1861,4 +1868,7 @@ namespace OP::utest
         OP::utest::default_test_suite(suite_name).declare(case_name, codebase)
 
 }//ns: OP:utest
+
+//Allow predefined predicates work with assert_that
+#include <op/utest/unit_test_is.h>
 #endif //_OP_UNIT_TEST__H_

@@ -27,28 +27,35 @@ namespace OP::vtm
             er_ro_transaction_started,
             // +7 
             er_cannot_start_ro_transaction,
-
             // +8
-            er_file_open,
-            // +9 
-            er_file_already_exists,
+            er_thread_owns_transaction,
+            // +9
+            er_cannot_close_transaction_while_merged_thread,
+
             // +10
-            er_invalid_signature,
-            // +11
-            er_write_file,
+            er_file_open,
+            // +11 
+            er_file_already_exists,
             // +12
-            er_read_file,
+            er_invalid_signature,
             // +13
+            er_write_file,
+            // +14
+            er_read_file,
+            // +15
             er_memory_mapping
         };
+
     private:
         static inline std::string er_no_memory_str = "VTM: no (disk) memory";
         static inline std::string er_invalid_block_str = "VTM: invalid memory block";
         static inline std::string er_transaction_not_started_str = "VTM: transaction is not started";
         static inline std::string er_transaction_concurrent_lock_str = "VTM: concurrent transaction already lock this memory block";
-        static inline std::string er_transaction_ghost_state_str = "VTM: invalid transaction in ghost state";
-        static inline std::string er_ro_transaction_started_str = "VTM: cannot start transaction because read-only transaction is already started";
+        static inline std::string er_transaction_ghost_state_str = "VTM: invalid transaction in ghost state, transaction-id = ";
+        static inline std::string er_ro_transaction_started_str = "VTM: data cannot be modified because read-only transaction is started";
         static inline std::string er_cannot_start_ro_transaction_str = "VTM: cannot start read-only transaction";
+        static inline std::string er_thread_owns_transaction_str = "VTM: merge_thread failed because thread already owns transaction >thread-id, tx-id>";
+        static inline std::string er_cannot_close_transaction_while_merged_thread_str = "VTM: cannot close transaction while merge_thread still opened";
         static inline std::string er_file_open_str = "VTM: file opening error";
         static inline std::string er_file_already_exists_str = "VTM: file already exists str";
         static inline std::string er_invalid_signature_str = "VTM: invalid signature";
@@ -68,6 +75,8 @@ namespace OP::vtm
             VTM_ERROR2_STR(er_transaction_ghost_state)
             VTM_ERROR2_STR(er_ro_transaction_started)
             VTM_ERROR2_STR(er_cannot_start_ro_transaction)
+            VTM_ERROR2_STR(er_thread_owns_transaction)
+            VTM_ERROR2_STR(er_cannot_close_transaction_while_merged_thread)
             VTM_ERROR2_STR(er_file_open)
             VTM_ERROR2_STR(er_file_already_exists)
             VTM_ERROR2_STR(er_invalid_signature)

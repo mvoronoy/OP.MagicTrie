@@ -166,24 +166,23 @@ namespace
 
     struct TestRecordIndexerByBloom
     {
-        std::atomic<size_t> _bloom_filter;
-        std::atomic<size_t> _min = std::numeric_limits<size_t>::max(), _max = 0;
+        size_t _bloom_filter = 0;
+        size_t _min = std::numeric_limits<size_t>::max(), _max = 0;
 
         constexpr static size_t hash(size_t v) noexcept
         {
             //good spreading of sequential bits for average case when transaction_id grows monotony
-            //return v * 0x5fe14bf901200001ull;
-            return v * 101;
+            return v * 0x5fe14bf901200001ull;
         }
 
 
         void index(const TestRecord& r) noexcept
         {
-            _bloom_filter.fetch_or(hash(r._value));
+            _bloom_filter|=hash(r._value);
             //c++26?: _min.fetch_min(r._value);
-            OP::utils::cas_extremum<std::less>(_min, r._value);
+            _min = std::min(_min, r._value);
             //c++26?: _max.fetch_max(r._value);
-            OP::utils::cas_extremum<std::greater>(_max, r._value);
+            _max = std::max(_max, r._value);
         }
         
         bool check(const TestRecord& r) const noexcept
@@ -195,7 +194,7 @@ namespace
         {
             const auto hash_v = hash(query);
 
-            return (hash_v & _bloom_filter.load(std::memory_order_acquire)) == hash_v
+            return (hash_v & _bloom_filter) == hash_v
                     && query >= _min 
                     && query <= _max
                 ;
@@ -204,10 +203,15 @@ namespace
 
     void _test_indexing_impl(OP::utest::TestRuntime& tresult)
     {
-        using indexed_container_t = OP::vtm::BucketIndexedList<TestRecord, TestRecordIndexerByBloom>;
+        using indexed_container_t = OP::vtm::BucketIndexedList<
+            TestRecord, 
+            std::default_delete<TestRecord>, 
+            TestRecordIndexerByBloom>;
         indexed_container_t co1;
         concurrent_populate(tresult, co1, 
-            [](size_t i) {return std::unique_ptr<TestRecord>(new TestRecord(i)); }
+            [](size_t i) {
+                return std::unique_ptr<TestRecord>(new TestRecord(i)); 
+            }
         );
         constexpr size_t expected_total = sum_of_arithmetic_progression(0, num_iterations * num_threads);
         constexpr auto count_sum = [](auto& container)->size_t{
@@ -323,8 +327,26 @@ namespace
         }
 #endif //#ifdef OP_COMMON_OS_WINDOWS
     }
+
+    void test_clear(OP::utest::TestRuntime& tresult)
+    {
+        using indexed_container_t = OP::vtm::BucketIndexedList<
+            TestRecord,
+            std::default_delete<TestRecord>,
+            TestRecordIndexerByBloom>;
+        indexed_container_t dut;
+        tresult.assert_that<equals>(dut.buckets_count(), 0);
+        dut.clear();
+        tresult.assert_that<equals>(dut.buckets_count(), 0);
+        dut.append(std::unique_ptr<TestRecord>(new TestRecord(57)));
+        tresult.assert_that<equals>(dut.buckets_count(), 1);
+        dut.clear();
+        tresult.assert_that<equals>(dut.buckets_count(), 0);
+    }
+
     static auto& module_suite = OP::utest::default_test_suite("AppendAtomicList")
         .declare("general", test_append_remove_clear)
         .declare("indexing", test_indexing)
+        .declare("clear", test_clear)
     ;
 } //ns:

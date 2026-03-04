@@ -19,7 +19,7 @@ namespace OP::vtm
     /** \brief thread safe container with append/remove only alter operations. Linear scan can be improved by adding arbitrary indexers 
     *
     */
-    template <class T, class ...TIndexer>
+    template <class T, class TDeleter, class ...TIndexer>
     class BucketIndexedList
     {
         enum class Status
@@ -32,70 +32,81 @@ namespace OP::vtm
         {
             using indexers_t = std::tuple<TIndexer...>;
             using usize_t = std::uint_fast16_t;
-            constexpr static usize_t capacity_c = 8;
+            using item_t = std::unique_ptr<T, TDeleter>;
 
+            constexpr static usize_t capacity_c = 8;
+            std::shared_mutex _data_acc;
             std::atomic<usize_t> _presence = 0;
             std::atomic<Status> _status{ Status::valid };
             /** indicate size occupied so far */
             std::atomic<usize_t> _size = 0;
-            std::array<std::atomic<T*>, capacity_c> _data = {};
+            std::array<item_t, capacity_c> _data = _init_array(std::make_index_sequence<capacity_c>{});
+
             indexers_t _indexers;
+            template <size_t ...Ix>
+            static constexpr auto _init_array(std::index_sequence<Ix...>) {
+                return std::array<item_t, capacity_c> { (Ix, item_t{nullptr, TDeleter{} })... };
+            }
+            Bucket(std::in_place_t) {}
+            Bucket(const Bucket&) = delete;
+            
+            ////bucket moved only once on construction by std::list, so no contribution to lock by `_data_acc`
+            //Bucket(Bucket&& other) noexcept
+            //    : _presence(other._presence)
+            //    , _status(other._status)
+            //    , _size(other._size)
+            //    , _data(std::move(other._data))
+            //    , _indexers(std::move(other._indexers))
+            //{
+            //}
 
             ~Bucket()
             {
-                _presence.store(0, std::memory_order::relaxed/*don't care about mask anymore*/); 
-                for (auto i = 0; i < _size; ++i)
-                {
-                    auto* prev = _data[i].exchange(nullptr, std::memory_order_acquire);
-                    //don't need: if(prev) since _size controls only real slots
-                    delete prev;
-                }
+                //std::unique_lock guard(_data_acc);
+                //for (auto& ref: _data)
+                //{
+                //    ref.reset()
+                //}
             }
-
+            /** \tparam F must be a functor: `bool(T*, usize_t position)` */
             template <class F>
-            bool bunch_for_each(F& callback)
+            bool bunch_for_each(F&& callback)
             {
+                std::shared_lock guard(_data_acc);
                 usize_t local_mask = _presence.load(std::memory_order_acquire);
                 for (auto i = 0; i < capacity_c && local_mask; local_mask = (_presence.load(std::memory_order_acquire) >> ++i))
                 {
                     if (local_mask & 1)
                     {
-                        auto* value = _data[i].load(std::memory_order_acquire);
+                        auto* value = _data[i].get();
                         assert(value);//mask must grant value exists
-                        if constexpr (std::is_convertible_v<decltype(callback(*value)), bool>)
-                        {
-                            if (!callback(*value))
-                                return false; //forced stop
-                        }
-                        else //lambda of non-bool result
-                        {
-                            callback(*value);
-                        }
+                        if (!callback(*value, i))
+                            return false; //forced stop
                     }
                 }
                 return true; //don't stop
             }
 
-            bool append(std::unique_ptr<T>& item)
+            bool append(std::unique_ptr<T, TDeleter>& item)
             {
-                if (_status != Status::valid)
+                //quick check without locking on atomic variables
+                if (_status.load(std::memory_order_acquire) != Status::valid 
+                    || _size.load(std::memory_order_acquire) == capacity_c)
                     return false;
+                
+                std::unique_lock wr_guard(_data_acc);
                 auto ins_index = _size.load(std::memory_order_acquire);
-                do {
-                    if (ins_index == capacity_c)
-                        return false;  // need move to other bunch
-                } while (!_size.compare_exchange_strong(
-                    ins_index, ins_index + 1,
-                    std::memory_order_acq_rel, std::memory_order_acquire));
-                //now ins_index - exact previous valid value
-                T* new_data = item.get();
-                auto* prev = _data[ins_index].exchange(item.release(), std::memory_order_acquire);
-                assert(prev == nullptr); // must not be conflict there
+                if (_status.load(std::memory_order_acquire) != Status::valid 
+                    || ins_index == capacity_c)
+                    return false;
+                _data[ins_index] = std::move(item);
+                T* new_data = _data[ins_index].get();
                 //update indexers to include new item
                 std::apply([&](auto& ...indexer) {
                     (indexer.index(*new_data), ...);
                     }, _indexers);
                 _presence.fetch_or(usize_t(1) << ins_index, std::memory_order_release); //indicate item available for scan
+                _size.fetch_add(1, std::memory_order_release);
                 return true;
             }
 
@@ -111,57 +122,50 @@ namespace OP::vtm
                 return OP::common::popcount_sideways32(local_mask); //number of 1 bits in presence mask
             }
 
-            /** Mark for deletion items where predicate F return true. Return true if item was matched 
+            /** Mark for deletion first item where predicate F return true. Return true if item was matched 
             * with predicate and marked as removed, false when not found. 
             */
             template <class F>
             bool soft_remove_if_first(F&& predicate)
             {
-                usize_t local_mask = _presence.load(std::memory_order_acquire);
-                for (auto i = 0; i < capacity_c && local_mask; local_mask = (_presence.load(std::memory_order_acquire) >> ++i))
-                {
-                    if (local_mask & 1)
-                    {
-                        auto* value = _data[i].load(std::memory_order_acquire);
-                        assert(value);//mask must grant value exists
-                        if (predicate(*value))
-                        {//clear presence
-                            usize_t new_mask = ~(usize_t(1) << i);
-                            if (!(new_mask & _presence.fetch_and(new_mask, std::memory_order_release)))
-                            {//indicate bunch available for later delete
-                                _status.store(Status::garbage, std::memory_order_release);
-                            }
-                            return true;//stop at first
+                bool item_has_removed = false;
+                bunch_for_each([&](T& value, usize_t i)->bool {
+                    if (predicate(value))
+                    {//clear presence
+                        usize_t new_mask = ~(usize_t(1) << i);
+                        if (!(new_mask & _presence.fetch_and(new_mask, std::memory_order_release))
+                            && _size.load(std::memory_order_acquire) == capacity_c //don't allow erase bunch not fully occupied
+                            )
+                        {//indicate bunch available for later delete
+                            _status.store(Status::garbage, std::memory_order_release);
                         }
+                        item_has_removed = true;//stop at first
                     }
-                }
-                return false;
+                    return !item_has_removed; //continue until first item been removed
+                    });
+                return item_has_removed;
             }
 
             template <class F>
             size_t soft_remove_if_all(F&& predicate)
             {
                 size_t result = 0;
-                usize_t local_mask = _presence.load(std::memory_order_acquire);
-                for (auto i = 0; i < capacity_c && local_mask; local_mask = (_presence.load(std::memory_order_acquire) >> ++i))
-                {
-                    if (local_mask & 1)
-                    {
-                        auto* value = _data[i].load(std::memory_order_acquire);
-                        assert(value);//mask must grant value exists
-                        if (predicate(*value))
-                        {//clear presence
-                            ++result;
-                            usize_t new_mask = ~(usize_t(1) << i);
-                            if (!(new_mask & _presence.fetch_and(new_mask, std::memory_order_release)))
-                            {//indicate bunch available for later delete
-                                _status.store(Status::garbage, std::memory_order_release);
-                                return result; //bucket is already empty, no need for loop
-                            }
-                            //go next step
+                bunch_for_each([&](T& value, usize_t i)->bool {
+                    if (predicate(value))
+                    {//clear presence
+                        ++result;
+                        usize_t new_mask = ~(usize_t(1) << i);
+                        if (!(new_mask & _presence.fetch_and(new_mask, std::memory_order_release))
+                            && _size.load(std::memory_order_acquire) == capacity_c //don't allow erase bunch not fully occupied
+                            )
+                        {//indicate bunch available for later delete
+                            _status.store(Status::garbage, std::memory_order_release);
+                            return false; //bucket is already empty, no need for loop
                         }
+                        //go next step
                     }
-                }
+                    return true;
+                    });
                 return result;
             }
             
@@ -172,7 +176,7 @@ namespace OP::vtm
         mutable std::shared_mutex _buckets_acc;
         std::atomic<size_t> _empty_buckets = 0;
 
-
+        // just dummy stub to check if `index.check(args...)` is invocable.
         constexpr static inline auto _check_lifter_ = [](const auto& index, auto&&... args) 
             -> decltype(index.check(std::forward<decltype(args)>(args)...)) {
             return index.check(std::forward<decltype(args)>(args)...);
@@ -185,24 +189,59 @@ namespace OP::vtm
             return indexer.check(query);
         }
 
+        //fallback when index.check(T) is not supported, then it is always-true result
         template <class ...Tx>
         static bool _call_indexer_check(Tx&& ...)
         {
             return true;
         }
+        /** \return true if all buckets were iterated and false if forcible stopped */
+        template <template<typename ...> typename Guard, class F>
+        bool for_each_bucket(F&& f)
+        {
+            Guard<std::shared_mutex> r_guard(_buckets_acc); //yes, even for soft-remove RO lock is enough
+            for (auto& bucket : _buckets)
+            {
+                if (bucket._status.load(std::memory_order_acquire) == Status::valid
+                    && !f(bucket))
+                    return false;
+            }
+            return true;
+        }
 
+        template <template<typename ...> typename Guard, class Q, class F>
+        bool indexed_for_each_bucket(const Q& query, F&& f)
+        {
+            return for_each_bucket<Guard>([&](Bucket& bucket) ->bool {
+                if (std::apply([&](const auto& ...indexer) -> bool {
+                    return (_call_indexer_check(indexer, query) && ...);
+                    }, bucket._indexers)
+                    && !f(bucket)
+                    )
+                    return false;
+                else
+                    return true;
+            });
+        }
     public:
 
         BucketIndexedList() = default;
 
-        void append(std::unique_ptr<T> item)
+        void append(std::unique_ptr<T, TDeleter> item)
         {
+            //optimistic scenario, use RO only if existing bucket has capacity
+            {
+                std::shared_lock r_guard(_buckets_acc);
+                if (!_buckets.empty() && _buckets.back().append(item))
+                    return;
+            }
+            // pessimistic scenario to change the bucket-list
             std::unique_lock w_guard(_buckets_acc);
-            auto* current = &(_buckets.empty() 
-                ? _buckets.emplace_back()
-                : _buckets.back());
-            while (!current->append(item))
-                current = &(_buckets.emplace_back());
+            for (auto* current = &(_buckets.empty() ? _buckets.emplace_back(std::in_place) : _buckets.back());
+                !current->append(item); )
+            {
+                current =  &_buckets.emplace_back(std::in_place);
+            } 
         }
 
         size_t buckets_count() const
@@ -219,94 +258,75 @@ namespace OP::vtm
         template <class F>
         void for_each(F&& callback)
         {
-            std::shared_lock r_guard(_buckets_acc);
-            for(auto& bucket: _buckets)
-            {
-                if (bucket._status != Status::valid)
-                    continue; //continue scan
-                if constexpr (std::is_convertible_v<decltype(callback(*bucket._data[0])), bool>)
-                {
-                    if (!bucket.bunch_for_each(callback))
-                        break;
-                }
-                else
-                {
-                    bucket.bunch_for_each(callback);
-                }
-            }
+            for_each_bucket<std::shared_lock>([&](Bucket& bucket)->bool {
+                return bucket.bunch_for_each([&](T& value, typename Bucket::usize_t)->bool {
+                    if constexpr (std::is_convertible_v<decltype(callback(value)), bool>)
+                    {//callback support stop iteration result
+                        return callback(value);
+                    }
+                    else
+                    {
+                        callback(value);
+                        return true;
+                    }
+                    });
+                });
         }
 
         template <class Query, class F>
         void indexed_for_each(const Query& query, F&& callback)
         {
-            std::shared_lock r_guard(_buckets_acc);
-            for (auto& bucket : _buckets)
-            {
-                if (bucket._status != Status::valid)
-                    continue; //continue scan
-                if (!std::apply([&](const auto& ...indexer) -> bool {
-                        return (_call_indexer_check(indexer, query) && ...);
-                    }, bucket._indexers))
-                    continue;
-                if constexpr (std::is_convertible_v<decltype(callback(*bucket._data[0])), bool>)
-                {
-                    if (!bucket.bunch_for_each(callback))
-                        break;
+            const auto callback_adapter = [&](T& value, typename Bucket::usize_t)->bool {
+                if constexpr (std::is_convertible_v<decltype(callback(value)), bool>)
+                {//callback support stop iteration result
+                    return callback(value);
                 }
                 else
                 {
-                    bucket.bunch_for_each(callback);
+                    callback(value);
+                    return true;
                 }
-            }
+            };
+            indexed_for_each_bucket<std::shared_lock>(query, [&](Bucket& bucket)->bool {
+                return bucket.bunch_for_each(callback_adapter);
+            });
         }
 
         template <class Query, class F>
         bool soft_remove_if_first(const Query& query, F&& callback)
         {
-            std::shared_lock r_guard(_buckets_acc);
-            for (auto& bucket : _buckets)
-            {
-                if (bucket._status.load(std::memory_order_acquire) != Status::valid)
-                    continue; //continue scan
-                if (!std::apply([&](const auto& ...indexer) -> bool {
-                    return (indexer.check(query) && ...);
-                    }, bucket._indexers))
-                    continue;
-                if (bucket.soft_remove_if_first(callback))
-                {
-                    if(bucket._status.load(std::memory_order_acquire) == Status::garbage) //bucket reached empty state
+            //indication of remove is forcible stop
+            return !indexed_for_each_bucket<std::shared_lock>(query, //YES, for soft-remove shared lock is used
+                [&](Bucket& bucket)->bool {
+
+                    if (bucket.soft_remove_if_first(callback))
                     {
-                        _empty_buckets.fetch_add(1, std::memory_order_release);
+                        if (bucket._status.load(std::memory_order_acquire) == Status::garbage) //bucket reached empty state
+                        {
+                            _empty_buckets.fetch_add(1, std::memory_order_release);
+                        }
+                        return false;
                     }
                     return true;
-                }
-            }
-            return false;
+                });
         }
 
         template <class Query, class F>
         [[maybe_unused]] size_t soft_remove_if_all(const Query& query, F&& callback)
         {
             size_t result = 0;
-            std::shared_lock r_guard(_buckets_acc);
-            for (auto& bucket : _buckets)
-            {
-                if (bucket._status.load(std::memory_order_acquire) != Status::valid)
-                    continue; //continue scan
-                if (!std::apply([&](const auto& ...indexer) -> bool {
-                        return (_call_indexer_check(indexer, query) && ...);
-                    }, bucket._indexers))
-                    continue;
-                 
-                if (auto inc = bucket.soft_remove_if_all(callback); inc)
-                {
-                    result += inc;
-                    if(bucket._status.load(std::memory_order_acquire) == Status::garbage) //bucket reached empty state
+            indexed_for_each_bucket<std::shared_lock>(query, //YES, for soft-remove shared lock is used
+                [&](Bucket& bucket)->bool {
+                    if (auto inc = bucket.soft_remove_if_all(callback); inc)
                     {
-                        _empty_buckets.fetch_add(1, std::memory_order_release);
+                        result += inc;
+                        if (bucket._status.load(std::memory_order_acquire) == Status::garbage) //bucket reached empty state
+                        {
+                            _empty_buckets.fetch_add(1, std::memory_order_release);
+                        }
                     }
-                }
-            }
+                    return true;//always return true for all remove
+            });
             return result;
         }
         
@@ -337,9 +357,9 @@ namespace OP::vtm
 
         void clear()
         {
-            _empty_buckets.store(0, std::memory_order_release);
             std::unique_lock w_guard(_buckets_acc);
             _buckets.clear();
+            _empty_buckets.store(0, std::memory_order_release);
         }
     };
 

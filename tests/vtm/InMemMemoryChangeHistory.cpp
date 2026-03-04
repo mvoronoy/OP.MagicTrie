@@ -1,6 +1,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <execution>
+#include <latch>
 
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
@@ -75,33 +76,38 @@ namespace
         constexpr size_t parallel_factor_c = 5;
         constexpr size_t threads_count_c = parallel_factor_c * 2;
 
-        OP::utils::Waitable<bool, OP::utils::WaitableSemantic::all> sync_start(false);
+        std::latch sync_start(1);
 
         for (int current_thread = 0; current_thread < threads_count_c; ++current_thread)
+        {
             test_tasks.emplace_back(thread_pool.async([&](transaction_id_t current_tran) {
-            auto init_buf = test_block_gen(current_tran);
-            std::ostringstream os;  //render some noise stuff
-            os << std::setfill('-')
-                << std::setw(block_test_width_c / 2)
-                << std::this_thread::get_id();
-            sync_start.wait(false); //wait other threads
-            auto block_position = rwr.offset(current_tran * block_test_width_c);
-            // change region of memory
-            ShadowBuffer buffer = as_buf(
-                m_history.buffer_of_region(block_position, current_tran, OP::vtm::MemoryRequestType::wr, nullptr));
-            std::string start_from(buffer.get(), buffer.get() + buffer.size());
-            memcpy(buffer.get(), os.str().c_str(), block_test_width_c / 2); //put random stuff to wr-buffer
-            //ensure changes (with respect to MT it can be anything, so just check buffer != init_buf)
-            ShadowBuffer ro = as_buf(
-                m_history.buffer_of_region(block_position, current_tran, OP::vtm::MemoryRequestType::ro, nullptr));
-            tresult.assert_false(0 == memcmp(ro.get(), init_buf.c_str(), block_test_width_c / 2));
-            //restore previous state by `destroy` just changed buffer
-            m_history.destroy(current_tran, std::move(buffer));
-            /* There code cannot check that destroy rollback work, when parallel_factor_c > 1 on races so do
-            it later out of thread code */
-                }, /*use # of thread as transaction id*/current_thread % parallel_factor_c));
+                auto init_buf = test_block_gen(current_tran);
+                std::ostringstream os;  //render some noise stuff as half of block_test_width_c
+                os << std::setfill('-')
+                    << std::setw(block_test_width_c / 2)
+                    << std::this_thread::get_id();
+                RWR block_position (current_tran * block_test_width_c, block_test_width_c);
+                sync_start.wait(); //wait other threads
+                // change region of memory
+                ShadowBuffer buffer = as_buf(
+                    m_history.buffer_of_region(block_position, current_tran, OP::vtm::MemoryRequestType::wr, nullptr));
 
-        sync_start = true; //notify all to start
+                memcpy(buffer.get(), os.str().c_str(), block_test_width_c / 2); //put random stuff to wr-buffer
+                //ensure changes (with respect to MT it can be anything, so just check buffer != init_buf)
+                ShadowBuffer ro = as_buf(
+                    m_history.buffer_of_region(block_position, current_tran, OP::vtm::MemoryRequestType::ro, nullptr));
+                tresult.assert_that<negate<eq_ranges>>(
+                    ro.get(), ro.get() + block_test_width_c / 2,
+                    init_buf.begin(), init_buf.begin()+ block_test_width_c / 2);
+                //restore previous state by `destroy` just changed buffer
+                m_history.destroy(current_tran, std::move(buffer));
+                /* There code cannot check that destroy rollback work, when parallel_factor_c > 1 on races so do
+                it later out of thread code */
+                }, /*use # of thread as transaction id*/current_thread % parallel_factor_c));
+        }
+
+        sync_start.count_down(); //notify all to start
+
         for (auto& thr : test_tasks)
             thr.get(); //on exception inside thread it will be re-raised
         //when all threads done, check that memory is intact

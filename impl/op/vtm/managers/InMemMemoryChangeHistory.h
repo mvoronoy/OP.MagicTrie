@@ -164,6 +164,16 @@ namespace OP::vtm
             complete_transaction(id);
         }
 
+        void iterate_shadows(transaction_id_t tid, bool (*callback)(const RWR&, const ShadowBuffer&, void*), void *user_args) override
+        {
+            _global_history.indexed_for_each(tid, [&](BlockProfile& block)->bool{
+                if (block._used_in_transaction != tid
+                    || block._type.load() == BlockType::garbage)
+                    return true; //iterate next
+                return callback(block._range, block.buffer(), user_args);
+            });
+        }
+
     private:
         enum class BlockType : std::uint_fast8_t
         {
@@ -208,10 +218,13 @@ namespace OP::vtm
             /** shadow memory of changes */
             alignas(ShadowBuffer) std::uint8_t _memory[1] = {};
         };
+        
+        static_assert(std::is_standard_layout_v<BlockProfile>);
 
         struct BlockByRWRIndexer
         {
-            std::atomic<std::uint64_t>
+            //std::atomic<std::uint64_t>
+            std::uint64_t
                 _bloom_filter = 0,
                 _min_left = std::numeric_limits<transaction_id_t>::max(),
                 _max_right = 0;
@@ -225,11 +238,11 @@ namespace OP::vtm
 
             void index(const BlockProfile& block) noexcept
             {
-                _bloom_filter.fetch_or(bloom_calc(block._range));
+                _bloom_filter |= bloom_calc(block._range);
                 //c++26?: _min.fetch_min(r._value);
-                OP::utils::cas_extremum<std::less>(_min_left, block._range.pos());
+                _min_left = std::min(_min_left, block._range.pos());
                 //c++26?: _max.fetch_max(r._value);
-                OP::utils::cas_extremum<std::greater>(_max_right, block._range.right());
+                _max_right = std::max(_max_right, block._range.right());
             }
 
             bool check(const BlockProfile& block) const noexcept
@@ -241,16 +254,17 @@ namespace OP::vtm
             {
                 auto bloom = bloom_calc(query);
 
-                return (bloom & _bloom_filter.load(std::memory_order_acquire)) != 0
-                    && query.pos() < _max_right.load(std::memory_order_acquire)
-                    && query.right() > _min_left.load(std::memory_order_acquire)
+                return (bloom & _bloom_filter) != 0
+                    && query.pos() < _max_right
+                    && query.right() > _min_left
                     ;
             }
         };
 
         struct BlockByTransactionIdIndexer
         {
-            std::atomic<transaction_id_t>
+            //std::atomic<transaction_id_t>
+            transaction_id_t
                 _bloom_filter = 0, 
                 _min = std::numeric_limits<transaction_id_t>::max(), 
                 _max = 0;
@@ -262,11 +276,11 @@ namespace OP::vtm
 
             void index(const BlockProfile& block) noexcept
             {
-                _bloom_filter.fetch_or(hash(block._used_in_transaction));
+                _bloom_filter |= hash(block._used_in_transaction);
                 //c++26?: _min.fetch_min(r._value);
-                OP::utils::cas_extremum<std::less>(_min, block._used_in_transaction);
+                _min = std::min(_min, block._used_in_transaction);
                 //c++26?: _max.fetch_max(r._value);
-                OP::utils::cas_extremum<std::greater>(_max, block._used_in_transaction);
+                _max = std::max(_max, block._used_in_transaction);
             }
 
             bool check(const BlockProfile& block) const noexcept
@@ -278,16 +292,25 @@ namespace OP::vtm
             {
                 const auto hash_v = hash(query);
 
-                return (hash_v & _bloom_filter.load(std::memory_order_acquire)) == hash_v
-                    && query >= _min.load(std::memory_order_acquire)
-                    && query <= _max.load(std::memory_order_acquire)
+                return (hash_v & _bloom_filter) == hash_v
+                    && query >= _min
+                    && query <= _max
                     ;
             }
 
         };
+
+        static void _block_profile_deleter(BlockProfile* pointer)
+        {
+            std::byte* buffer = reinterpret_cast<std::byte*>(pointer);
+            pointer->~BlockProfile();
+            delete[]buffer;
+        }
+        
         /** Aggregates several BlockProfile to speed up lookup by RWR and/or transaction-id */
         using indexed_history_list_t =
-            BucketIndexedList<BlockProfile, BlockByRWRIndexer, BlockByTransactionIdIndexer>;
+            BucketIndexedList<BlockProfile, decltype(&_block_profile_deleter), 
+            BlockByRWRIndexer, BlockByTransactionIdIndexer>;
 
         /** Allows guard just created BlockProfile from memory leaks. If explicit #exchange is not
         * called block automatically marked to #BlockType::garbage at guard scope exit.
@@ -345,21 +368,15 @@ namespace OP::vtm
             segment_pos_t mem_block_size = sizeof(BlockProfile) + search_range.count();
             std::byte* buffer = new std::byte[mem_block_size];
             
-            std::unique_ptr<BlockProfile> new_block (new (buffer) BlockProfile(
-                search_range, type, transaction_id,
-                ++_epoch));
+            std::unique_ptr<BlockProfile, decltype(&_block_profile_deleter)> new_block (
+                new (buffer) BlockProfile(search_range, type, transaction_id, ++_epoch),
+                &_block_profile_deleter
+            );
 
             BlockProfile* result = new_block.get();
             _global_history.append(std::move(new_block));
             return *result;
         }
-
-        template <class F>
-        void indexed_for_each(const RWR& query, F&& callback)
-        {
-            _global_history.indexed_for_each(query, callback);
-        }
-
 
         template <class F>
         void for_each(F&& callback)
@@ -380,7 +397,7 @@ namespace OP::vtm
             // find all previously used block that have any intersection with query
             // to check if readonly block is allowed
             // iterate transaction log from oldest to newest and apply changes on result memory block
-            indexed_for_each(search_range, [&](BlockProfile& block)->bool{ 
+            _global_history.indexed_for_each(search_range, [&](BlockProfile& block)->bool{
                 if (&block == current) //reach the end
                     return false;
 
@@ -460,7 +477,7 @@ namespace OP::vtm
             transaction_id_t current_tran) noexcept
         {
             query_region_result_t result = std::move(new_buffer); //optimistic scenario
-            indexed_for_each(current._range, [&](BlockProfile& block)->bool {
+            _global_history.indexed_for_each(current._range, [&](BlockProfile& block)->bool {
                 if (&block == &current) //reach the end
                     return false;
                 if (current_tran == block._used_in_transaction) //not interesting of same transaction blocks, skip it

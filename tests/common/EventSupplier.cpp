@@ -140,8 +140,39 @@ namespace
         result.assert_that<equals>(hx_invoke_count, 1, "no more increments for unsubscribed handler");
     }
 
+    enum class Ev2 { x };
+    
+    struct Base
+    {
+        virtual void handle_x(int arg) = 0;
+    };
+
+    struct BaseImpl : Base
+    {
+        size_t _evidence_handle_x = 0;
+
+        virtual void handle_x(int arg) override {
+            assert(arg == 57);
+            ++_evidence_handle_x;
+        }
+    };
+
+    void test_VirtualHandler(OP::utest::TestRuntime& result) {
+        using namespace std::placeholders;
+
+        std::unique_ptr<Base> instance(new BaseImpl);
+        OP::events::EventSupplier<OP::Assoc<Ev2::x, int>> supplier;
+
+        auto un1 = supplier.on<Ev2::x>(
+            std::bind(&Base::handle_x, std::ref(*instance), _1));
+
+        supplier.send<Ev2::x>(57);
+        result.assert_that<equals>(static_cast<BaseImpl*>(instance.get())->_evidence_handle_x, 1);
+    }
+
     static auto& module_suite = OP::utest::default_test_suite("EventSupplier")
         .declare("general", test_General)
+        .declare("virtual-handler", test_VirtualHandler)
         ;
 
     OP_DECLARE_TEST_CASE("EventSupplier", "unknown-event", [](OP::utest::TestRuntime& tresult) {

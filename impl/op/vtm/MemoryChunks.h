@@ -109,7 +109,7 @@ namespace OP::vtm
         FarAddress _address = {};
     };
     /**
-    *   Pointer in virtual memory and it size
+    *   \brief Represent read-write chunk of virtual memory and it size.
     */
     struct MemoryChunk : public MemoryChunkBase
     {
@@ -124,7 +124,7 @@ namespace OP::vtm
         {
         }
 
-        MemoryChunk(MemoryChunk&& right) OP_NOEXCEPT
+        MemoryChunk(MemoryChunk&& right) noexcept
             :MemoryChunkBase(std::move(right))
         {
         }
@@ -132,7 +132,8 @@ namespace OP::vtm
         //! For MSVC-2013 it is very important to keep copy-constructor after(!) move constructor
         MemoryChunk(const MemoryChunk&) = delete;
         MemoryChunk& operator = (const MemoryChunk&) = delete;
-        MemoryChunk& operator = (MemoryChunk&& right) OP_NOEXCEPT
+
+        MemoryChunk& operator = (MemoryChunk&& right) noexcept
         {
             MemoryChunkBase::operator=(std::move(right));
             return *this;
@@ -154,7 +155,7 @@ namespace OP::vtm
         *   @param idx - byte offset (not an item index)
         */
         template <class T>
-        T* at(segment_pos_t idx) const
+        T* at(segment_pos_t idx) const noexcept
         {
             assert(idx < this->count());
             return reinterpret_cast<T*>(pos() + idx);
@@ -172,6 +173,16 @@ namespace OP::vtm
                 throw std::out_of_range("source size is too big");
             memcpy(pos() + dest_offset, source, source_size);
             return source_size;
+        }
+
+        std::uint8_t* begin()
+        {
+            return pos();
+        }
+            
+        std::uint8_t* end()
+        {
+            return pos() + count();
         }
             
     };
@@ -253,6 +264,7 @@ namespace OP::vtm
                 throw std::out_of_range("too small block to allocate T");
             new (pos()) T(std::forward<Ts>(args)...);
         }
+
     };
 
     /**Hint allows specify how writable block will be used*/
@@ -389,6 +401,17 @@ namespace OP::vtm
             assert(idx < this->count());
             return reinterpret_cast<T*>(pos() + idx);
         }
+
+        const std::uint8_t* begin() const
+        {
+            return pos();
+        }
+            
+        const std::uint8_t* end() const
+        {
+            return pos() + count();
+        }
+
     };
 
     /**Helper that provides readonly access to virtual memory occupied by single instance or array of 

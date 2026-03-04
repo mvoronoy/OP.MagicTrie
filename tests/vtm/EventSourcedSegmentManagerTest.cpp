@@ -7,6 +7,8 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <latch>
+
 #include <op/trie/Trie.h>
 
 #include <op/vtm/SegmentManager.h>
@@ -543,12 +545,14 @@ namespace
                 mem_change_history->create()
             ));
         tmngr1->ensure_segment(0);
-        OP_CONSTEXPR(static const) segment_pos_t write_block_len = 0x11;
+        
+        constexpr static const segment_pos_t write_block_len = 0x11;
         static_assert(3 * write_block_len < sizeof(write_fill_seq1), "please use block smaller than test data");
         static_assert(3 * write_block_len < sizeof(write_fill_seq2), "please use block smaller than test data");
-        OP_CONSTEXPR(static const) segment_pos_t write_block_pos1 = 0x50;
-        OP_CONSTEXPR(static const) segment_pos_t write_block_pos2 = 0x100;
-        OP_CONSTEXPR(static const) std::uint8_t test_byte = 0x57;
+        constexpr static const segment_pos_t write_block_pos1 = 0x50;
+        constexpr static const segment_pos_t write_block_pos2 = 0x100;
+        constexpr static const std::uint8_t test_byte = 0x57;
+
         if (1 == 1)
         {
             //make some write
@@ -605,18 +609,20 @@ namespace
                 memcpy(case_wr2.pos(), t2_write_block2, write_block_len);
                 //check I see scope of 1st transaction
                 auto t2_ro1 = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len);
-                tresult.assert_true(
-                    tools::range_equals(t2_ro1.pos(), t2_ro1.pos() + write_block_len, t2_write_block1, t2_write_block1 + write_block_len),
-                    OP_CODE_DETAILS(<< "RO block inside transaction must point the same memory"));
+                tresult.assert_that<eq_ranges>(
+                    t2_ro1.pos(), t2_ro1.pos() + write_block_len, 
+                    t2_write_block1, t2_write_block1 + write_block_len,
+                    OP_CODE_DETAILS() << "RO block inside transaction must point the same memory");
                 g.rollback();
             }
 
             //test that same transaction doesn't see changes
             auto case2_ro2 = tmngr1->readonly_block(FarAddress(0, write_block_pos2), write_block_len);
-            tresult.assert_true(tools::range_equals(
+            tresult.assert_that<eq_ranges>(
                 case2_ro2.pos(), case2_ro2.pos() + write_block_len,
-                write_fill_seq2, write_fill_seq2 + write_block_len),
-                OP_CODE_DETAILS(<< "RO block outside transaction must contain old data"));
+                write_fill_seq2, write_fill_seq2 + write_block_len,
+                OP_CODE_DETAILS() << "RO block outside transaction must contain old data"
+            );
 
             tran2->commit();
             auto case2_r = std::async(std::launch::async, [&]() { //start thread to see changes are visible
@@ -897,7 +903,7 @@ namespace
 
             g.commit();
             }();
-        //check the same afetr commit
+        //check the same after commit
         auto ro_block = tmngr1->readonly_block(FarAddress(0, write_block_pos1), write_block_len1 + write_block_len2);
         tresult.assert_true(tools::range_equals(
             ro_block.pos(), ro_block.pos() + sizeof(write_fill_seq1),
@@ -919,54 +925,130 @@ namespace
                 mem_change_history->create()
             ));
         tmngr1->ensure_segment(0);
+
+
         constexpr segment_pos_t start_offset_c = 0x40;
         constexpr segment_pos_t test_seq_len_c = 256;
         constexpr size_t sum_of_seq = test_seq_len_c * (test_seq_len_c - 1) / 2;
 
-        atom_string_t test_seq(test_seq_len_c, '\x0');
-        std::iota(test_seq.begin(), test_seq.end(), 0);
-        {//prepare test sequence
-            OP::vtm::TransactionGuard op_g(tmngr1->begin_transaction());
-            auto bx40_x1000 = tmngr1->writable_block(FarAddress(0, start_offset_c), test_seq_len_c);
-            bx40_x1000.byte_copy(test_seq.data(), test_seq_len_c);
-            op_g.commit();
-        }
-        { //exploit ro-sequence 
-            OP::vtm::TransactionGuard op_g(tmngr1->begin_ro_transaction());
-            tresult.assert_exception<OP::Exception>([&]() {
-                    auto skip =
-                        tmngr1->writable_block(FarAddress(0, start_offset_c), test_seq_len_c);
-                    static_cast<void>(skip);
-                })
-                .then([](const auto& ex) {
-                    return ex.code() == OP::vtm::ErrorCodes::er_ro_transaction_started;
-                })
-                ;
-            auto bx40_x1000 = tmngr1->readonly_block(FarAddress(0, start_offset_c), test_seq_len_c);
-            tresult.assert_true(0 == memcmp(bx40_x1000.pos(), test_seq.data(), test_seq.size()));
-        }
-        { //parallel processing
-            OP::vtm::TransactionGuard op_g1(tmngr1->begin_ro_transaction());
-            auto second_half = std::async(std::launch::async, [&]() {
-                OP::vtm::TransactionGuard op_g2(tmngr1->begin_ro_transaction());
-                auto bx40_x128_2 = tmngr1->readonly_block(
-                    FarAddress(0, start_offset_c + test_seq_len_c / 2),
-                    test_seq_len_c / 2);
-                size_t sum = 0;
-                for (auto i = 0; i < test_seq_len_c / 2; ++i)
-                    sum += *(bx40_x128_2.pos() + i);
-                return sum;
-                });
-            auto bx40_x128_1 = tmngr1->readonly_block(
-                FarAddress(0, start_offset_c), test_seq_len_c / 2);
+        atom_string_t 
+            test_seq1(test_seq_len_c, '\x0'), 
+            test_seq2(test_seq_len_c, 'x'),
+            test_seq3(test_seq_len_c, '\x0')
+            ;
+        std::iota(test_seq1.begin(), test_seq1.end(), 0);
+        std::iota(test_seq3.begin(), test_seq3.end(), 0);
+        std::shuffle(test_seq3.begin(), test_seq3.end(), 
+            tresult.randomizer().generator());
 
-            size_t sum = 0;
-            for (auto i = 0; i < test_seq_len_c / 2; ++i)
-                sum += *(bx40_x128_1.pos() + i);
-            sum += second_half.get();
-            tresult.assert_that<equals>(sum, sum_of_seq);
+        constexpr FarAddress addr40_x100(0, start_offset_c);
+        constexpr FarAddress addr140_x100(0, start_offset_c + test_seq_len_c);
+        constexpr FarAddress addr240_x100(0, start_offset_c + 2*test_seq_len_c);
+        {//prepare test sequence
+            OP::vtm::TransactionGuard op_g0(tmngr1->begin_transaction());
+            auto bx40_x100 = tmngr1->writable_block(addr40_x100, test_seq_len_c);
+            bx40_x100.byte_copy(test_seq1.data(), test_seq_len_c);
+            auto bx140_x100 = tmngr1->writable_block(addr140_x100, test_seq_len_c);
+            bx140_x100.byte_copy(test_seq1.data(), test_seq_len_c);
+            op_g0.commit();
         }
+        std::latch init_done{ 2 }, synchro_start{ 1 };
+        auto wrap_safe_exec = [&](auto&& callback) {
+            try {
+                callback();
+            }
+            catch (...) {
+                init_done.count_down();
+            }
+            };
+        OP::vtm::TransactionGuard op_g(tmngr1->begin_transaction());
+        //make changes visible inside transaction #1 only
+        memcpy(tmngr1->writable_block(addr240_x100, test_seq_len_c).pos(),
+            test_seq3.data(), test_seq3.size());
+        auto proc1 = std::async(wrap_safe_exec, [&]() { //exploit ro-sequence
+            //check read without merge cannot see changes of transaction #1 yet
+            tresult.assert_that<negate<equals>>(
+                tmngr1->readonly_block(addr240_x100, test_seq_len_c),
+                test_seq3,
+                "read without merge cannot see changes of transaction #1 yet"
+            );
+
+            OP::vtm::ThreadMergeGuard m_guard = op_g.merge_thread();
+            // now changes must be visible
+            tresult.assert_that<equals>(
+                tmngr1->readonly_block(addr240_x100, test_seq_len_c),
+                test_seq3,
+                "now changes of transaction #1 must be visible"
+            );
+
+            tresult.assert_exception<OP::Exception>([&]() {
+                auto skip =
+                    tmngr1->writable_block(addr40_x100, test_seq_len_c);
+                static_cast<void>(skip);
+            })
+            .then([](const auto& ex) {
+                return ex.code() == OP::vtm::ErrorCodes::er_ro_transaction_started;
+            });
+
+            auto bx40_x100 = tmngr1->readonly_block(addr40_x100, test_seq_len_c);
+            tresult.assert_true(0 == memcmp(bx40_x100.pos(), test_seq1.data(), test_seq1.size()));
+            auto bx140_x100 = tmngr1->readonly_block(addr140_x100, test_seq_len_c);
+            tresult.assert_true(0 == memcmp(bx140_x100.pos(), test_seq1.data(), test_seq1.size()));
+            init_done.count_down();
+            synchro_start.wait();
+            //check RO can see changes from own transaction
+            bx40_x100 = tmngr1->readonly_block(addr40_x100, test_seq_len_c);
+            tresult.assert_true(0 == memcmp(bx40_x100.pos(), test_seq2.data(), test_seq2.size()));
+
+            });
+        auto proc2 = std::async(wrap_safe_exec, [&]() { // start alternative transaction with parallel changes
+
+            OP::vtm::TransactionGuard op_g2(tmngr1->begin_transaction());
+
+            auto bx140_x100 = tmngr1->readonly_block(
+                addr140_x100, test_seq_len_c);
+            tresult.assert_true(0 == memcmp(bx140_x100.pos(), test_seq1.data(), test_seq1.size()));
+            //alter the block
+            auto wr140_x100 = tmngr1->upgrade_to_writable_block(bx140_x100);
+            wr140_x100.byte_copy(test_seq2.data(), test_seq2.size());
+            init_done.count_down();
+
+            synchro_start.wait();
+            //this tran MUST NOT see changes of transaction #1
+            auto bx40_x100 = tmngr1->readonly_block(addr40_x100, test_seq_len_c);
+            tresult.assert_that<equals>(bx40_x100, test_seq1, 
+                "the transaction #2 MUST NOT see changes of transaction #1");
+            op_g2.commit(); //expose changes
+            });
+        init_done.wait(); // wait until threads ready to see changes
+
+        auto bx40_x100 = tmngr1->writable_block(addr40_x100, test_seq_len_c);
+        bx40_x100.byte_copy(test_seq2.data(), test_seq2.size());
+        
+        // now exists ro-transaction, that must be unmerge before commit, so check exception:
+        tresult.assert_exception<OP::Exception>([&]() {
+            op_g.commit();
+        })
+        .then([](const auto& ex) {
+            return ex.code() == OP::vtm::ErrorCodes::er_cannot_close_transaction_while_merged_thread;
+        });
+
+        //not visible yet for transaction #2
+        synchro_start.count_down();
+
+        //extract exception if any
+        proc1.get();
+        proc2.get();
+
+        op_g.commit();
+
+        //check all changes together
+        auto ro_bx40_x100 = tmngr1->readonly_block(addr40_x100, test_seq_len_c);
+        tresult.assert_true(0 == memcmp(ro_bx40_x100.pos(), test_seq2.data(), test_seq2.size()));
+        auto ro_bx140_x100 = tmngr1->readonly_block(addr140_x100, test_seq_len_c); // check changes from transaction #2
+        tresult.assert_that<equals>(ro_bx140_x100, test_seq2);
     }
+
 
     static auto& module_suite = OP::utest::default_test_suite("vtm.EventSourcingSegmentManager")
         .with_fixture(test::memory_change_history_factory<test::InMemoryChangeHistoryFactory>)
@@ -976,7 +1058,7 @@ namespace
         .declare("multithreadAlloc", test_EvSrcSegmentManagerMultithreadMemoryAllocator)
         .declare("dealloc-alloc issue in single tran", test_EvSrcMemmngrAllocDealloc)
         .declare("release read block", test_EvSrcReleaseReadBlock)
-        .declare("nested transactions", test_EvSrcNestedTransactions)
+        .declare("nested-transactions", test_EvSrcNestedTransactions)
         .declare("test write-block include capability", test_EvSrcBlockInclude)
         .declare("test read-block include capability", test_EvSrcBlockIncludeOnRead)
         .declare("transaction on overlapped blocks", test_EvSrcBlockOverlapOnRead)

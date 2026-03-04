@@ -10,6 +10,9 @@
 #include <set>
 #include <regex>
 #include <unordered_set>
+
+#include <op/common/has_member_def.h>
+
 #include <op/utest/details.h>
 #include <op/common/has_member_def.h>
 
@@ -43,9 +46,77 @@ namespace OP::utest
     } //ns:details
 
     namespace hop = OP::has_operators;
+    
     //
-    //  Markers
+    //  Assert Operations
     //
+    struct eq_ranges_t : details::marker_arity<4>
+    {
+        template <class T>
+        using el_t = decltype(*std::begin(std::declval<const T&>()));
+
+        template <class Left, class Right>
+        constexpr static bool can_print_details_c = hop::ostream_out_v<el_t<Left>> && hop::ostream_out_v<el_t<Right>>;
+
+        /**
+        *   \brief Implementation finds mismatch in 2 ranges specified by pair of begin/end iterators.
+        *
+        *   \tparam LeftIter forward iterator to specify begin/end pair for the first comparing range.
+        *   \tparam RightIter forward iterator to specify begin/end pair for the second comparing range.
+        */
+        template <class LeftIter, class RightIter>
+        constexpr auto operator()(
+            LeftIter left_begin, LeftIter left_end,
+            RightIter right_begin, RightIter right_end) const
+        {
+            using left_elt_t = std::decay_t<decltype(*left_end)>;
+            using right_elt_t = std::decay_t<decltype(*right_end)>;
+
+            if constexpr (hop::ostream_out_v<left_elt_t> && hop::ostream_out_v<right_elt_t>)
+            { // can improve output by adding Fault explanation
+                return with_details(left_begin, left_end, right_begin, right_end);
+            }
+            else
+            {
+                auto [left_msm, right_msm] = std::mismatch(
+                    left_begin, left_end,
+                    right_begin, right_end);
+
+                return left_msm == left_end && right_msm == right_end;
+            }
+        }
+
+    private:
+
+        /** Implementation finds mismatch in 2 sets of the same order for data types
+        * with ostream operator `<<` support.
+        */
+        template <class LeftIter, class RightIter >
+        static std::pair<bool, OP::utest::Details> with_details(
+            LeftIter left_begin, LeftIter left_end,
+            RightIter right_begin, RightIter right_end
+        )
+        {
+            auto [left_msm, right_msm] = std::mismatch(
+                left_begin, left_end,
+                right_begin, right_end);
+
+            if (left_msm == left_end && right_msm == right_end)
+                return std::make_pair(true, OP::utest::Details{});
+
+            OP::utest::Details fail;
+            fail << "Assertion of set-equality check: Left still contains: [";
+            for (size_t i = 0; left_msm != left_end; ++left_msm, ++i)
+                fail << (i ? ", " : "") << *left_msm;
+            fail << "] vs Right still contains[";
+            for (size_t i = 0; right_msm != right_end; ++right_msm, ++i)
+                fail << (i ? ", " : "") << *right_msm;
+            fail << "]\n";
+            return std::make_pair(false, std::move(fail));
+        }
+    };
+
+    constexpr static inline eq_ranges_t eq_ranges{};
 
     /** Using other marker invert (negate) semantic, for example:
     * \li that<not<equals>>(1, 2) ; //negate equality eg. !=
@@ -90,7 +161,12 @@ namespace OP::utest
     /** Marker specifies equality operation between two arguments */
     struct equals_t : details::marker_arity<2>
     {
-        template <class Left, class Right>
+        /**
+        * Assume Left defines == operator for Right
+        */ 
+        template <class Left, class Right,
+            std::enable_if_t<OP::has_operators::equals_v<Left>, int> = 0
+        >
         auto operator()(Left&& left, Right&& right) const
         {
             bool result = left == right;
@@ -107,6 +183,24 @@ namespace OP::utest
                 return result;
             }
         }
+
+        template<typename T, typename = void>
+        struct has_begin : std::false_type {};
+
+        template<typename T>
+        struct has_begin<T, std::void_t<decltype(std::begin(std::declval<const T&>()))>> : std::true_type {};
+
+        template <class LeftContainer, class RightContainer,
+            std::enable_if_t< has_begin<LeftContainer>::value
+            && has_begin<RightContainer>::value,
+            int> = 0
+        >
+        constexpr auto operator()(
+            const LeftContainer& left, const RightContainer& right) const
+        {
+            return eq_ranges(std::begin(left), std::end(left), std::begin(right), std::end(right));
+        }
+
     };
 
     constexpr static inline equals_t equals{};
@@ -173,73 +267,6 @@ namespace OP::utest
 
     constexpr static inline almost_eq_t<details::void_epsilon> almost_eq;
 
-    struct eq_ranges_t : details::marker_arity<4>
-    {
-        template <class T>
-        using el_t = decltype(*std::begin(std::declval<const T&>()));
-
-        template <class Left, class Right>
-        constexpr static bool can_print_details_c = hop::ostream_out_v<el_t<Left>> && hop::ostream_out_v<el_t<Right>>;
-
-        /** 
-        *   \brief Implementation finds mismatch in 2 ranges specified by pair of begin/end iterators.
-        *
-        *   \tparam LeftIter forward iterator to specify begin/end pair for the first comparing range.
-        *   \tparam RightIter forward iterator to specify begin/end pair for the second comparing range.
-        */ 
-        template <class LeftIter, class RightIter>
-        constexpr auto operator()(
-            LeftIter left_begin, LeftIter left_end, 
-            RightIter right_begin, RightIter right_end) const
-        {
-            using left_elt_t = std::decay_t<decltype(*left_end)>;
-            using right_elt_t = std::decay_t<decltype(*right_end)>;
-
-            if constexpr (hop::ostream_out_v<left_elt_t> && hop::ostream_out_v<right_elt_t>)
-            { // can improve output by adding Fault explanation
-                return with_details(left_begin, left_end, right_begin, right_end);
-            }
-            else
-            {
-                auto [left_msm, right_msm] = std::mismatch(
-                    left_begin, left_end,
-                    right_begin, right_end);
-
-                return left_msm == left_end && right_msm == right_end;
-            }
-        }
-
-    private:
-
-        /** Implementation finds mismatch in 2 sets of the same order for data types
-        * with ostream operator `<<` support.
-        */
-        template <class LeftIter, class RightIter >
-        static std::pair<bool, OP::utest::Details> with_details(
-            LeftIter left_begin, LeftIter left_end, 
-            RightIter right_begin, RightIter right_end
-        ) 
-        {
-            auto [left_msm, right_msm] = std::mismatch(
-                left_begin, left_end,
-                right_begin, right_end);
-
-            if (left_msm == left_end && right_msm == right_end )
-                return std::make_pair(true, OP::utest::Details{});
-
-            OP::utest::Details fail;
-            fail << "Assertion of set-equality check: Left still contains: [";
-            for (size_t i = 0; left_msm != left_end; ++left_msm, ++i)
-                fail << (i ? ", " : "") << *left_msm;
-            fail << "] vs Right still contains[";
-            for (size_t i = 0; right_msm != right_end; ++right_msm, ++i)
-                fail << (i ? ", " : "") << *right_msm;
-            fail << "]\n";
-            return std::make_pair(false, std::move(fail));
-        }
-    };
-
-    constexpr static inline eq_ranges_t eq_ranges{};
 
     /**
     * \brief Marker compares two heterogeneous containers and fails the test on the first mismatch.
@@ -257,7 +284,7 @@ namespace OP::utest
     *  Example:
     *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     *   std::vector left{1, 2, 3, 5};
-    *   std::set right{2, 3}; /assume sort reordering 
+    *   std::set right{2, 3}; //assume sort reordering 
     *   //assume definition of OP::utest::TestRuntime& rt
     *   rt.assert_that<eq_sets>(left, right, "Items aren't the same"s); //will fail at [3, 5]
     *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

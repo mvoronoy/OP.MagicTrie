@@ -39,7 +39,6 @@ endif(MSVC)
 
 # Add source to this project's executable.
 add_executable (trie_test 
-    
     "common/BitsetTest.cpp"
     "common/UtilsTest.cpp"
     "common/EventSupplier.cpp"
@@ -60,9 +59,7 @@ add_executable (trie_test
     "vtm/SegmentManagerTest.cpp"
     "vtm/SegmentToplogyTest.cpp"
     "vtm/InMemMemoryChangeHistory.cpp"
-    "vtm/MemoryChangeHistoryTestHarness.h"
     "vtm/GenericMemoryTest.h"
-    "vtm/AppendAtomicList.cpp"
 
     "tr.cpp"
 

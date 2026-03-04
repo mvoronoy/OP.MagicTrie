@@ -151,7 +151,7 @@ namespace OP::utils
             return result;
         }
 
-        /** Get orignal std::atomic for more complex operations */
+        /** Get original std::atomic for more complex operations */
         std::atomic<T>& raw()
         {
             return _target;
@@ -166,9 +166,10 @@ namespace OP::utils
 
         /** \brief Wait until atomic value meets condition specified by predicate.
         *
-        *   The implementation is similar to C++20 std::atomic::wait, but in compare with standart, it 
+        *   The implementation is similar to C++20 std::atomic::wait, but in compare with standard, it 
         *   allows control condition with help of binary predicate `Op`.
-        *   Caller is responsible to wake up waiting by calling one of `std::atomic::notify_one` or `std::atomic::notify_all`.
+        *   Caller is responsible to wake up waiting by calling one of this class `store`/`exchange` that use in consequence: 
+        *   one of: std::atomic::notify_one` or `std::atomic::notify_all`.
         */
         template <std::predicate<const T&, const T&> Op>
         [[maybe_unused]] T wait_condition(T expected, Op cmp) noexcept

@@ -618,7 +618,7 @@ namespace OP::currying
     /** Creates functor that substitute (binds) known argument for the wrapped functor. The fundamental 
     * difference between CurryingTuple that this can be used for wrapping functions containing `auto` arguments.
     * For example `CurryingTuple{...}.def([](auto& ...)` will fail at compile time because type auto is unknown.
-    * The same time `TypeBindCallable([](auto& ...), int)` gives you posibility to bind values or `CurryingArgSpec` (
+    * The same time `TypeBindCallable([](auto& ...), int)` gives you possibility to bind values or `CurryingArgSpec` (
     *   like vars, functions) with some liberty of argument order. For example all argument order in the following are allowed:
     *   \code
     *   TypeBindCallable([](const std::string, int){...}, std::string("abc"), 57)
