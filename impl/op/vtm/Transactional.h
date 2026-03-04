@@ -126,7 +126,7 @@ namespace OP::vtm
         {
         }
 
-        virtual std::shared_ptr<Transaction> recurrent()
+        virtual std::shared_ptr<Transaction> recurrent() override
         {
             return shared_from_this();
         }

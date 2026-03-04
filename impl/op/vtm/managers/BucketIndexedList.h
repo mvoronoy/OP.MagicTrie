@@ -45,7 +45,10 @@ namespace OP::vtm
             indexers_t _indexers;
             template <size_t ...Ix>
             static constexpr auto _init_array(std::index_sequence<Ix...>) {
-                return std::array<item_t, capacity_c> { (Ix, item_t{nullptr, TDeleter{} })... };
+                const auto mk_item = [](auto) {
+                    return item_t{ nullptr, TDeleter{} };
+                    };
+                return std::array<item_t, capacity_c> { mk_item(Ix/*formal argument*/)... };
             }
             Bucket(std::in_place_t) {}
             Bucket(const Bucket&) = delete;
