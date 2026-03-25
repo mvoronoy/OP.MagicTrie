@@ -20,12 +20,12 @@ namespace OP::vtm
 
     constexpr inline const bool is_nil(dim_t c) noexcept
     {
-        return c == ~dim_t{ 0 };
+        return c == std::numeric_limits<dim_t>::max();
     }
 
     constexpr inline const bool is_nil(fast_dim_t c) noexcept
     {
-        return c == ~fast_dim_t{ 0 };
+        return c == std::numeric_limits<fast_dim_t>::max();
     }
 
     using header_idx_t = std::uint32_t;
@@ -37,9 +37,9 @@ namespace OP::vtm
     using far_pos_t = std::uint64_t;
 
     constexpr static inline const size_t        offset_bits_c = sizeof(segment_pos_t) << 3;
-    constexpr static inline const segment_idx_t null_block_idx_c = ~segment_idx_t{0};
-    constexpr static inline const segment_pos_t eos_c           = ~segment_pos_t{0};
-    constexpr static inline const far_pos_t     far_null_c      = ~far_pos_t{0};
+    constexpr static inline const segment_idx_t null_block_idx_c = std::numeric_limits<segment_idx_t>::max();
+    constexpr static inline const segment_pos_t eos_c           = std::numeric_limits<segment_pos_t>::max();
+    constexpr static inline const far_pos_t     far_null_c      = std::numeric_limits<far_pos_t>::max();
 
     struct SegmentDef
     {

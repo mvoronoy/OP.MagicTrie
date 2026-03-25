@@ -7,11 +7,11 @@
 #include <iterator>
 #include <assert.h>
 
-namespace OP::rawbits //****************************************************************************
+namespace OP::rawbits 
 {
     using fast_dim_t = std::uint_fast16_t;
 
-    constexpr inline fast_dim_t nil_c = ~fast_dim_t{0};
+    constexpr inline fast_dim_t nil_c = std::numeric_limits<fast_dim_t>::max();
 
     /** @return index of first bit that is set, or `nil_c` if no bits*/
     template <std::unsigned_integral UInt, size_t N>
@@ -163,7 +163,6 @@ namespace OP::rawbits //********************************************************
     }
 
 
-            //****************************************************************************
 }//ns:OP::rawbits
 
 namespace OP::common

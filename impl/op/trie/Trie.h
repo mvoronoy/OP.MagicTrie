@@ -1115,7 +1115,7 @@ namespace OP
                                     }
                                     if (stem_char != *begin)
                                     {
-                                        stem_result = StemCompareResult::stem_x;
+                                        stem_result = StemCompareResult::stem_neq;
                                         return false; // stop – character mismatch
                                     }
                                     iter._prefix.push_back(*begin++);
@@ -1690,6 +1690,8 @@ namespace OP
                     }
                     return false;//not an exact match
                 }
+                case StemCompareResult::stem_neq:
+                    [[fallthrough]];
                 case StemCompareResult::stem_end:
                     break; //just follow
 

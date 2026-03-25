@@ -50,7 +50,8 @@ namespace OP::trie
         string_end,
         /**Stem part is fully equal to string, but string is longer*/
         stem_end,
-        stem_x,
+        /** stem split on equal an unequal parts*/
+        stem_neq,
         no_entry
     };
 
