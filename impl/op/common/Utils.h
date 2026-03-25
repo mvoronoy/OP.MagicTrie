@@ -5,6 +5,7 @@
 #include <tuple>
 #include <atomic>           
 #include <variant>
+#include <format>
 
 #include <op/common/platform.h>
 
@@ -340,7 +341,8 @@ namespace OP::utils
         const TStr& source, typename TStr::size_type pos = 0, typename TStr::size_type count = TStr::npos)
     {
         if( pos > source.size() ) //empty string is allowed
-            throw std::out_of_range("`subview` is out of the range");
+            throw std::out_of_range(std::format(
+                "`subview` is out of the range source.size={}, pos={}, count=0x{:#08X}", source.size(), pos, count));
         typename TStr::size_type n = source.size() - pos;
         if(count < n)
             n = count;

@@ -9,6 +9,31 @@
 #include <iterator>
 namespace OP::trie
 {
+    namespace _trie_position_args
+    {
+        struct AppendKeyToIterator
+        {
+            OP::common::fast_atom_t _key;
+            constexpr AppendKeyToIterator(OP::common::fast_atom_t key) noexcept
+                : _key(key)
+            {
+            }
+
+            template <class TIterator>
+            void operator()(TIterator& iter)
+            {
+                auto& back = iter._position_stack.back();
+                iter._prefix.push_back(_key);
+                ++back._chunk_size;
+            }
+        };
+    }
+
+    constexpr inline auto key(OP::common::fast_atom_t key) noexcept
+    {
+        return _trie_position_args::AppendKeyToIterator(key);
+    }
+
 
     template <class Container>
     class TrieIterator
@@ -26,10 +51,13 @@ namespace OP::trie
         using this_t = TrieIterator<Container>;
 
         using atom_t = OP::common::atom_t;
+        using fast_atom_t = OP::common::fast_atom_t;
         using dim_t = OP::vtm::dim_t;
+        using fast_dim_t = OP::vtm::fast_dim_t;
 
     private:
         friend Container;
+        friend typename Container::node_t;
         friend typename Container::node_t;
 
         using node_stack_t = std::vector<TriePosition>;
@@ -43,6 +71,21 @@ namespace OP::trie
             : _container(container)
         {
         }
+
+        friend _trie_position_args::AppendKeyToIterator;
+
+
+        //template <class Iter>
+        //friend constexpr inline auto stem(Iter begin, Iter end) noexcept
+        //{
+        //    return AppendStemToIterator<Iter>(std::move(begin), std::move(end));
+        //}
+
+        //template <class Iter>
+        //friend constexpr inline auto key_and_stem(Iter begin, Iter end) noexcept
+        //{
+        //    return AppendStemToIterator<Iter>(std::move(begin), std::move(end));
+        //}
 
     public:
 
@@ -82,7 +125,7 @@ namespace OP::trie
 
         inline value_type operator * () const
         {
-            return _container->value_of(_position_stack.back());
+            return _container->value_of(*this);
         }
 
 #ifdef OP_CPP20_FEATURES
@@ -102,8 +145,10 @@ namespace OP::trie
                 return other.is_end();
             if (other.is_end())
                 return false;
-
-            return _position_stack.back() == other._position_stack.back();
+            const auto& back = _position_stack.back();
+            const auto& other_back = other._position_stack.back();
+            return back.address() == other_back.address() 
+                && rat_key() == other.rat_key();
         }
 
         inline bool operator < (const this_t& other) const noexcept
@@ -139,7 +184,7 @@ namespace OP::trie
         
         value_type value() const
         {
-            return _container->value_of(_position_stack.back());
+            return _container->value_of(*this);
         }
 
         /**Set iterator equal to end()*/
@@ -150,93 +195,88 @@ namespace OP::trie
         }
 
     protected:
-
-        template <class T>
-        void _apply_arg_to_this(TriePositionArg<T>& arg)
+        template<typename T>
+        void _dispatch_mutator_call(T&& t) 
         {
-            if constexpr (std::is_same_v<atom_t, std::decay_t<T>>)
+            if constexpr (requires { t(*this); }) 
             {
-                _prefix.append(1, arg._t);
-            }    
+                t(*this);
+            } 
+            else 
+            {
+                // Logic for the TriePosition mutator
+                t(_position_stack.back());
+            }
         }
-
         /** Reverse `at` allows assign named values to contained TriePosition
         *   using negative offset (-1) from back
         */
-        template <class ... Tx>
-        const TriePosition& rat(TriePositionArg<Tx>&& ... tx)
+        template <CallableWithTriePosition... Tx>
+        TriePosition& rat(Tx&& ... tx)
         {
-            (_apply_arg_to_this(tx), ...);
-            auto& res = _position_stack.back();
-            res.assign(std::move(tx)...);
-            return res;
+            (_dispatch_mutator_call(std::forward<Tx>(tx)), ...);
+            return _position_stack.back();
+        }
+
+        TriePosition& rat()
+        {
+            return _position_stack.back();
+        }
+
+        const TriePosition& rat() const
+        {
+            return _position_stack.back();
+        }
+
+        atom_t rat_key() const
+        {
+            assert(_prefix.size() >= _position_stack.back()._chunk_size);
+            //take from prefix (last-stem_size) character
+            return _prefix.at(_prefix.size() - _position_stack.back()._chunk_size);
         }
 
         template <class Iterator>
         void update_stem(Iterator begin, Iterator end)
         {
-            assert( _position_stack.back()._stem_size == vtm::dim_nil_c );
-            auto size = end - begin;
+            auto size = std::distance(begin, end);
             assert(size < std::numeric_limits<dim_t>::max());
-            _position_stack.back()._stem_size = static_cast<dim_t>(size);
+            _position_stack.back()._chunk_size += static_cast<fast_dim_t>(size);
             _prefix.append(begin, end);
         }
 
-        /**Add position to iterator*/
-        template <class Iterator>
-        void _emplace(TriePosition&& position, Iterator begin, Iterator end)
-        {
-            assert(position.key() <= std::numeric_limits<atom_t>::max());
-            _prefix.append(1, (atom_t)position.key());
-            _position_stack.emplace_back(std::move(position));
-            update_stem(begin, end);
-        }
+        ///**Add position to iterator*/
+        //template <class Iterator>
+        //void _emplace(TriePosition&& position, Iterator begin, Iterator end)
+        //{
+        //    assert(position.key() <= std::numeric_limits<atom_t>::max());
+        //    _prefix.append(1, (atom_t)position.key());
+        //    _position_stack.emplace_back(std::move(position));
+        //    update_stem(begin, end);
+        //}
 
-        void emplace(TriePosition&& position, const atom_t* begin, const atom_t* end)
+        void emplace(const TriePosition& position)
         {
-            _emplace<decltype(begin)>(std::move(position), begin, end);
+            _position_stack.push_back(position);
         }
 
         /**Update last entry in this iterator, then add rest tail to iterator*/
-        void update_back(const TriePosition& position, const atom_t* begin, const atom_t* end)
+        void update_back(const TriePosition& position)
         {
-            if (position.key() > std::numeric_limits<atom_t>::max())
-                throw std::out_of_range("Range must be in [0..255]");
-            auto& back = _position_stack.back();
-            dim_t prev_delta = back.stem_size() + 1; 
-            dim_t next_delta = position.stem_size() + 1;
-            _prefix.reserve(_prefix.size() - prev_delta + next_delta + (end - begin));
-            //leave only common part with previous state
-            _prefix.resize(_prefix.size() - prev_delta);
-            back = position;
-            _prefix.append(1, (atom_t)position.key());
-            update_stem(begin, end);
+            pop();
+            _position_stack.push_back(position);
         }
 
-        /** Upsert (insert or update) */
-        void upsert_back(TriePosition&& position, const atom_t* begin, const atom_t* end)
+        template <CallableWithTriePosition... Tx>
+        TriePosition& push(Tx&& ... tx)
         {
-            assert(position.key() <= std::numeric_limits<atom_t>::max());
-
-            if (_position_stack.empty() || _position_stack.back().address() == position.address())
-            {
-                emplace(std::move(position), begin, end);
-                return;
-            }
-            update_back(std::move(position), begin, end);
-        }
-
-        template <class ... Tx>
-        TriePosition& push(TriePositionArg<Tx>&& ... tx)
-        {
-            (_apply_arg_to_this(tx), ...);
-            _position_stack.emplace_back(std::move(tx)...);
+            _position_stack.emplace_back(TriePosition{});
+            (_dispatch_mutator_call(std::forward<Tx>(tx)), ...);
             return _position_stack.back();
         }
 
         void pop()
         {
-            dim_t cut_len = _position_stack.back()._stem_size + 1; //+1 in the name of retained key
+            dim_t cut_len = _position_stack.back()._chunk_size;
             _prefix.resize(_prefix.size() - cut_len);
             _position_stack.pop_back();
         }
@@ -250,12 +290,10 @@ namespace OP::trie
         {
             if (_prefix.length() <= desired)
                 return; //nothing to do
-            dim_t cut_len;
-            for (cut_len = 0;
-                (_prefix.length() - cut_len) > desired;
-                )
+            OP::vtm::fast_dim_t cut_len = 0;
+            while((_prefix.length() - cut_len) > desired)
             {
-                cut_len += _position_stack.back()._stem_size + 1;
+                cut_len += _position_stack.back()._chunk_size + 1;
                 _position_stack.pop_back();
             }
             _prefix.resize(_prefix.length() - cut_len);
@@ -272,7 +310,6 @@ namespace OP::trie
             return this->_version;
         }
     };
-    
 
 } //ns:OP::trie
 #endif //_OP_TRIE_TRIEITERATOR__H_

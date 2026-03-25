@@ -18,7 +18,15 @@ namespace OP::vtm
     using dim_t = std::uint16_t;
     using fast_dim_t = std::uint_fast16_t;
 
-    constexpr static inline const dim_t dim_nil_c = ~dim_t{0};
+    constexpr inline const bool is_nil(dim_t c) noexcept
+    {
+        return c == ~dim_t{ 0 };
+    }
+
+    constexpr inline const bool is_nil(fast_dim_t c) noexcept
+    {
+        return c == ~fast_dim_t{ 0 };
+    }
 
     using header_idx_t = std::uint32_t;
     using segment_idx_t = std::uint32_t;
@@ -61,6 +69,12 @@ namespace OP::vtm
         {
         }
         
+        constexpr NullableAtom& operator = (atom_t value) noexcept
+        {
+            _value = value;
+            return *this;
+        }
+
         constexpr bool operator!() const noexcept
         {
             return (bit_empty_c & _value);

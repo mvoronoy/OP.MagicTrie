@@ -296,12 +296,55 @@ namespace
         }
 
     }
+    
+    void test_Truncate(OP::utest::TestRuntime& tresult)
+    {
+        std::shared_ptr<SegmentManager> tmngr1(
+            BaseSegmentManager::create_new(
+                node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000))
+        );
+
+        
+        SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
+        using str_manager_t = OP::vtm::StringMemoryManager<>;
+        str_manager_t smm(mngr_toplogy);
+
+        constexpr size_t test_limit_c = 512;
+
+        const auto verify_expected = [&](const auto& smstr, const auto& expecting){
+            atom_string_t test_str;
+            smm.get(smstr, std::back_inserter(test_str));
+            tresult.assert_that<equals>(test_str, expecting);
+        };
+
+        atom_string_t test_str;
+        //sequentially increase string size from 0 to test_limit_c
+        for(size_t i = 0; i < test_limit_c; ++i)
+        {
+            auto smstr = smm.smart_insert(test_str);
+            //test ultimate big cut
+            smm.truncate(smstr, test_limit_c+1); 
+            verify_expected(smstr, test_str);
+            
+            smstr = smm.smart_insert(test_str);
+            for(size_t j = i;; --j)
+            {
+                smm.truncate(smstr, j); 
+                verify_expected(smstr, OP::utils::subview<atom_string_view_t>(test_str, 0, j));
+                if(j==0) break;
+            }
+
+            test_str += ' ';
+            std::iota(test_str.begin(), test_str.end(), '0');
+        }
+    }
 
     static auto& module_suite = OP::utest::default_test_suite("vtm.StringManager")
         .declare("basic", test_StringManager)
         .declare("edgecase-transactional", test_StringManagerEdgeCase)
         .declare("edgecase-no-tran", test_StringManagerEdgeCaseNoTran)
         .declare("smart-str", test_SmartStr)
+        .declare("truncate", test_Truncate)
         // define scenario parameter with InMemory implementation
         .with_fixture("memory-only", test::memory_change_history_factory<test::InMemoryChangeHistoryFactory>)
         ;

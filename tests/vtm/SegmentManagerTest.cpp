@@ -3,7 +3,6 @@
 
 #include <op/vtm/managers/BaseSegmentManager.h>
 #include <op/vtm/MemoryChunks.h>
-#include <op/trie/Containers.h>
 #include "GenericMemoryTest.h"
 
 namespace

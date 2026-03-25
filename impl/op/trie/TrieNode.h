@@ -6,7 +6,7 @@
 
 #include <op/vtm/SegmentManager.h>
 
-#include <op/trie/HashTable.h>
+#include <op/trie/BitIndexedVector.h>
 #include <op/trie/AntiHashTable.h>
 #include <op/trie/TriePosition.h>
 #include <op/vtm/PersistedReference.h>
@@ -26,6 +26,7 @@ namespace OP
             using atom_t = OP::common::atom_t;
             using NullableAtom = OP::vtm::NullableAtom;
             using dim_t = OP::vtm::dim_t;
+            using fast_dim_t = OP::vtm::fast_dim_t;
             using FarAddress = OP::vtm::FarAddress;
             using atom_string_t = OP::common::atom_string_t;
             using atom_string_view_t = OP::common::atom_string_view_t;
@@ -47,8 +48,10 @@ namespace OP
                 "self-control of NodeData failed - result structure is not plain");
 
             using key_value_t = containers::KeyValueContainer< NodeData, this_t >;
+            
+            constexpr static dim_t expected_magic_word = 0x55AA;
 
-            const dim_t magic_word_c = 0x55AA;
+            const dim_t magic_word_c = expected_magic_word;
             presence_t _child_presence, _value_presence;
             /**modification version of node*/
             node_version_t _version;
@@ -60,8 +63,8 @@ namespace OP
                 : _version(0)
                 , _capacity(capacity)
             {
-                //capacity must be pow of 2 and lay in range [8-256]
-                assert(_capacity >= 8 && _capacity <= 256 && ((_capacity - 1) & _capacity) == 0);
+                //capacity must be pow of 2 and lay in range [4-256]
+                assert(_capacity >= 4 && _capacity <= 256 && ((_capacity - 1) & _capacity) == 0);
             }
 
             template <class TTopology>
@@ -83,36 +86,39 @@ namespace OP
             }
 
 
-            template <class TSegmentTopology, class AtomIterator, class FProducePayload>
-            void insert(TSegmentTopology& topology, atom_t key,
-                AtomIterator begin, const AtomIterator end, FProducePayload&& payload_factory)
+            /** Create entry of key in the current node.
+            * 
+            * Node size is grown if needed.
+            * 
+            * @pre key must not exists yet.
+            * 
+            * @tparam FInterior functor in form `void(NodeData& new_entry, bool& out_has_value, bool& out_has_child)` - 
+            *       where caller is responsible to assign all necessary fields of new_entry and indicate if it contains
+            *       data by: `out_has_value = true/false` and indicate if entry contains child by `out_has_child = true/false`
+            */ 
+            template <class TSegmentTopology, class FInterior>
+            void insert(TSegmentTopology& topology, atom_t key, FInterior&& make_interior)
             {
                 for (;;)
                 {
                     wrap_key_value_t container;
                     kv_container(topology, container); //resolve correct instance implemented by this node
 
-                    auto [hash, success] = container->insert(key,
+                    auto ins_res = container->insert(key,
                         [&](NodeData& to_construct) {
                             ::new (&to_construct)NodeData;
-                            payload_manager_t::allocate(topology, to_construct._value);
-                            payload_manager_t::raw(topology, to_construct._value, payload_factory);
-                            _value_presence.set(key);
-                            if (begin != end)
-                            {
-                                vtm::StringMemoryManager str_manager(topology);
-                                auto size = end - begin;
-                                assert(size <
-                                    std::numeric_limits<dim_t>::max() - 1);
-                                to_construct._stem = str_manager.smart_insert(begin, end);
-                                begin = end;
-                            }
+                            bool has_data = false, has_child = false;
+                            make_interior(to_construct, has_data, has_child);
+                            if(has_data)
+                                _value_presence.set(key); 
+                            if(has_child)
+                                _child_presence.set(key);
                         });
 
-                    if (success)
+                    if (ins_res == containers::KvInsert::ok)
                         break;
 
-                    assert(hash == vtm::dim_nil_c);//only possible reason to be there - capacity is over
+                    assert(ins_res != containers::KvInsert::already_exists);//only possible reason to be there - capacity is over
                     grow(topology, *container);
                 }
                 ++_version;
@@ -174,7 +180,7 @@ namespace OP
                 kv_container(topology, container); //resolve correct instance implemented by this node
                 vtm::StringMemoryManager string_memory_manager(topology);
 
-                for (auto i = presence_first_set(); vtm::dim_nil_c != i;
+                for (auto i = presence_first_set(); !vtm::is_nil(i);
                     i = presence_next_set(static_cast<atom_t>(i)))
                 {
                     NodeData* node = container->get(static_cast<atom_t>(i));
@@ -187,8 +193,7 @@ namespace OP
                     }
                     if (!node->_stem.is_nil())
                     {
-                        string_memory_manager.destroy(node->_stem);
-                        node->_stem = {};
+                        string_memory_manager.destroy(node->_stem);//alters `->_stem` as well
                     }
                     if (_child_presence.get(i))
                     {//wipe children
@@ -214,11 +219,11 @@ namespace OP
             }
 
             template <class TSegmentTopology, class F>
-            auto raw(TSegmentTopology& topology, atom_t key, F callback) const
+            auto raw(TSegmentTopology& topology, atom_t key, F&& callback) const
             {
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
-                auto* node_data = container->get(key);
+                NodeData* node_data = container->get(key);
                 assert(node_data); //must already be allocated
                 return callback(*node_data);
             }
@@ -236,7 +241,12 @@ namespace OP
                 NodeData* node_data = container->get(key);
                 assert(node_data); //there we have only valid pointers
                 assert(!_child_presence.get(key));
-                node_data->_child = address;
+                set_raw_child(key, *node_data, address);
+            }
+
+            void set_raw_child(atom_t key, NodeData& node_data, FarAddress address)
+            {
+                node_data._child = address;
                 _child_presence.set(key);
                 ++_version;
             }
@@ -288,34 +298,40 @@ namespace OP
             }
 
             template <class TSegmentTopology, class FValueCallback>
-            auto get_value(TSegmentTopology& topology, atom_t key, FValueCallback callback) const
+            auto get_value(TSegmentTopology& topology, atom_t key, FValueCallback&& callback) const
             {
                 if (!_value_presence.get(key))
                     throw std::invalid_argument("key doesn't contain data");
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
                 auto node = container->cget(key);
-                return payload_manager_t::rawc(topology, node->_value, std::move(callback));
+                return payload_manager_t::rawc(topology, node->_value, std::forward<FValueCallback>(callback));
             }
 
-            template <class TSegmentTopology, class FPayloadFactory>
-            void set_raw_factory_value(TSegmentTopology& topology, atom_t key, NodeData& node, FPayloadFactory&& value_eval)
+            /**
+            *
+            *   \tparam TPayload - allowed be either explicit value to assign or lambda with signature `lambda(payload&)`
+            */
+            template <class TSegmentTopology, class TPayload>
+            void set_raw_factory_value(TSegmentTopology& topology, atom_t key, NodeData& node, TPayload&& value)
             {
-                payload_manager_t::raw(topology, node._value, value_eval);
+                payload_manager_t::raw(topology, node._value, std::forward<TPayload>(value));
                 _value_presence.set(key);
                 ++_version;
             }
 
-            template <class TSegmentTopology, class TData>
-            void set_value(TSegmentTopology& topology, atom_t key, TData&& value)
+            /**
+            *
+            *   \tparam TPayload - allowed be either explicit value to assign or lambda with signature `lambda(payload&)`
+            */
+            template <class TSegmentTopology, class TPayload>
+            void set_value(TSegmentTopology& topology, atom_t key, TPayload&& value)
             {
                 wrap_key_value_t container;
                 kv_container(topology, container); //resolve correct instance implemented by this node
                 NodeData* node_data = container->get(key);
                 assert(node_data); //there we have only valid pointers
-                set_raw_factory_value(topology, key, *node_data, [&](auto& dest) {
-                    dest = std::move(value);
-                    });
+                set_raw_factory_value(topology, key, *node_data, std::forward<TPayload>(value));
             }
 
             /**@return first position where child or value exists, may return dim_nil_c if node empty*/
@@ -359,10 +375,10 @@ namespace OP
             *       given: [a->stem(bcd)],
             *       when insert: (abxy),
             *       expected: [a->stem(b), child[c(d), x(y)]]
-
+            * @return number of characters moved out to the `target_node`
             */
             template <class TSegmentTopology>
-            void move_to(TSegmentTopology& topology, atom_t key, dim_t in_stem_pos,
+            fast_dim_t move_to(TSegmentTopology& topology, atom_t key, fast_dim_t in_stem_pos,
                 vtm::WritableAccess<this_t>& target_node)
             {
                 wrap_key_value_t src_container;
@@ -370,11 +386,14 @@ namespace OP
 
                 auto* src_node_data = src_container->get(key);
                 assert(src_node_data);
-                move_from_entry(topology, key, *src_node_data, in_stem_pos, target_node);
+                return move_from_entry(topology, key, *src_node_data, in_stem_pos, target_node);
             }
 
+            /**
+            * @return number of characters moved out to the `target_node`
+            */ 
             template <class TSegmentTopology>
-            void move_from_entry(TSegmentTopology& topology, atom_t source_key, NodeData& source, dim_t in_stem_pos,
+            fast_dim_t move_from_entry(TSegmentTopology& topology, atom_t source_key, NodeData& source, fast_dim_t in_stem_pos,
                 vtm::WritableAccess<this_t>& target_node)
             {
                 assert(!source._stem.is_nil()); //call move_to assumes valid stem
@@ -383,24 +402,32 @@ namespace OP
                 target_node->kv_container(topology, target_container);
                 //take stem to memory
                 vtm::StringMemoryManager str_manager(topology);
-                atom_string_t stem_buf;
-                str_manager.get(source._stem, std::back_inserter(stem_buf));
-                assert(in_stem_pos <= stem_buf.size());
-                atom_string_view_t left_stem(stem_buf.data(), in_stem_pos);
-                atom_t new_key = stem_buf[in_stem_pos++];
-                atom_string_view_t cary_over_stem = OP::utils::subview<atom_string_view_t>(
-                    stem_buf, in_stem_pos/*, till the end */);
-                str_manager.destroy(source._stem);//remove previous
-                source._stem = {};
-                if (!left_stem.empty())
-                    source._stem = str_manager.smart_insert(left_stem);
+                atom_string_t new_stem_buf;
+                str_manager.append_to(
+                    source._stem, 
+                    new_stem_buf, 
+                    in_stem_pos 
+                );
+                assert(!new_stem_buf.empty()); // empty buffer means nothing to move to new node
+                atom_t new_key = new_stem_buf[0]; //new node will consume this character
+                if (in_stem_pos > 0)
+                { //old stem truncated
+                    str_manager.truncate(/*[in, out]*/source._stem, in_stem_pos);
+                }
+                else
+                { // no need for old stem
+                    str_manager.destroy(source._stem);//remove previous
+                    source._stem = {};
+                }
+
+                atom_string_view_t carry_over_stem = OP::utils::subview<atom_string_view_t>(new_stem_buf, 1/*, till the end */);
 
                 target_container->insert(new_key,
                     [&](NodeData& target_data) -> void {
                         target_data = {};
-                        if (!cary_over_stem.empty())
+                        if (!carry_over_stem.empty())
                         {
-                            target_data._stem = str_manager.smart_insert(cary_over_stem);
+                            target_data._stem = str_manager.smart_insert(carry_over_stem);
                         }
 
                         //copy data/address to target
@@ -416,7 +443,7 @@ namespace OP
                             target_node->_value_presence.set(new_key);
                         }
                         else
-                        { // 'no-data' must be same
+                        { // status of 'no-data' must keep the same
                             assert(!target_node->_value_presence.get(new_key));
                         }
                     }
@@ -424,139 +451,125 @@ namespace OP
 
                 ++_version;
                 ++target_node->_version;
+                return static_cast<fast_dim_t>(new_stem_buf.size());
             }
-            /**
-            *   Taken a byte key, return index where corresponding key should reside for stem_manager and value_manager
-            *   @return reindexed key (value is in range [_8, _256) ).
-            */
-            template <class TSegmentTopology>
-            atom_t reindex(TSegmentTopology& topology, atom_t key) const
-            {
-                wrap_key_value_t src_container;
-                kv_container(topology, src_container); //resolve correct instance implemented by this node
-                return src_container->reindex(_hash_table, _capacity, key);
-            }
+
             dim_t capacity() const
             {
                 return _capacity;
             }
+
             FarAddress reindex_table() const
             {
                 return this->_hash_table;
             }
-            inline bool presence(atom_t key) const
+
+            inline std::uint_fast8_t presence(atom_t key) const
             {
-                return _child_presence.get(key) || _value_presence.get(key);
+                return (_child_presence.get(key) ? Terminality::term_has_child : 0) 
+                    | (_value_presence.get(key) ? Terminality::term_has_data : 0);
             }
-            inline dim_t presence_first_set() const
+
+            inline fast_dim_t presence_first_set() const
             {
-                dim_t ch_res = _child_presence.first_set();
-                dim_t dt_res = _value_presence.first_set();
-                if (vtm::dim_nil_c == ch_res)
-                    return dt_res;
-                if (vtm::dim_nil_c == dt_res)
-                    return ch_res;
+                fast_dim_t ch_res = _child_presence.first_set();
+                fast_dim_t dt_res = _value_presence.first_set();
                 return std::min(dt_res, ch_res);
             }
+
             /**@return last position where child or value exists, may return dim_nil_c if node empty*/
-            inline dim_t presence_last_set() const
+            inline fast_dim_t presence_last_set() const
             {
-                dim_t ch_res = _child_presence.last_set();
-                dim_t dt_res = _value_presence.last_set();
-                if (vtm::dim_nil_c == ch_res)
+                fast_dim_t ch_res = _child_presence.last_set();
+                fast_dim_t dt_res = _value_presence.last_set();
+                if (vtm::is_nil(ch_res))
                     return dt_res;
-                if (vtm::dim_nil_c == dt_res)
+                if (vtm::is_nil(dt_res))
                     return ch_res;
-                return std::max(dt_res, ch_res);
+                return std::max(dt_res, ch_res); //there strongly non nil
             }
 
             /**@return next position where child or value exists, may return dim_nil_c if no more entries*/
-            inline dim_t presence_next_set(atom_t previous) const
+            inline fast_dim_t presence_next_set(atom_t previous) const
             {
-                dim_t ch_res = _child_presence.next_set(previous);
-                dim_t dt_res = _value_presence.next_set(previous);
-                if (vtm::dim_nil_c == ch_res)
-                    return dt_res;
-                if (vtm::dim_nil_c == dt_res)
-                    return ch_res;
+                fast_dim_t ch_res = _child_presence.next_set(previous);
+                fast_dim_t dt_res = _value_presence.next_set(previous);
                 return std::min(dt_res, ch_res);
             }
+            
             /**@return next or the same position where child or value exists, may return dim_nil_c if no more entries*/
-            inline dim_t presence_next_set_or_this(atom_t previous) const
+            inline fast_dim_t presence_next_set_or_this(atom_t previous) const
             {
-                dim_t ch_res = _child_presence.next_set_or_this(previous);
-                dim_t dt_res = _value_presence.next_set_or_this(previous);
-                if (vtm::dim_nil_c == ch_res)
-                    return dt_res;
-                if (vtm::dim_nil_c == dt_res)
-                    return ch_res;
+                fast_dim_t ch_res = _child_presence.next_set_or_this(previous);
+                fast_dim_t dt_res = _value_presence.next_set_or_this(previous);
                 return std::min(dt_res, ch_res);
             }
 
 
         private:
-            using hash_table_t = containers::PersistedHashTable< NodeData, this_t >;
-            using anti_hash_table_t = containers::AntiHashTable< NodeData, this_t>;
+            template <fast_dim_t size>
+            using indexing_table_t = containers::BitIndexedVector<size, NodeData, this_t>;
 
-            using wrap_key_value_t = Multiimplementation<key_value_t, hash_table_t, anti_hash_table_t>;
+            using anti_hash_table_t = containers::AntiHashTable<NodeData, this_t>;
+
+            using wrap_key_value_t = Multiimplementation<
+                key_value_t, anti_hash_table_t,
+                indexing_table_t<4>, indexing_table_t<8>, indexing_table_t<16>, 
+                indexing_table_t<32>, indexing_table_t<64>, indexing_table_t<128>
+            >;
 
             template <class TSegmentTopology>
-            auto kv_container(TSegmentTopology& topology, wrap_key_value_t& out, dim_t capacity = vtm::dim_nil_c) const
+            [[maybe_unused]] key_value_t* select_kv_container_instance(
+                TSegmentTopology& topology, wrap_key_value_t& out, dim_t capacity, const FarAddress& residence) const
             {
-                if (capacity == vtm::dim_nil_c)
-                    capacity = _capacity;
-                return (capacity < 256)
-                    ? static_cast<key_value_t*>(
-                        &out.template construct<hash_table_t>(topology, *this, capacity))
-                    : static_cast<key_value_t*>(
-                        &out.template construct<anti_hash_table_t>(topology, *this, capacity))
-                    ;
-            }
-
-            /**
-            * Take some part of string specified by [begin ,end) and place inside this node
-            * @return origin index that matches to accommodated key (reindexed key)
-            */
-            template <class TSegmentTopology, class Atom>
-            void insert_stem(TSegmentTopology& topology, NodeData& node, Atom& begin, Atom end)
-            {
-                assert(node._stem.is_nil());//please check that you don't override existing stem
-                if (end != begin) //first letter considered in `presence`
+                switch (capacity)
                 {
-                    vtm::StringMemoryManager str_manager(topology);
-                    node._stem = str_manager.insert(begin, end);
-                    begin = end;
-                }
-                else
-                {
-                    node._stem = {};
+                case 4:
+                    return &out.template construct<indexing_table_t<4>>(topology, residence);
+                case 8:
+                    return &out.template construct<indexing_table_t<8>>(topology, residence);
+                case 16:
+                    return &out.template construct<indexing_table_t<16>>(topology, residence);
+                case 32:
+                    return &out.template construct<indexing_table_t<32>>(topology, residence);
+                case 64:
+                    return &out.template construct<indexing_table_t<64>>(topology, residence);
+                default:
+                    assert(false);
+                    [[fallthrough]]; //for release build
+                case 128:
+                    return &out.template construct<indexing_table_t<128>>(topology, residence);
+                case 256:
+                    return &out.template construct<anti_hash_table_t>(topology, *this, capacity);
                 }
             }
 
-            /**
-            *   Detects substr contained in stem.
-            * @return pair of comparison result and length of overlapped string.
-            *
-            */
+            template <class TSegmentTopology>
+            [[maybe_unused]] key_value_t* kv_container(TSegmentTopology& topology, wrap_key_value_t& out) const
+            {
+                return select_kv_container_instance(topology, out, _capacity, _hash_table);
+            }
+
             template <class TSegmentTopology>
             void grow(TSegmentTopology& topology, key_value_t& from_container)
             {
-                dim_t new_capacity;
-                for (
-                    new_capacity = OP::trie::containers::details::grow_size(_capacity);
-                    true;
-                    new_capacity = OP::trie::containers::details::grow_size(new_capacity))
-                {
-                    wrap_key_value_t new_container;
+                fast_dim_t new_capacity = _capacity << 1;
 
-                    kv_container(topology, new_container, new_capacity);
-                    FarAddress dest_tbl;
-                    if (new_container->grow_from(from_container, dest_tbl))
-                    {
+                // Hash-table may not be able to grow in one step because of key collision, so place
+                // grow code to loop to give several tries (other data-structures should succeed in 1 step).
+                for(;; new_capacity <<= 1 )
+                {
+                    assert(new_capacity <= 256); //must never over grow 256
+                    wrap_key_value_t new_container;
+                    select_kv_container_instance(topology, new_container, new_capacity, FarAddress{});
+                    FarAddress dest_tbl = new_container->create(); //start new container
+                    if (new_container->grow_from(from_container))
+                    {//success
                         from_container.destroy(_hash_table);
                         _hash_table = dest_tbl;
                         break;
                     }
+                    new_container->destroy(dest_tbl); //temp container unsuccess insert, need destroy
                 }
                 _capacity = new_capacity;
                 ++_version;

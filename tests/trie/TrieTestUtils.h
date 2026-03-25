@@ -54,6 +54,29 @@ namespace debug
 
 };
 
+struct CompareStrAsUnsigned : public OP::utest::details::marker_arity<2>
+{
+    template <class ...>
+    struct SignedUnsignedCharCmp
+    {
+        template <class Ch1, class Ch2>
+        constexpr bool operator ()(Ch1 c1, Ch2 c2) noexcept
+        {
+            return tools::sign_tolerant_cmp(c1, c2);
+        }
+    };
+
+    static constexpr EqualityOfRanges<SignedUnsignedCharCmp> _range_cmp{};
+
+    template <class Left, class Right>
+    auto operator()(Left&& left, Right&& right) const noexcept
+    {
+        return _range_cmp(std::begin(left), std::end(left), std::begin(right), std::end(right));
+    }
+};
+
+constexpr static inline CompareStrAsUnsigned compare_str_unsigned{};
+
 template <class Trie, class Map>
 void compare_containers(OP::utest::TestRuntime &tresult, const Trie& trie, const Map& map)
 {
@@ -80,8 +103,9 @@ void compare_containers(OP::utest::TestRuntime &tresult, const Trie& trie, const
                 << "step#" << n 
                 <<" \"" << debug::prn_ustr(ti.key(), 16) << "\"..."
             ));
-        tresult.assert_true(
-            tools::container_equals(ti.key(), mi->first, &tools::sign_tolerant_cmp<OP::common::atom_t>),
+        
+        tresult.assert_that<compare_str_unsigned>(
+            ti.key(), mi->first,
             OP_CODE_DETAILS()
             <<" step#"<< n 
             << ", for key="<< debug::prn_ustr(mi->first) 

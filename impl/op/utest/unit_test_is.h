@@ -50,7 +50,8 @@ namespace OP::utest
     //
     //  Assert Operations
     //
-    struct eq_ranges_t : details::marker_arity<4>
+    template <template<typename ...> typename ItemEquality>
+    struct EqualityOfRanges : details::marker_arity<4>
     {
         template <class T>
         using el_t = decltype(*std::begin(std::declval<const T&>()));
@@ -72,15 +73,18 @@ namespace OP::utest
             using left_elt_t = std::decay_t<decltype(*left_end)>;
             using right_elt_t = std::decay_t<decltype(*right_end)>;
 
+            ItemEquality predicate;
+
+            auto [left_msm, right_msm] = std::mismatch(
+                left_begin, left_end,
+                right_begin, right_end, predicate);
+
             if constexpr (hop::ostream_out_v<left_elt_t> && hop::ostream_out_v<right_elt_t>)
             { // can improve output by adding Fault explanation
-                return with_details(left_begin, left_end, right_begin, right_end);
+                return with_details(left_msm, left_end, right_msm, right_end);
             }
             else
             {
-                auto [left_msm, right_msm] = std::mismatch(
-                    left_begin, left_end,
-                    right_begin, right_end);
 
                 return left_msm == left_end && right_msm == right_end;
             }
@@ -93,14 +97,10 @@ namespace OP::utest
         */
         template <class LeftIter, class RightIter >
         static std::pair<bool, OP::utest::Details> with_details(
-            LeftIter left_begin, LeftIter left_end,
-            RightIter right_begin, RightIter right_end
+            LeftIter left_msm, LeftIter left_end,
+            RightIter right_msm, RightIter right_end
         )
         {
-            auto [left_msm, right_msm] = std::mismatch(
-                left_begin, left_end,
-                right_begin, right_end);
-
             if (left_msm == left_end && right_msm == right_end)
                 return std::make_pair(true, OP::utest::Details{});
 
@@ -116,7 +116,8 @@ namespace OP::utest
         }
     };
 
-    constexpr static inline eq_ranges_t eq_ranges{};
+    using eq_ranges_t = EqualityOfRanges<std::equal_to>;
+    constexpr static inline eq_ranges_t eq_ranges = {};
 
     /** Using other marker invert (negate) semantic, for example:
     * \li that<not<equals>>(1, 2) ; //negate equality eg. !=

@@ -137,17 +137,19 @@ namespace OP::vtm
             do_deallocate(header_block);
         }
 
-        /**Allocate memory and create object of specified type
-        *@return far-offset, to get real pointer use #from_far<T>()
+        /** @brief Allocate memory and create object of specified type.
+        *   @tparam T object type to create. 
+        *   @tparam Tx constructor arguments of type T.
+        *   @return far address and pointer allocated in virtual memory.
         */
         template<class T, class... Types>
-        FarAddress make_new(Types&&... args)
+        std::pair<FarAddress, T*> make_new(Types&&... args)
         {
             auto result = allocate(memory_requirement<T>::requirement);
             auto mem = segment_manager().writable_block(
                 result, memory_requirement<T>::requirement, WritableBlockHint::new_c);
-            new (mem.pos()) T(std::forward<Types>(args)...);
-            return result;
+            return std::make_pair(
+                result, new (mem.pos()) T(std::forward<Types>(args)...));
         }
 
         void _check_integrity(FarAddress segment_addr, bool verbose) override

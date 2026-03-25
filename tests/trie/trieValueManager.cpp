@@ -389,6 +389,10 @@ namespace
             atom_string_t k(1, (atom_t)a);
             trie->prefixed_key_erase_all(k);
         }
+        for (auto i = trie->begin(); i != trie->end(); ++i)
+        {
+            std::cout << (const char*)i.key().c_str() << "\n";
+        }
         tresult.assert_that<equals>(1, trie->nodes_count());
     }
 

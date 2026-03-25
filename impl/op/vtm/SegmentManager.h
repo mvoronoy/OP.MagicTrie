@@ -66,10 +66,17 @@ namespace OP::vtm
             *
             *  \param hint - give implementation optional hint how block will be used. Default behavior is to release lock 
             *       after ReadonlyMemoryChunk destroyed.
-            *  \throws ConcurrentLockException if block is already locked for write by another transaction.
+            *  \throws ConcurrentLockException if block conflicts with locked one by another transaction.
             */
             [[nodiscard]] virtual ReadonlyMemoryChunk readonly_block(
                 FarAddress pos, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) = 0;
+
+            /**
+            *  \throws ConcurrentLockException if block conflicts with locked one by another transaction.
+            *  \throws OP::Exception if read exceeds segment size
+            */
+            virtual void read(
+                FarAddress pos, std::uint8_t* buffer, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) = 0;
 
             /**
             *  \brief Get memory for write purposes.
@@ -101,11 +108,21 @@ namespace OP::vtm
             *   The method just wrap #readonly_block with typed access
             */
             template <class T>
-            ReadonlyAccess<T> view(FarAddress pos, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c)
+            [[nodiscard]] ReadonlyAccess<T> view(FarAddress pos, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c)
             {
                 return ReadonlyAccess<T>(
                             std::move(readonly_block(pos, OP::utils::memory_requirement<T>::requirement, hint))
                        );
+            }
+            
+            /** \brief Get strong typed access to memory for read-only purposes.
+            *   The method just wrap #readonly_block with typed access
+            */
+            template <class T>
+            void view(FarAddress pos, T& dest, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c)
+            {
+                static_assert(std::is_standard_layout_v<T>, "Template argument T must have standart layout to plain read");
+                read(pos, reinterpret_cast<std::uint8_t*>(&dest), sizeof(T), hint);
             }
             
             /** \brief Get strong typed access to memory for write purposes.

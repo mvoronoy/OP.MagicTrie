@@ -352,6 +352,15 @@ namespace OP
             return append(sv.data(), sv.size());
         }
 
+        template <class StringLike>
+        constexpr FixedString& append(const StringEnforce<StringLike>& sv, size_t pos, size_t count = npos)
+        {
+            if( pos > sv.size() )
+                throw std::out_of_range("sv");
+            const auto n = std::min(sv.size() - pos, count);
+            return append(sv.data() + pos, n);
+        }
+
         template <class T>
         constexpr FixedString& append(const LiteralEnforce<T>* src, size_t n) noexcept(use_noexcept_c)
         {

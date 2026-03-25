@@ -14,15 +14,21 @@ namespace OP::trie::containers
     template <class Payload, class ParentInfo>
     struct AntiHashTable : KeyValueContainer<Payload, ParentInfo>
     {
-        static inline constexpr dim_t capacity_c = 256;
         using this_t = AntiHashTable<Payload, ParentInfo>;
         using base_t = KeyValueContainer<Payload, ParentInfo>;
-        using FarAddress = vtm::FarAddress;
+
+        using typename base_t::atom_t;
+        using typename base_t::fast_atom_t;
+        using typename base_t::dim_t;
+        using typename base_t::fast_dim_t;
+        using typename base_t::FarAddress;
+        using typename base_t::payload_factory_t;
+        using typename base_t::foreach_callback_t;
 
         using persisted_table_t = vtm::PersistedArray<Payload>;
         using const_persisted_table_t = vtm::ConstantPersistedArray<Payload>;
-        using payload_factory_t = typename base_t::FPayloadFactory;
 
+        static inline constexpr fast_dim_t capacity_c = 256;
         /**
         * \tparam some specialization of SegmentTopology with mandatory slot `HeapManagerSlot`
         */
@@ -35,6 +41,11 @@ namespace OP::trie::containers
             , _node_info(node_info)
         {
             assert(capacity == capacity_c);
+        }
+        
+        virtual fast_dim_t capacity() const override
+        {
+            return capacity_c;
         }
 
         FarAddress create() override
@@ -54,36 +65,30 @@ namespace OP::trie::containers
             _heap_manager.deallocate(tbl);
         }
         
-        std::pair<dim_t, bool> insert(
-            atom_t key, const payload_factory_t& payload_factory) override
+        KvInsert insert(
+            atom_t key, payload_factory_t payload_factory, void* user_data) override
         {
             assert(!_node_info.presence(key));
             persisted_table_t ref_data(_node_info.reindex_table());
             auto& content = ref_data.ref_element(
                 _segment_manager, key );
-            payload_factory.inplace_construct(content);
-            return std::pair<dim_t, bool>(key, true);
+            payload_factory(content, user_data);
+            return KvInsert::ok;
         }
         
-        atom_t hash(atom_t key) const override
-        {
-            return key;
-        }
-
-        atom_t reindex(atom_t key) const override
-        { // 256-wide table doesn't need any reindex op
-            assert(_node_info.presence(key));
-            return key;
-        }
+        //atom_t hash(atom_t key) const 
+        //{
+        //    return key;
+        //}
 
         /** Try locate index in `ref_data` by key.
         * @return index or dim_nil_c if no key contained in ref_data
         */
-        virtual dim_t find(atom_t key) const override
+        dim_t find(atom_t key) const 
         {
             if(_node_info.presence(key))
                 return key;
-            return vtm::dim_nil_c;
+            return ~dim_t{ 0 };
         }
         
         Payload* get(atom_t key) override
@@ -99,8 +104,9 @@ namespace OP::trie::containers
             if(_node_info.presence(key)) 
             {
                 const_persisted_table_t ref_data(_node_info.reindex_table());
-                auto refview = ref_data.ref_element(_segment_manager, key);
-                return std::optional<Payload>(*refview);
+                MemoryAlignedStorage<Payload> value;
+                ref_data.ref_element(_segment_manager, key, *value.data());
+                return std::optional<Payload>(std::move(*value.data()));
             }
             return std::optional<Payload>();
         }
@@ -115,31 +121,45 @@ namespace OP::trie::containers
             return true;
         }
 
-         bool grow_from(base_t& from, FarAddress& result) override
-         {
-            assert(_node_info.capacity() < capacity_c); //this object must be bigger
-            result = create();
+        void foreach(foreach_callback_t callback, void* user_data) override
+        {
+            const_persisted_table_t ref_data(_node_info.reindex_table());
+            MemoryAlignedStorage<Payload> value;
+            //iterate only over occupied slots
+            for(auto i = _node_info.presence_first_set();
+               !vtm::is_nil(i);
+               i = _node_info.presence_next_set(i))
+            {
+                ref_data.ref_element(_segment_manager, i, *value.data());
+                if(!callback(i, *value.data(), user_data))
+                    break;
+            }
+        }
 
-            using namespace details;
-            persisted_table_t to_ref(result);
+        bool grow_from(base_t& from) override
+        {
+            assert(from.capacity() < capacity()); //this object must be bigger
+
+            persisted_table_t to_ref(_node_info.reindex_table());
             auto* to_data = to_ref.ref(_segment_manager, capacity_c);
 
-            auto i = _node_info.presence_first_set();
-            
-            //iterate only over occupied slots
-            for(atom_t key = static_cast<atom_t>(i);
-                i != vtm::dim_nil_c;
-                i = _node_info.presence_next_set(key), 
-                key = static_cast<atom_t>(i))
-            {
-                auto *v = from.get(key);
-                assert(v); //must exists since presence() == true
-                to_data[i] = std::move(*v);
-            }
+            auto move_source_item = [&](fast_atom_t key, Payload& v){
+                to_data[key] = std::move(v);
+            };
+
+            using local_callback_t = decltype(&move_source_item);
+
+            foreach_callback_t source_items_callback_adapter = +[](fast_atom_t key, Payload& value, void* user_data) -> bool{
+                (*reinterpret_cast<local_callback_t>(user_data))(key, value);
+                return true; 
+            };
+
+            from.foreach(source_items_callback_adapter, &move_source_item);
             return true;
-         }
+        }
 
     private:
+        
         vtm::SegmentManager& _segment_manager;
         vtm::HeapManagerSlot& _heap_manager;
         const ParentInfo& _node_info;

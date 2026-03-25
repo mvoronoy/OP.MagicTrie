@@ -152,13 +152,13 @@ namespace OP::vtm
         //}
 
         /**
-        *   @param idx - byte offset (not an item index)
+        *   @param byte_offset - byte offset (not an item index)
         */
         template <class T>
-        T* at(segment_pos_t idx) const noexcept
+        T* at(segment_pos_t byte_offset) const noexcept
         {
-            assert(idx < this->count());
-            return reinterpret_cast<T*>(pos() + idx);
+            assert(byte_offset < this->count());
+            return reinterpret_cast<T*>(pos() + byte_offset);
         }
         /**Copy buffer 
         * @param source source bytes
@@ -473,6 +473,13 @@ namespace OP::vtm
                 resolve_segment_manager(segment_manager_provider)
                 .readonly_block(pos, OP::utils::memory_requirement<T>::requirement, hint)
             );
+    }
+        
+    template <class T, class SMProvider>
+    void view(SMProvider& segment_manager_provider, FarAddress pos, T& dest, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c)
+    {
+        resolve_segment_manager(segment_manager_provider)
+                .view(pos, dest, hint);
     }
         
     /**

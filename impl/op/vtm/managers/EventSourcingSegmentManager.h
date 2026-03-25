@@ -88,6 +88,8 @@ namespace OP::vtm
         [[nodiscard]] virtual query_region_result_t buffer_of_region(
             const RWR& range, transaction_id_t tid, MemoryRequestType memory_type, const void* init_data) = 0;
 
+        virtual std::optional<ConcurrentAccessError> read(const RWR& range, transaction_id_t tid, std::uint8_t *buffer) = 0;
+
         /** \brief Destroy previously allocated by #buffer_of_region buffer for specific transaction 
         *
         * \param tid - transaction id;
@@ -185,7 +187,6 @@ namespace OP::vtm
 
         [[nodiscard]] transaction_ptr_t begin_transaction() override
         {
-            bool new_transaction_created = false;
             if (auto local = _opened_transactions.lock(); !local) //uses TLS
             {
                 auto result =
@@ -228,6 +229,29 @@ namespace OP::vtm
             return ReadonlyMemoryChunk(std::move(std::get<ShadowBuffer>(buffer)), size, pos);
         }
 
+        virtual void read(
+                FarAddress pos, std::uint8_t* buffer, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
+        {
+            assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
+            _base_manager->read(pos, buffer, size, hint);
+
+            auto current_transaction = _opened_transactions;
+            auto local_tx = current_transaction.lock();
+            if (!local_tx) //no transaction
+                return;
+            if (local_tx->state() != TransactionState::active)
+                throw OP::Exception(OP::vtm::ErrorCodes::er_transaction_ghost_state);
+                
+            RWR search_range(pos, size);
+            auto err = _change_history_manager->read(search_range, local_tx->transaction_id(), buffer);
+            if (err)
+            {
+                const auto& error = *err;
+                throw ConcurrentLockException(
+                    pos, local_tx->transaction_id(),
+                    FarAddress(error._locked_range.pos()), error._locking_transaction);
+            }
+        }
 
         [[nodiscard]] MemoryChunk writable_block(
             FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)  override
@@ -396,8 +420,11 @@ namespace OP::vtm
             {
                 if(_tr_state >= TransactionState::sealed_rollback_only)
                     throw Exception(OP::vtm::ErrorCodes::er_transaction_ghost_state);
+                //indicate number of records added to history
+                _framed_tx->count_log_records(_transaction_log.size());
+                _transaction_log.clear();
                 // No real commit for WR
-                close(); 
+                close();
             }
 
             void rollback() override
@@ -493,14 +520,22 @@ namespace OP::vtm
             {
                 std::swap(_active_save_point, previous);
             }
+            
+            /** allows SavePoint indicate how many records been applied/rollback in the nested scope*/ 
+            void count_log_records(std::int32_t delta)
+            {
+                _log_records_to_commit.fetch_add(delta);
+            }
 
             /**Form transaction log*/
             virtual void store_log_record(ShadowBuffer buffer) override
             {
                 throw_if_write_disallowed(); //don't allow changes in ghost state
+                ++_log_records_to_commit;
+
                 if (_active_save_point)
                     _active_save_point->store_log_record(std::move(buffer));
-                // implementation doesn't need explictly store record, it is managed by MemoryChangeHistory
+                // implementation doesn't need explicitly store record, it is managed by MemoryChangeHistory
             }
 
             void rollback() override
@@ -513,6 +548,7 @@ namespace OP::vtm
                 next_state(_tr_state); //disable accept changes in this
                 _owner._transaction_event_supplier.send<TransactionEvent::rolledback>(transaction_id());
                 _owner.dispose_transaction(*this);
+                _log_records_to_commit = 0;
             }
 
             void commit() override
@@ -523,17 +559,21 @@ namespace OP::vtm
 
                 //invoke events on transaction end
                 _owner._transaction_event_supplier.send<TransactionEvent::before_commit>(transaction_id());
-                _owner._change_history_manager->iterate_shadows(transaction_id(),
-                    +[](const RWR& region, const ShadowBuffer& source, void*user_def)->bool {
-                        EventSourcingSegmentManager& owner = *reinterpret_cast<EventSourcingSegmentManager*>(user_def);
-                        auto wr_access =
-                            owner.raw_writable_block(FarAddress(region.pos()), region.count(), WritableBlockHint::new_c);
-                        wr_access.byte_copy(source.get(), source.size());
-                        return true; //continue iteration
-                    }, &_owner);
+                if (_log_records_to_commit > 0)
+                {//optimization allows avoid walk over history changes if transaction has no writable blocks
+                    _owner._change_history_manager->iterate_shadows(transaction_id(),
+                        +[](const RWR& region, const ShadowBuffer& source, void* user_def)->bool {
+                            EventSourcingSegmentManager& owner = *reinterpret_cast<EventSourcingSegmentManager*>(user_def);
+                            auto wr_access =
+                                owner.raw_writable_block(FarAddress(region.pos()), region.count(), WritableBlockHint::new_c);
+                            wr_access.byte_copy(source.get(), source.size());
+                            return true; //continue iteration
+                        }, &_owner);
+                }
                 next_state(_tr_state); //disable accept changes in this
                 _owner._transaction_event_supplier.send<TransactionEvent::committed>(transaction_id());
                 _owner.dispose_transaction(*this);
+                _log_records_to_commit = 0;
             }
                 
             virtual std::shared_ptr<Transaction> merge_thread() override
@@ -572,6 +612,7 @@ namespace OP::vtm
             EventSourcingSegmentManager& _owner;
             TransactionState _tr_state = TransactionState::active;
             std::atomic<unsigned> _thread_merge_count = 0;
+            std::atomic<size_t> _log_records_to_commit = 0;
             HistoryAppendTransaction* _active_save_point = nullptr; //TLS must grant thread safety for update this field
         };
 

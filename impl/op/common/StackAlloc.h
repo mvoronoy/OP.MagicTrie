@@ -16,6 +16,49 @@ namespace OP
         {}
     };
 
+    template <class T>
+    struct MemoryAlignedStorage
+    {
+        constexpr T& operator *() noexcept
+        {
+            return *data();
+        }
+
+        constexpr const T& operator *() const noexcept 
+        {
+            return *data();
+        }
+
+        /** \brief Provide low-level access to occupied memory without additional 
+        *   checks if object has been initialized. 
+        */
+        T* data() noexcept
+        {
+             return std::launder(reinterpret_cast<T*>(_data));
+        }
+
+        /** \brief Provide low-level constant access to occupied memory without 
+        * additional checks if object has been initialized. 
+        */
+        const T* data() const noexcept
+        {
+             return std::launder(reinterpret_cast<const T*>(_data));
+        }
+
+        T* operator ->()
+        {
+            return data();
+        }
+
+        const T* operator ->() const
+        {
+            return data();
+        }
+    private:
+        alignas(T) std::byte _data[sizeof(T)] = {};
+
+    };
+
     /** \brief Supports the construction of objects in a memory buffer.
     *
     * Sometimes, it is important to create objects of a specific class without using heap memory. The 
@@ -45,7 +88,7 @@ namespace OP
         template <class ... Ux>
         constexpr MemBuf(Ux&& ... ux) noexcept(std::is_nothrow_constructible_v<T, Ux...>)
         {
-            ::new(_data) T(std::forward<Ux>(ux)...);
+            ::new(_data.data()) T(std::forward<Ux>(ux)...);
             _init = true;
         }
 
@@ -58,7 +101,7 @@ namespace OP
         {
             if(other._init)
             {
-                ::new(_data) T(*other.data());
+                ::new(_data.data()) T(*other.data());
                 _init = true;
             }
             else
@@ -74,7 +117,7 @@ namespace OP
         {
             if(other._init)
             {
-                ::new(_data) T(std::move(*other.data()));
+                ::new(_data.data()) T(std::move(*other.data()));
                 other._init = false;
                 _init = true;
             }
@@ -110,7 +153,7 @@ namespace OP
         *
         * \throws not_initialized_error (aka std::runtime_error) when instance is not initialized.
         */
-        T& operator *() 
+        T& operator *()
         {
             if(!_init)
                 throw not_initialized_error{};
@@ -161,7 +204,7 @@ namespace OP
             }
             else
             {
-                ::new(_data) T(t);
+                ::new(data()) T(t);
                 _init = true;
             }
             return *this;
@@ -182,7 +225,7 @@ namespace OP
             }
             else
             {
-                ::new(_data) T(std::move(t));
+                ::new(data()) T(std::move(t));
                 _init = true;
             }
             return *this;
@@ -199,7 +242,7 @@ namespace OP
             noexcept(std::is_nothrow_constructible_v<T, Ux...> && std::is_nothrow_destructible_v<T>)
         {
             destroy();
-            ::new(_data) T(std::forward<Ux>(ux)...);
+            ::new(data()) T(std::forward<Ux>(ux)...);
             _init = true;
             return *this;
         }
@@ -209,7 +252,7 @@ namespace OP
         */
         T* data() noexcept
         {
-             return std::launder(reinterpret_cast<T*>(_data));
+             return _data.data();
         }
 
         /** \brief Provide low-level constant access to occupied memory without 
@@ -217,7 +260,7 @@ namespace OP
         */
         const T* data() const noexcept
         {
-             return std::launder(reinterpret_cast<const T*>(_data));
+             return _data.data();
         }
 
         /**
@@ -235,8 +278,10 @@ namespace OP
     private:
 
         bool _init = false;
-        alignas(T) std::byte _data[sizeof(T)] = {};
+        MemoryAlignedStorage<T> _data;
     };
+            
+
 
     struct IndexedConstructor
     {
@@ -537,14 +582,14 @@ namespace OP
         }
 
         template <class U, size_t ...Ix>
-        static constexpr size_t type_to_index(std::index_sequence<Ix...>)
+        static constexpr size_t type_to_index(std::index_sequence<Ix...>) noexcept
         {
             using pack_t = std::tuple<Tx...>;
             return ((std::is_same_v<U, std::tuple_element_t<Ix, pack_t>> ? Ix : 0) | ...);
         }
 
         template <class F, size_t ...Ix>
-        constexpr void apply_by_index_impl(size_t index, F applicator, std::index_sequence<Ix...>)
+        constexpr void apply_by_index_impl(size_t index, F applicator, std::index_sequence<Ix...>) noexcept
         {
             //use && to leverage immediate stop when functor was applied
             bool is_apply_succeed = ((index != Ix ||

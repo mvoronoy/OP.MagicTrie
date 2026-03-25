@@ -6,7 +6,6 @@
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/PersistedReference.h>
 
-#include <op/trie/Containers.h>
 #include <op/trie/KeyValueContainer.h>
 
 namespace OP::trie::containers
@@ -104,13 +103,13 @@ namespace OP::trie::containers
             return v.flag;
         }
         
-        template <class HashTable>
-        const auto& get_value(const HashTable* ht, fast_dim_t index) 
-        {
-            const auto &v = ht[index];
-            assert(v.flag & fpresence_c);
-            return v;
-        }
+        //template <class HashTable>
+        //const auto& get_value(const HashTable* ht, fast_dim_t index) 
+        //{
+        //    const auto &v = ht[index];
+        //    assert(v.flag & fpresence_c);
+        //    return v;
+        //}
         
     }//ns:details
 
@@ -133,7 +132,7 @@ namespace OP::trie::containers
 
         using persisted_table_t = vtm::PersistedArray<Content>;
         using const_persisted_table_t = vtm::ConstantPersistedArray<Content>;
-        using payload_factory_t = typename base_t::FPayloadFactory;
+        using payload_factory_t = typename base_t::payload_factory_t;
 
         /**
         * \tparam some specialization of SegmentTopology with mandatory slot `HeapManagerSlot`
@@ -147,6 +146,12 @@ namespace OP::trie::containers
         {
             assert(((capacity -1) & capacity) == 0 && capacity >=8 && capacity <= 128);
         }
+
+        virtual fast_dim_t capacity() const override
+        {
+            return _capacity;
+        }
+
         
         /**
         * Create HashTableData<Payload> in dynamic memory using HeapManagerSlot slot
@@ -176,13 +181,13 @@ namespace OP::trie::containers
         *   @return insert position or #end() if no more capacity
         */
         std::pair<dim_t, bool> insert(
-                atom_t key, const payload_factory_t& payload_factory) override
+            atom_t key, payload_factory_t payload_factory, void* user_data) override
         {
             using namespace details;
             persisted_table_t ref_data(_node_info.reindex_table());
             //auto& head = ref_data.size_ref(_segment_manager);
             auto* hash_data = ref_data.ref(_segment_manager, _capacity);
-            return insert_impl(hash_data, key, payload_factory);
+            return insert_impl(hash_data, key, payload_factory, user_data);
         }
 
         /**
@@ -213,20 +218,13 @@ namespace OP::trie::containers
             return false;
         }
 
-        atom_t hash(atom_t key) const override
+        atom_t hash(atom_t key) const
         {
             return details::hash(key, _capacity);
         }
 
-        virtual atom_t reindex(atom_t key) const override 
-        {
-            auto reindexed = find(key);
-            assert(reindexed != vtm::dim_nil_c);
-            return static_cast<atom_t>(reindexed);
-        }
-
         /**Find index of key entry or #end() if nothing found*/
-        dim_t find(atom_t key) const override
+        dim_t find(atom_t key) const 
         {
             dim_t result = vtm::dim_nil_c;
             persisted_table_t ref_data(_node_info.reindex_table());
@@ -238,7 +236,7 @@ namespace OP::trie::containers
             return result;    
         }
 
-        Payload* get(atom_t key)  override
+        Payload* get(atom_t key) override
         {
             Payload* ptr = nullptr;
             persisted_table_t ref_data(_node_info.reindex_table());
@@ -260,19 +258,21 @@ namespace OP::trie::containers
             });
             return result;
         }
-
+        void foreach(foreach_callback_t callback, void* user_data) override
+        {
+            //not implemented
+        }
         /**
         *   @param from [in/out] origin hash table that will be changed during grow. When table exceeds 128, 
         *   this became nil since no table should be used above 128
         * @return tuple of new dimension and functor that can be used as ruler how key is converted to new indexes 
         */
-        bool grow_from(base_t& from, FarAddress& result) override
+        bool grow_from(base_t& from) override
         {
-            assert(_node_info.capacity() < _capacity); //this object must be bigger
-            result = create();
-
+            assert(from.capacity() < capacity()); //this object must be bigger
+            /* NOT IMPLEMENTED !!!
             using namespace details;
-            persisted_table_t to_ref(result);
+            persisted_table_t to_ref(_node_info.reindex_table());
             auto* to_data = to_ref.ref(_segment_manager, _capacity);
 
             auto i = _node_info.presence_first_set();
@@ -284,26 +284,25 @@ namespace OP::trie::containers
                 key = static_cast<atom_t>(i))
             {
                 auto *v = from.get(key);
+                using value_type_t = decltype(v);
                 assert(v); //must exists since presence() == true
                 auto res = insert_impl(to_data, key, 
-                    [&](Payload& dest)->void{
-                        dest = *v;//don't use std::move there since method can re-try
-                    }
+                    +[](Payload& dest, void* user_data)->void{
+                        dest = *reinterpret_cast<value_type_t>(user_data);//don't use std::move there since method can re-try
+                    }, v
                 );
                 if(!res.second) //grow must be always succeeded since this buffer 2 times bigger
                 {
-                    destroy(result);
-                    result = {};
                     return false;
                 }
             }
+            */
             return true;
         }
   
     private:
-        template <class F>
         std::pair<dim_t, bool> insert_impl(Content* hash_data,
-                atom_t key, F&& payload_factory) 
+                atom_t key, payload_factory_t payload_factory, void* user_data) 
         {
             using namespace details;
 
@@ -315,14 +314,7 @@ namespace OP::trie::containers
                 if (!v.presence)
                 { //nothing at this pos
                     v.key = key;
-                    if constexpr(std::is_base_of_v<payload_factory_t, std::decay_t<F> >)
-                    {
-                        payload_factory.inplace_construct(v.payload);
-                    }
-                    else
-                    {
-                        payload_factory(v.payload);
-                    }
+                    payload_factory(v.payload, user_data);
                     v.presence = true;
                     return std::make_pair(static_cast<dim_t>(hash), true);
                 }

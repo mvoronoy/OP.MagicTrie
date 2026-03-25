@@ -156,6 +156,14 @@ namespace OP::vtm
             return view<element_t>(resolve_segment_manager(manager), (address + offset));
         }
 
+        /** reference single element of array by index, no boundary check is performed*/
+        template <class TSegmentManager>
+        void ref_element(TSegmentManager& manager, segment_pos_t at, T& element) const
+        {
+            segment_pos_t offset = OP::utils::memory_requirement<element_t>::requirement * at;
+            view(resolve_segment_manager(manager), (address + offset), element);
+        }
+
     };
 
     /**
@@ -184,13 +192,14 @@ namespace OP::vtm
                     + OP::utils::memory_requirement<element_t>::requirement * (expected_size - 1);
         }
 
-        constexpr explicit PersistedSizedArray(FarAddress aadr) noexcept
-            : address(aadr)
-        {}
+        constexpr explicit PersistedSizedArray(FarAddress addr) noexcept
+            : address(addr)
+        {
+        }
 
-        constexpr PersistedSizedArray() noexcept
-            : address{}
-        {}
+        //constexpr PersistedSizedArray() noexcept
+        //    : address{}
+        //{}
 
         constexpr bool is_null() const
         {
@@ -205,22 +214,25 @@ namespace OP::vtm
 
         Size& size_ref(SegmentManager& manager) const
         {
-            return manager.template wr_at<Container>(address).size;
+            return manager.template wr_at<Container>(address)->size;
         }
 
         Container& ref(SegmentManager& manager) const
         {
-            auto ro = view<Container>(manager, address);
+            Container temp;
+            manager.view(address, temp);//can capture adjusted data !!!@@@
             return *manager
-                .writable_block(address, memory_requirement(ro->size))
+                .writable_block(address, memory_requirement(temp->size))
                 .template at<Container>(0);
         }
-        Container& ref(SegmentManager& manager, segment_pos_t str_capacity) const
+
+        Container& ref(SegmentManager& manager, segment_pos_t capacity) const
         {
             return *manager
-                .writable_block(address, memory_requirement(str_capacity))
+                .writable_block(address, memory_requirement(capacity))
                 .template at<Container>(0);
         }
+
         ReadonlyAccess<Container> cref(SegmentManager& manager) const
         {
             auto head = view<Container>(manager, address);

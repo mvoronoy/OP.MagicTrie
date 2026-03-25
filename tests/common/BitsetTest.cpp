@@ -60,7 +60,7 @@ void test_Basic(OP::utest::TestRuntime& tresult)
 void test_Finds(OP::utest::TestRuntime& tresult)
 {
     OP::common::Bitset<3> b3_t;
-    tresult.assert_true(b3_t.nil_c == b3_t.first_set());
+    tresult.assert_that<equals>(b3_t.nil_c, b3_t.first_set());
     tresult.assert_true(0 == b3_t.first_clear());
     tresult.assert_true(b3_t.nil_c == b3_t.next_set(0));
     tresult.assert_true(b3_t.nil_c == b3_t.next_set_or_this(0));

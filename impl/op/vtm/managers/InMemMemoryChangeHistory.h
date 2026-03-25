@@ -128,6 +128,19 @@ namespace OP::vtm
             }
         }
 
+        std::optional<query_region_error_t> read(const RWR& search_range, transaction_id_t tid, std::uint8_t *buffer) override
+        {
+
+            auto r = populate_ro_block(
+                    search_range,
+                    ShadowBuffer(buffer, search_range.count(), false),
+                    tid, nullptr,
+                    _isolation.load());
+            if(std::holds_alternative<query_region_error_t>(r))
+                return std::optional(std::move(std::get<query_region_error_t>(r)));
+            return {};
+        }
+
         /** cheap way to mark block as garbage */
         void destroy(transaction_id_t tid, ShadowBuffer buffer) override
         {

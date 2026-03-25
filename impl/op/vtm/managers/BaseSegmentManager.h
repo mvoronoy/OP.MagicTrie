@@ -268,6 +268,20 @@ namespace OP::vtm
                     }, 
                     size, pos);
             }
+            
+            /**
+            *  \throws ConcurrentLockException if block conflicts with locked one by another transaction.
+            *  \throws OP::Exception if read exceeds segment size
+            */
+            virtual void read(
+                FarAddress pos, std::uint8_t* buffer, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
+            {
+                assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
+                memcpy(
+                    buffer,
+                    this->get_segment(pos.segment()).at<std::uint8_t>(pos.offset()),
+                    size);
+            }
 
             /**
             *  \brief Get memory for write purposes.

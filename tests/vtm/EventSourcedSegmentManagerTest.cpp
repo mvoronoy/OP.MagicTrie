@@ -315,7 +315,7 @@ namespace
         auto test_avail = mm.available(0);
         
         OP::vtm::TransactionGuard tvoid1(tmngr1->begin_transaction());
-        auto abc1_off = mm.make_new<TestAbc>(1, 1.01, "abc");
+        auto [abc1_off, _] = mm.make_new<TestAbc>(1, 1.01, "abc");
         tvoid1.commit();
 
         auto abc1_block = tmngr1->readonly_block(abc1_off, sizeof(TestAbc));

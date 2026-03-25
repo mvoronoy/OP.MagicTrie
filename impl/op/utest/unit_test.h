@@ -1693,17 +1693,15 @@ namespace OP::utest
         template <class It1, class It2>
         inline bool range_equals(It1 first1, It1 last1, It2 first2, It2 last2)
         {
-            for (; first1 != last1 && first2 != last2; ++first1, ++first2)
-                if (*first1 != *first2)
-                    return false;
-            return first1 == last1 && first2 == last2;
+            std::tie(first1, first2) = std::mismatch(
+                first1, last1, first2, last2);
+                return first1 == last1 && first2 == last2;
         }
         template <class It1, class It2, class Pred>
         inline bool range_equals(It1 first1, It1 last1, It2 first2, It2 last2, Pred pred)
         {
-            for (; first1 != last1 && first2 != last2; ++first1, ++first2)
-                if (!pred(*first1, *first2))
-                    return false;
+            std::tie(first1, first2) = std::mismatch(
+                first1, last1, first2, last2, pred);
             return first1 == last1 && first2 == last2;
         }
         template <class Co1, class Co2>
@@ -1716,17 +1714,22 @@ namespace OP::utest
         {
             return range_equals(std::begin(co1), std::end(co1), std::begin(co2), std::end(co2), pred);
         }
+
         //
         template <class A, class B = A>
         inline bool sign_tolerant_cmp(A left, B right)
         {
-            return static_cast<typename std::make_unsigned<A>::type>(left) ==
-                static_cast<typename std::make_unsigned<B>::type>(right);
+            //C++20 2-arg template
+            return std::cmp_equal(
+                static_cast<uintmax_t>(std::make_unsigned_t<A>(left)), 
+                static_cast<uintmax_t>(std::make_unsigned_t<B>(right))
+            );
         }
-        inline bool sign_tolerant_cmp(char left, unsigned char right)
-        {
-            return (unsigned char)left == right;
-        }
+        
+        //inline bool sign_tolerant_cmp(char left, unsigned char right)
+        //{
+        //    return (unsigned char)left == right;
+        //}
     } //ns: tools
 
 

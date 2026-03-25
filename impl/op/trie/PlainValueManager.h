@@ -11,6 +11,21 @@
 
 namespace OP::trie
 {
+    namespace details
+    {
+        template <class T, std::enable_if_t<std::is_invocable_v<T>, int> = 0>
+        decltype(auto) forward_constructor_arg(T&& f) noexcept (std::is_nothrow_invocable_v<T>)
+        {
+            return f();
+        }
+
+        template <class T, std::enable_if_t<!std::is_invocable_v<T>, int> = 0>
+        decltype(auto) forward_constructor_arg(T&& f) noexcept
+        {
+            return f;
+        }
+
+    }//ns:details
 
     /** 
     * Represent persistent storage for the plain values (the values that are 
@@ -63,6 +78,10 @@ namespace OP::trie
         using payload_t = typename store_converter::Storage<source_payload_t>::storage_type_t;
 
         using data_storage_t = PlainDataStorage<payload_t, inline_byte_size_limit>;
+
+        static_assert(std::is_standard_layout_v<data_storage_t>, 
+            "PlainDataStorage<payload_t> must have standard layout");
+
         using storage_converter_t = store_converter::Storage<source_payload_t>; 
 
         template <class TSegmentTopology>
@@ -79,6 +98,36 @@ namespace OP::trie
             {
                 //nothing to do, memory already available
                 ::new (storage._data) payload_t{};
+            }
+        }
+
+        /**
+        * @tparam TAssign - either functor without arg `assign()` or value to assign on construct.
+        */
+        template <class TSegmentTopology, class TAssign>
+        static auto make_new(TSegmentTopology& topology, data_storage_t &storage, TAssign&& assign)
+        {
+            if constexpr( data_storage_t::big_payload_c )
+            {
+                auto& heap_manager = topology.template slot<vtm::HeapManagerSlot>();
+                auto [address, ptr] = heap_manager.template make_new<payload_t>();
+                *std::launder(reinterpret_cast<FarAddress*>(storage._data)) = address;
+                storage_converter_t::serialize(topology,
+                     details::forward_constructor_arg(std::forward<TAssign>(assign)),
+                     *ptr
+                );
+                return ptr;
+            }
+            else
+            {
+                //nothing to do, memory already available
+                auto *ptr = ::new (storage._data) payload_t{};
+                storage_converter_t::serialize(topology,
+                     details::forward_constructor_arg(std::forward<TAssign>(assign)),
+                     *ptr
+                );
+                return ptr;
+
             }
         }
 
@@ -103,8 +152,10 @@ namespace OP::trie
             }
         }
 
-        template <class TSegmentTopology, class FRawDataCallback>
-        static void raw(TSegmentTopology& tsegment, data_storage_t &storage, FRawDataCallback payload_callback)
+        template <class TSegmentTopology, class FRawDataCallback,
+            //specialization to assign data from callback(value_holder)
+            std::enable_if_t<std::is_invocable_v<FRawDataCallback, payload_t&>, int> = 0>
+        static void raw(TSegmentTopology& tsegment, data_storage_t &storage, FRawDataCallback&& payload_callback)
         {
             if constexpr( data_storage_t::big_payload_c )
             {
@@ -121,8 +172,27 @@ namespace OP::trie
             }
         }
 
+        template <class TSegmentTopology, class TData,
+            //specialization to assign data directly
+            std::enable_if_t<std::is_convertible_v<TData, payload_t>, int> = 0
+        >
+        static void raw(TSegmentTopology& tsegment, data_storage_t &storage, TData&& value)
+        {
+            if constexpr( data_storage_t::big_payload_c )
+            {
+                auto& address = *std::launder(reinterpret_cast<FarAddress*>(storage._data));
+                auto wr_data = OP::vtm::resolve_segment_manager(tsegment)
+                    .writable_block(address, utils::memory_requirement< payload_t>::requirement);
+                *wr_data.template at<payload_t>(0) = std::forward<TData>(value);
+            }
+            else
+            {
+                *std::launder(reinterpret_cast<payload_t*>(storage._data)) = std::forward<TData>(value);
+            }
+        }
+
         template <class TSegmentTopology, class FDataCallback>
-        static auto rawc(TSegmentTopology& tsegment, const data_storage_t &storage, FDataCallback payload_callback)
+        static auto rawc(TSegmentTopology& tsegment, const data_storage_t &storage, FDataCallback&& payload_callback)
         {
             if constexpr (data_storage_t::big_payload_c)
             {

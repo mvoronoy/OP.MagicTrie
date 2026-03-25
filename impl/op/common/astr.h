@@ -7,6 +7,7 @@
 namespace OP::common
 {
     using atom_t = std::uint8_t;
+    using fast_atom_t = std::uint_fast8_t;
     using atom_string_t = std::basic_string<atom_t>;
     using atom_string_view_t = std::basic_string_view<atom_t>;
 

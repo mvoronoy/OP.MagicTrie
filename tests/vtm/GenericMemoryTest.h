@@ -62,7 +62,6 @@ struct GenericMemoryTest{
             OP::vtm::far_pos_t table_pos;
         };
         struct TestEmptyPayload {};
-        typedef NodeHashTable<TestEmptyPayload, 8> htbl64_t;
 
         
         FarAddress one_byte_pos;
@@ -265,9 +264,15 @@ struct GenericMemoryTest{
             rnd_indexes[i] = i;
             auto r = rand();
             if (r & 1)
-                rand_buf[i] = mm.make_new<TestMemAlloc2>();
+            {
+                TestMemAlloc2* _;
+                std::tie(rand_buf[i], _) = mm.make_new<TestMemAlloc2>();
+            }
             else
-                rand_buf[i] = mm.make_new<TestMemAlloc1>();
+            {
+                TestMemAlloc1* _;
+                std::tie(rand_buf[i], _) = mm.make_new<TestMemAlloc1>();
+            }
             g.commit();
         }
 

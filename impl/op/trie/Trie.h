@@ -13,7 +13,6 @@
 #include <stack>
 
 #include <op/common/astr.h>
-#include <op/trie/Containers.h>
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/MemoryChunks.h>
 
@@ -148,7 +147,7 @@ namespace OP
                 auto next_addr = _root;
                 iterator i(this);
                 bool ok = true;
-                auto locator = [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); };
+                auto locator = [](const node_t& ro_node) { return ro_node.first(); };
                 do{
                     std::tie(ok, next_addr) = load_iterator(
                         next_addr, i, locator, &iterator::emplace);
@@ -211,10 +210,10 @@ namespace OP
                 {
                     auto [ok, child] = load_iterator(
                         i.rat().address(), i,
-                        [&i](vtm::ReadonlyAccess<node_t>& ro_node)
+                        [&i](const node_t& ro_node)
                         {
                             //don't optimize i.rat() since iterator updated inside `load_iterator`
-                            return ro_node->next((atom_t)i.rat().key());
+                            return ro_node.next((atom_t)i.rat_key());
                         },
                         &iterator::update_back);
                     if (ok)
@@ -224,7 +223,7 @@ namespace OP
                             return;
                         }
                         enter_deep_until_terminal(child, i, 
-                            [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                            [](const node_t& ro_node) { return ro_node.first(); });
                         return;
                     }
                     i.pop();
@@ -274,15 +273,15 @@ namespace OP
                 if (nav == StemCompareResult::string_end) //key partially matches to some prefix
                 { //correct string at the back of iterator
                     auto [ok, child] = load_iterator(i_beg.rat().address(), i_beg,
-                        [&i](vtm::ReadonlyAccess<node_t>&) {
-                            return NullableAtom{ i.rat().key() };
+                        [&i](const node_t&) {
+                            return NullableAtom{ i.rat_key() };
                         },
                         &iterator::update_back);
                     assert(ok);//tail must exists
                     if (is_not_set(i_beg.rat().terminality(), Terminality::term_has_data))
                     {
                         enter_deep_until_terminal(child, i_beg,
-                            [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                            [](const node_t& ro_node) { return ro_node.first(); });
                     }
                 }
                 else if( nav != StemCompareResult::equals)
@@ -379,7 +378,7 @@ namespace OP
                 iterator it(this);
                 if (lower_bound_impl(begin, aend, it))
                 {
-                    return begin == aend ? it : end();// StemCompareResult::unequals or StemCompareResult::stem_end or StemCompareResult::string_end
+                    return begin == aend ? it : end();// StemCompareResult::stem_end or StemCompareResult::string_end
                 }
                 return end();
             }
@@ -444,7 +443,8 @@ namespace OP
 
                 StemCompareResult nav_res = common_prefix(b, std::end(container), iter);
 
-                return (nav_res == StemCompareResult::equals);
+                return (nav_res == StemCompareResult::equals 
+                    && (iter.rat().terminality() & Terminality::term_has_data));
             }
 
             template <class AtomString>
@@ -489,7 +489,7 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 return children_navigation(of_this,
-                    [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                    [](const node_t& ro_node) { return ro_node.first(); });
             }
             /**
             *   Get last child element resided below position specified by `of_this`. Since all keys 
@@ -507,7 +507,7 @@ namespace OP
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true); //place all RO operations to atomic scope
                 return children_navigation(of_this,
-                    [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->last(); });
+                    [](const node_t& ro_node) { return ro_node.last(); });
             }
             /**
             *   @return sequence-factory that embrace all records by pair `[ begin(), end() )` but in more effecient way.
@@ -558,7 +558,7 @@ namespace OP
                 );
             }
 
-            /**Return range that allows iterate all immediate childrens of specified prefix
+            /**Return range that allows iterate all immediate children of specified prefix
             * \tparam AtomContainer - any string-like character enumeration
             */
             template <class AtomContainer>
@@ -605,13 +605,16 @@ namespace OP
                 return ordered_range_ptr( new result_t(source, std::move(prefix)) );
             } */
 
-            auto value_of(position_t pos) const
+            auto value_of(const iterator& pos) const
             {
+                MemoryAlignedStorage<node_t> node;
+                const auto& back = pos.rat();
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true);
-                auto node = vtm::view<node_t>(*_topology, pos.address());
-                if (pos.key() < dim_t{ 256 })
+                vtm::view(*_topology, back.address(), *node);
+
+                if (all_set(back.terminality(), Terminality::term_has_data))
                 {
-                    return node->get_value(*_topology, (atom_t)pos.key(), [this](const auto& ref){
+                    return node->get_value(*_topology, pos.rat_key(), [this](const auto& ref){
                         return OP::trie::store_converter::Storage<
                                 typename payload_manager_t::source_payload_t
                             >::deserialize(*_topology, ref);
@@ -640,7 +643,7 @@ namespace OP
                 
                 auto result = std::make_pair(end(), true);
                 result.second = !insert_impl(
-                    result.first, begin, aend, std::move(value_assigner));
+                    result.first, begin, aend, std::forward<FPayloadFactory>(value_assigner));
                 op_g.commit();
 
                 return result;
@@ -651,13 +654,13 @@ namespace OP
                 insert(const StringLike& str, FPayloadFactory&& value_assigner)
             {
                 auto b = str.begin();
-                return insert(b, str.end(), std::move(value_assigner));
+                return insert(b, str.end(), std::forward<FPayloadFactory>(value_assigner));
             }
 
             template <class AtomIterator>
             insert_result_t insert(AtomIterator& begin, AtomIterator aend, value_type value)
             {
-                return insert(begin, std::move(aend), [&]() -> const value_type&{
+                return insert(begin, std::move(aend), [&]() -> const value_type& {
                     return value;
                     });
             }
@@ -666,7 +669,7 @@ namespace OP
             std::pair<iterator, bool> insert(const AtomContainer& container, value_type value)
             {
                 auto b = std::begin(container);
-                return insert(b, std::end(container), value);
+                return insert(b, std::end(container), std::move(value));
             }
 
             /**
@@ -698,11 +701,11 @@ namespace OP
                 key_t fallback_key;
                 auto sync_res = sync_iterator(of_prefix, &fallback_key);
                 if (!sync_res)
-                { //no entry for previous iterator
+                { //no entry of previous iterator
                     return insert(fallback_key.append(begin, aend), std::move(value_factory));
                 }
                 auto result = std::make_pair(of_prefix, true);
-                alter_navigation(result.first);
+                //@!1: alter_navigation(result.first);
                 result.second = !insert_impl(
                     result.first, begin, aend, std::move(value_factory));
                 return result;
@@ -817,7 +820,7 @@ namespace OP
                 };
 
                 auto result = std::make_pair(of_prefix, true);
-                alter_navigation(result.first);
+                //@!1: alter_navigation(result.first);
                 if (insert_impl(
                     result.first, begin, aend, value_assigner))
                 {
@@ -855,68 +858,20 @@ namespace OP
 
             /**
             * Erase element pointed by iterator `prefix` and every children entries below. 
-            * \param prefix iterator pointing to the valid position, at exit it point to the next 
+            * \param prefix iterator pointing to the valid position, at exit it points to the next 
             *       lowest existing element or `end()` if no such one.
             * \return number of erased items
             */
             size_t prefixed_erase_all(iterator& prefix, bool erase_prefix = true)
             {
                 OP::vtm::TransactionGuard op_g(_topology->segment_manager().begin_transaction(), true);
-                if (!sync_iterator(prefix) || prefix.is_end())
+                if (!sync_iterator(prefix) || prefix.is_end() || 
+                    !(prefix.rat().terminality() &Terminality::term_has_data) //there is prefix entry, but for children (no value)
+                    )
                 { 
                     return 0;
                 }
-
-                auto rat = prefix.rat();//not a ref!
-                if (erase_prefix && is_not_set(rat.terminality(), Terminality::term_has_child))
-                { //no child below, so only 1 to erase
-                    size_t counter = 0;
-                    prefix = erase_impl(prefix, &counter);
-                    return counter;
-                }
-                // here iterator definitely has a child
-                auto parent_wr_node = vtm::accessor<node_t>(*_topology, rat.address());
-
-                std::stack<FarAddress> to_process;
-                to_process.push(parent_wr_node->get_child(
-                    *_topology, static_cast<atom_t>(rat.key())));
-                parent_wr_node->remove_child(*_topology, static_cast<atom_t>(rat.key()));
-                size_t erased_terminals = 0; //includes one referencing 
-                while (!to_process.empty())
-                {
-                    auto node_addr = to_process.top();
-                    to_process.pop();
-
-                    auto wr_node = vtm::accessor<node_t>(*_topology, node_addr);
-                    erased_terminals += wr_node->erase_all(*_topology, to_process);
-                    remove_node(wr_node);
-                }
-                const auto& new_back = prefix.rat(
-                    terminality_and(~Terminality::term_has_child));//avoid way-down
-                //need additional variable since #erase will decrement counter as well
-                auto effective_decrease_number = -static_cast<std::make_signed_t<size_t>>(erased_terminals);
-                if (erase_prefix && all_set(new_back.terminality(), Terminality::term_has_data))
-                {
-                    size_t counter = 0;
-                    prefix = erase_impl(prefix, &counter);
-                    assert(counter);//otherwise terminality flag must be altered
-                    erased_terminals += counter;
-                }
-
-                _topology->template slot<TrieResidence>()
-                    .update([&](auto& header){
-                        header._count += effective_decrease_number; //number of terminals
-                        header._version = ++this->_version; // version of trie
-                        prefix._version = this->_version;
-                    });
-
-                if (!prefix.is_end())
-                {
-                    prefix.rat(
-                        node_version(parent_wr_node->_version),
-                        terminality_and(~Terminality::term_has_child));
-                }
-                return erased_terminals;
+                return prefixed_erase_all_impl(prefix, erase_prefix);
             }
 
             /**
@@ -947,7 +902,7 @@ namespace OP
                     //check found starts with 'prefix'
                     if (std::mismatch(key_beg, key_beg + prefix.size(), std::begin(prefix), prefix_end).second == prefix_end)
                     { //key starts from prefix
-                        result += prefixed_erase_all(it);
+                        result += prefixed_erase_all_impl(it);
                     }
                     else
                         break;
@@ -1060,204 +1015,150 @@ namespace OP
                     });
             }
 
-            /**
-            *  On insert to `break_position` stem may contain chain to split. This method breaks the chain
-            *  and place the rest to a new children node.
-            * @return address of new node
+            /** Find first mismatch between the trie path starting at the current position of `iter`
+            *   and the input string specified by [`begin`, `end`).
+            *
+            *   The method walks the trie node-by-node, consuming one byte from the input string per
+            *   node level and then comparing the optional per-entry "stem" (a compressed suffix stored
+            *   inline in the node) against the remaining input characters.
+            *
+            *   At every step the iterator `iter` is kept up-to-date so that callers can inspect the
+            *   exact trie position where the comparison diverged.
+            *
+            *   @param iter  In/out iterator that on entry points to the node from which the walk
+            *                starts.  On exit it reflects the deepest position reached.
+            *   @param begin In/out iterator of the input string.  Advanced as characters are consumed.
+            *   @param end   Past-the-end sentinel of the input string.
+            *   @return      A `StemCompareResult` value that describes the relationship between the
+            *                input string and the trie path at the point where the walk stopped:
+            *                - `equals`     – input and trie path are identical.
+            *                - `string_end` – input was exhausted before the stem ended (input is a
+            *                                 proper prefix of a stored key).
+            *                - `stem_end`   – stem was exhausted but input still has characters left
+            *                                 (stored key is a proper prefix of the input).
+            *                - `unequals`   – a character mismatch was found inside a stem.
+            *                - `no_entry`   – the current node has no entry for the consumed byte.
             */
-            FarAddress diversificate(node_t& wr_node, iterator& break_position)
-            {
-                const auto& back = break_position.rat();
-                //create new node to place result
-                FarAddress new_node_addr = new_node(break_position.deep());
-                atom_t key = static_cast<atom_t>(back.key());
-                dim_t in_stem_pos = back.stem_size();
-                wr_node.move_to(*_topology, key, in_stem_pos, new_node_addr);
-                //wr_node.set_child(*_topology, key, new_node_addr);
-                break_position.rat(terminality_or(Terminality::term_has_child));
-
-                return new_node_addr;
-            }
-            /**Place string to node without any additional checks
-            * \tparam FPayloadFactory functor that has the signature `void (payload_t&)`
-            * \return updated version of trie (matched to current transaction)
-            */
-            template <class FPayloadFactory>
-            std::uint64_t unconditional_insert(iterator& result, FPayloadFactory fassign)
-            {
-                const auto& back = result.rat();
-                assert(back.key() < 256);
-                atom_t key = static_cast<atom_t>(back.key());
-                auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
-                assert(back.stem_size() != vtm::dim_nil_c );
-                wr_node->insert(
-                    *_topology, key, 
-                    result._prefix.end() - back.stem_size(), result._prefix.end(),
-                    [&](auto& raw_payload) {
-                        storage_converter_t::serialize(*_topology,
-                            fassign(),
-                            raw_payload
-                        );
-                    });
-                result.rat(
-                    node_version(wr_node->_version),
-                    terminality_or(Terminality::term_has_data)
-                );
-                // condition `begin == end` is never happens
-                std::uint64_t version = ++this->_version; // version of trie
-                _topology->template slot<TrieResidence>()
-                    .update([&](auto& header){
-                        ++header._count; //number of terminals
-                        header._version = version;
-                    });
-                return version;
-            }
-            /** find first mismatch after position pointed by `iter` and string specified [`begin`, `end`)
-            */ 
             template <class AtomIterator>
             StemCompareResult mismatch(iterator& iter, AtomIterator& begin, AtomIterator end) const
             {
                 using node_data_t = typename node_t::NodeData;
                 vtm::StringMemoryManager string_memory_manager(*_topology);
 
-                StemCompareResult mismatch_result = StemCompareResult::equals;
-                for (FarAddress node_addr = iter.rat().address(); 
-                    begin != end 
-                    && !node_addr.is_nil()
-                    && OP::utils::any_of<StemCompareResult::equals, StemCompareResult::stem_end>(
-                        mismatch_result);)
+                StemCompareResult result = StemCompareResult::equals;
+                FarAddress node_addr;
+                if (iter.is_end())
                 {
-                    auto node =
-                        vtm::view<node_t>(*_topology, node_addr);
-                    assert(node->magic_word_c == 0x55AA);
+                    node_addr = _root;
+                    iter.push(address(_root));
+                }
+                else
+                    node_addr = iter.rat().address();
 
-                    atom_t step_key = *begin++;
-                    bool has_child = node->has_child(step_key);
-                    bool has_value = node->has_value(step_key);
+                MemoryAlignedStorage<node_t> node;
 
+                // Each outer iteration descends one level: consume one byte from the input
+                // string as the node-level key, then compare the optional stem stored for
+                // that key against the remaining input characters.
+                while (begin != end
+                    && !node_addr.is_nil()
+                    && StemCompareResult::equals == result)
+                {
+                    vtm::view(*_topology, node_addr, *node);
+                    assert(node->magic_word_c == node_t::expected_magic_word);
+
+                    // consume one byte as the node-level key ---
+                    const atom_t step_key = *begin;
+                    const bool has_child = node->has_child(step_key);
+                    const bool has_value = node->has_value(step_key);
+                    // early-exit when the key byte is absent from this node ---
+                    if (!has_value && !has_child) // strongly equivalent to check step_key == current
+                        return StemCompareResult::no_entry;
+                    ++begin;
+
+                    // Record the current position in the iterator (stem size is not yet known).
                     iter.rat(
-                        //address(node_addr),
                         key(step_key),
-                        stem_size(vtm::dim_nil_c), //no stem info yet
                         terminality(
                             (has_value ? Terminality::term_has_data : Terminality::term_no)
                             | (has_child ? Terminality::term_has_child : Terminality::term_no)),
                         node_version(node->_version)
                     );
+                    
 
-                    if (!has_value)
-                    {//mismatch reached
-                        if(!has_child )
-                            return StemCompareResult::no_entry;
-                        if (begin == end)
-                        {
-                            iter.rat(stem_size(0));
-                            return StemCompareResult::string_end;
-                        }
-                    }
-                    mismatch_result = node->rawc(*_topology, step_key,
-                        [&](const node_data_t& node_data) -> StemCompareResult {
-                            node_addr = node_data._child;//if exists discover next child node
-                            StemCompareResult stem_matches = StemCompareResult::equals;
+                    // compare the stem stored for `step_key` against the input
+                    result = node->rawc(*_topology, step_key,
+                        [&](const node_data_t& node_data) -> StemCompareResult
+                        { 
+                            // Keep the child address for the next outer iteration.
+                            node_addr = node_data._child;
                             if (node_data._stem.is_nil())
-                            { // no stem
-                                iter.rat(stem_size(0));
-                            }
-                            else
-                            { //stem exists, append to out iterator
-                                auto result_stem_size = static_cast<dim_t>(
-                                    string_memory_manager.get(node_data._stem, [&](atom_t c) -> bool {
-                                        if (begin == end)
-                                        {
-                                            stem_matches = StemCompareResult::string_end;
-                                            return false; //stop comparison
-                                        }
-                                        else if (c != *begin)
-                                        {
-                                            stem_matches = StemCompareResult::unequals;
-                                            return false; //stop comparison
-                                        }
-                                        iter._prefix.append(1, *begin++);
-                                        return true;//continue comparison
-                                        }));
-                                iter.rat(stem_size(result_stem_size));
-                            }
-                            if (stem_matches == StemCompareResult::equals)
                             {
-                                if(begin != end)
-                                    stem_matches = StemCompareResult::stem_end;
-                                else if (!has_value)
-                                {
-                                    stem_matches =/* has_child ?
-                                        StemCompareResult::no_entry :*/ StemCompareResult::string_end;
-                                }
-                                //otherwise we have real `equals`
+                                // If input still has characters the caller must descend further.
+                                return (begin == end) ? StemCompareResult::equals : StemCompareResult::stem_end;
                             }
-                            return stem_matches;
-                        }
-                    );
-                    if (mismatch_result == StemCompareResult::stem_end && has_child)
-                    { //next iteration with new node address
-                        //mismatch_result == StemCompareResult::stem_end 
+                            //if (begin == end) //redundant, but allows avoid stem reading
+                            //{
+                            //    // Input exhausted exactly at this node level (no stem to compare more).
+                            //    return StemCompareResult::string_end;
+                            //}
+                            // Stem exists: iterate all characters against the input.
+                            StemCompareResult stem_result = StemCompareResult::equals;
+                            const auto consumed_stem_len = string_memory_manager.get(
+                                node_data._stem,
+                                [&](atom_t stem_char) -> bool
+                                {
+                                    if (begin == end)
+                                    {
+                                        stem_result = StemCompareResult::string_end;
+                                        return false; // stop
+                                    }
+                                    if (stem_char != *begin)
+                                    {
+                                        stem_result = StemCompareResult::stem_x;
+                                        return false; // stop – character mismatch
+                                    }
+                                    iter._prefix.push_back(*begin++);
+                                    return true;      // continue – characters matched
+                                });
+                            iter.rat(chunk_size_plus(static_cast<vtm::fast_dim_t>(consumed_stem_len)));
+                            if (result == StemCompareResult::string_end && has_value)
+                            {
+                                return StemCompareResult::equals;
+                            }
+
+                            // Stem was fully consumed without divergence: determine what comes next.
+                            if (stem_result == StemCompareResult::equals)
+                            {
+                                if (begin != end) // begin has been changed in stem
+                                    return StemCompareResult::stem_end; // more input remains
+                                if (!has_value)
+                                    return StemCompareResult::string_end; // input ended inside a non-terminal
+                                // Both stem and input ended simultaneously at a value node.
+                            }
+                            return stem_result;
+                        });
+
+                    // if the stem was fully consumed and a child exists,
+                    //  push the current node onto the iterator stack and
+                    //  continue the outer loop with the child node. ---
+                    if (result == StemCompareResult::stem_end && has_child)
+                    {
                         iter.push(address(node_addr));
-                        continue;
+                        result = StemCompareResult::equals; //reset for the next cycle
                     }
                 }
-                //there since both iterators reached the end
-                return mismatch_result;
-            }
-            /**
-            * it is always about to insert, since if need to update 
-            * something - then `this->mismatch` should return `equals`
-            */
-            template <class FValueEval>
-            void insert_mismatch_string_end(
-                vtm::WritableAccess<node_t>& wr_node,
-                iterator& iter, FValueEval&& f_value_eval)
-            {
-                //assert(!wr_node->has_value(step_key));
-                auto back = iter.rat();//no ref, copy!
-                assert(back.key() <= std::numeric_limits<atom_t>::max());
-                atom_t step_key = static_cast<atom_t>(back.key());
 
-                wr_node->raw(*_topology, step_key, [&](auto& src_entry){
-                    if (!src_entry._stem.is_nil())
-                    {
-                        auto new_node_addr = new_node(iter.node_count() + 1);
-                        auto target_node = vtm::accessor<node_t>(*_topology, new_node_addr);
-                        wr_node->move_from_entry(*_topology, step_key, src_entry, back.stem_size(), target_node);
-                    }
-                    assert(!wr_node->has_value(step_key));
-                    //assign (new!) value to the just freed position
-                    payload_manager_t::allocate(*_topology, src_entry._value);
-
-                    wr_node->set_raw_factory_value(
-                        *_topology, step_key, src_entry, 
-                        [&](payload_t& dest) {
-                            
-                            storage_converter_t::serialize(*_topology, f_value_eval(), dest);
-                        });
-                });
-                iter.rat(
-                    terminality_or(
-                        Terminality::term_has_child | Terminality::term_has_data),
-                    node_version(wr_node->_version)
-                );
-
-                _topology->template slot<TrieResidence>()
-                    .update([new_ver = ++this->_version](auto& header){
-                        ++header._count; //number of terminals
-                        header._version = new_ver; // version of trie
-                    });
+                return result;
             }
             
             size_t update_impl(iterator& pos, value_type value)
             {
                 const auto& back = pos.rat();
+                const auto up_key = pos.rat_key();
                 assert(all_set(back.terminality(), Terminality::term_has_data));
 
                 auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
-                atom_t up_key = static_cast<atom_t>(back.key());
                 wr_node->raw(*_topology, up_key, [&](auto& node_data) {
                         wr_node->set_raw_factory_value(*_topology, up_key, node_data, [&](auto& dest) {
                             storage_converter_t::reassign(*_topology, value, dest);
@@ -1287,69 +1188,254 @@ namespace OP
             bool insert_impl(
                 iterator& iter, AtomIterator begin, AtomIterator end, FValueFactory&& value_factory)
             {
-                if (iter.is_end())
-                { //start from root node
+                vtm::StringMemoryManager string_manager(*_topology);
+                MemoryAlignedStorage<node_t> node;
+                auto iterator_points_at = [&]() -> FarAddress{
+                    if (iter._prefix.empty()) //points nowhere
+                    {
+                        return _root;
+                    }
+                    else //points on some node
+                    {
+                        auto& back = iter.rat();
+                        auto step_key = iter.rat_key();
+                        //temp load of parent node
+                        vtm::view(*_topology, back.address(), *node);
+                        //now take the node from the pointed key
+                        const bool has_child = node->has_child(step_key);
+                        return (has_child) ? node->get_child(*_topology, step_key) : FarAddress{};
+                    }
+                };
+                FarAddress node_addr = iterator_points_at();
+                size_t full_stem_len = 0;
+                key_t carry_over_stem;
+
+                while (begin != end && !node_addr.is_nil())
+                { // match input key:[begin, end) with current node at node_addr
+                    vtm::view(*_topology, node_addr, *node);
+                    assert(node->magic_word_c == node_t::expected_magic_word);
+                    const atom_t step_key = *begin;
+                    const bool has_child = node->has_child(step_key);
+                    const bool has_value = node->has_value(step_key);
                     iter.push(
-                        address(_root)
+                        key(step_key),
+                        address(node_addr),
+                        //-> no need chunk_size(1), as key() does ++ // (1) stands for step_key
+                        terminality( //terminality may not indicate real state yet, since slot may contain stem
+                            (has_value ? Terminality::term_has_data : Terminality::term_no)
+                            | (has_child ? Terminality::term_has_child : Terminality::term_no)),
+                        node_version(node->_version)
                     );
-                }
-                
-                StemCompareResult mismatch_result = mismatch(iter, begin, end);
-                
-                if (begin == end && mismatch_result == StemCompareResult::equals)//full match
+                    ++begin;
+                    if (!has_child && !has_value) // this is strong equivalent to compare `*begin == iter.rat_key()`
+                    {//when nothing at this point it means node doesn't contains char specified by `begin`, it is exact ins point
+                        break;
+                    }
+                    // go over node internals, including: stem, child_addr
+                    const typename node_t::NodeData& node_data = node->rawc(
+                        *_topology, step_key, [&node_addr](const auto& current) -> const typename node_t::NodeData& {
+                            return current;
+                        });
+
+                    node_addr = node_data._child;// Keep the child address for the next outer iteration. (may be nil)
+                    if (node_data._stem.is_nil())
+                        continue; //ready to follow the next child
+                    //prepare stem accumulator
+                    full_stem_len = 0;
+                    carry_over_stem.clear();
+                    NullableAtom missed_key;
+                    string_manager.get(node_data._stem, [&](atom_t stem_char) -> bool {//travel over stem
+                        ++full_stem_len;
+                        if (!carry_over_stem.empty()) //already marked to truncate
+                        {
+                            carry_over_stem.push_back(stem_char);
+                        }
+                        else
+                        {
+                            if (begin == end)
+                            {
+                                carry_over_stem.push_back(stem_char);
+                                return true;
+                            }
+                            if (stem_char != *begin) //assume begin != end
+                            {
+                                carry_over_stem.push_back(stem_char);
+                                missed_key = *begin;
+                            }
+                            else
+                            {
+                                iter.rat(key(*begin));//it doesn't set the key, instead it append char to prefix and increase _stem_size
+                            }
+                            ++begin;
+                        }
+                        return true; //check next stem char
+                        });
+                    if (!carry_over_stem.empty()) //any mismatch in stem means break `while`
+                    {//break the stem
+                        using node_data_t = typename node_t::NodeData;
+                        //prepare last node to write
+                        auto parent_node = vtm::accessor<node_t>(*_topology, iter.rat().address());
+                        node_data_t& parent_data = *parent_node->raw(*_topology, step_key, [&](node_data_t& wr_node_data) -> node_data_t* {
+                            return &wr_node_data;
+                        });
+                        string_manager.truncate(parent_data._stem, full_stem_len - carry_over_stem.size());
+                        
+                        auto new_node_addr = new_node(iter._prefix.size() + 1);
+                        auto branch_node = vtm::accessor<node_t>(*_topology, new_node_addr);
+                        auto new_child_key = carry_over_stem[0];
+                        //now insert the carry-over part of stem
+                        branch_node->insert(*_topology, new_child_key,
+                            [&](auto& node_entry, bool& out_has_value, bool& out_has_children) {
+                                if (carry_over_stem.size() > 1)//[1..end)
+                                {
+                                    node_entry._stem = 
+                                        string_manager.smart_insert(carry_over_stem.begin() + 1, carry_over_stem.end());
+                                }
+                                if (has_child)
+                                {//move child data (if exists) from current node to the new one
+                                    out_has_children = true;
+                                    node_entry._child = node_addr;
+                                    //don't clear child presence there, do it later(otherwise node will destroy interior)
+                                }
+                                if (has_value)
+                                {//move value (if exists)
+                                    out_has_value = true;
+                                    //as soon _value_presence cleared, twice destructor wouldn't called
+                                    std::swap(node_entry._value, parent_data._value);
+                                    //will call parent_node->_value_presence.clear later (otherwise node will destroy interior)
+                                }
+                            });
+                            
+                        //assign child address
+                        parent_node->set_raw_child(step_key, parent_data, new_node_addr);
+                        if (has_value) //clear value as it been moved out
+                        {
+                            parent_node->_value_presence.clear(step_key);
+                            iter.rat(//iterator doesn't point data anymore as it was moved to branch node, but child exists
+                                terminality(Terminality::term_has_child)
+                                ); 
+                        }
+                        iter.rat(node_version(parent_node->_version));
+                        if (missed_key)
+                        { //missed key indicates that new node should be used for following insertion
+                            iter.push(
+                                address(new_node_addr),
+                                key(missed_key.value())
+                            );
+                        }
+                        node_addr = new_node_addr;
+                        break; // mismatch in stem means we found insert point
+                    }
+                }//while
+
+
+                if (begin != end ) 
                 {
-                    return true;
-                }
+                    if (node_addr.is_nil()) //need promote new child
+                    {
+                        auto parent_node = vtm::accessor<node_t>(*_topology, iter.rat().address());
+                        auto step_key = iter.rat_key();
+                        auto child = new_node(iter._prefix.size() + 1);
+                        parent_node->set_child(*_topology, step_key, child);
+                        iter.rat(terminality_or(Terminality::term_has_child));
+                        iter.push(address(child), key(*begin++));
+                    }
+                    else // child node is already in stack
+                    {
+                        //iter.rat(key(*begin++)); 
+                    }
 
-                if (mismatch_result == StemCompareResult::no_entry)
-                { //no entry in the current node, drain stem if exists
-                    iter.update_stem(begin, end);
                 }
-                else //entry in this node already exists, hence we need new node
+                else // begin == end when string just points to node or stem just in the middle
                 {
-                    auto back = iter.rat();//no reference
-                    atom_t step_key = static_cast<atom_t>(back.key());
-                    auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
-
-                    if (mismatch_result == StemCompareResult::string_end)
-                    {
-                        insert_mismatch_string_end(wr_node, iter, std::move(value_factory));
-                        return false;
-                    }
-
-                    auto new_node_addr = new_node(iter.node_count()+1);
-                    if (mismatch_result == StemCompareResult::stem_end)
-                    {
-                        assert(is_not_set(back._terminality, Terminality::term_has_child));
-                        wr_node->set_child(
-                            *_topology, step_key, new_node_addr);
-                        iter.rat(node_version(wr_node->_version));
-                        iter.push(
-                            key(*begin++),
-                            address(new_node_addr)
-                        );
-                        iter.update_stem(begin, end);
-                    }
-                    else //stem is fully processed
-                    {
-                        auto target_node = vtm::accessor<node_t>(*_topology, new_node_addr);
-
-                        wr_node->move_to(*_topology, step_key, back.stem_size(), target_node);
-                        iter.rat(
-                            terminality_or(Terminality::term_has_child),
-                            node_version(wr_node->_version));
-                        atom_t k = *begin++;
-                        iter.push(
-                            key(k),
-                            address(new_node_addr)
-                        );
-                        iter.update_stem(begin, end);
-                    }
+                    if (iter.rat().terminality() & Terminality::term_has_data)
+                        return true;//entry already exists5
                 }
-                iter._version = unconditional_insert(iter, std::move(value_factory));
+                auto wr_node = vtm::accessor<node_t>(*_topology, iter.rat().address());
+                
+                const auto key_of_insert = iter.rat_key();
+                if (wr_node->has_child(key_of_insert) && !wr_node->has_value(key_of_insert)) //node-entry exists so just assign the value
+                {
+                    wr_node->raw(*_topology, key_of_insert, [&](auto& node_entry) {
+                        assign_value(node_entry._value, std::forward<FValueFactory>(value_factory));
+                        wr_node->_value_presence.set(key_of_insert);
+                        });
+
+                }
+                else //no entry, make insert...
+                {
+                    wr_node->insert(*_topology, key_of_insert,
+                        [&](auto& node_entry, bool& out_has_value, bool& out_has_children) {
+                            if (begin != end)
+                            {
+                                assert(std::distance(begin, end) <
+                                    std::numeric_limits<dim_t>::max() - 1);
+                                node_entry._stem = string_manager.smart_insert(begin, end);
+                            }
+                            assign_value(node_entry._value, std::forward<FValueFactory>(value_factory));
+                            out_has_value = true;
+                        });
+                }
+                iter.rat(terminality_or(Terminality::term_has_data), node_version(wr_node->_version));
+                iter.update_stem(begin, end);
+                std::uint64_t trie_version = ++this->_version; // version of trie
+                _topology->template slot<TrieResidence>().update([&](auto& header) {
+                    ++header._count; //number of terminals
+                    header._version = trie_version;
+                    });
+                iter._version = trie_version;
                 return false;//brand new entry
             }
+
+            template <class FValuseFactory>
+            void assign_value(typename node_t::data_storage_t& storage, FValuseFactory&& value_factory)
+            {
+                //payload_manager_t::make_new(
+                //    *_topology, storage, value_factory);
+                payload_manager_t::allocate(*_topology, storage);
+                payload_manager_t::raw(*_topology, storage, [&](auto& raw_payload) {
+                    storage_converter_t::serialize(
+                        *_topology, value_factory(), raw_payload
+                        );
+                    });
+            }
             
+            /**
+            *  On insert to `break_position` stem may contain chain to split. This method breaks the chain
+            *  and place the rest to a new child node.
+            * @return true if chain was split, false nothing has been done.
+            */
+            bool split_stem(iterator& break_position)
+            {
+                auto& back = break_position._position_stack.back();
+                if (back.chunk_size() < 2) //no sense to call this method if stem is empty
+                    return false;
+                const auto previous_key = break_position.rat_key();
+                auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
+                //create new node to place result
+                auto new_node_addr = new_node(break_position.node_count() + 1);
+                auto target_node = vtm::accessor<node_t>(*_topology, new_node_addr);
+                auto new_chunk_size = wr_node->move_to(*_topology,
+                    previous_key, //last char of stem stored in iterator
+                    back.chunk_size() - 1, // (-1) as 1 character stored in a key
+                    target_node);
+                back._version = wr_node->_version; 
+                back._terminality |= Terminality::term_has_child;
+                //after this line back is not valid
+                
+                break_position.emplace(TriePosition(//now need extend position stack to reflect new node
+                    address(new_node_addr), 
+                    node_version(target_node->_version)
+                    //chunk_size(new_chunk_size)
+                    //terminality(
+                    //    target_node->_child_presence.get()
+                    //)
+                    ));
+                return true;
+            }
+
+
+
             iterator erase_impl(iterator& pos, size_t* count = nullptr)
             {
                 auto result{ pos };
@@ -1359,17 +1445,18 @@ namespace OP
                 for (bool first = true; pos.node_count(); pos.pop(), first = false)
                 {
                     const auto& back = pos.rat();
+                    const auto back_key = pos.rat_key();
                     auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
                     if (erase_child_and_exit)
                     {//previous node may leave reference to child
-                        wr_node->remove_child(*_topology, static_cast<atom_t>(back.key()));
+                        wr_node->remove_child(*_topology, static_cast<atom_t>(back_key));
                         pos.rat(
                             terminality_and(~Terminality::term_has_child),
                             node_version(wr_node->_version)
                         );
                     }
 
-                    if (!wr_node->erase(*_topology, static_cast<atom_t>(back.key()), first))
+                    if (!wr_node->erase(*_topology, static_cast<atom_t>(back_key), first))
                     { //don't continue if exists a child node
                         
                         // The `pos` iterator is not valid anymore at this point
@@ -1394,6 +1481,62 @@ namespace OP
                 if (count) { ++*count; }
                 return result;
             }
+            
+            size_t prefixed_erase_all_impl(iterator& prefix, bool erase_prefix = true)
+            {
+                const auto& back = prefix.rat();
+                auto rat_key = prefix.rat_key();
+                if (erase_prefix && !(back.terminality() & Terminality::term_has_child))
+                { //no child below, so only 1 to erase
+                    size_t counter = 0;
+                    prefix = erase_impl(prefix, &counter);
+                    return counter;
+                }
+                // here iterator definitely has a child
+                auto parent_wr_node = vtm::accessor<node_t>(*_topology, back.address());
+
+                std::stack<FarAddress> to_process;
+                to_process.push(parent_wr_node->get_child(*_topology, rat_key));
+                parent_wr_node->remove_child(*_topology, rat_key);
+                size_t erased_terminals = 0; //includes one referencing 
+                while (!to_process.empty())
+                {
+                    auto node_addr = to_process.top();
+                    to_process.pop();
+
+                    auto wr_node = vtm::accessor<node_t>(*_topology, node_addr);
+                    erased_terminals += wr_node->erase_all(*_topology, to_process);
+                    remove_node(wr_node);
+                }
+                const auto& new_back = prefix.rat(
+                    terminality_and(~Terminality::term_has_child));//avoid way-down
+                //need additional variable since #erase will decrement counter as well
+                auto effective_decrease_number = -static_cast<std::make_signed_t<size_t>>(erased_terminals);
+                if (erase_prefix && all_set(new_back.terminality(), Terminality::term_has_data))
+                {
+                    size_t counter = 0;
+                    prefix = erase_impl(prefix, &counter);
+                    assert(counter);//otherwise terminality flag must be altered
+                    erased_terminals += counter;
+                }
+                else if (!prefix.is_end()) //need position next, only if erase_impl wasn't called 
+                {
+                    prefix.rat(
+                        node_version(parent_wr_node->_version),
+                        terminality_and(~Terminality::term_has_child));
+                    _next(prefix);
+                }
+
+
+                _topology->template slot<TrieResidence>()
+                    .update([&](auto& header) {
+                    header._count += effective_decrease_number; //number of terminals
+                    header._version = ++this->_version; // version of trie
+                    prefix._version = this->_version;
+                        });
+
+                return erased_terminals;
+            }
 
             /** Prepares `result_iter` to further navigation deep, if it is empty 
             * method prepares navigation from root node
@@ -1410,10 +1553,10 @@ namespace OP
                     if (!all_set(result_iter.rat().terminality(), Terminality::term_has_child))
                         return false;//no way down
                     const auto& back = result_iter.rat();
-                    next_address = vtm::view<node_t>(
-                        *_topology, back.address())
-                        ->get_child(*_topology, static_cast<atom_t>(back.key()))
-                        ;
+                    const auto back_key = result_iter.rat_key();
+                    MemoryAlignedStorage<node_t> node;
+                    vtm::view<node_t>(*_topology, back.address(), *node);
+                    next_address = node->get_child(*_topology, static_cast<atom_t>(back_key));
                 }
                 result_iter.push(
                     address(next_address)
@@ -1433,10 +1576,11 @@ namespace OP
                 if (!navigation_mode(result_iter))
                 {//no way down, so need create children empty node
                     const auto& back = result_iter.rat();
-                    assert(back.key() < dim_t{ 256 });
+                    const auto back_key = result_iter.rat_key();
+
                     auto addr = new_node(result_iter.node_count());
                     vtm::accessor<node_t>(*_topology, back.address())
-                        ->set_child(*_topology, static_cast<atom_t>(back.key()), addr);
+                        ->set_child(*_topology, back_key, addr);
                     result_iter.push(
                         address(addr)
                     );
@@ -1448,7 +1592,7 @@ namespace OP
             template <class Atom>
             StemCompareResult common_prefix(Atom& begin, Atom end, iterator& result_iter) const
             {
-                StemCompareResult retval = StemCompareResult::unequals;
+                StemCompareResult retval = StemCompareResult::no_entry;
                 if (begin == end || !navigation_mode(result_iter))
                 { //nothing to consider
                     return retval;
@@ -1470,11 +1614,10 @@ namespace OP
                 }
                 iterator result(of_this);
                 const auto& back = result.rat();
-                assert(back.key() < 256);
+                const auto back_key = result.rat_key();
                 FarAddress child = back.address();
                 auto ro_node = vtm::view<node_t>(*_topology, child);
-                child = ro_node->get_child(*_topology, 
-                    static_cast<atom_t>(back.key()));
+                child = ro_node->get_child(*_topology, back_key);
                 enter_deep_until_terminal(child, result, locator);
                 return result;
             }
@@ -1496,28 +1639,22 @@ namespace OP
                     _next(prefix);
                     return false;
                 }
-                auto unmatch_result = mismatch(prefix, begin, aend);
 
-                switch (unmatch_result)
+                auto mismatch_result = mismatch(prefix, begin, aend);
+                switch (mismatch_result)
                 {
                 case StemCompareResult::equals: //exact match
-                    return true;
-                case StemCompareResult::unequals:
-                {
-                    if (!prefix.is_end())
-                    {
-                        _next(prefix);
-                    }
-                    return false; //not an exact match
-                }
+                    return prefix.rat().terminality() & Terminality::term_has_data;
                 case StemCompareResult::no_entry:
                 {
-                    auto back = prefix.rat(stem_size(0));//not a reference
+                    auto back = prefix.rat(chunk_size(0));//not a reference
+                    assert(begin != aend); // string is not empty because `mismatch` has indicated absence of `*begin`
+                    auto back_key = *begin;
                     auto [ok, child] = load_iterator(
                         back.address(), prefix,
-                        [&](vtm::ReadonlyAccess<node_t>& ro_node)
+                        [&](const node_t& ro_node)
                         { //on absence of entry just try find bigger in the same node
-                            return ro_node->next_or_this(static_cast<atom_t>(back.key()));
+                            return ro_node.next_or_this(back_key);
                         },
                         &iterator::update_back);
 
@@ -1531,7 +1668,7 @@ namespace OP
                     if (is_not_set(prefix.rat().terminality(), Terminality::term_has_data))
                     {
                         enter_deep_until_terminal(back.address(), prefix,
-                            [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                            [](const node_t& ro_node) { return ro_node.first(); });
                     }
                     return false; //not an exact match
                 }
@@ -1539,16 +1676,16 @@ namespace OP
                 {
                     auto [ok, child] = load_iterator(
                         prefix.rat().address(), prefix,
-                        [&](vtm::ReadonlyAccess<node_t>& ro_node) {
-                            return NullableAtom{ prefix.rat().key() };
+                        [&](const node_t& ) {
+                            return NullableAtom{ prefix.rat_key() };
                         },
                         &iterator::update_back);
                     assert(ok); //empty node is impossible there
                     if (is_not_set(prefix.rat().terminality(), Terminality::term_has_data))
                     {
                         enter_deep_until_terminal(child, prefix,
-                            [](vtm::ReadonlyAccess<node_t>& ro_node) {
-                                return ro_node->first(); 
+                            [](const node_t& ro_node) {
+                                return ro_node.first(); 
                             });
                     }
                     return false;//not an exact match
@@ -1559,7 +1696,7 @@ namespace OP
                 }
                 //when: StemCompareResult::stem_end || StemCompareResult::string_end ||
                 //   ( StemCompareResult::unequals && !iter.is_end())
-                next(prefix);
+                _next(prefix);
                 return false; //not an exact match
             }
 
@@ -1569,49 +1706,46 @@ namespace OP
             * \param fallback atomic_string_t that set overall result false origin key of iterator, because on
             *       unsuccessful sync at exit iterator is damaged. Pointer may be omitted if you don't need recovery
             */
-            bool sync_iterator(iterator& it, key_t* fallback = nullptr) const
+            bool sync_iterator(iterator& iter, key_t* fallback = nullptr) const
             {
                 const std::uint64_t this_ver = this->version();
-
-                if (this_ver == it.version()) //no sync is needed
+                if (this_ver == iter.version()) //no sync is needed
                     return true;
-                it._version = this_ver;
-                dim_t order = 0;
+
+                iter._version = this_ver;
+                size_t node_order = 0;
                 size_t prefix_length = 0;
                 //take each node of iterator and check against current version of real node
-                for (const auto& i : it._position_stack)
+                for (const auto& i : iter._position_stack)
                 {
                     auto node = vtm::view<node_t>(*_topology, i.address());
                     if (node->_hash_table.is_nil())
-                    {//may be iterator so old, so node have been removed
-                        it = end();
-                        return false;
+                    {//may be iterator so old, so node has been removed
+                        break;
                     }
                     if (node->_version != i.version())
                     {
-                        if (fallback)
-                        {
-                            *fallback = it.key(); //need make copy since next instructions corrupt the iterator
-                        }
-                        auto repeat_search_key = 
-                            it.key().substr(prefix_length); //cut prefix str (make copy)
-                        it._prefix.resize(prefix_length);
-                        it._position_stack.erase( //cut stack
-                            it._position_stack.begin() + order, 
-                            it._position_stack.end()); 
-                        auto suffix_begin = repeat_search_key.begin();
-                        auto suffix_end = repeat_search_key.end();
-                        if (!lower_bound_impl(suffix_begin, suffix_end, it))
-                        { 
-                            return false;
-                        }
-                        return true;
+                        //in ideal world I'd check terminality and prefix equality, but it is longer than just reload iterator
+                        break;
                     }
-                    assert(i.stem_size() != vtm::dim_nil_c);
-                    prefix_length += i.stem_size() + 1;
-                    ++order;
+                    prefix_length += i.chunk_size();
+                    ++node_order;
                 }
-                return true;
+                if (prefix_length == iter._prefix.size())
+                    return true; //no changes
+                if (fallback)
+                {
+                    *fallback = iter.key(); //need make copy since next instructions corrupt the iterator
+                }
+                auto repeat_search_key =
+                    iter.key().substr(prefix_length); //cut prefix str (make copy)
+                iter._prefix.resize(prefix_length);
+                iter._position_stack.erase( //cut the invalid part of stack
+                    iter._position_stack.begin() + node_order,
+                    iter._position_stack.end());
+                auto suffix_begin = repeat_search_key.begin();
+                auto suffix_end = repeat_search_key.end();
+                return lower_bound_impl(suffix_begin, suffix_end, iter);
             }
 
             /**
@@ -1625,35 +1759,32 @@ namespace OP
             template <class FFindEntry, class FIteratorUpdate>
             std::pair<bool, FarAddress> load_iterator(
                 const FarAddress& node_addr, iterator& dest, 
-                FFindEntry pos_locator, FIteratorUpdate iterator_update) const
+                FFindEntry&& pos_locator, FIteratorUpdate&& iterator_update) const
             {
-                auto ro_node = vtm::view<node_t>(*_topology, node_addr);
-                NullableAtom pos = pos_locator(ro_node);
+                MemoryAlignedStorage<node_t> ro_node;
+                vtm::view(*_topology, node_addr, *ro_node);
+                NullableAtom pos = pos_locator(*ro_node);
                 if (!pos)
                 { //no first
                     return std::make_pair(false, FarAddress());
                 }
 
-                position_t root_pos(
-                    address(node_addr),
-                    key(pos.value()),
-                    node_version(ro_node->_version)
-                );
                 return ro_node->rawc(*_topology, pos.value(),
                     [&](const auto& node_data) {
+                        (dest.*iterator_update)(position_t(
+                            address(node_addr),
+                            node_version(ro_node->_version)
+                        ));
+                        dest._prefix.push_back(pos.value()); //assign key
+                        vtm::fast_dim_t stem_len = 1;//stands for key
                         if (!node_data._stem.is_nil())
                         {//if stem exists should be placed to iterator
                             vtm::StringMemoryManager smm(*_topology);
-                            key_t buffer;
-                            smm.get(node_data._stem, std::back_inserter(buffer));
-                            (dest.*iterator_update)(std::move(root_pos),
-                                buffer.data(), buffer.data() + buffer.size());
+                            stem_len += smm.append_to(node_data._stem, dest._prefix);
                         }
-                        else //no stem
-                        {
-                            (dest.*iterator_update)(std::move(root_pos), nullptr, nullptr);
-                        }
+                        
                         dest.rat(
+                            chunk_size(stem_len),
                             terminality(
                                 (ro_node->has_value(pos.value()) ? Terminality::term_has_data : Terminality::term_no)
                                 | (ro_node->has_child(pos.value()) ? Terminality::term_has_child : Terminality::term_no)
@@ -1666,27 +1797,29 @@ namespace OP
 
             void _next(iterator& i, bool way_down = true) const
             {
+                MemoryAlignedStorage<node_t> ro_node;
                 while (!i.is_end())
                 {
                     const auto& back = i.rat();
+                    const auto rat_key = i.rat_key();
                     //try enter deep
                     if (way_down && all_set(back.terminality(), Terminality::term_has_child))
                     {   //get address of child
-                        auto ro_node = vtm::view<node_t>(*_topology, back.address());
-                        auto child_addr = ro_node->get_child(
-                            *_topology, static_cast<atom_t>(back.key()));
+                        vtm::view(*_topology, back.address(), *ro_node);
+
+                        auto child_addr = ro_node->get_child(*_topology, rat_key);
                         enter_deep_until_terminal(child_addr, i, 
-                            [](vtm::ReadonlyAccess<node_t>& ro_node) {
-                                return ro_node->first(); 
+                            [](const node_t& ro_node) {
+                                return ro_node.first(); 
                             });
                         return;
                     }
                     //try navigate right from current position
                     auto [ok, child] = load_iterator(i.rat().address(), i,
-                        [&i](vtm::ReadonlyAccess<node_t>& ro_node)
+                        [&i](const node_t& ro_node)
                         {
                             //don't optimize `i.rat` since i may change
-                            return ro_node->next((atom_t)i.rat().key());
+                            return ro_node.next(i.rat_key());
                         },
                         &iterator::update_back);
                     if (ok)
@@ -1696,7 +1829,7 @@ namespace OP
                             return;
                         }
                         enter_deep_until_terminal(child, i,
-                            [](vtm::ReadonlyAccess<node_t>& ro_node) { return ro_node->first(); });
+                            [](const node_t& ro_node) { return ro_node.first(); });
                         return;
                     }
                     //here since no way neither down nor right

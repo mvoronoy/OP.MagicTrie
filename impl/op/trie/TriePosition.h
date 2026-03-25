@@ -4,63 +4,32 @@
 
 #include <cstdint>
 
+#include <op/common/Assoc.h>
+
 #include <op/vtm/typedefs.h>
 
 namespace OP::trie
 {    
-    /** Decodes if TriePosition points to value, children or combination of this or nothing of this
+    /** Flags to check if position in the Trie contains value, children or nothing.
     */
-    enum class Terminality : std::uint8_t
+    struct Terminality final 
     {
-        /** No any information there */
-        term_no = 0,
+        /** No terminality (no child, no value) */
+        constexpr static inline std::uint_fast8_t term_no = 0;
         /** TriePosition contains reference to child position */
-        term_has_child = 0x1,
+        constexpr static inline std::uint_fast8_t term_has_child = 0x1;
         /** TriePosition contains reference to position with a value */
-        term_has_data = 0x2
+        constexpr static inline std::uint_fast8_t term_has_data = 0x2;
     };
     
-    /** Quick check for Terminality::term_no */
-    constexpr inline bool operator !(Terminality check) noexcept
-    {
-        return check == Terminality::term_no;
-    }
-
-    constexpr inline Terminality operator & (Terminality left, Terminality right) noexcept
-    {
-        return static_cast<Terminality>(  static_cast<std::uint8_t>(left) & static_cast<std::uint8_t>(right) );
-    }
-
-    constexpr inline Terminality operator | (Terminality left, Terminality right) noexcept
-    {
-        return static_cast<Terminality>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
-    }
-
-    inline Terminality& operator &= (Terminality& left, Terminality right) noexcept
-    {
-        left = left & right;
-        return left;
-    }
-    
-    inline Terminality& operator |= (Terminality& left, Terminality right) noexcept
-    {
-        left = left | right;
-        return left;
-    }
-
-    constexpr inline Terminality operator ~ (Terminality v) noexcept
-    {
-        return static_cast<Terminality>(~static_cast<std::uint8_t>(v));
-    }
-
     template <class T>
-    constexpr inline bool all_set(T value, Terminality test) noexcept
+    constexpr inline bool all_set(T value, std::uint_fast8_t test) noexcept
     {
         return (value & test) == test;
     }
 
     template <class T>
-    constexpr inline bool is_not_set(T value, Terminality test) noexcept
+    constexpr inline bool is_not_set(T value, std::uint_fast8_t test) noexcept
     {
         return (value & static_cast<T>(test)) != test;
     }
@@ -81,56 +50,47 @@ namespace OP::trie
         string_end,
         /**Stem part is fully equal to string, but string is longer*/
         stem_end,
-        /**Stem and string not fully matches*/
-        unequals,
+        stem_x,
         no_entry
     };
 
     using node_version_t = std::uint32_t;
 
-    template <class T>
-    struct TriePositionArg
-    {
-        T _t;
+    // Forward declare the class so the concept can refer to it
+    struct TriePosition;
+
+    /** Define the requirement: T must be callable with (TriePosition&) */
+    template<typename T>
+    concept CallableWithTriePosition = requires(T t, TriePosition& ref) {
+        { t(ref) } -> std::same_as<void>;
     };
+
+
 
     struct TriePosition
     {
-        using dim_t = vtm::dim_t;
+        using fast_dim_t = vtm::fast_dim_t;
+
         using FarAddress = vtm::FarAddress;
 
         constexpr TriePosition() noexcept = default;
 
-        template <class ... Tx>
-        explicit TriePosition(TriePositionArg<Tx>&& ... tx) noexcept
+        template <CallableWithTriePosition... Tx>
+        explicit TriePosition(Tx&& ... tx) noexcept
         {
             (tx(*this), ... );
         }
 
         /** As soon this class consist of unique types only can assign values in arbitrary order */
-        template <class ... Tx>
-        void assign(TriePositionArg<Tx>&& ... tx) noexcept
+        template <CallableWithTriePosition... Tx>
+        void assign(Tx&& ... tx) noexcept
         {
            (tx(*this), ... );
         }        
 
-        constexpr inline bool operator == (const TriePosition& other) const noexcept
-        {
-            return _node_addr == other._node_addr //first compare node address as simplest comparison
-                && _key == other._key //check in-node position then
-                && _stem_size == other._stem_size
-                ;
-        }
-
         constexpr node_version_t version() const noexcept
         {
             return _version;
-        }
-        
-        /**Offset inside node. May be nil_c - if this position points to the `end` */
-        constexpr dim_t key() const noexcept
-        {
-            return _key;
         }
         
         constexpr FarAddress address() const noexcept
@@ -138,128 +98,130 @@ namespace OP::trie
             return _node_addr;
         }
 
-        constexpr dim_t stem_size() const noexcept
+        constexpr fast_dim_t chunk_size() const noexcept
         {
-            return _stem_size;
+            return _chunk_size;
         }
         /**
         * return combination of flag presence at current point
         * @see Terminality enum
         */
-        constexpr Terminality terminality() const noexcept
+        constexpr uint_fast8_t terminality() const noexcept
         {
             return _terminality;
         }
 
-        FarAddress _node_addr = {};
-        /**horizontal position in node*/
-        dim_t _key = vtm::dim_nil_c;
-        /** Vertical position in node, for nodes without stem it is dim_nil_c*/
-        dim_t _stem_size = vtm::dim_nil_c;
-        Terminality _terminality = Terminality::term_no;
+        uint_fast8_t _terminality = Terminality::term_no;
+        /** Length of prefix string stored in current node. Value 1 always stands for key entry and values bigger than 1 encodes also size of stem*/
+        fast_dim_t _chunk_size = 0;
         node_version_t _version = ~node_version_t{};
-        
+        FarAddress _node_addr = {};
     };
 
-    template <>
-    struct TriePositionArg<OP::common::atom_t>
+    namespace _trie_position_args
     {
-        OP::common::atom_t _t;
-        void operator()(TriePosition& target){ target._key = _t; }
-    };
-
-    template <>
-    struct TriePositionArg<vtm::FarAddress>
-    {
-        vtm::FarAddress _t;
-        void operator()(TriePosition& target){ target._node_addr = _t; }
-    };
-
-    template <>
-    struct TriePositionArg<Terminality>
-    {
-        Terminality _t;
-        enum class Op
+        template <auto member_c, class T>
+        struct FieldAssign: OP::AssocVal<member_c, T>
         {
-            disjunct, conjunct, assign
-        } _operation;
+            using base_t = OP::AssocVal<member_c, T>;
 
-        void operator()(TriePosition& target) 
-        {
-            switch (_operation)
+            using base_t::base_t;
+
+            constexpr void operator()(TriePosition& subject) const & noexcept
             {
-            case Op::disjunct:
-                target._terminality |= _t;
-                break;
-            case Op::conjunct:
-                target._terminality &= _t;
-                break;
-            case Op::assign:
-                target._terminality = _t;
-                break;
-            default:
-                assert(false);
+                auto lift = base_t::code;
+                (subject.*lift) = base_t::value;
             }
-        }
-    };
 
-    template <>
-    struct TriePositionArg<vtm::dim_t>
-    {
-        vtm::dim_t _t;
-        void operator()(TriePosition& target)
+            constexpr void operator()(TriePosition& subject) && noexcept
+            {
+                auto lift = base_t::code;
+                (subject.*lift) = std::move(base_t::value);
+            }
+        };
+
+        template <auto member_c, class T>
+        struct FieldDelta: OP::AssocVal<member_c, T>
         {
-            //be aware! something already changed stem size 
-            assert( target._stem_size == vtm::dim_nil_c );
-            target._stem_size = _t; 
-        }
-    };
+            using base_t = OP::AssocVal<member_c, T>;
 
-    template <>
-    struct TriePositionArg<node_version_t>
-    {
-        node_version_t _t;
-        void operator()(TriePosition& target) { target._version = _t; }
-    };
-    
+            using base_t::base_t;
 
-    inline TriePositionArg<OP::common::atom_t> key(OP::common::atom_t c)
+            constexpr void operator()(TriePosition& subject) const & noexcept
+            {
+                (subject.*base_t::code) += base_t::value;
+            }
+
+            constexpr void operator()(TriePosition& subject) && noexcept
+            {
+                (subject.*base_t::code) += std::move(base_t::value);
+            }
+        };
+
+        template <auto member_c, class T>
+        struct FieldOrAssign: OP::AssocVal<member_c, T>
+        {
+            using base_t = OP::AssocVal<member_c, T>;
+
+            using base_t::base_t;
+
+            constexpr void operator()(TriePosition& subject) noexcept
+            {
+                auto lift = base_t::code;
+                (subject.*lift) |= base_t::value;
+            }
+        };
+
+        template <auto member_c, class T>
+        struct FieldAndAssign: OP::AssocVal<member_c, T>
+        {
+            using base_t = OP::AssocVal<member_c, T>;
+
+            using base_t::base_t;
+
+            constexpr void operator()(TriePosition& subject) noexcept
+            {
+                auto lift = base_t::code;
+                (subject.*lift) &= base_t::value;
+            }
+        };
+    } //ns:_trie_position_args
+
+    constexpr inline auto address(vtm::FarAddress addr) noexcept
     {
-        return TriePositionArg<OP::common::atom_t>{c};
+        return _trie_position_args::FieldAssign<&TriePosition::_node_addr, vtm::FarAddress>(addr);
     }
 
-    inline auto address(vtm::FarAddress addr)
+    constexpr inline auto terminality(std::uint_fast8_t c) noexcept
     {
-        return TriePositionArg<vtm::FarAddress>{std::move(addr)};
+        return _trie_position_args::FieldAssign<&TriePosition::_terminality, std::uint_fast8_t >(c);
     }
 
-    inline auto terminality(Terminality c)
+    constexpr inline auto terminality_and(std::uint_fast8_t c) noexcept
     {
-        using arg_t = TriePositionArg<Terminality>;
-        return arg_t{c, arg_t::Op::assign};
+        return _trie_position_args::FieldAndAssign<&TriePosition::_terminality, std::uint_fast8_t >(c);
     }
 
-    inline auto terminality_and(Terminality c)
+    constexpr inline auto terminality_or(std::uint_fast8_t c) noexcept
     {
-        using arg_t = TriePositionArg<Terminality>;
-        return arg_t{c, arg_t::Op::conjunct};
+        return _trie_position_args::FieldOrAssign<&TriePosition::_terminality, std::uint_fast8_t >(c);
     }
 
-    inline auto terminality_or(Terminality c)
+    constexpr inline auto chunk_size(vtm::fast_dim_t c) noexcept
     {
-        using arg_t = TriePositionArg<Terminality>;
-        return arg_t{c, arg_t::Op::disjunct};
+        return _trie_position_args::FieldAssign<&TriePosition::_chunk_size, vtm::fast_dim_t>(c);
     }
 
-    inline auto stem_size(vtm::dim_t c)
+    constexpr inline auto chunk_size_plus(vtm::fast_dim_t c) noexcept
     {
-        return TriePositionArg<vtm::dim_t>{c};
+        return _trie_position_args::FieldDelta<&TriePosition::_chunk_size, vtm::fast_dim_t>(c);
     }
 
-    inline auto node_version(node_version_t c)
+    constexpr inline auto node_version(node_version_t c) noexcept
     {
-        return TriePositionArg<node_version_t>{c};
+        return _trie_position_args::FieldAssign<&TriePosition::_version, node_version_t>(c);
     }
+
 } //ns:OP::trie
 #endif //_OP_TRIE_TRIEPOSITION__H_
 

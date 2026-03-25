@@ -1,10 +1,170 @@
 #ifndef _OP_TRIE_BITSET__H_
 #define _OP_TRIE_BITSET__H_
 
+#include <bit>
 #include <cstdint>
 #include <cstdlib>
 #include <iterator>
 #include <assert.h>
+
+namespace OP::rawbits //****************************************************************************
+{
+    using fast_dim_t = std::uint_fast16_t;
+
+    constexpr inline fast_dim_t nil_c = ~fast_dim_t{0};
+
+    /** @return index of first bit that is set, or `nil_c` if no bits*/
+    template <std::unsigned_integral UInt, size_t N>
+    constexpr inline fast_dim_t first_set(const UInt (&target)[N]) noexcept
+    {
+        constexpr auto bits_c = std::numeric_limits<UInt>::digits;
+        for (auto i = 0; i < N; ++i)
+        {
+            if (target[i] != 0) //test all bits are set
+            {
+                //count Trailing(!) zeros
+                return static_cast<fast_dim_t>(std::countr_zero(target[i]) + i * bits_c);
+            }
+        }
+        return nil_c;
+    }
+
+    /** @return index of last bit that is set, or `nil_c` if no bits */
+    template <std::unsigned_integral UInt, size_t N>
+    inline fast_dim_t last_set(const UInt (&target)[N]) noexcept
+    {
+        constexpr auto bits_c = std::numeric_limits<UInt>::digits;
+        for (auto i = N; i > 0; --i)
+        {
+            const auto j = i - 1u;
+            if (target[j] != 0) //test all bits are set
+            {
+                return static_cast<fast_dim_t >(std::bit_width(target[j]) + j*bits_c - 1);
+            }
+        }
+        return nil_c;
+    }
+
+    /**Return index of bit that is set after 'prev' one. May return `nil_c` if no bits are set.*/
+    template <std::unsigned_integral UInt, size_t N>
+    constexpr inline fast_dim_t next_set(const UInt (&target)[N], fast_dim_t prev) noexcept
+    {
+        constexpr auto bits_c = std::numeric_limits<UInt>::digits;
+        UInt mask = (UInt{1} << (prev % bits_c));
+        mask |= mask - 1;
+        for (auto i = prev / bits_c; i < N; ++i)
+        {
+            auto x = target[i] & ~mask;
+            if (x != 0) //test all bits are set
+            {
+                return static_cast<fast_dim_t>(std::countr_zero(x) + i*bits_c);
+            }
+            mask = UInt(0); //reset mask for all other entries
+        }
+        return nil_c;
+    }
+
+    /**Return index of set bit that is equal or follow after 'prev'. May return `nil_c` if no bits are set.*/
+    template <std::unsigned_integral UInt, size_t N>
+    constexpr inline fast_dim_t next_set_or_this(const UInt (&target)[N], fast_dim_t prev) noexcept
+    {
+        constexpr auto bits_c = std::numeric_limits<UInt>::digits;
+        UInt mask = (UInt{1} << (prev % bits_c)) - 1;
+        for (auto i = prev / bits_c; i < N; ++i)
+        {
+            auto x = target[i] & ~mask;
+            if (x != 0) //test all bits are set
+            {
+                //count Trailing(!) zeros
+                return static_cast<fast_dim_t>(std::countr_zero(x) + i*bits_c);
+            }
+            mask = UInt(0); //reset mask for all other entries
+        }
+        return nil_c;
+    }
+
+    template <std::unsigned_integral UInt, size_t N>
+    constexpr inline fast_dim_t prev_set(const UInt (&target)[N], fast_dim_t index) noexcept
+    {
+        constexpr auto bits_c = std::numeric_limits<UInt>::digits;
+        UInt mask = (UInt(1) << (index % bits_c)) - 1;
+        for (int i = index / bits_c; i >=0; --i)
+        {
+            auto x = target[i] & mask;
+            if (x != 0) //test all bits are set
+            {
+                return static_cast<fast_dim_t>(std::bit_width(x) + i*bits_c - 1);
+            }
+            mask = ~UInt(0); //reset mask for all other entries
+        }
+        return nil_c;
+    }
+
+
+    /** Set value of bit to 1 at N-size-array of unsigned integral type at position `index` */
+    template <std::unsigned_integral UInt, size_t N>
+    constexpr void set(UInt (&target)[N], std::uint_fast16_t index) noexcept
+    {
+        constexpr auto width_c = std::numeric_limits<UInt>::digits;
+        const auto entry = index / width_c;
+        const auto offset = index % width_c;
+        assert(entry < N);
+        target[entry] |= 1ull << offset;
+    }
+
+    /** Set value of bit to 1 at N-size-array of unsigned integral type at position `index` */
+    template <std::unsigned_integral UInt, size_t N>
+    constexpr void clear(UInt (&target)[N], fast_dim_t index) noexcept
+    {
+        constexpr auto width_c = std::numeric_limits<UInt>::digits;
+        const auto entry = index / width_c;
+        const auto offset = index % width_c;
+        assert(entry < N);
+        target[entry] &= ~(1ULL << offset);
+    }
+
+    /** Invert bit at specified `index`.. 
+    * @return previous state
+    */
+    template <std::unsigned_integral UInt, size_t N>
+    inline bool toggle(UInt (&target)[N], fast_dim_t index) noexcept
+    {
+        constexpr auto width_c = std::numeric_limits<UInt>::digits;
+        const auto entry = index / width_c;
+        const auto offset = index % width_c;
+        assert(entry < N);
+        UInt mask = UInt(1) << (offset);
+        return !((target[entry] ^= mask) & mask);
+    }
+
+    /** \return value of bit (0 or 1) from N-size-array of unsigned integral type at position `index` */
+    template <std::unsigned_integral UInt, size_t N>
+    constexpr bool get(const UInt (&target)[N], std::uint_fast16_t index) noexcept
+    {
+        constexpr auto width_c = std::numeric_limits<UInt>::digits;
+        const auto entry = index / width_c;
+        const auto offset = index % width_c;
+        assert(entry < N);
+        return 0 != (target[entry] & ( 1ULL << offset ));
+    }
+
+    /** \return number of 1-bits in the array `target` */
+    template <std::unsigned_integral UInt, size_t ... Ix>
+    constexpr size_t count_bits(const UInt *target, std::index_sequence<Ix...>) noexcept
+    {
+        return (std::popcount(target[Ix]) + ...);
+    }
+
+    /** \return number of 1-bits in the array `target` */
+    template <std::unsigned_integral UInt, size_t N>
+    constexpr size_t count_bits(UInt (&target)[N]) noexcept
+    {
+        return count_bits(target, std::make_index_sequence<N>());
+    }
+
+
+            //****************************************************************************
+}//ns:OP::rawbits
 
 namespace OP::common
 {
@@ -263,7 +423,8 @@ namespace OP::common
     struct PresenceIterator 
     {
         using iterator_category = std::forward_iterator_tag;
-        using difference_type = typename TBitset::dim_t;
+        using difference_type = std::make_signed_t<typename TBitset::fast_dim_t>;
+        using fast_dim_t = typename TBitset::fast_dim_t;
         
 
         typedef PresenceIterator<TBitset> this_t;
@@ -281,7 +442,8 @@ namespace OP::common
         {
 
         }
-        inline typename TBitset::dim_t operator*() const noexcept
+
+        inline fast_dim_t operator*() const noexcept
         {
             return _pos;
         }
@@ -331,9 +493,11 @@ namespace OP::common
         }
 
     private:
-        typename TBitset::dim_t _pos;
+        fast_dim_t _pos;
         const TBitset *_owner;
     };
+
+
 
     /**Represent bit-set.*/
     template <size_t N = 1, typename Int = std::uint64_t>
@@ -349,10 +513,10 @@ namespace OP::common
         using const_iterator = BitsetIterator<N, Int>;
         using const_presence_iterator = PresenceIterator<this_t>;
 
-        typedef std::uint16_t dim_t;
-        typedef std::uint8_t atom_t;
+        using fast_dim_t = rawbits::fast_dim_t;
+        using atom_t = std::uint8_t;
         
-        constexpr static const dim_t nil_c = dim_t(~0u);
+        constexpr static const fast_dim_t nil_c = rawbits::nil_c;
         
         /**bits count in single entry*/
         constexpr static size_t bits_c = const_iterator::bits_c;
@@ -391,80 +555,42 @@ namespace OP::common
         }
 
         /** @return index of first bit that is set, or `nil_c` if no bits*/
-        constexpr inline dim_t first_set() const noexcept
+        constexpr inline fast_dim_t first_set() const noexcept
         {
-            for (auto i = 0; i < N; ++i)
-            {
-                if (_presence[i] != 0) //test all bits are set
-                {
-                    return static_cast<dim_t>(count_trailing_zero_64(_presence[i]) + i * bits_c);
-                }
-            }
-            return nil_c;
+            return rawbits::first_set(_presence);
         }
 
-        constexpr inline dim_t last_set() const noexcept
+        constexpr inline fast_dim_t last_set() const noexcept
         {
-            return revert_presence_index(_presence);
+            return rawbits::last_set(_presence);
         }
 
         /**Return index of bit that is set after 'prev' one. May return `nil_c` if no bits are set.*/
-        constexpr inline dim_t next_set(dim_t prev) const noexcept
+        constexpr inline fast_dim_t next_set(fast_dim_t prev) const noexcept
         {
-            Int mask = (1ULL << (prev % bits_c));
-            mask |= mask - 1;
-            for (auto i = prev / bits_c; i < N; ++i)
-            {
-                auto x = _presence[i] & ~mask;
-                if (x != 0) //test all bits are set
-                {
-                    return static_cast<dim_t>(count_trailing_zero_64(x) + i*bits_c);
-                }
-                mask = Int(0); //reset mask for all other entries
-            }
-            return nil_c;
+            return rawbits::next_set(_presence, prev);
         }
         
         /**Return index of set bit that is equal or follow after 'prev'. May return `nil_c` if no bits are set.*/
-        constexpr inline dim_t next_set_or_this(dim_t prev) const noexcept
+        constexpr inline fast_dim_t next_set_or_this(fast_dim_t prev) const noexcept
         {
-            Int mask = (1ULL << (prev % bits_c)) - 1;
-            for (auto i = prev / bits_c; i < N; ++i)
-            {
-                auto x = _presence[i] & ~mask;
-                if (x != 0) //test all bits are set
-                {
-                    return static_cast<dim_t>(count_trailing_zero_64(x) + i*bits_c);
-                }
-                mask = Int(0); //reset mask for all other entries
-            }
-            return nil_c;
+            return rawbits::next_set_or_this(_presence, prev);
         }
         
         /**Return index of bit that is set prior 'index' one. May return `nil_c` if no bits are set prior index.*/
-        constexpr inline dim_t prev_set(dim_t index) const noexcept
+        constexpr inline fast_dim_t prev_set(fast_dim_t index) const noexcept
         {
-            Int mask = (1ULL << (index % bits_c)) - 1;
-            for (int i = index / bits_c; i >=0; --i)
-            {
-                auto x = _presence[i] & mask;
-                if (x != 0) //test all bits are set
-                {
-                    return static_cast<dim_t>(log2(x) + i*bits_c);
-                }
-                mask = ~Int(0); //reset mask for all other entries
-            }
-            return nil_c;
+            return rawbits::prev_set(_presence, index);
         }
 
         /** Count number of bits equal to 1 */
-        constexpr inline dim_t count_bits() const noexcept
+        constexpr inline fast_dim_t count_bits() const noexcept
         {
-            return static_cast<dim_t>(_count_bits(std::make_index_sequence<N>()));
+            return static_cast<fast_dim_t>(_count_bits(std::make_index_sequence<N>()));
         }
 
         /**Return index of first bit that is not set*/
-        constexpr inline dim_t first_clear() const noexcept
+        constexpr inline fast_dim_t first_clear() const noexcept
         {
             //note 1: to test first clear bit uses inversion (~) so first set bit is detected
             //note 2: that ( x & (~(x) + 1) ) deletes all but the lowest set bit
@@ -472,36 +598,33 @@ namespace OP::common
             {
                 if (_presence[i] != std::numeric_limits<std::uint64_t>::max()) //test all bits are set
                 {
-                    return static_cast<dim_t>(
-                        log2(~_presence[i] & (_presence[i] + 1)) + i * bits_c);
+                    return static_cast<fast_dim_t>(
+                        std::bit_width(~_presence[i] & (_presence[i] + 1)) + i * bits_c - 1);
                 }
             }
             return nil_c;
         }
         
-        /** Get value of bit at position `index` */
-        constexpr inline bool get(dim_t index) const noexcept
+        /** Get value 0 or 1 of bit at position `index` */
+        constexpr inline bool get(fast_dim_t index) const noexcept
         {
-            assert(index < bit_length_c);
-            return 0 != (_presence[index / bits_c] & ( 1ULL << (index % bits_c) ));
+            return rawbits::get(_presence, index);
         }
         
         /** Set value of bit at position `index` */
-        inline void set(dim_t index) noexcept
+        inline void set(fast_dim_t index) noexcept
         {
-            assert(index < bit_length_c);
-            _presence[index / bits_c] |= 1ULL << (index % bits_c);
+            rawbits::set(_presence, index);
         }
         
         /** Set value of bit at position `index` to 0 */
-        inline void clear(dim_t index) noexcept
+        inline void clear(fast_dim_t index) noexcept
         {
-            assert(index < bit_length_c);
-            _presence[index / bits_c] &= ~(1ULL << (index % bits_c));
+            rawbits::clear(_presence, index);
         }
         
         /** Set value of bit at position `index` either to 0 or 1 */
-        inline void assign(dim_t index, bool val) noexcept
+        inline void assign(fast_dim_t index, bool val) noexcept
         {
             val ? set(index):clear(index);
         }
@@ -509,11 +632,9 @@ namespace OP::common
         /** Invert bit at specified `index`.. 
         * @return previous state
         */
-        inline bool toggle(dim_t index) noexcept
+        inline bool toggle(fast_dim_t index) noexcept
         {
-            assert(index < bit_length_c);
-            Int mask = (1ULL << (index % bits_c));
-            return !((_presence[index / bits_c] ^= mask) & mask);
+            return rawbits::toggle(_presence, index);
         }
 
         /** Invert all bits in container */
@@ -547,14 +668,14 @@ namespace OP::common
 
 
         /**Find position of lowest bit-set*/
-        static inline dim_t revert_presence_index(const std::uint64_t presence[N])
+        static inline fast_dim_t revert_presence_index(const std::uint64_t presence[N])
         {
             for (auto i = N; i > 0; --i)
             {
                 auto j = i - 1u;
                 if (presence[j] != 0) //test all bits are set
                 {
-                    return static_cast<dim_t>(log2(presence[j]) + j*bits_c);
+                    return static_cast<fast_dim_t>(std::bit_width(presence[j]) + j*bits_c - 1);
                 }
             }
             return nil_c;

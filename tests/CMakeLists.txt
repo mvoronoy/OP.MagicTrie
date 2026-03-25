@@ -53,7 +53,6 @@ add_executable (trie_test
     "vtm/AppendOnlyLog.cpp"
     "vtm/AppendOnlySkipList.cpp"
     "vtm/AppendAtomicList.cpp"
-    "vtm/ContainersTest.cpp"
     "vtm/FixedSizeMemoryManagerTest.cpp"
     "vtm/StringManagerTest.cpp"
     "vtm/SegmentManagerTest.cpp"

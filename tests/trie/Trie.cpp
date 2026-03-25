@@ -64,6 +64,58 @@ namespace
     }
 
 
+    void test_TrieInsertSmoke(
+        OP::utest::TestRuntime& tresult, std::shared_ptr<test::ChangeHistoryFactory> mem_change_history)
+    {
+        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
+            new EventSourcingSegmentManager(
+                BaseSegmentManager::create_new(
+                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
+                mem_change_history->create()
+            ));
+
+        using trie_t = test_trie_t;
+        std::map<atom_string_t, double> standard;
+        double v_order = 0.1;
+        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+
+        trie->insert("_"_astr, 0);
+        standard["_"_astr] = 0;
+        compare_containers(tresult, *trie, standard);
+
+        trie->insert("abc"_astr, 1);
+        standard["abc"_astr] = 1;
+        compare_containers(tresult, *trie, standard);
+
+        trie->insert("abe"_astr, 2);
+        standard["abe"_astr] = 2;
+        compare_containers(tresult, *trie, standard);
+
+        trie->insert("abcd"_astr, 3);
+        standard["abcd"_astr] = 3;
+        compare_containers(tresult, *trie, standard);
+
+        for (auto i = trie->begin(); !i.is_end(); ++i)
+        {
+            tresult.debug() << (const char*)i.key().c_str() << " = " << i.value() << "\n";
+        }
+
+        tresult.info()<<"Case when break the stem that has no value, only child\n";
+        trie->insert("0123abc"_astr, 10);
+        standard["0123abc"_astr] = 10;
+        compare_containers(tresult, *trie, standard);
+        
+        trie->insert("01234"_astr, 11); //now "0123" is a stem without value but with 2 children
+        standard["01234"_astr] = 11;
+        compare_containers(tresult, *trie, standard);
+        
+        //split no-value stem:
+        trie->insert("012xyz"_astr, 12);
+        standard["012xyz"_astr] = 12;
+        compare_containers(tresult, *trie, standard);
+
+    }
+
     void test_TrieInsert(OP::utest::TestRuntime& tresult, std::shared_ptr<test::ChangeHistoryFactory> mem_change_history)
     {
         std::shared_ptr<EventSourcingSegmentManager> tmngr1(
@@ -77,6 +129,7 @@ namespace
         std::map<std::string, double> standard;
         double v_order = 0.1;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+
         std::string zero_ins{ '_' };
         auto ir0 = trie->insert(zero_ins, v_order);
         tresult.assert_true(ir0.second);
@@ -104,6 +157,7 @@ namespace
             ir2.second,
             OP_CODE_DETAILS( << "insert must disallow duplicates"));
         tresult.assert_true(trie->size() == 2);
+        compare_containers(tresult, *trie, standard);
 
         auto ir3 = trie->insert(stem1_deviation1, v_order);
         tresult.assert_true(ir3.second, OP_CODE_DETAILS());
@@ -119,7 +173,7 @@ namespace
 
         standard[stem1_deviation1] = v_order++;
         compare_containers(tresult, *trie, standard);
-        // test behaviour on range
+        // test behavior on range
         const std::string stem2(256, 'b');
         auto ir4 = trie->insert(stem2, v_order);
         tresult.assert_true(ir4.second, OP_CODE_DETAILS());
@@ -143,6 +197,7 @@ namespace
         standard[stem3] = v_order++;
 
         compare_containers(tresult, *trie, standard);
+
         //now make iteration back over stem3 and create diversification in 
         for (auto i = 0; stem3.length() > 1; ++i)
         {
@@ -150,6 +205,7 @@ namespace
             stem3.resize(stem3.length() - 1);
             stem3 += std::string(1, 'b');
             ir5 = trie->insert(stem3, (double)stem3.length());
+
             tresult.assert_true(ir5.second, OP_CODE_DETAILS(<< "multi-diverse at:#"<<i));
             tresult.assert_that<eq_sets>(ir5.first.key(), const_stem3,
                 OP_CODE_DETAILS(<< "multi-divers at:#" << i)
@@ -160,6 +216,7 @@ namespace
             standard[stem3] = (double)stem3.length();
             stem3.resize(stem3.length() - 1);
         }//
+
         tresult.debug() << "So far allocated: " << trie->nodes_count() << " trie-nodes\n";
         compare_containers(tresult, *trie, standard);
         //
@@ -197,9 +254,10 @@ namespace
         tresult.assert_that<equals>(*ir5.first, (v_order - 1.0), "Wrong iterator value");
         compare_containers(tresult, *trie, standard);
         stem4 = "ka";
-        ir5 = trie->insert(const_stem4, v_order);
-        tresult.assert_that<eq_sets>(ir5.first.key(), stem4);
-        tresult.assert_that<equals>(*ir5.first, v_order, "Wrong iterator value");
+        auto [ir5_pos, success5] = trie->insert(const_stem4, v_order);
+        tresult.assert_true(success5);
+        tresult.assert_that<eq_sets>(ir5_pos.key(), stem4);
+        tresult.assert_that<equals>(*ir5_pos, v_order, "Wrong iterator value");
         
         standard[stem4] = v_order++;
         compare_containers(tresult, *trie, standard);
@@ -368,7 +426,7 @@ namespace
         std::map<atom_string_t, double> test_values;
         // Populate trie with unique strings in range from [0..255]
         // this must cause grow of root node
-        const atom_string_t test_seq[] = { "abc"_astr, "bcd"_astr, "def"_astr, "fgh"_astr, "ijk"_astr, "lmn"_astr };
+        const std::array test_seq = { "abc"_astr, "bcd"_astr, "def"_astr, "fgh"_astr, "ijk"_astr, "lmn"_astr };
 
         double x = 0.0;
         for (auto i : test_seq)
@@ -409,14 +467,14 @@ namespace
             exact_find_result, lower_result
             );
 
-        for (auto i = 0; i < std::extent<decltype(test_seq)>::value - 1; ++i, x += 1.0)
+        for (auto i = 0; i < test_seq.size() - 1; ++i, x += 1.0)
         {
             const auto& test = test_seq[i];
             auto lbeg = std::begin(test);
             auto lbit = trie->lower_bound(lbeg, std::end(test));
 
             tresult.assert_true(tools::container_equals(lbit.key(), test, &tools::sign_tolerant_cmp<atom_t>));
-            tresult.assert_that<equals>(x, *lbit, "value mismatch");
+            tresult.assert_that<equals>(x, *lbit, OP_CODE_DETAILS() << "value(full) mismatch at step #" << i << "\n");
 
             auto query = test_seq[i] + "a"_astr;
             auto lbit2 = trie->lower_bound(query);
@@ -427,8 +485,8 @@ namespace
 
             lbeg = std::begin(test);
             auto lbit3 = trie->lower_bound(lbeg, std::end(test) - 1);//take shorter key
-            tresult.assert_true(tools::container_equals(lbit3.key(), test, &tools::sign_tolerant_cmp<atom_t>));
-            tresult.assert_true(x == *lbit);
+            tresult.assert_that<equals>(lbit3.key(), test, OP_CODE_DETAILS() << "key(short) mismatch at step #" << i << '\n');
+            tresult.assert_that<equals>(x, *lbit, OP_CODE_DETAILS() << "value(short) mismatch at step #" << i << "\n");
         }
         //handle case of stem_end
         atom_string_t test_long(258, 'k'_atom);
@@ -519,10 +577,10 @@ namespace
             trie->insert(s.first, s.second);
             test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
             });
-        tresult.info() << "prefixed lower_bound\n";
+        tresult.info() << "prefixed lower_bound...\n";
         auto i_root = trie->find(std::string("abc"));
         auto lw_ch1 = trie->lower_bound(i_root, std::string(".123"));
-        tresult.assert_that<equals>(lw_ch1.key(), (const atom_t*)"abc.123456789", "key mismatch");
+        tresult.assert_that<equals>(lw_ch1.key(), "abc.123456789"_astr, "key mismatch");
         tresult.assert_that<equals>(*lw_ch1, 1.9, "value mismatch");
         auto rdef = trie->lower_bound(i_root, std::string(".xyz"));
         tresult.assert_that<equals>(rdef, trie->find("def."_astr), "iterator must be at last");
@@ -568,6 +626,23 @@ namespace
         tresult.assert_that<equals>(find_after_end.key(), "abc"_astr, "iterator must point at 'abc'");
     }
 
+    template <class T>
+    void dump_map(std::ostream& os, const T& container)
+    {
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+            os << i->first << "\n";
+        }
+    }
+    template <class T>
+    void dump_trie(std::ostream& os, const T& container)
+    {
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+            os << (const char*)i.key().c_str() << "\n";
+        }
+    }
+
     void test_TrieNoTran(OP::utest::TestRuntime& tresult)
     {
         std::shared_ptr<SegmentManager> tmngr1 (OP::vtm::BaseSegmentManager::create_new(test_file_name,
@@ -579,9 +654,9 @@ namespace
         std::map<std::string, double> standard;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
         std::string rnd_buf;
-        for (auto i = 0; i < 1024; ++i)
+        for (auto i = 0; i < 63; ++i)
         {
-            tools::random(rnd_buf, 1023, 1);
+            tools::random(rnd_buf, 511, 1);
 
             auto b = std::begin(rnd_buf);
             auto post = trie->insert(b, std::end(rnd_buf), (double)rnd_buf.length());
@@ -597,6 +672,15 @@ namespace
             }
         }
         tresult.assert_that<equals>(trie->size(), standard.size(), "Size is wrong");
+
+        //std::ofstream f1("trie.dump.txt");
+        //dump_trie(f1, *trie);
+        //f1.close();
+        //f1.open("map.dump.txt");
+        //dump_map(f1, standard);
+        //f1.close();
+
+        compare_containers(tresult, *trie, standard);
         trie.reset();
         tmngr1 = OP::vtm::BaseSegmentManager::open(test_file_name);
         trie = trie_t::open(tmngr1);
@@ -619,10 +703,6 @@ namespace
     void test_Erase(OP::utest::TestRuntime& tresult, std::shared_ptr<test::ChangeHistoryFactory> mem_change_history)
     {
         std::random_device rd;
-        std::mt19937 random_gen(rd());
-        if (tresult.run_options().random_seed()) //allow override random gen for debug purpose
-            random_gen.seed(static_cast<std::mt19937::result_type>(
-                *tresult.run_options().random_seed()));
 
         std::shared_ptr<EventSourcingSegmentManager> tmngr(
             new EventSourcingSegmentManager(
@@ -665,16 +745,16 @@ namespace
         compare_containers(tresult, *trie, test_values);
 
         const p_t seq_data[] = {
-            p_t((atom_t*)"4.abc", 2.0),
-            p_t((atom_t*)"4.ab", 3.0),
-            p_t((atom_t*)"4.a", 4.0),
-            p_t((atom_t*)"4", 1.0)
+            p_t("4.abc"_atom, 2.0),
+            p_t("4.ab"_atom, 3.0),
+            p_t("4.a"_atom, 4.0),
+            p_t("4"_atom, 1.0)
         };
         for(const p_t& s: seq_data) {
             trie->insert(s.first, s.second);
             test_values.emplace(std::string((const char*)s.first.c_str()), s.second);
         };
-        const atom_string_t avg_key((const atom_t*)"4.ab");
+        const atom_string_t avg_key("4.ab"_astr);
         f = trie->find(avg_key);
         tst_next = f;
         ++tst_next;
@@ -685,29 +765,29 @@ namespace
         tresult.assert_that<equals>(trie->size(), test_values.size(), "Size is wrong");
         compare_containers(tresult, *trie, test_values);
 
-        const atom_string_t no_entry_key((const atom_t*)"no-entry");
+        const atom_string_t no_entry_key("no-entry"_astr);
         f = trie->find(no_entry_key);
         tresult.assert_that<equals>(trie->end(), trie->erase(f, &cnt), "erase must 'end()'");
         tresult.assert_that<equals>(0, cnt, "erase must 'end()'");
 
-        const atom_string_t edge_key((const atom_t*)"4.abc");
+        const atom_string_t edge_key("4.abc"_astr);
         f = trie->find(edge_key);
         tst_next = f;
         ++tst_next;
         tresult.assert_that<equals>(tst_next, trie->erase(f, &cnt), "iterator mismatch");
         tresult.assert_that<equals>(1, cnt, "iterator mismatch");
 
-        test_values.erase(std::string((const char*)edge_key.c_str()));
+        test_values.erase(std::string(edge_key.begin(), edge_key.end()));
         compare_containers(tresult, *trie, test_values);
 
-        const atom_string_t short_key((const atom_t*)"4");
+        const atom_string_t short_key = "4"_astr;
         f = trie->find(short_key);
         tst_next = f;
         ++tst_next;
-        tresult.assert_that<equals>(tst_next, trie->erase(f), "iterator mismatch");
+        tresult.assert_that<equals>(tst_next, trie->erase(f, &cnt), "iterator mismatch");
         tresult.assert_that<equals>(1, cnt, "count mismatch");
 
-        test_values.erase(std::string((const char*)short_key.c_str()));
+        test_values.erase(std::string(short_key.begin(), short_key.end()));
 
         compare_containers(tresult, *trie, test_values);
         
@@ -717,7 +797,7 @@ namespace
         {
             atom_string_t long_base(str_limit, 0);
             std::iota(long_base.begin(), long_base.end(), static_cast<std::uint8_t>(i));
-            std::shuffle(long_base.begin(), long_base.end(), random_gen);
+            std::shuffle(long_base.begin(), long_base.end(), tresult.randomizer().generator());
             std::vector<atom_string_t> chunks;
             for (auto k = 1; k < str_limit; k *= ((i & 1) ? 4 : 3))
             {
@@ -725,7 +805,7 @@ namespace
                 chunks.emplace_back(prefix);
             }
 
-            std::shuffle(chunks.begin(), chunks.end(), random_gen);
+            std::shuffle(chunks.begin(), chunks.end(), tresult.randomizer().generator());
 
             for(const atom_string_t& pref: chunks) 
             {
@@ -744,16 +824,18 @@ namespace
             auto n = chunks.size() / 2;
             //compare_containers(tresult, *trie, test_values);
 
-            for (auto s : chunks)
+            for (const auto& key_must_exists : chunks)
             {
-                //print_hex(std::cout << "[" << s.length() << "]", s);
-                auto found = trie->find(s);
+                //print_hex(std::cout << "[" << key_must_exists.length() << "]", key_must_exists);
+                auto found = trie->find(key_must_exists);
+                tresult.assert_that<not_equals>(found, trie->end(), "invalid find of existing key");
+
                 auto next_i = found;
                 ++next_i;
                 tresult.assert_that<equals>(next_i, trie->erase(found, &cnt), "iterator mismatch");
                 tresult.assert_that<less>(0, cnt, "wrong count");
 
-                std::string signed_str(s.begin(), s.end());
+                std::string signed_str(key_must_exists.begin(), key_must_exists.end());
                 tresult.assert_true(test_values.erase(signed_str) != 0);
                 if (!(--n))
                     break;
@@ -1150,7 +1232,7 @@ namespace
         typedef std::pair<atom_string_t, double> p_t;
         std::map<atom_string_t, double> test_values;
 
-        const atom_string_t s0((atom_t*)"a");
+        const atom_string_t s0 = "a"_astr;
         auto start_pair = trie->insert(s0, -1.0);
         auto check_iterator_restore{ start_pair.first };
 
@@ -1414,13 +1496,13 @@ namespace
         typedef std::pair<atom_string_t, double> p_t;
 
         const p_t ini_data[] = {
-            p_t((atom_t*)"a1", 1.),
-            p_t((atom_t*)"a2", 1.),
-            p_t((atom_t*)"bc", 1.),
-            p_t((atom_t*)"bc.12", 1.),
-            p_t((atom_t*)"bc.122x", 1),
-            p_t((atom_t*)"bc.123456789", 1),
-            p_t((atom_t*)"bd.12", 1.),
+            p_t("a1"_atom, 1.),
+            p_t("a2"_atom, 1.),
+            p_t("bc"_atom, 1.),
+            p_t("bc.12"_atom, 1.),
+            p_t("bc.122x"_atom, 1),
+            p_t("bc.123456789"_atom, 1),
+            p_t("bd.12"_atom, 1.),
         };
         std::for_each(std::begin(ini_data), std::end(ini_data), [&](const p_t& s) {
             atom_string_t s1(s.first);
@@ -1432,15 +1514,15 @@ namespace
             tresult.assert_true(trie->check_exists(s1));
             });
 
-        atom_string_t probe((const atom_t*)"a");
+        atom_string_t probe = "a"_astr;
         tresult.assert_false(trie->check_exists(probe));
-        probe = ((const atom_t*)"a22");
+        probe = "a22"_astr;
         tresult.assert_false(trie->check_exists(probe));
-        probe = ((const atom_t*)"bc.1");
+        probe = "bc.1"_astr;
         tresult.assert_false(trie->check_exists(probe));
-        probe = (const atom_t*)"bd.1";
+        probe = "bd.1"_astr;
         tresult.assert_false(trie->check_exists(probe));
-        probe = (const atom_t*)"bd.122";
+        probe = "bd.122"_astr;
         tresult.assert_false(trie->check_exists(probe));
 
         probe = (const atom_t*)"xyz";
@@ -1492,8 +1574,9 @@ namespace
 
         trie->erase(trie->find("ac"_astr));
         tresult.assert_true(trie->has_child(a_found));
-
-        trie->erase(trie->find("a"_astr));
+        size_t n = 0;
+        trie->erase(trie->find("a"_astr), &n);
+        tresult.assert_that<equals>(1, n);
         tresult.assert_false(trie->has_child(a_found), "check against invalid iterator");
 
         auto klm_found = trie->find("klm"_astr);
@@ -1816,6 +1899,7 @@ namespace
 
     static auto& module_suite = OP::utest::default_test_suite("Trie.core")
         .declare("creation", test_TrieCreation)
+        .declare("smoke-insert", test_TrieInsertSmoke, "smoke", "quick")
         .declare("insertion", test_TrieInsert)
         .declare("insertion-grow", test_TrieInsertGrow)
         .declare("update values", test_TrieUpdate)

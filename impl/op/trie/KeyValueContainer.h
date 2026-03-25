@@ -10,6 +10,13 @@
 
 namespace OP::trie::containers
 {
+    enum class KvInsert
+    {
+        ok,
+        already_exists,
+        need_grow
+    };    
+
     /**
     *   \tparam Payload - value that is stored by Trie, it must be plain struct (e.g.
     *       std::is_standard_layout_v<Payload> == true).
@@ -26,10 +33,17 @@ namespace OP::trie::containers
         
         using base_t = KeyValueContainer<Payload, ParentInfo>;
         using atom_t = OP::common::atom_t;
+        using fast_atom_t = OP::common::fast_atom_t;
         using dim_t = vtm::dim_t;
+        using fast_dim_t = vtm::fast_dim_t;
         using FarAddress = vtm::FarAddress;
 
+
+        using foreach_callback_t = bool (*)(fast_atom_t key, Payload& value, void * user_data);
+
         virtual ~KeyValueContainer() = default;
+
+        virtual fast_dim_t capacity() const = 0;
         /**
         * Create persisted storage 
         * @return far-address wrapped with table management interface (\sa #PersistedSizedArray)
@@ -39,15 +53,9 @@ namespace OP::trie::containers
         /** Destroy on persisted layer entire table block previously allocated by this #create */
         virtual void destroy(FarAddress htbl) = 0;
 
-        /** Functor interface to create payload only when it needed. Such complicated decision is needed
-        * since c++ lambda allows cast to function pointer only without capture [see standard 5.1.2].
-        * To make it simpler additional light-weight structure introduce 1 method interface. To make 
-        * operation transparent, this class also appends `insert` method with arbitrary template lambda.
+        /** Functor to create payload inplace only when it needed. 
         */
-        struct FPayloadFactory
-        {
-            virtual void inplace_construct(Payload& to_construct) const = 0;    
-        };
+        using payload_factory_t = void (*)(Payload& to_construct, void* user_data);
 
         /**
         * Insert key to this hashtable.
@@ -56,34 +64,30 @@ namespace OP::trie::containers
         *           needed, so it is not involved when such key already exists. Factory may have a very complicated 
         *           logic inside, for example if long chain inserted to entire trie, it can make decision don't paste
         *           value to intermedia chain.
-        *   @return insert position or #end() if no more capacity
+        *   @return KvInsert enum, where ok - means successfull insert, already_exists - duplicate, need_grow - indicate no capacity to insert new key.
         */
-        virtual std::pair<dim_t, bool> insert(
-            atom_t key, const FPayloadFactory& payload_factory) = 0;
+        virtual KvInsert insert(
+            atom_t key, payload_factory_t payload_factory, void *user_data) = 0;
 
         /** 
         * Same as method above, but allows accept arbitrary lambda for payload creation.
         * \tparam F - functor of signature `void (Payload&)`
         */
         template <class F>
-        inline std::pair<dim_t, bool> insert(
-            atom_t key, F payload_factory) 
+        inline KvInsert insert(atom_t key, F&& payload_factory) 
         {
-            using callback_t = std::decay_t<F>;
-            PayloadFactoryImpl<F> callback(std::move(payload_factory));
-            FPayloadFactory& casted_callback = callback;
-            return this->insert(key, casted_callback);
+            using callback_t = std::add_pointer_t<F>;
+            payload_factory_t callback = +[](Payload& to_construct, void* user_data)->void{
+                auto lambda = reinterpret_cast<callback_t>(user_data);
+                (*lambda)(to_construct);
+            };
+            return this->insert(key, callback, &payload_factory);
         }
 
-        virtual atom_t hash(atom_t key) const = 0;
-        /** Given origin key returns position in `persisted_table_t` where really key is located 
-        * for "production" mode this method never fails because reindex called for existing keys only
-        */
-        virtual atom_t reindex(atom_t key) const = 0;
         /** Try locate index in `ref_data` by key.
         * @return index or dim_nil_c if no key contained in ref_data
         */
-        virtual dim_t find(atom_t key) const = 0;
+        //virtual dim_t find(atom_t key) const = 0;
 
         /** Same as #find but return pointer to payload or nullptr */
         virtual Payload* get(atom_t key) = 0;
@@ -92,32 +96,10 @@ namespace OP::trie::containers
 
         virtual bool erase(atom_t key) = 0;
 
-        virtual bool grow_from(base_t& from, FarAddress& result) = 0;
-        
-    protected:
-        /** 
-        *   Simple implementation of FPayloadFactory that leverages arbitrary lambda to implement payload creation 
-        *   callback
-        */
-        template <class F>
-        struct PayloadFactoryImpl : FPayloadFactory
-        {
-            PayloadFactoryImpl(F factory)
-                : _factory(std::move(factory))
-            {};
-            void inplace_construct(Payload& to_construct) const override    
-            {
-                _factory(to_construct);
-            }
-            F _factory;
-        };
+        virtual void foreach(foreach_callback_t, void*) = 0;
 
-        template <class U>
-        static auto make_payload_factory(U&& factory)
-        {
-            using functor_t = std::decay_t<U>;
-            return PayloadFactoryImpl<functor_t>(std::forward<U>(factory));
-        }
+        virtual bool grow_from(base_t& from) = 0;
+        
     };
 
 }//ns:OP::trie::containers
