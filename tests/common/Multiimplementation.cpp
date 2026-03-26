@@ -94,10 +94,6 @@ namespace
         tresult.assert_that<equals>(reserved_memory->method() & ~(is_impl1), 11);
         tresult.assert_true(const_cast<const test_t&>(reserved_memory)->method() & is_called_from_const);
 
-        tresult.assert_exception<std::runtime_error>([&]() {
-            reserved_memory.construct<TestImpl2>(17);
-        });
-
         reserved_memory = TestImpl2(17);
         tresult.assert_that<equals>(reserved_memory->method() & ~(is_impl2), 17);
         tresult.assert_true(reserved_memory->method() & is_impl2);
@@ -116,7 +112,6 @@ namespace
 
         reserved_memory = TestImpl1(11); //assign the same type
         reserved_memory = std::move(reserved_memory2);
-        tresult.assert_false(reserved_memory2.has_value());
 
         tresult.assert_true(reserved_memory.has_value());
         tresult.assert_true(reserved_memory->method() & is_impl1);

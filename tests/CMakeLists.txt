@@ -69,6 +69,7 @@ add_executable (trie_test
     "trie/testMixedAdapter.cpp"
     "trie/trieValueManager.cpp"
     "trie/TrieFixedString.cpp"
+    "trie/BitIndexedVector.cpp"
     
 
     "flur/StlContainers.cpp" 

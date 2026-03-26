@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <stdexcept>
+#include <variant>
 
 namespace OP
 {
@@ -329,124 +330,64 @@ namespace OP
         static_assert( std::conjunction_v<std::is_base_of<TInterface, Tx>...>, 
             "All Tx... must inherit base interface TInterface");
 
-        /** const used to indicate invalid contained index */
-        constexpr static size_t npos_c = sizeof...(Tx);
-
         using this_t = Multiimplementation<TInterface, Tx...>;
         
         /** Create uninitialized in memory buffer (no heap operations is involved) */
-        constexpr Multiimplementation() noexcept = default;
+        constexpr Multiimplementation() 
+            noexcept(std::is_nothrow_default_constructible_v<data_store_t>) = default;
         
         /** \brief Copy constructor */
         explicit Multiimplementation(const Multiimplementation& other)
+            noexcept(std::is_nothrow_copy_constructible_v<data_store_t>)
+            : _data(other._data)
         {
-            if(other.has_value())
-            {
-                //no worries const_cast isn't for object change
-                const_cast<this_t&>(other)
-                    .apply_by_index_impl(
-                        other._type_index, 
-                        [this](auto* existing)
-                        {
-                            using t_t = std::decay_t<decltype(*existing)>;
-                            ::new(_data) t_t(*const_cast<const t_t*>(existing)); //call origin copy constructor
-                        },
-                        std::make_index_sequence<sizeof...(Tx)>()
-                        );
-                _type_index = other._type_index;
-            }
         }
 
         /** \brief Move constructor */
-        explicit Multiimplementation(Multiimplementation&& other) noexcept
+        explicit Multiimplementation(Multiimplementation&& other) 
+            noexcept(std::is_nothrow_move_constructible_v<data_store_t>)
+            : _data(std::move(other._data))
         {
-            if(other.has_value())
-            {
-                //no worries const_cast isn't for object change
-                other
-                    .apply_by_index_impl(
-                        other._type_index, 
-                        [this](auto* existing)
-                        {
-                            using t_t = std::decay_t<decltype(*existing)>;
-                            ::new(_data) t_t(std::move(*existing)); //call origin move constructor
-                        },
-                        std::make_index_sequence<sizeof...(Tx)>());
-                _type_index = other._type_index;
-                other._type_index = npos_c;
-            }
         }
 
         /** \brief Constructor creates instance from implementation `U` on condition U is the same as one of Tx... */
         template <class U>
         explicit Multiimplementation(const U& instance) 
+            noexcept(std::is_nothrow_constructible_v<data_store_t, const U&>)
+            : _data(instance)
         {
-            static_assert(
-                ((std::is_same_v<Tx, U>) || ...),
-                "Cannot cast type U to any of the declared implementations.");
-            ::new(_data) U(instance);
-            _type_index = type_to_index<U>(std::index_sequence_for <Tx...>{});
+            //static_assert(
+            //    ((std::is_same_v<Tx, U>) || ...),
+            //    "Cannot cast type U to any of the declared implementations.");
         }
 
         /** \brief Constructor creates instance from implementation `U` with move semantic 
         *   on condition U is the same as one of Tx... 
         */
         template <class U>
-        explicit Multiimplementation(U&& instance) noexcept
+        explicit Multiimplementation(U&& instance)
+            noexcept(std::is_nothrow_constructible_v<data_store_t, decltype(instance)>)
+            : _data(std::forward<U>(instance))
         {
-            using plain_u = std::decay_t<U>;
-            static_assert(
-                std::disjunction_v<std::is_same<plain_u, Tx>...>,
-                "Cannot cast type U to any of the declared implementations.");
-            ::new(_data) plain_u(std::move(instance));
-            _type_index = type_to_index<plain_u>(std::index_sequence_for <Tx...>{});
         }
 
         ~Multiimplementation()
         {
-            destroy();
         }
 
         /** copy assign from other instance */
-        [[maybe_unused]] this_t& operator = (const this_t& t)
+        [[maybe_unused]] this_t& operator = (const this_t& other)
+            noexcept(std::is_nothrow_copy_assignable_v<data_store_t>)
         {
-            if (t.has_value())
-            {
-                //no worries `t` used as const 
-                const_cast<this_t&>(t).apply_by_index_impl(
-                    t._type_index,
-                    [this](auto* v) {
-                        using v_t = std::decay_t<decltype(*v)>;
-                        this->assign(*const_cast<v_t*>(v));
-                    },
-                    std::index_sequence_for <Tx...>{});
-            }
-            else //revert to unassigned state
-            {
-                destroy();
-            }
+            _data = other._data;
             return *this;
         }
 
         /** move assign from other instance */
-        [[maybe_unused]] this_t& operator = (this_t&& t) noexcept
+        [[maybe_unused]] this_t& operator = (this_t&& other) 
+            noexcept(std::is_nothrow_move_assignable_v<data_store_t>)
         {
-            if (t.has_value())
-            {
-                //no worries `t` used as const 
-                t.apply_by_index_impl(
-                    t._type_index,
-                    [this](auto* v) {
-                        using v_t = std::decay_t<decltype(*v)>;
-                        this->assign(std::move(*v));
-                    },
-                    std::index_sequence_for <Tx...>{});
-                t._type_index = npos_c; //reset source
-            }
-            else //revert to unassigned state
-            {
-                destroy();
-            }
+            _data = std::move(other._data);
             return *this;
         }
 
@@ -458,8 +399,9 @@ namespace OP
         */
         template <class U>
         [[maybe_unused]] this_t& operator = (const U& t)
+            noexcept(std::is_nothrow_assignable_v<data_store_t, const U&>)
         {
-            assign(t);
+            _data = t;
             return *this;
         }
 
@@ -471,15 +413,16 @@ namespace OP
         */
         template <class U, std::enable_if_t<!std::is_same_v<U, this_t>>>
         [[maybe_unused]] this_t& operator = (U&& t)
+            noexcept(std::is_nothrow_assignable_v<data_store_t, decltype(t)>)
         {
-            assign(std::move(t));
+            _data = std::move(t);
             return *this;
         }
 
         /** check if buffer contains initialized instance of `T` */
         [[nodiscard]] constexpr bool has_value() const noexcept
         {
-            return _type_index < npos_c;
+            return !std::holds_alternative<std::monostate>(_data);
         }
 
         /** check if buffer contains initialized instance of `T` */
@@ -506,14 +449,7 @@ namespace OP
         template <class U, class ...Args>
         [[maybe_unused]] U& construct(Args&& ...arg)
         {
-            static_assert(
-                 std::disjunction_v<std::is_same<U, Tx>...>, 
-                 "Try to construct type U not defined in Tx... list");
-            if( has_value() )
-                throw std::runtime_error("Instance is already initialized, destroy it first");
-            U *result = ::new(_data) U(std::forward<Args>(arg)...);
-            _type_index = type_to_index<U>(std::make_index_sequence<sizeof...(Tx)>{});
-            return *result;
+            return _data.emplace<U>(std::forward<Args>(arg)...);
         }
 
         [[nodiscard]] TInterface* operator ->() 
@@ -528,14 +464,38 @@ namespace OP
 
         [[nodiscard]] TInterface* get() 
         {
-            if(!has_value())
+            if (!has_value())
                 throw not_initialized_error{};
-            return data();
+
+            return std::visit([](auto& instance) -> TInterface* {
+                if constexpr (std::is_same_v<std::monostate, std::decay_t<decltype(instance)>>)
+                {//impossible case, just to calm-down compiler as `!has_value` already excluded this
+                    return nullptr;
+                }
+                else
+                {
+                    return &instance;
+                }
+                
+                }, _data);
         }
 
-        [[nodiscard]] const TInterface* get() const noexcept
+        [[nodiscard]] const TInterface* get() const
         {
-            return const_cast<this_t*>(this)->get();
+            if (!has_value())
+                throw not_initialized_error{};
+
+            return std::visit([](const auto& instance) -> const TInterface* {
+                if constexpr (std::is_same_v<std::monostate, std::decay_t<decltype(instance)>>)
+                {//impossible case, just to calm-down compiler as `!has_value` already excluded this
+                    return nullptr;
+                }
+                else
+                {
+                    return &instance;
+                }
+
+                }, _data);
         }
 
         [[nodiscard]] TInterface& operator *()
@@ -550,81 +510,13 @@ namespace OP
 
         void destroy()
         {
-            if( has_value() )
-            {
-                if constexpr( std::has_virtual_destructor_v<TInterface> )
-                    std::destroy_at(data());
-                else //need call correct destructor as soon interface don't expose virtual
-                {
-                    apply_by_index_impl(
-                        _type_index, 
-                       [&](auto* t){ 
-                            std::destroy_at(t);
-                        },
-                        std::make_index_sequence<sizeof...(Tx)>());
-                }
-                _type_index = npos_c;
-            }
+            _data = std::monostate{};
         }
 
     private:
+        using data_store_t = std::variant<std::monostate, Tx...>;
 
-        using pack_t = std::tuple<Tx...>;
-
-        template <size_t I>
-        using target_t = std::tuple_element_t<I, pack_t>;
-
-        size_t _type_index = npos_c;
-        
-        TInterface* data() noexcept
-        {
-            return std::launder(reinterpret_cast<TInterface*>(_data));
-        }
-
-        template <class U, size_t ...Ix>
-        static constexpr size_t type_to_index(std::index_sequence<Ix...>) noexcept
-        {
-            using pack_t = std::tuple<Tx...>;
-            return ((std::is_same_v<U, std::tuple_element_t<Ix, pack_t>> ? Ix : 0) | ...);
-        }
-
-        template <class F, size_t ...Ix>
-        constexpr void apply_by_index_impl(size_t index, F applicator, std::index_sequence<Ix...>) noexcept
-        {
-            //use && to leverage immediate stop when functor was applied
-            bool is_apply_succeed = ((index != Ix ||
-                (applicator( std::launder(reinterpret_cast<target_t<Ix>*>(_data))), false ) ) 
-            && ...);
-            static_cast<void>(is_apply_succeed);//hide unused warning
-        }
-
-        template <class U>
-        void assign(U&& u)
-        {
-            using plain_u = std::decay_t<U>;
-            static_assert(
-                std::disjunction_v<std::is_same<plain_u, Tx>...>,
-                "Cannot cast type U to any of the declared implementations.");
-            if (has_value())
-            {
-                if (_type_index == type_to_index<plain_u>(std::index_sequence_for <Tx...>{}))
-                { // support the same type assignment
-                    *data() = std::forward<U>(u);
-                    return;
-                }
-                else //need destroy previous
-                {
-                    destroy();
-                }
-            }
-            // need re-construct value
-            construct<plain_u>(u);
-        }
-        
-        static constexpr size_t bigest_align_c = std::max( {alignof(TInterface), alignof(Tx)...} );
-        static constexpr size_t bigest_sizeof_c = std::max( {sizeof(TInterface), sizeof(Tx)...} );
-
-        alignas(bigest_align_c) std::byte _data[bigest_sizeof_c]={};
+        data_store_t _data = {};
         
     };
 

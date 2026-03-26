@@ -64,7 +64,10 @@ namespace OP::trie::containers
         *           needed, so it is not involved when such key already exists. Factory may have a very complicated 
         *           logic inside, for example if long chain inserted to entire trie, it can make decision don't paste
         *           value to intermedia chain.
-        *   @return KvInsert enum, where ok - means successfull insert, already_exists - duplicate, need_grow - indicate no capacity to insert new key.
+        *   @return KvInsert enum, where:
+        *           - ok - means successful insert, 
+        *           - already_exists - duplicate, 
+        *           - need_grow - indicate no capacity to insert new key.
         */
         virtual KvInsert insert(
             atom_t key, payload_factory_t payload_factory, void *user_data) = 0;

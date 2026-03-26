@@ -215,6 +215,12 @@ namespace OP::utest::frontend
             return kv;
         }
 
+        template <class V>
+        auto list_item(const V& v) noexcept
+        {
+            Hold item(as_value(v), true);
+            return item;
+        }
         struct Ident final
         {
             constexpr static char symbol_c = ' ';
@@ -377,7 +383,7 @@ namespace OP::utest::frontend
                 kv(kw_tags, '['));
             ident();
             for (const auto& tag : suite.tags())
-                formatter(as_value(tag));
+                formatter(list_item(tag));
             unindent(']');
             formatter(
                 kv(kw_start_time, start),
@@ -417,7 +423,7 @@ namespace OP::utest::frontend
             );
             ident();
             for (const auto& tag : tcase.tags())
-                formatter(as_value(tag));
+                formatter(list_item(tag));
             unindent(']');
         }
 

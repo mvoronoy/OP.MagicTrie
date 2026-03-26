@@ -2,9 +2,12 @@
 #define _OP_TRIE_BITINDEXEDVECTOR__H_
 
 #include <op/common/Bitset.h>
+#include <op/common/StackAlloc.h>
 
 #include <op/vtm/SegmentManager.h>
+#include <op/vtm/SegmentTopology.h>
 #include <op/vtm/PersistedReference.h>
+#include <op/vtm/slots/HeapManager.h>
 
 #include <op/trie/KeyValueContainer.h>
 
@@ -50,7 +53,7 @@ namespace OP::trie::containers
         using typename base_t::foreach_callback_t;
         
         using presence_item_t = std::uint64_t;
-        constexpr static inline fast_dim_t bits_c = std::numeric_limits<presence_item_t>::digits;
+        constexpr static inline fast_dim_t bits_c = std::numeric_limits<presence_item_t>::digits; //=64
         /** number of items (uint64_t) in presence array */
         constexpr static inline fast_dim_t presence_capacity_c = 256 / bits_c; // 4 == (256 / 64)
 
@@ -78,8 +81,8 @@ namespace OP::trie::containers
 
     public:
         
-        template <class TSegmentTopology>
-        BitIndexedVector(TSegmentTopology& topology, FarAddress residence = {})
+        template <class ...Tx>
+        BitIndexedVector(vtm::SegmentTopology<Tx...>& topology, FarAddress residence = {})
             : _segment_manager(topology.segment_manager())
             , _heap_manager(topology.template slot<vtm::HeapManagerSlot>())
             , _residence(residence)
@@ -98,14 +101,14 @@ namespace OP::trie::containers
         FarAddress create() override
         {
             assert(_residence.is_nil());
-            std::tie(_residence, std::ignore) = _heap_manager.make_new<FullData>();
+            std::tie(_residence, std::ignore) = _heap_manager.get().make_new<FullData>();
             return _residence;
         }
 
         /** Destroy entire table block */
         void destroy(FarAddress htbl) override
         {
-            _heap_manager.deallocate(htbl);
+            _heap_manager.get().deallocate(htbl);
             _residence = {}; //just for case
         }
         
@@ -118,7 +121,7 @@ namespace OP::trie::containers
             const fast_dim_t word_idx = key / bits_c;
             const std::uint64_t bit_mask = 1ULL << (key % bits_c);
 
-            auto wr_head = _segment_manager.accessor<Header>(_residence + header_offset_c);
+            auto wr_head = _segment_manager.get().accessor<Header>(_residence + header_offset_c);
 
             if (wr_head->_presence[word_idx] & bit_mask)
                 return KvInsert::already_exists;
@@ -133,7 +136,7 @@ namespace OP::trie::containers
 
             wr_head->_presence[word_idx] |= bit_mask;
 
-            auto wr_data = _segment_manager.accessor<DataVector>(_residence + data_offset_c);
+            auto wr_data = _segment_manager.get().accessor<DataVector>(_residence + data_offset_c);
 
             auto* ins_pos = &wr_data->_payload[pos];
             std::shift_right(ins_pos, &wr_data->_payload[size+1]/*out-of-range*/, 1);
@@ -157,7 +160,7 @@ namespace OP::trie::containers
             const fast_dim_t word_idx = key / bits_c;
             const std::uint64_t bit_mask = 1ULL << (key % bits_c);
 
-            auto wr_head = _segment_manager.accessor<Header>(_residence + header_offset_c);
+            auto wr_head = _segment_manager.get().accessor<Header>(_residence + header_offset_c);
 
             if (!(wr_head->_presence[word_idx] & bit_mask))
                 return false; // Key not found
@@ -167,7 +170,7 @@ namespace OP::trie::containers
             // Update bitset
             wr_head->_presence[word_idx] &= ~bit_mask;
             // Update vector
-            auto wr_data = _segment_manager.accessor<DataVector>(_residence + data_offset_c);
+            auto wr_data = _segment_manager.get().accessor<DataVector>(_residence + data_offset_c);
 
             auto pos = key2pos(*wr_head, key); 
             auto* del_pos = &wr_data->_payload[pos];
@@ -182,12 +185,12 @@ namespace OP::trie::containers
             const std::uint64_t bit_mask = 1ULL << (key % bits_c);
 
             Header h;
-            _segment_manager.view(_residence + header_offset_c, h);
+            _segment_manager.get().view(_residence + header_offset_c, h);
             if( h._presence[word_idx] & bit_mask )
             {
                 auto pos = key2pos(h, key);
                 vtm::PersistedArray<Payload> ref_data(_residence + data_offset_c);
-                return &ref_data.ref_element(_segment_manager, pos);
+                return &ref_data.ref_element(_segment_manager.get(), pos);
             }
             
             return nullptr;
@@ -199,13 +202,13 @@ namespace OP::trie::containers
             const std::uint64_t bit_mask = 1ULL << (key % bits_c);
 
             Header h;
-            _segment_manager.view(_residence + header_offset_c, h);
+            _segment_manager.get().view(_residence + header_offset_c, h);
             if( h._presence[word_idx] & bit_mask )
             {
                 auto pos = key2pos(h, key);
                 vtm::ConstantPersistedArray<Payload> cref_data(_residence + data_offset_c);
                 MemoryAlignedStorage<Payload> value;
-                cref_data.ref_element(_segment_manager, pos, *value);
+                cref_data.ref_element(_segment_manager.get(), pos, *value);
                 return *value;
             }
             
@@ -215,8 +218,8 @@ namespace OP::trie::containers
         void foreach(foreach_callback_t callback, void* user_data) override
         {
             Header h;
-            _segment_manager.view(_residence + header_offset_c, h);
-            auto wr_data = _segment_manager.accessor<DataVector>(_residence + data_offset_c);
+            _segment_manager.get().view(_residence + header_offset_c, h);
+            auto wr_data = _segment_manager.get().accessor<DataVector>(_residence + data_offset_c);
 
             size_t i = 0;
             for(auto key = OP::rawbits::first_set(h._presence);
@@ -238,9 +241,9 @@ namespace OP::trie::containers
         {
             assert(from.capacity() < capacity()); //this object must be bigger
 
-            auto wr_head = _segment_manager.accessor<Header>(_residence + header_offset_c);
+            auto wr_head = _segment_manager.get().accessor<Header>(_residence + header_offset_c);
             // Update vector
-            auto wr_data = _segment_manager.accessor<DataVector>(_residence + data_offset_c);
+            auto wr_data = _segment_manager.get().accessor<DataVector>(_residence + data_offset_c);
             size_t value_pos = 0;
 
             auto move_item_from = [&](fast_atom_t key, Payload& value){
@@ -277,8 +280,8 @@ namespace OP::trie::containers
             return pos;
         }
 
-        vtm::SegmentManager& _segment_manager;
-        vtm::HeapManagerSlot& _heap_manager;
+        std::reference_wrapper<vtm::SegmentManager> _segment_manager;
+        std::reference_wrapper<vtm::HeapManagerSlot> _heap_manager;
         FarAddress _residence;
     };
 
