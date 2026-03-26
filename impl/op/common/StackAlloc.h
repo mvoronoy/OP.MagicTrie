@@ -449,7 +449,7 @@ namespace OP
         template <class U, class ...Args>
         [[maybe_unused]] U& construct(Args&& ...arg)
         {
-            return _data.emplace<U>(std::forward<Args>(arg)...);
+            return _data.template emplace<U>(std::forward<Args>(arg)...);
         }
 
         [[nodiscard]] TInterface* operator ->() 

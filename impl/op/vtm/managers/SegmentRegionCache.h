@@ -25,7 +25,7 @@ namespace OP::vtm
 
         ~SegmentRegionCache()
         {
-            _last_accessed = {};
+            get_last_accessed() = {};
         }
 
         void put(size_t pos, region_entry_t value)
@@ -38,12 +38,13 @@ namespace OP::vtm
         template <class Factory>
         reference_t get(size_t pos, Factory&& factory)
         {
-            if( _last_accessed._last_region != nullptr 
-                && _last_accessed._last_chunk_index == pos 
-                && _last_accessed._this_uid == _instance_uid
+            auto& last_accessed = get_last_accessed();
+            if( last_accessed._last_region != nullptr 
+                && last_accessed._last_chunk_index == pos 
+                && last_accessed._this_uid == _instance_uid
                 )
             {
-                return *_last_accessed._last_region;
+                return *last_accessed._last_region;
             }
 
             if(std::shared_lock guard(_chunked_data_acc); pos < _chunked_data.size())
@@ -85,11 +86,17 @@ namespace OP::vtm
         struct LastAccessed
         {
             size_t _last_chunk_index = 0;
-            SegmentRegion* _last_region = nullptr;
             size_t _this_uid = 0;
+            SegmentRegion* _last_region = nullptr;
         };
+
+        inline static LastAccessed& get_last_accessed() noexcept
+        {
+            static thread_local LastAccessed last_accessed = {};
+            return last_accessed;
+        }
+
         static inline std::atomic<size_t> _instance_uid_generator = 1;
-        static inline thread_local LastAccessed _last_accessed = {};
 
         /**
         *   \pre _chunked_data_acc is acquired 
@@ -106,10 +113,11 @@ namespace OP::vtm
         reference_t update_local_cache(region_entry_t& entry, size_t pos)
         {
              //following is safe since _last_accessed is thread-local
-             _last_accessed._last_region = entry.get();
-             _last_accessed._last_chunk_index = pos;
-             _last_accessed._this_uid = _instance_uid;
-             return *_last_accessed._last_region;
+            auto& last_accessed = get_last_accessed();
+             last_accessed._last_region = entry.get();
+             last_accessed._last_chunk_index = pos;
+             last_accessed._this_uid = _instance_uid;
+             return *last_accessed._last_region;
         }
     };
 
