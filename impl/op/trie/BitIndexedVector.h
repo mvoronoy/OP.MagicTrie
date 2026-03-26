@@ -151,7 +151,7 @@ namespace OP::trie::containers
             const std::uint64_t bit_mask = 1ULL << (key % bits_c);
 
             Header h;
-            _segment_manager.view(_residence + header_offset_c, h);
+            _segment_manager.get().view(_residence + header_offset_c, h);
             return h._presence[word_idx] & bit_mask;
         }
         

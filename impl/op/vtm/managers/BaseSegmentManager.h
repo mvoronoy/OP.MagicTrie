@@ -364,8 +364,10 @@ namespace OP::vtm
             {
             }
 
-            /** Create memory buffer on raw memory, so associated deleter does nothing. */
-            ShadowBuffer make_buffer(FarAddress address, size_t size)
+            /** Create memory buffer on raw memory, so associated deleter does nothing. 
+            *   \note This method marked as noexcept since no-memory allocated, but wrong `address` make fail.
+            */
+            ShadowBuffer make_buffer(FarAddress address, size_t size) noexcept
             {
                 return ShadowBuffer{
                     this->get_segment(address.segment()).at<std::uint8_t>(address.offset()),
@@ -426,10 +428,10 @@ namespace OP::vtm
                     {
                         render_new = true;
                         auto offset = key * this->_segment_size;
-                        return SegmentRegion{
+                        return std::make_unique<SegmentRegion>(
                             this->_mapping,
                             offset,
-                            this->_segment_size};
+                            this->_segment_size);
                     }
                 );
                 if (render_new)
@@ -501,10 +503,10 @@ namespace OP::vtm
                 _fbuf.seekp(new_pos + std::streamoff(_segment_size - 1), std::ios_base::beg);
                 _fbuf.put(0);
                 _fbuf.flush();
-                _cached_segments.put(result, SegmentRegion{
+                _cached_segments.put(result, std::make_unique<SegmentRegion>(
                     this->_mapping,
                     segment_offset,
-                    this->_segment_size });
+                    this->_segment_size ));
                 if (_listener)
                     _listener->on_segment_allocated(result, *this);
                 return result;

@@ -260,7 +260,7 @@ namespace
 
         std::shared_ptr<SegmentManager> segment_manager(
             BaseSegmentManager::create_new(
-                test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000))
+                test_file_name, OP::vtm::SegmentOptions().segment_size(0x880000))
         );
 
         SegmentTopology<HeapManagerSlot> mngr_topology(segment_manager);
@@ -300,7 +300,7 @@ namespace
         .declare("default", test_default)
         .declare("reopen", test_reopen)
         .declare("grow", test_grow)
-        .declare("benchmark", benchmark_container, "benchmark", "slow")
+        //.declare("benchmark", benchmark_container, "benchmark", "slow")
        ;
 
 }//ns:

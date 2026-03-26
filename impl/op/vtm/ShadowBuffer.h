@@ -31,9 +31,9 @@ namespace OP::vtm
     struct ShadowBuffer
     {
         constexpr ShadowBuffer(std::uint8_t* buffer, size_t size, bool owns) noexcept
-            : _buffer(buffer)
-            , _owner(owns)
+            : _owner(owns)
             , _size(size)
+            , _buffer(buffer)
         {
         }
 
@@ -45,9 +45,9 @@ namespace OP::vtm
         }
 
         constexpr ShadowBuffer(ShadowBuffer&& other) noexcept
-            : _buffer(details::exchange(other._buffer, nullptr))
-            , _owner(details::exchange(other._owner, false))
-            , _size(details::exchange(other._size, 0))
+            : _buffer(std::exchange(other._buffer, nullptr))
+            , _owner(std::exchange(other._owner, false))
+            , _size(std::exchange(other._size, 0))
         {
         }
 
@@ -123,9 +123,9 @@ namespace OP::vtm
             }
         }
 
-        std::uint8_t* _buffer;
         bool _owner;
         size_t _size;
+        std::uint8_t* _buffer;
     };
         
     
