@@ -27,9 +27,10 @@ namespace
         auto& mngr = topology.template slot<FixedSizeMemoryManager>();
 
         OP::vtm::TransactionGuard g1(topology.segment_manager().begin_transaction());
-        auto b100 = mngr.allocate();
+        auto [b100, b100ptr] = mngr.allocate();
         mngr.deallocate(b100);
         g1.commit();
+
         tresult.assert_true(topology.segment_manager().available_segments() == 1);
         topology._check_integrity(tresult.run_options().log_level() > ResultLevel::info);
 
@@ -38,7 +39,7 @@ namespace
         for (auto i = 0; i < test_nodes_count_c; ++i)
         {
             OP::vtm::TransactionGuard op_g(topology.segment_manager().begin_transaction());
-            auto pos = mngr.allocate();
+            auto [pos, _] = mngr.allocate();
             auto& wr = *topology.segment_manager().template wr_at<typename FixedSizeMemoryManager::payload_t>(pos);
 
             tresult.assert_true(wr.inc == 57);
@@ -85,7 +86,7 @@ namespace
         for (auto i = 0; i < 2 * test_nodes_count_c; ++i)
         {
             OP::vtm::TransactionGuard op_g(topology.segment_manager().begin_transaction());
-            auto pos = mngr.allocate();
+            auto [pos, _] = mngr.allocate();
             auto& wr = *topology.segment_manager().template wr_at<typename FixedSizeMemoryManager::payload_t>(pos);
 
             tresult.assert_true(wr.inc == 57);

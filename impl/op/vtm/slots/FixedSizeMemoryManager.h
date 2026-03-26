@@ -45,42 +45,45 @@ namespace OP::vtm
         *   \tparam Args - optional argument of Payload constructor.
         */
         template <class ... Args>
-        FarAddress allocate(Args&& ...args)
+        std::pair<FarAddress, payload_t*> allocate(Args&& ...args)
         {
             FarAddress result;
+            payload_t* instance;
             allocate_n(&result, 1,
                 [&](size_t, auto* raw){
-                    return new(raw) payload_t(std::forward<Args>(args)...);
+                    instance = new(raw) payload_t(std::forward<Args>(args)...);
+                    return instance;
                 }
             );
-            return result;
+            return {result, instance};
         }
 
         /**
         * \param n - number of items to allocate. 0 is allowed but nothing is allocated
         */
         template <class FConstr>
-        void allocate_n(FarAddress* out_allocs, size_t n, FConstr constr)
+        void allocate_n(FarAddress* out_allocs, size_t n, FConstr&& constr)
         {
             if (n < 1)
                 return;
-
-            auto avail_segments = segment_manager().available_segments();
+            SegmentManager& sm = segment_manager();
+            auto avail_segments = sm.available_segments();
             //capture ZeroHeader for write during 10 tries
-            ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<60>([this](){
-                    return segment_manager().template wr_at<ZeroHeader>(_zero_header_address);
+            ZeroHeader* header = OP::vtm::template transactional_yield_retry_n<60>([&](){
+                    return sm.template wr_at<ZeroHeader>(_zero_header_address);
                 });
             size_t i = 0;
             for (FarAddress* result = out_allocs; n; --n, ++result, ++i)
             {
                 if (header->_next == SegmentDef::far_null_c)
                 {  //need allocate new segment
-                    segment_manager().ensure_segment(avail_segments);
+                    sm.ensure_segment(avail_segments);
+                    avail_segments = sm.available_segments();
                 }
                 //just to ensure last version of block. No locks required - since previous WR already captured
-                header = segment_manager().template wr_at<ZeroHeader>(_zero_header_address);
+                header = sm.template wr_at<ZeroHeader>(_zero_header_address);
                 //`writable_block` used instead of `wr_at` to capture full block to improve transaction speed
-                auto void_block = segment_manager().writable_block(
+                auto void_block = sm.writable_block(
                     FarAddress(header->_next), entry_size_c, WritableBlockHint::update_c);
 
                 auto* block = void_block.template at<FreeBlockHeader>(0);
@@ -109,7 +112,7 @@ namespace OP::vtm
                     //        _segment_manager, avail_segments);
                     //}
                 }
-                constr(i, segment_manager().template wr_at<payload_t>(*result));
+                constr(i, sm.template wr_at<payload_t>(*result));
                 --header->_in_free;
                 ++header->_in_alloc;
             }
@@ -123,6 +126,7 @@ namespace OP::vtm
 
         void deallocate(FarAddress addr)
         {
+            SegmentManager& sm = segment_manager();
             if( !is_valid_address(addr) )
             {
                 using namespace std::string_literals;
@@ -130,13 +134,12 @@ namespace OP::vtm
             }
 
             //capture ZeroHeader for write during 10 tries
-            auto header = OP::vtm::template transactional_yield_retry_n<10>([this]()
-                {
-                    return segment_manager().template wr_at<ZeroHeader>(_zero_header_address);
+            auto header = OP::vtm::template transactional_yield_retry_n<10>([&](){
+                    return sm.template wr_at<ZeroHeader>(_zero_header_address);
                 });
 
             //following will raise ConcurrentLockException immediately, if 'addr' cannot be locked
-            auto entry = segment_manager().writable_block(
+            auto entry = sm.writable_block(
                 addr, entry_size_c, WritableBlockHint::block_for_write_c);
 
             payload_t* to_free = entry.template at<payload_t>(0);
@@ -153,8 +156,9 @@ namespace OP::vtm
         {
             if (segment_addr.segment() != 0)
                 return;
+            SegmentManager& sm = segment_manager();
             std::lock_guard guard(_topology_mutex);
-            auto ro_block = segment_manager().readonly_block(
+            auto ro_block = sm.readonly_block(
                 _zero_header_address, memory_requirement<ZeroHeader>::requirement);
             //check from _zero_header_address
             auto header =
@@ -164,7 +168,7 @@ namespace OP::vtm
             //count all free blocks
             while (block_addr != SegmentDef::far_null_c)
             {
-                auto ro_block = segment_manager().readonly_block(block_addr, entry_size_c);
+                auto ro_block = sm.readonly_block(block_addr, entry_size_c);
                 const FreeBlockHeader* mem_block = ro_block.template at<FreeBlockHeader>(0);
                 if ((mem_block->_adjacent_count + 1) > Capacity)
                 {
@@ -180,7 +184,7 @@ namespace OP::vtm
                 block_addr =
                     FarAddress(mem_block->_next);
             }
-            if (segment_manager().available_segments() * Capacity < n_free_blocks)
+            if (sm.available_segments() * Capacity < n_free_blocks)
             {
                 std::ostringstream error;
                 error << typeid(this).name()
@@ -269,6 +273,7 @@ namespace OP::vtm
         */
         void on_new_segment(FarAddress start_address) override
         {
+            SegmentManager& sm = segment_manager();
             std::lock_guard guard(_topology_mutex);
 
             FarAddress blocks_begin;
@@ -282,15 +287,14 @@ namespace OP::vtm
                 _zero_header_address = blocks_begin;
                 blocks_begin += memory_requirement<ZeroHeader>::requirement;
                 //capturing zero-block 
-                header = segment_manager().template wr_at<ZeroHeader>(
+                header = sm.template wr_at<ZeroHeader>(
                     _zero_header_address, WritableBlockHint::new_c);
                 new (header) ZeroHeader{ SegmentDef::far_null_c };
             }
             else
             {
-                header = OP::vtm::template transactional_yield_retry_n<10>([this]()
-                    {
-                        return segment_manager().template wr_at<ZeroHeader>(_zero_header_address);
+                header = OP::vtm::template transactional_yield_retry_n<10>([&](){
+                        return sm.template wr_at<ZeroHeader>(_zero_header_address);
                     });
                 header->_in_free += Capacity;
                 blocks_begin = FarAddress(
@@ -298,7 +302,7 @@ namespace OP::vtm
             }
 
             FreeBlockHeader* big_chunk =
-                segment_manager().template wr_at<FreeBlockHeader>(blocks_begin, WritableBlockHint::new_c);
+                sm.template wr_at<FreeBlockHeader>(blocks_begin, WritableBlockHint::new_c);
             new (big_chunk) FreeBlockHeader{
                 header->_next,
                 Capacity - 1 // (-1) since when (adjacent == 0) we have exact 1 free block
@@ -327,9 +331,10 @@ namespace OP::vtm
     private:
         /**Size of entry in persistence state, must have capacity to accommodate ZeroHeader*/
         constexpr static const segment_pos_t entry_size_c =
-            memory_requirement<FreeBlockHeader>::requirement > memory_requirement<Payload>::requirement 
-            ? memory_requirement<FreeBlockHeader>::requirement 
-            : memory_requirement<Payload>::requirement;
+            std::max(
+                memory_requirement<FreeBlockHeader>::requirement, 
+                memory_requirement<Payload>::requirement
+            );
         /**When FreeBlockHeader and Payload occupies the same memory - both entries must be aligned properly*/
         constexpr static const size_t max_entry_align_c =
             std::max(alignof(Payload), alignof(FreeBlockHeader));

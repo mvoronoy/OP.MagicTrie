@@ -44,8 +44,19 @@ namespace OP
             */
             vtm::dim_t init_node_size(size_t level) const
             {
-                return level == 0 ? 256 : _node_size;
+                switch (level)
+                {
+                case 0:
+                    return 256;
+                case 1:
+                    return 16;
+                case 2:
+                    return 8;
+                default:
+                    return 4;
+                };
             }
+
         private:
             vtm::dim_t _node_size = 8;
         };
@@ -91,7 +102,7 @@ namespace OP
                 
                 // never(!) place `->new_node` and `.update([](){})` to single lambda
                 // otherwise creates different version writable_block
-                new_trie->_root = new_trie->new_node(0);
+                std::tie(new_trie->_root, std::ignore) = new_trie->new_node(0);
                 
                 new_trie->_topology->template slot<TrieResidence> ()
                     .update([root_addr = new_trie->_root](auto& header){
@@ -705,7 +716,7 @@ namespace OP
                     return insert(fallback_key.append(begin, aend), std::move(value_factory));
                 }
                 auto result = std::make_pair(of_prefix, true);
-                //@!1: alter_navigation(result.first);
+
                 result.second = !insert_impl(
                     result.first, begin, aend, std::move(value_factory));
                 return result;
@@ -820,7 +831,7 @@ namespace OP
                 };
 
                 auto result = std::make_pair(of_prefix, true);
-                //@!1: alter_navigation(result.first);
+
                 if (insert_impl(
                     result.first, begin, aend, value_assigner))
                 {
@@ -989,19 +1000,19 @@ namespace OP
             *   for root node, for most cases default (1) is a good hint how many 
             *   storage entries to allocate
             */
-            FarAddress new_node(size_t level = 1)
+            std::pair<FarAddress, node_t*> new_node(size_t level)
             {
                 TrieOptions options; //@! temp - just default impl. Need add heuristic to allocate mem according to level
-                auto node_addr = _topology->template slot<node_manager_t> ()
-                    .allocate(options.init_node_size(level));
+                vtm::dim_t capacity = options.init_node_size(level);
+                auto [node_addr, wr_node] = _topology->template slot<node_manager_t>()
+                    .allocate(capacity);
 
-                auto wr_node = vtm::accessor<node_t>(*_topology, node_addr);
                 wr_node->create_interior(*_topology);
                 _topology->template slot<TrieResidence>()
                     .update([this](auto& header) {
                         ++header._nodes_allocated;
                     });
-                return node_addr;
+                return { node_addr, wr_node };
             }
 
             void remove_node(vtm::WritableAccess<node_t>& wr_node)
@@ -1280,8 +1291,7 @@ namespace OP
                         });
                         string_manager.truncate(parent_data._stem, full_stem_len - carry_over_stem.size());
                         
-                        auto new_node_addr = new_node(iter._prefix.size() + 1);
-                        auto branch_node = vtm::accessor<node_t>(*_topology, new_node_addr);
+                        auto [new_node_addr, branch_node] = new_node(iter._prefix.size() + 1);
                         auto new_child_key = carry_over_stem[0];
                         //now insert the carry-over part of stem
                         branch_node->insert(*_topology, new_child_key,
@@ -1335,10 +1345,10 @@ namespace OP
                     {
                         auto parent_node = vtm::accessor<node_t>(*_topology, iter.rat().address());
                         auto step_key = iter.rat_key();
-                        auto child = new_node(iter._prefix.size() + 1);
-                        parent_node->set_child(*_topology, step_key, child);
+                        auto [child_addr, _] = new_node(iter._prefix.size() + 1);
+                        parent_node->set_child(*_topology, step_key, child_addr);
                         iter.rat(terminality_or(Terminality::term_has_child));
-                        iter.push(address(child), key(*begin++));
+                        iter.push(address(child_addr), key(*begin++));
                     }
                     else // child node is already in stack
                     {
@@ -1400,42 +1410,6 @@ namespace OP
                     });
             }
             
-            /**
-            *  On insert to `break_position` stem may contain chain to split. This method breaks the chain
-            *  and place the rest to a new child node.
-            * @return true if chain was split, false nothing has been done.
-            */
-            bool split_stem(iterator& break_position)
-            {
-                auto& back = break_position._position_stack.back();
-                if (back.chunk_size() < 2) //no sense to call this method if stem is empty
-                    return false;
-                const auto previous_key = break_position.rat_key();
-                auto wr_node = vtm::accessor<node_t>(*_topology, back.address());
-                //create new node to place result
-                auto new_node_addr = new_node(break_position.node_count() + 1);
-                auto target_node = vtm::accessor<node_t>(*_topology, new_node_addr);
-                auto new_chunk_size = wr_node->move_to(*_topology,
-                    previous_key, //last char of stem stored in iterator
-                    back.chunk_size() - 1, // (-1) as 1 character stored in a key
-                    target_node);
-                back._version = wr_node->_version; 
-                back._terminality |= Terminality::term_has_child;
-                //after this line back is not valid
-                
-                break_position.emplace(TriePosition(//now need extend position stack to reflect new node
-                    address(new_node_addr), 
-                    node_version(target_node->_version)
-                    //chunk_size(new_chunk_size)
-                    //terminality(
-                    //    target_node->_child_presence.get()
-                    //)
-                    ));
-                return true;
-            }
-
-
-
             iterator erase_impl(iterator& pos, size_t* count = nullptr)
             {
                 auto result{ pos };
@@ -1564,28 +1538,6 @@ namespace OP
                 return true;
             }
             
-            /**
-            *  Prepare iterator for navigation for trie altering (insert, upsert).
-            * Method checks if existing iterator capable for navigation (not the end, 
-            *   otherwise root node used) 
-            * and allows insertion (contains child node at pointed position - otherwise
-            * new empty node added)
-            */
-            void alter_navigation(iterator& result_iter)
-            {
-                if (!navigation_mode(result_iter))
-                {//no way down, so need create children empty node
-                    const auto& back = result_iter.rat();
-                    const auto back_key = result_iter.rat_key();
-
-                    auto addr = new_node(result_iter.node_count());
-                    vtm::accessor<node_t>(*_topology, back.address())
-                        ->set_child(*_topology, back_key, addr);
-                    result_iter.push(
-                        address(addr)
-                    );
-                }
-            }
             /**Return not fully valid iterator that matches common part specified by [begin, end)
             * \return reason why iterator unmatched to query string
             */
