@@ -1837,7 +1837,7 @@ namespace
             '0', '1', '2', '3', '4', '5', '6', '7',
             '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
-        //produce exact 3 char size string from uint32 in hex format
+        //produce string from uint32 in hex format
         auto to_hext = [&](std::uint32_t from, atom_string_t& dest) {
             dest += hex[(from >> 16) & 0xFu];
             dest += hex[(from >> 12) & 0xFu];
@@ -1845,12 +1845,14 @@ namespace
             dest += hex[(from >> 4) & 0xFu];
             dest += hex[from & 0xFu];
         };
+        std::mutex trie_acc;
         auto bulk_insert = [&](trie_t::iterator top, std::uint32_t from, std::uint32_t to){
             atom_string_t instr;
             for (std::uint32_t i = from; i < to; ++i)
             {
                 instr.clear();
                 to_hext(i, instr);
+                std::lock_guard g(trie_acc);
                 trie->prefixed_upsert(top, instr, i);
             }
         };
@@ -1863,15 +1865,11 @@ namespace
 
         if (1 == 1)
         {
-            std::mutex mutex;
-            std::condition_variable condition;
-            std::atomic<bool> control_count = true;
+            OP::vtm::TransactionGuard op_g(
+                trie->segment_manager().begin_transaction(), true);
 
             auto exec_single_thr = [&](trie_t::iterator top, std::uint32_t to) {
-                //@!std::unique_lock<std::mutex> lock(mutex);
-                //while (control_count) // Handle synchro-start.
-                //    condition.wait(lock);
-                //lock.unlock();
+                auto sub_guard = op_g.merge_thread();
                 bulk_insert(top, 0, to);
             };
             auto mt = [&](std::uint32_t limit) {
@@ -1924,7 +1922,7 @@ namespace
         .declare("next_lower_bound", test_NextLowerBound)
         .declare("issue_erase_seq_of_4", issue_erase_seq_of_4)
         .declare("issue_next_sibling", issue_next_sibling)
-        .declare_disabled("insert-10k", test_insert_10k)
+        //.declare("insert-10k", test_insert_10k)//declare_disabled
 
         // define scenario parameter with InMemory implementation
         .with_fixture("in-memory-history",

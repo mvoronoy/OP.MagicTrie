@@ -473,10 +473,10 @@ namespace OP::vtm
             }
 
             /** Disable write operation */
-            constexpr virtual bool allow_write() const noexcept override
-            {
-                return false;
-            }
+            //constexpr virtual bool allow_write() const noexcept override
+            //{
+            //    return false;
+            //}
 
             virtual void store_log_record(ShadowBuffer from) override
             {

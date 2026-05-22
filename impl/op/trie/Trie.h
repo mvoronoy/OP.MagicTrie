@@ -811,7 +811,7 @@ namespace OP
             * \param value - payload to be assigned or updated
             * \return a pair of iterator and bool. Iterator pointing to the element matched to key 
             *       `of_prefix.key() + atom_string_t(begin, aend)`. Boolean value denoting if the insertion succeeded
-            *       or result key is a dupplicate. For empty string `(begin == aend)` method immidiatly returns 
+            *       or result key is a duplicate. For empty string `(begin == aend)` method immediately returns 
             *       pair `(end(), false)`
             */
             template <class AtomIterator>
