@@ -220,7 +220,7 @@ namespace OP::common
 
         friend inline std::ostream& operator << (std::ostream& os, const BitBuilder& bb)
         {
-            if (!(os.flags() && (std::ios_base::hex | std::ios_base::oct)))
+            if (!(os.flags() & (std::ios_base::hex | std::ios_base::oct)))
             {
                 os << bb.to_string();
             }

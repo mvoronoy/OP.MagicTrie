@@ -144,6 +144,7 @@ namespace
     
     struct Base
     {
+        virtual ~Base() = default;
         virtual void handle_x(int arg) = 0;
     };
 
