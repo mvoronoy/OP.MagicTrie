@@ -54,8 +54,8 @@ namespace OP::vtm
         static inline std::string er_transaction_ghost_state_str = "VTM: invalid transaction in ghost state, transaction-id = ";
         static inline std::string er_ro_transaction_started_str = "VTM: data cannot be modified because read-only transaction is started";
         static inline std::string er_cannot_start_ro_transaction_str = "VTM: cannot start read-only transaction";
-        static inline std::string er_thread_owns_transaction_str = "VTM: merge_thread failed because thread already owns transaction >thread-id, tx-id>";
-        static inline std::string er_cannot_close_transaction_while_merged_thread_str = "VTM: cannot close transaction while merge_thread still opened";
+        static inline std::string er_thread_owns_transaction_str = "VTM: attach_thread failed because thread already owns transaction >thread-id, tx-id>";
+        static inline std::string er_cannot_close_transaction_while_merged_thread_str = "VTM: cannot close transaction while attach_thread still opened";
         static inline std::string er_file_open_str = "VTM: file opening error";
         static inline std::string er_file_already_exists_str = "VTM: file already exists str";
         static inline std::string er_invalid_signature_str = "VTM: invalid signature";

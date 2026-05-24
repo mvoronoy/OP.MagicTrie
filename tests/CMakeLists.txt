@@ -3,7 +3,11 @@
 cmake_minimum_required (VERSION 3.20)
 project(trie_test)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(MSVC)
+    add_compile_options("/Zc:__cplusplus")
 #    add_compile_options("/P" )
 endif(MSVC)
 
@@ -49,6 +53,7 @@ add_executable (trie_test
     "common/Multiimplementation.cpp"
     "common/basic.cpp"
     "common/FixedString.cpp"
+    "common/BitBuilder.cpp"
 
     "vtm/AppendOnlyLog.cpp"
     "vtm/AppendOnlySkipList.cpp"

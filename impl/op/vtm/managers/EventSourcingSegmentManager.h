@@ -373,14 +373,14 @@ namespace OP::vtm
                 }
             }
 
-            virtual std::shared_ptr<Transaction> merge_thread() override
+            virtual std::shared_ptr<Transaction> attach_thread() override
             {
-                return _framed_tx->merge_thread();
+                return _framed_tx->attach_thread();
             }
 
-            virtual void unmerge_thread() override
+            virtual void unattach_thread() override
             {
-                _framed_tx->unmerge_thread();
+                _framed_tx->unattach_thread();
             }
 
             TransactionState state() const
@@ -576,7 +576,7 @@ namespace OP::vtm
                 _log_records_to_commit = 0;
             }
                 
-            virtual std::shared_ptr<Transaction> merge_thread() override
+            virtual std::shared_ptr<Transaction> attach_thread() override
             {
                 auto current = _owner._opened_transactions.lock();
                 if (current)
@@ -591,7 +591,7 @@ namespace OP::vtm
                 return current;
             }
 
-            virtual void unmerge_thread() override
+            virtual void unattach_thread() override
             {
                 auto current = _owner._opened_transactions.lock();
                 if (!current || !_thread_merge_count)

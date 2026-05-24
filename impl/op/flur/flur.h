@@ -330,9 +330,8 @@ namespace OP::flur
         {
             using raw_t = std::decay_t<Str1>;
             using str_t = details::dereference_t<raw_t>;
-            using str_view_t = std::basic_string_view< typename str_t::value_type >;
 
-            using splitter_t = StringSplit<raw_t, str_view_t>;
+            using splitter_t = StringSplit<raw_t, Str2>;
             //Simple factory will use copy operation of the same instance
             return make_lazy_range( 
                 SimpleFactory<splitter_t, splitter_t>{
@@ -340,8 +339,8 @@ namespace OP::flur
             );
         }
 
-        template <class Str>
-        OP_CONSTEXPR_CPP20 const static inline std::basic_string< typename Str::value_type > default_separators_c{ " " };
+        template <class Char>
+        OP_CONSTEXPR_CPP20 const static inline std::basic_string_view< Char > default_separators_c{ " " }; //workaround(!) for MSVC that not fully support constexpr
 
         /** \brief same as `of_string_split(str, separators) but use (" ") space as single separator */
         template <class Str>
@@ -349,12 +348,10 @@ namespace OP::flur
         {
             using raw_t = std::decay_t<Str>;
             using str_t = details::dereference_t<raw_t>;
-            using str_view_t = std::basic_string_view< typename str_t::value_type >;
 
-            using splitter_t = StringSplit<raw_t, str_view_t>;
             //Simple factory will use copy operation of the same instance
             return of_string_split(
-                    std::move(str), default_separators_c<str_t>);
+                    std::move(str), default_separators_c<typename str_t::value_type>);
         }
 
         template <class Poly>

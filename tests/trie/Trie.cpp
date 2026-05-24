@@ -1869,7 +1869,7 @@ namespace
                 trie->segment_manager().begin_transaction(), true);
 
             auto exec_single_thr = [&](trie_t::iterator top, std::uint32_t to) {
-                auto sub_guard = op_g.merge_thread();
+                auto sub_guard = op_g.attach_thread();
                 bulk_insert(top, 0, to);
             };
             auto mt = [&](std::uint32_t limit) {

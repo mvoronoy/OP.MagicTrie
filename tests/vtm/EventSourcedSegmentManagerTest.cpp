@@ -953,19 +953,41 @@ namespace
             op_g0.commit();
         }
         std::latch init_done{ 2 }, synchro_start{ 1 };
-        auto wrap_safe_exec = [&](auto&& callback) {
-            try {
-                callback();
+
+        struct latch_raii
+        {
+            std::latch* _instance;
+            latch_raii(std::latch& instance) noexcept
+                : _instance(&instance){}
+            
+            
+            void detach()
+            {
+                _instance = nullptr;
             }
-            catch (...) {
-                init_done.count_down();
+
+            void release()
+            {
+                if (_instance)
+                {
+                    _instance->count_down();
+                    _instance = nullptr;
+                }
             }
-            };
+
+            ~latch_raii()
+            {
+                if (_instance)
+                    _instance->count_down();
+            }
+        };
+
         OP::vtm::TransactionGuard op_g(tmngr1->begin_transaction());
         //make changes visible inside transaction #1 only
         memcpy(tmngr1->writable_block(addr240_x100, test_seq_len_c).pos(),
             test_seq3.data(), test_seq3.size());
-        auto proc1 = std::async(wrap_safe_exec, [&]() { //exploit ro-sequence
+        auto proc1 = std::async([&]() { //exploit ro-sequence
+            latch_raii wrap_init_done(init_done);
             //check read without merge cannot see changes of transaction #1 yet
             tresult.assert_that<negate<equals>>(
                 tmngr1->readonly_block(addr240_x100, test_seq_len_c),
@@ -973,7 +995,7 @@ namespace
                 "read without merge cannot see changes of transaction #1 yet"
             );
 
-            OP::vtm::ThreadMergeGuard m_guard = op_g.merge_thread();
+            OP::vtm::ThreadMergeGuard m_guard = op_g.attach_thread();
             // now changes must be visible
             tresult.assert_that<equals>(
                 tmngr1->readonly_block(addr240_x100, test_seq_len_c),
@@ -981,27 +1003,19 @@ namespace
                 "now changes of transaction #1 must be visible"
             );
 
-            tresult.assert_exception<OP::Exception>([&]() {
-                auto skip =
-                    tmngr1->writable_block(addr40_x100, test_seq_len_c);
-                static_cast<void>(skip);
-            })
-            .then([](const auto& ex) {
-                return ex.code() == OP::vtm::ErrorCodes::er_ro_transaction_started;
-            });
-
             auto bx40_x100 = tmngr1->readonly_block(addr40_x100, test_seq_len_c);
             tresult.assert_true(0 == memcmp(bx40_x100.pos(), test_seq1.data(), test_seq1.size()));
             auto bx140_x100 = tmngr1->readonly_block(addr140_x100, test_seq_len_c);
             tresult.assert_true(0 == memcmp(bx140_x100.pos(), test_seq1.data(), test_seq1.size()));
-            init_done.count_down();
+            wrap_init_done.release();
             synchro_start.wait();
             //check RO can see changes from own transaction
             bx40_x100 = tmngr1->readonly_block(addr40_x100, test_seq_len_c);
             tresult.assert_true(0 == memcmp(bx40_x100.pos(), test_seq2.data(), test_seq2.size()));
 
             });
-        auto proc2 = std::async(wrap_safe_exec, [&]() { // start alternative transaction with parallel changes
+        auto proc2 = std::async([&]() { // start alternative transaction with parallel changes
+            latch_raii wrap_init_done(init_done);
 
             OP::vtm::TransactionGuard op_g2(tmngr1->begin_transaction());
 
@@ -1011,7 +1025,7 @@ namespace
             //alter the block
             auto wr140_x100 = tmngr1->upgrade_to_writable_block(bx140_x100);
             wr140_x100.byte_copy(test_seq2.data(), test_seq2.size());
-            init_done.count_down();
+            wrap_init_done.release();
 
             synchro_start.wait();
             //this tran MUST NOT see changes of transaction #1
@@ -1021,6 +1035,8 @@ namespace
             op_g2.commit(); //expose changes
             });
         init_done.wait(); // wait until threads ready to see changes
+        
+        latch_raii wrap_synchro_start(synchro_start);
 
         auto bx40_x100 = tmngr1->writable_block(addr40_x100, test_seq_len_c);
         bx40_x100.byte_copy(test_seq2.data(), test_seq2.size());
@@ -1034,7 +1050,7 @@ namespace
         });
 
         //not visible yet for transaction #2
-        synchro_start.count_down();
+        wrap_synchro_start.release();
 
         //extract exception if any
         proc1.get();

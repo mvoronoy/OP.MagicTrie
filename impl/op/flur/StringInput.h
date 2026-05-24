@@ -1,20 +1,31 @@
 #pragma once
 #ifndef _OP_FLUR_STRINGINPUT__H_
 #define _OP_FLUR_STRINGINPUT__H_
+
+#include <string>
+
 namespace OP::flur
 {
+    
+    namespace details
+    {
+        template <class TStr>
+        using _make_view = std::basic_string_view<typename TStr::value_type, typename TStr::traits_type>;
+    }//ns:details
     /**
     *   Split string by one of the separators
-    *@tparam Str sequence to split
+    *@tparam Str1, Str2 sequence to split
     *@param separators string of separators, any symbol from it is treated as possible separator
     */
-    template <class Str, class StrView>
-    struct StringSplit : Sequence< StrView > 
+    template <class Str1, class Str2>
+    struct StringSplit : Sequence< details::_make_view<Str1> >
     {
-        using base_t = Sequence< StrView >;
+
+        using view_t = details::_make_view<Str1>;
+        using base_t = Sequence< view_t >;
         using element_t = typename base_t::element_t;
 
-        constexpr StringSplit(Str str, Str separator)
+        constexpr StringSplit(Str1 str, Str2 separator)
             :_hold(std::move(str))
             , _separators(std::move(separator))
             , _start( std::string::npos )
@@ -59,7 +70,8 @@ namespace OP::flur
 
     private:
         size_t _start, _endp;
-        Str _hold, _separators;    
+        Str1 _hold;
+        Str2 _separators;
     };
 
 

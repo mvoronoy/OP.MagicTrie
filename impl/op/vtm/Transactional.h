@@ -76,8 +76,8 @@ namespace OP::vtm
 
         virtual void rollback() = 0;
         virtual void commit() = 0;
-        virtual std::shared_ptr<Transaction> merge_thread() = 0;
-        virtual void unmerge_thread() = 0;
+        virtual std::shared_ptr<Transaction> attach_thread() = 0;
+        virtual void unattach_thread() = 0;
 
     private:
         const transaction_id_t _transaction_id;
@@ -141,18 +141,18 @@ namespace OP::vtm
             //invoke events on transaction end
         }
 
-        virtual std::shared_ptr<Transaction>  merge_thread() override
+        virtual std::shared_ptr<Transaction>  attach_thread() override
         {
             return shared_from_this();
         }
 
-        virtual void unmerge_thread() override
+        virtual void unattach_thread() override
         {
             //do nothing
         }
     };
 
-    /** \brief RAII guard that grants pair methods Transaction::merge_thread/Transaction::unmerge_thread be called.
+    /** \brief RAII guard that grants pair methods Transaction::attach_thread/Transaction::unattach_thread be called.
     */
     struct ThreadMergeGuard final
     {
@@ -172,7 +172,7 @@ namespace OP::vtm
 
         ThreadMergeGuard& operator = (ThreadMergeGuard&& other)
         {
-            unmerge_thread();
+            unattach_thread();
             _ro_instance = std::move(other._ro_instance);
             _is_merged = other._is_merged;
             other._is_merged = false;
@@ -185,14 +185,14 @@ namespace OP::vtm
 
         ~ThreadMergeGuard()
         {
-            unmerge_thread();
+            unattach_thread();
         }
 
-        void unmerge_thread()
+        void unattach_thread()
         {
             if(_is_merged)
             {
-                _ro_instance->unmerge_thread();
+                _ro_instance->unattach_thread();
                 _is_merged = false;
             }
         }
@@ -247,9 +247,9 @@ namespace OP::vtm
             }
         }
 
-        [[nodiscard]] ThreadMergeGuard merge_thread()
+        [[nodiscard]] ThreadMergeGuard attach_thread()
         {
-            return ThreadMergeGuard(_instance->merge_thread());
+            return ThreadMergeGuard(_instance->attach_thread());
         }
 
         transaction_ptr_t transaction()
