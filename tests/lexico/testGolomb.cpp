@@ -280,15 +280,16 @@ namespace
         test_step(negate(real_number_positive_edge_cases<long double>));
     }
 
+    using long_double_t = long double;
 
     constexpr auto lexico_order_data_c = std::make_tuple(
         -std::numeric_limits<int>::max(),
         double{-1.2},
         int{ -1 },
-        long double{ -0.6 },
-        long double{ -0.3 },
+        long_double_t{ -0.6 },
+        long_double_t{ -0.3 },
         float{ -0.0f },
-        int{ 0 }, long double{ 0.01 }, double{ 0.3 }, float{ 0.6f },
+        int{ 0 }, long_double_t{ 0.01 }, double{ 0.3 }, float{ 0.6f },
         int{ 1 }, std::uint8_t{ 12 }, char{ 57 },
         unsigned{ (1 << 16) - 1 }, float{ 3.1e29f }
     );

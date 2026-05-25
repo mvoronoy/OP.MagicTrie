@@ -119,7 +119,7 @@ namespace
     {
         namespace lo = OP::lexico;
         using num_t = std::variant<int, double, long double, float, unsigned>;
-        auto factory = [](auto v) -> TestBitBuilder {
+        auto factory = [&](auto v) -> TestBitBuilder {
             TestBitBuilder bb;
             lo::encode(bb, num_t{ v });
             tresult.debug() << bb.to_string() << "\t = " << v << "\n";
