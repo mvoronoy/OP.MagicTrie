@@ -55,6 +55,9 @@ add_executable (trie_test
     "common/FixedString.cpp"
     "common/BitBuilder.cpp"
 
+    "lexico/testGolomb.cpp"
+    "lexico/testLexico.cpp"
+
     "vtm/AppendOnlyLog.cpp"
     "vtm/AppendOnlySkipList.cpp"
     "vtm/AppendAtomicList.cpp"
