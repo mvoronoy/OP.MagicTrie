@@ -82,7 +82,7 @@ namespace OP::common
 
     template <class Value>
     using dereference_t = std::decay_t <
-        decltype(details::get_reference(std::declval< const Value& >())) >;
+        decltype(get_reference(std::declval< const Value& >())) >;
 
 }//ns:OP::common
 
