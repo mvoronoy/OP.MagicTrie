@@ -1,6 +1,6 @@
 ﻿# CMakeList.txt : CMake project for stand-alone test of OP
 #
-cmake_minimum_required (VERSION 3.20)
+cmake_minimum_required (VERSION 3.27)
 project(trie_test)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -54,6 +54,9 @@ add_executable (trie_test
     "common/basic.cpp"
     "common/FixedString.cpp"
     "common/BitBuilder.cpp"
+    "common/ConditionalIterator.cpp"
+    "common/DependencyManager.cpp"
+    "common/SequenceReorder.cpp"
 
     "lexico/testGolomb.cpp"
     "lexico/testLexico.cpp"
@@ -61,23 +64,26 @@ add_executable (trie_test
     "vtm/AppendOnlyLog.cpp"
     "vtm/AppendOnlySkipList.cpp"
     "vtm/AppendAtomicList.cpp"
-    "vtm/FixedSizeMemoryManagerTest.cpp"
-    "vtm/StringManagerTest.cpp"
+    
     "vtm/SegmentManagerTest.cpp"
     "vtm/SegmentToplogyTest.cpp"
     "vtm/InMemMemoryChangeHistory.cpp"
     "vtm/GenericMemoryTest.h"
+    "vtm/SizeRadixRoutingIndex.cpp"
 
     "tr.cpp"
 
     "vtm/EventSourcedSegmentManagerTest.cpp"
     
+    "trie/TrieServant.cpp"
     "trie/Trie.cpp"
     "trie/TrieRanges.cpp"
     "trie/testMixedAdapter.cpp"
     "trie/trieValueManager.cpp"
     "trie/TrieFixedString.cpp"
     "trie/BitIndexedVector.cpp"
+    "trie/StringManagerTest.cpp"
+    "trie/ResidenceManager.cpp"
     
 
     "flur/StlContainers.cpp" 

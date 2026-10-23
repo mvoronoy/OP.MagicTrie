@@ -79,7 +79,7 @@ namespace OP::vtm
         *   FixedSizeMemoryManager in the beginning and HeapMemory after all
         */
         template <class ... TSlot>
-        class SegmentTopology : public SegmentEventListener
+        class SegmentTopology
         {
             struct TopologyHeader
             {
@@ -110,9 +110,18 @@ namespace OP::vtm
             SegmentTopology(std::shared_ptr<TSegmentManager> segments) 
                 : _slots{std::make_unique<TSlot>(*segments)...}
                 , _segments(std::move(segments))
+                , _unsub{ 
+                    _segments->event_supplier().bind<SegmentEventSupplier::allocated>(
+                    [this](const typename SegmentEventSupplier::UserSpaceEvent& event) {
+                        this->on_segment_allocated(event._id, *_segments);
+                    }),
+                    _segments->event_supplier().bind<SegmentEventSupplier::opening>(
+                    [this](const typename SegmentEventSupplier::UserSpaceEvent& event) {
+                        this->on_segment_opening(event._id, *_segments);
+                    })
+                }
             {
                 static_assert(sizeof...(TSlot) > 0, "Specify at least 1 TSlot to declare topology");
-                _segments->subscribe_event_listener(this);
                 
                 OP::vtm::TransactionGuard g(_segments->begin_transaction());
                 
@@ -143,21 +152,19 @@ namespace OP::vtm
                 segment_idx_t n = _segments->available_segments();
                 for(segment_idx_t idx = 0; idx < n; ++idx)
                 {
-                    segment_pos_t current_offset = _segments->header_size();
+                    auto [start_addr, space_size] = _segments->user_space(0);
                     //start write topology right after header
                     ReadonlyMemoryChunk topology_address = _segments->readonly_block(
-                        FarAddress(idx, current_offset), 
-                        addres_table_size_c);
-                    current_offset += addres_table_size_c;
+                        start_addr, addres_table_size_c);
+                    start_addr += addres_table_size_c;
                     std::apply(
                         [&](auto& slot_ptr){
 
                             auto& slot = static_cast<Slot&>(*slot_ptr);
                             if (slot.has_residence(idx))
                             {
-                                FarAddress addr(idx, current_offset);
-                                slot._check_integrity(addr, verbose);
-                                current_offset += slot.byte_size(addr);
+                                slot._check_integrity(start_addr, verbose);
+                                start_addr += slot.byte_size(start_addr);
                             }
                         },  _slots);
                 }
@@ -174,14 +181,15 @@ namespace OP::vtm
             */
             void on_segment_allocated(segment_idx_t new_segment, segment_manager_t& manager)
             {
-                segment_pos_t current_offset = manager.header_size();
+                auto [start_from, available] = manager.user_space(new_segment);
+                auto current_offset = manager.offset_of(start_from);
                 //start write topology right after header
                 auto topology_block = manager
-                    .writable_block(FarAddress(new_segment, current_offset), addres_table_size_c);
+                    .writable_block(start_from, addres_table_size_c);
                 TopologyHeader* header = topology_block.template at<TopologyHeader>(0);
                 current_offset += addres_table_size_c;
                 header->_slots_count = 0;
-
+                
                 std::apply([&](auto& ... slot_ptr)->void {
                     ((current_offset += slot_on_segment_allocated(new_segment, manager, *slot_ptr, header, current_offset)), ...);
                     }, _slots);
@@ -190,11 +198,11 @@ namespace OP::vtm
             /** Open existing (on file level) segment */
             void on_segment_opening(segment_idx_t opening_segment, segment_manager_t& manager)
             {
-                segment_pos_t current_offset = manager.header_size();
-                
+                auto [start_from, available] = manager.user_space(opening_segment);
+
                 segment_pos_t processing_size = addres_table_size_c;
                 ReadonlyMemoryChunk topology_address = manager.readonly_block(
-                    FarAddress(opening_segment, current_offset), processing_size);
+                    start_from, processing_size);
                 const TopologyHeader* header = topology_address.at<TopologyHeader>(0);
                 assert(header->_slots_count == slots_count_c);
                  
@@ -232,7 +240,7 @@ namespace OP::vtm
                     slot.open(FarAddress(opening_segment, in_slot_address));
                 }
             }
-
+            std::array<typename SegmentEventSupplier::unsubscriber_t, 2> _unsub;
             slots_t _slots;
             segments_ptr_t _segments;
         };

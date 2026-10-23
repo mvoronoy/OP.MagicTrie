@@ -9,6 +9,7 @@
 #include <op/vtm/managers/InMemMemoryChangeHistory.h>
 
 #include <op/trie/Trie.h>
+#include <op/trie/servants/TrieOptionsImpl.h>
 #include <op/trie/PlainValueManager.h>
 
 #include <op/common/astr.h>
@@ -67,22 +68,17 @@ namespace
     {
         OP::utils::ThreadPool tp;
         using namespace OP::flur;
-        std::shared_ptr<OP::vtm::EventSourcingSegmentManager> tmngr (
-            new OP::vtm::EventSourcingSegmentManager(
-                OP::vtm::BaseSegmentManager::create_new(
-                    test_file_name,
-                    OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
-            )
-        );
+        std::shared_ptr<OP::trie::TrieOptions> tmngr (new OP::trie::servants::TrieOptionsImpl(
+                test_file_name, OP::trie::OpenMode::create
+        ));
 
         using ufstr_t = OP::FixedString<OP::fix_str_policy_noexcept<std::uint8_t, 64>>;
 
-        //using trie_t = Trie<
-        //    EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t> ;
         using trie_t = OP::trie::Trie<
-            OP::vtm::EventSourcingSegmentManager, OP::trie::PlainValueManager<double>, ufstr_t
+            ufstr_t,
+            OP::trie::PlainValueManager<double>
         >;
+
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
 
         auto test_range0 = OP::trie::make_mixed_sequence_factory(
@@ -122,16 +118,14 @@ namespace
 
         OP::utils::ThreadPool tp;
 
-        std::shared_ptr<SegmentManager> tmngr (new EventSourcingSegmentManager(
-            OP::vtm::BaseSegmentManager::create_new(
-                test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-            std::unique_ptr<OP::vtm::MemoryChangeHistory>(new OP::vtm::InMemoryChangeHistory(tp))
-        ));
+        std::shared_ptr<OP::trie::TrieOptions> toi (
+            new OP::trie::servants::TrieOptionsImpl(
+            test_file_name, OP::trie::OpenMode::create));
 
         using trie_t = OP::trie::Trie<
-            OP::vtm::SegmentManager, OP::trie::PlainValueManager<double>, OP::common::atom_string_t> ;
+            OP::common::atom_string_t, OP::trie::PlainValueManager<double>>;
 
-        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+        std::shared_ptr<trie_t> trie = trie_t::create_new(toi);
 
         auto test_range0 = OP::trie::make_mixed_sequence_factory(
             std::static_pointer_cast<trie_t const>(trie));

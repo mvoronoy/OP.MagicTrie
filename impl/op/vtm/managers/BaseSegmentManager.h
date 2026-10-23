@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <cstdint>
 #include <memory>
+#include <filesystem>
 #include <fstream>
 #include <string>
 
@@ -164,7 +165,7 @@ namespace OP::vtm
             using transaction_ptr_t = OP::vtm::transaction_ptr_t;
 
             static std::unique_ptr<SegmentManager> create_new(
-                const char * file_name,
+                std::filesystem::path file_name,
                 const SegmentOptions& options)
             {
                 using io = std::ios_base;
@@ -175,25 +176,26 @@ namespace OP::vtm
 
                 //file is opened always in RW mode
                 auto file = open_file(file_name, io::in | io::out | io::binary | io::trunc);
+                std::string path_str = file_name.string();
                 return std::unique_ptr<SegmentManager>(
                     new BaseSegmentManager(
                         file_name, 
                         std::move(file),
-                        make_file_mapping(file_name), 
+                        make_file_mapping(path_str.c_str()),
                         segment_size)
                 );
             }
 
-            static std::unique_ptr<SegmentManager> open(const char * file_name)
+            static std::unique_ptr<SegmentManager> open(std::filesystem::path file_name)
             {
                 using io = std::ios_base;
                 auto file = open_file(file_name, io::in | io::out | io::binary);
-
+                auto path_str = file_name.string();
                 auto result = std::unique_ptr<BaseSegmentManager>(
                     new BaseSegmentManager(
                         file_name, 
                         std::move(file),
-                        make_file_mapping(file_name), 
+                        make_file_mapping(path_str.c_str()),
                         1/*dummy*/)
                 );
 
@@ -213,22 +215,24 @@ namespace OP::vtm
                 return _segment_size;
             }
 
-            virtual segment_pos_t header_size() const noexcept override
+            virtual std::pair<FarAddress, segment_pos_t> user_space(segment_idx_t segment) const noexcept override
             {
-                return OP::utils::align_on(sizeof(SegmentHeader), SegmentDef::align_c);
+                constexpr segment_pos_t header_size = OP::utils::align_on(
+                    static_cast<segment_pos_t>(sizeof(SegmentHeader)), SegmentDef::align_c);
+
+                return std::make_pair(
+                            FarAddress{segment, header_size}, segment_size() - header_size);
             }
 
-            virtual void ensure_segment(segment_idx_t index) override
+            virtual void ensure_segment(segment_idx_t index, ensure_hint_t hint) override
             {
                 guard_t l(this->_file_lock);
                 _fbuf.seekp(0, std::ios_base::end);
                 file_t::pos_type pos = _fbuf.tellp();
-                size_t total_pages = pos / segment_size();
                 
-                while (total_pages <= index )
+                for(size_t total_pages = pos / segment_size(); total_pages <= index; ++total_pages)
                 {//no such page yet
-                    this->allocate_segment();
-                    total_pages++;
+                    this->allocate_segment(hint);
                 }
             }
 
@@ -261,7 +265,7 @@ namespace OP::vtm
                 return ReadonlyMemoryChunk(
                     0, 
                     ShadowBuffer{
-                        this->get_segment(pos.segment()).at<std::uint8_t>(pos.offset()),
+                        this->get_segment(segment_of(pos), ensure_hint_t::no).at<std::uint8_t>(offset_of(pos)),
                         size,
                         /*dummy deleter since memory address from segment is not allocated in a heap*/
                         false
@@ -279,7 +283,7 @@ namespace OP::vtm
                 assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
                 memcpy(
                     buffer,
-                    this->get_segment(pos.segment()).at<std::uint8_t>(pos.offset()),
+                    this->get_segment(segment_of(pos), ensure_hint_t::no).at<std::uint8_t>(offset_of(pos)),
                     size);
             }
 
@@ -301,10 +305,10 @@ namespace OP::vtm
             virtual void _check_integrity(bool verbose) override
             {
                 auto& log = std::clog;
-                for(auto i = 0; i < available_segments(); ++i)
+                for(segment_idx_t i = 0; i < available_segments(); ++i)
                 {
                     try{
-                        get_segment(i)._check_integrity();
+                        get_segment(i, ensure_hint_t::no)._check_integrity();
                     } catch(const std::runtime_error& inner)
                     {
                         std::ostringstream det;
@@ -345,19 +349,13 @@ namespace OP::vtm
                     });
                 _fbuf.flush();
             }
-
-            virtual void subscribe_event_listener(SegmentEventListener* listener) override
-            {
-                _listener = listener;
-            }
             
         protected:
             using file_t = std::fstream;
 
-            BaseSegmentManager(const char * file_name, std::fstream file, bip::file_mapping mapping, segment_idx_t segment_size)
-                : _file_name(file_name)
+            BaseSegmentManager(std::filesystem::path file_name, std::fstream file, bip::file_mapping mapping, segment_idx_t segment_size)
+                : _file_name(std::move(file_name))
                 , _cached_segments(10)
-                , _listener(nullptr)
                 , _segment_size(segment_size)
                 , _fbuf(std::move(file))
                 , _mapping(std::move(mapping))
@@ -370,7 +368,7 @@ namespace OP::vtm
             ShadowBuffer make_buffer(FarAddress address, size_t size) noexcept
             {
                 return ShadowBuffer{
-                    this->get_segment(address.segment()).at<std::uint8_t>(address.offset()),
+                    this->get_segment(segment_of(address), ensure_hint_t::no).at<std::uint8_t>(offset_of(address)),
                     size,
                     /*dummy deleter since memory address from segment is not allocated in a heap*/
                     false
@@ -419,7 +417,7 @@ namespace OP::vtm
                 return (static_cast<far_pos_t>(segment_idx) << 32) | offset;
             }
 
-            SegmentRegion& get_segment(segment_idx_t index)
+            SegmentRegion& get_segment(segment_idx_t index, ensure_hint_t hint)
             {
                 bool render_new = false;
                 SegmentRegion& region = _cached_segments.get(
@@ -431,16 +429,16 @@ namespace OP::vtm
                         return std::make_unique<SegmentRegion>(
                             this->_mapping,
                             offset,
-                            this->_segment_size);
+                            this->_segment_size,
+                            hint == ensure_hint_t::next_soon
+                            );
                     }
                 );
                 if (render_new)
                 {
-                    //notify listeners that some segment was opened
-                    if (_listener)
-                    {
-                        _listener->on_segment_opening(index, *this);
-                    }
+                    //notify listeners that new segment was allocated
+                    event_supplier().send_event<SegmentEventSupplier::allocated>(
+                        typename SegmentEventSupplier::UserSpaceEvent{ index });
                 }
                 return region;
             }
@@ -456,8 +454,7 @@ namespace OP::vtm
 
 
             segment_idx_t _segment_size;
-            SegmentEventListener *_listener;
-            std::string _file_name;
+            std::filesystem::path _file_name;
             file_t _fbuf;
             mutable bip::file_mapping _mapping;
             file_lock_t _file_lock;
@@ -476,19 +473,20 @@ namespace OP::vtm
                 }
             }
 
-            static file_t open_file(const char* file_name, std::ios_base::openmode mode)
+            static file_t open_file(const std::filesystem::path& file_name, std::ios_base::openmode mode)
             {
-                file_t new_file(file_name, mode);
+                file_t new_file = file_t(file_name, mode);
 
                 if (new_file.bad())
                 {
-                    std::system_error sys_err(errno, std::system_category(), file_name);
+                    auto path_str = file_name.string();
+                    std::system_error sys_err(errno, std::system_category(), path_str.c_str());
                     throw Exception(vtm::ErrorCodes::er_file_open, sys_err.what());
                 }
                 return new_file;
             }
 
-            segment_idx_t allocate_segment()
+            segment_idx_t allocate_segment(ensure_hint_t hint)
             {
                 guard_t l(_file_lock);
                 _fbuf.seekp(0, std::ios_base::end);
@@ -506,9 +504,11 @@ namespace OP::vtm
                 _cached_segments.put(result, std::make_unique<SegmentRegion>(
                     this->_mapping,
                     segment_offset,
-                    this->_segment_size ));
-                if (_listener)
-                    _listener->on_segment_allocated(result, *this);
+                    this->_segment_size,
+                    hint == ensure_hint_t::next_soon 
+                    ));
+                event_supplier().send_event<SegmentEventSupplier::opening>(
+                    typename SegmentEventSupplier::UserSpaceEvent{ result });
                 return result;
             }
             

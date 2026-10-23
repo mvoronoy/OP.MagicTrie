@@ -2,8 +2,14 @@
 #ifndef _OP_UTEST_FRONTEND_CONSOLE__H_
 #define _OP_UTEST_FRONTEND_CONSOLE__H_
 
+#if defined( _MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+//disable warnings of use `gmtime`/`localtime
+#define _CRT_SECURE_NO_WARNINGS 1
+#endif //_MSC_VER
+
 #include <array>
 #include <functional>
+#include <cassert>
 
 #include <op/common/IoFlagGuard.h>
 #include <op/common/Console.h>
@@ -109,7 +115,7 @@ namespace OP::utest::frontend
         {
             TestSuite& suite = std::get<TestSuite&>(payload);
             raii::IoFlagGuard stream_guard(suite.info());
-            int title_width = static_cast<int>(_run_env.options().output_width()) - suite.id().length();
+            int title_width = static_cast<int>(_run_env.options().output_width()) - static_cast<int>(suite.id().length());
             if (title_width < 0)
                 title_width = 0;
             suite.info()
@@ -158,7 +164,7 @@ namespace OP::utest::frontend
         virtual void on_load_execute_warm(const load_exec_event_t& payload)
         {
             TestRuntime& runtime = std::get<TestRuntime&>(payload);
-            unsigned warm_up_cycles = std::get<unsigned>(payload);
+            auto warm_up_cycles = std::get<size_t>(payload);
             runtime.info() << "=> test is starting under loading...\n"
                 << console::esc<console::blue_t>("\twarm-up cycles:(")
                 << console::esc<console::bright_cyan_t>(warm_up_cycles)
@@ -168,7 +174,7 @@ namespace OP::utest::frontend
         virtual void on_load_execute_run(const load_exec_event_t& payload)
         {
             TestRuntime& runtime = std::get<TestRuntime&>(payload);
-            unsigned run_number = std::get<unsigned>(payload);
+            auto run_number = std::get<size_t>(payload);
             runtime.info()
                 << console::esc<console::blue_t>("\tmeasurement cycles:(")
                 << console::esc<console::bright_cyan_t>(run_number)

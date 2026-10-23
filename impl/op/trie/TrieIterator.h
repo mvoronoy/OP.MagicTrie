@@ -64,7 +64,7 @@ namespace OP::trie
         node_stack_t _position_stack;
         const Container* _container = nullptr;
         prefix_string_t _prefix;
-        node_version_t _version = { 0 };
+        trie_version_t _version = { 0 };
         struct end_marker_t {};
 
         TrieIterator(const Container* container, const end_marker_t&) noexcept

@@ -133,21 +133,22 @@ namespace OP::vtm
     public:
         using transaction_ptr_t = typename SegmentManager::transaction_ptr_t;
         using transaction_id_t = typename Transaction::transaction_id_t;
+        using event_supplier_t = typename TransactionEvent::event_supplier_t;
 
         EventSourcingSegmentManager() = delete;
 
         EventSourcingSegmentManager(
-            std::unique_ptr<SegmentManager> base_manager,
+            SegmentManager& base_manager,
             std::shared_ptr<MemoryChangeHistory> history_manager
             ) 
-            : _base_manager(std::move(base_manager))
+            : _base_manager(base_manager)
             , _change_history_manager(std::move(history_manager))
             , _unsubscribers{
                 _transaction_event_supplier.on<TransactionEvent::started>(
                 std::bind(&MemoryChangeHistory::on_new_transaction, std::ref(*_change_history_manager), std::placeholders::_1)),
                 _transaction_event_supplier.on<TransactionEvent::committed>(
                 std::bind(&MemoryChangeHistory::on_commit, std::ref(*_change_history_manager), std::placeholders::_1)),
-                _transaction_event_supplier.on<TransactionEvent::rolledback>(
+                _transaction_event_supplier.on<TransactionEvent::rollback>(
                 std::bind(&MemoryChangeHistory::on_rollback, std::ref(*_change_history_manager), std::placeholders::_1))
             }
         {
@@ -158,32 +159,23 @@ namespace OP::vtm
 
         virtual segment_pos_t segment_size() const noexcept override
         {
-            return _base_manager->segment_size();
+            return _base_manager.segment_size();
         }
 
-        virtual segment_pos_t header_size() const noexcept override
+        virtual std::pair<FarAddress, segment_pos_t> user_space(segment_idx_t index) const noexcept
         {
-            auto result = _base_manager->header_size();
-            if(_change_history_manager)
-                result += 0;
-            return OP::utils::align_on(result, SegmentDef::align_c);
+            return _base_manager.user_space(index);
         }
 
-        virtual void ensure_segment(segment_idx_t index) override
+        virtual void ensure_segment(segment_idx_t index, ensure_hint_t hint) override
         {
-            return _base_manager->ensure_segment(index);
+            return _base_manager.ensure_segment(index, hint);
         }
 
         virtual segment_idx_t available_segments() override
         {
-            return _base_manager->available_segments();
+            return _base_manager.available_segments();
         }
-
-        virtual void subscribe_event_listener(SegmentEventListener* listener) override
-        {
-            return _base_manager->subscribe_event_listener(listener);
-        }
-
 
         [[nodiscard]] transaction_ptr_t begin_transaction() override
         {
@@ -204,7 +196,7 @@ namespace OP::vtm
         {
             assert(pos.segment() == (pos + size).segment());//block must not exceed segment size
 
-            auto result = _base_manager->readonly_block(pos, size, hint);
+            auto result = _base_manager.readonly_block(pos, size, hint);
 
             auto current_transaction = _opened_transactions;
             auto local_tx = current_transaction.lock();
@@ -233,7 +225,7 @@ namespace OP::vtm
                 FarAddress pos, std::uint8_t* buffer, segment_pos_t size, ReadonlyBlockHint hint = ReadonlyBlockHint::ro_no_hint_c) override
         {
             assert((static_cast<size_t>(pos.offset()) + size) <= this->segment_size());
-            _base_manager->read(pos, buffer, size, hint);
+            _base_manager.read(pos, buffer, size, hint);
 
             auto current_transaction = _opened_transactions;
             auto local_tx = current_transaction.lock();
@@ -264,7 +256,7 @@ namespace OP::vtm
             current_transaction->throw_if_write_disallowed();
 
             RWR search_range(pos, size);
-            auto real_image = _base_manager->writable_block(pos, size);
+            auto real_image = _base_manager.writable_block(pos, size);
             
             auto result = 
                 (hint == WritableBlockHint::new_c) //no need for initial copy
@@ -298,18 +290,34 @@ namespace OP::vtm
             return _change_history_manager;
         }
 
+        event_supplier_t& event_supplier()
+        {
+            return _transaction_event_supplier;
+        }
+
         /**
         * Implementation based integrity checking of this instance
         */
         virtual void _check_integrity(bool verbose) override
         {
-            _base_manager->_check_integrity(verbose);
+            _base_manager._check_integrity(verbose);
         }
 
         /** Ensure underlying storage is synchronized */
         virtual void flush() override
         {
-            _base_manager->flush();
+            _base_manager.flush();
+        }
+
+        std::optional<transaction_id_t> current_transaction_id() const
+        {
+            auto current_transaction = _opened_transactions;
+            auto local_tx = current_transaction.lock();
+            if (!local_tx) //no transaction
+                return {};
+            if (local_tx->state() != TransactionState::active)
+                return {};
+            return local_tx->transaction_id();
         }
 
     private:
@@ -321,7 +329,7 @@ namespace OP::vtm
         overflow of segment_pos_t */
         using RWR = typename MemoryChangeHistory::RWR;
         
-        std::unique_ptr<SegmentManager> _base_manager;
+        SegmentManager& _base_manager;
         std::shared_ptr<MemoryChangeHistory> _change_history_manager;
 
         enum class TransactionState : std::uint8_t
@@ -383,6 +391,11 @@ namespace OP::vtm
                 _framed_tx->unattach_thread();
             }
 
+            virtual void on_committed(event_commited_t handler) override
+            {
+                _framed_tx->on_committed(std::move(handler));
+            }
+
             TransactionState state() const
             {
                 return _tr_state;
@@ -421,7 +434,7 @@ namespace OP::vtm
                 if(_tr_state >= TransactionState::sealed_rollback_only)
                     throw Exception(OP::vtm::ErrorCodes::er_transaction_ghost_state);
                 //indicate number of records added to history
-                _framed_tx->count_log_records(_transaction_log.size());
+                _framed_tx->count_log_records(static_cast<std::int32_t>(_transaction_log.size()));
                 _transaction_log.clear();
                 // No real commit for WR
                 close();
@@ -546,7 +559,7 @@ namespace OP::vtm
                 //invoke events on transaction end
                 _owner._transaction_event_supplier.send<TransactionEvent::before_rollback>(transaction_id());
                 next_state(_tr_state); //disable accept changes in this
-                _owner._transaction_event_supplier.send<TransactionEvent::rolledback>(transaction_id());
+                _owner._transaction_event_supplier.send<TransactionEvent::rollback>(transaction_id());
                 _owner.dispose_transaction(*this);
                 _log_records_to_commit = 0;
             }
@@ -565,13 +578,23 @@ namespace OP::vtm
                         +[](const RWR& region, const ShadowBuffer& source, void* user_def)->bool {
                             EventSourcingSegmentManager& owner = *reinterpret_cast<EventSourcingSegmentManager*>(user_def);
                             auto wr_access =
-                                owner.raw_writable_block(FarAddress(region.pos()), region.count(), WritableBlockHint::new_c);
-                            wr_access.byte_copy(source.get(), source.size());
+                                owner.raw_writable_block(
+                                    FarAddress(region.pos()), 
+                                    static_cast<OP::vtm::segment_pos_t>(region.count()),
+                                    WritableBlockHint::new_c //not interesting in previous content
+                                );
+                            wr_access.byte_copy(
+                                source.get(), static_cast<OP::vtm::segment_pos_t>(source.size()));
                             return true; //continue iteration
                         }, &_owner);
                 }
                 next_state(_tr_state); //disable accept changes in this
                 _owner._transaction_event_supplier.send<TransactionEvent::committed>(transaction_id());
+                {//
+                    std::unique_lock guard(_committed_subs_acc);
+                    for(auto&handler: _committed_subs)
+                        handler();
+                }
                 _owner.dispose_transaction(*this);
                 _log_records_to_commit = 0;
             }
@@ -604,6 +627,13 @@ namespace OP::vtm
                 _owner._opened_transactions.reset();
             }
 
+            virtual void on_committed(event_commited_t handler) override
+            {
+                std::unique_lock guard(_committed_subs_acc);
+                _committed_subs.emplace_back(std::move(handler));
+            }
+
+
             EventSourcingSegmentManager& owner()
             {
                 return _owner;
@@ -614,12 +644,16 @@ namespace OP::vtm
             std::atomic<unsigned> _thread_merge_count = 0;
             std::atomic<size_t> _log_records_to_commit = 0;
             HistoryAppendTransaction* _active_save_point = nullptr; //TLS must grant thread safety for update this field
+
+            std::vector<event_commited_t> _committed_subs;
+            std::mutex _committed_subs_acc;
+
         };
 
         /*just provide access to parent's writable-block*/
         MemoryChunk raw_writable_block(FarAddress pos, segment_pos_t size, WritableBlockHint hint = WritableBlockHint::update_c)
         {
-            return _base_manager->writable_block(pos, size, hint);
+            return _base_manager.writable_block(pos, size, hint);
         }
 
         void dispose_transaction(Transaction& tx)

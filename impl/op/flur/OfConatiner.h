@@ -45,21 +45,22 @@ namespace flur
 
         template <class U>
         constexpr OfContainerSequence(int, U&& v) noexcept
-            :_v(std::forward<U>(v))
+            : _v(std::forward<U>(v))
+            , _i(details::get_reference(_v).end())
         {
-            _i = details::get_reference(_v).end();
+            
         }
 
         constexpr OfContainerSequence(const OfContainerSequence& other)
             : _v(other._v)
+            , _i(details::get_reference(_v).end())
         {
-            _i = details::get_reference(_v).end();
         }
 
         constexpr OfContainerSequence(OfContainerSequence&& other) noexcept
             : _v(std::move(other._v))
+            , _i(details::get_reference(_v).end())
         {
-            _i = details::get_reference(_v).end();
         }
 
         virtual void start() override

@@ -38,7 +38,7 @@ namespace OP::trie::containers
         using fast_dim_t = vtm::fast_dim_t;
         using FarAddress = vtm::FarAddress;
 
-
+        using cforeach_callback_t = bool (*)(fast_atom_t key, const Payload& value, void * user_data);
         using foreach_callback_t = bool (*)(fast_atom_t key, Payload& value, void * user_data);
 
         virtual ~KeyValueContainer() = default;
@@ -49,6 +49,14 @@ namespace OP::trie::containers
         * @return far-address wrapped with table management interface (\sa #PersistedSizedArray)
         */
         virtual FarAddress create() = 0;
+
+        /** @brief create and copy content from smaller container.
+        *   @param from - origin table that will be replaced after call during this grow. Method doesn't destroy previous table.
+        *   @param new_data - where new table WILL reside (since you cannot trust to `parent_node().reindex_table()`).
+        *   @return FarAddress - new created table address. This can be vtm::is_nill, if content cannot fit into this instance capacity 
+        *       and caller must re-try creation with bigger capacity.
+        */
+        virtual FarAddress create_from(const base_t& from) = 0;
         
         /** Destroy on persisted layer entire table block previously allocated by this #create */
         virtual void destroy(FarAddress htbl) = 0;
@@ -87,21 +95,24 @@ namespace OP::trie::containers
             return this->insert(key, callback, &payload_factory);
         }
 
-        /** Try locate index in `ref_data` by key.
-        * @return index or dim_nil_c if no key contained in ref_data
+        /** 
+        * @brief Locate entry in container by the key for update. 
+        * @return reference. Data must exists otherwise UB.
         */
-        //virtual dim_t find(atom_t key) const = 0;
-
-        /** Same as #find but return pointer to payload or nullptr */
-        virtual Payload* get(atom_t key) = 0;
+        virtual Payload& get(atom_t key) = 0;
         
-        virtual std::optional<Payload> cget(atom_t key) const = 0;
+        /** get RO value by key.
+        *   Key must exists, otherwise UB.
+        */
+        virtual vtm::ReadonlyAccess<Payload> cget(atom_t key) const = 0;
 
         virtual bool erase(atom_t key) = 0;
 
-        virtual void foreach(foreach_callback_t, void*) = 0;
+        /** Iterate each immutable item in the container */
+        virtual void cforeach(cforeach_callback_t, void*) const = 0;
 
-        virtual bool grow_from(base_t& from) = 0;
+        /** Iterate each mutable item in the container */
+        virtual void foreach(foreach_callback_t, void*) = 0;
         
     };
 

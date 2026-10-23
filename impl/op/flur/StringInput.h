@@ -3,6 +3,7 @@
 #define _OP_FLUR_STRINGINPUT__H_
 
 #include <string>
+#include <op/common/Utils.h>
 
 namespace OP::flur
 {
@@ -10,8 +11,9 @@ namespace OP::flur
     namespace details
     {
         template <class TStr>
-        using _make_view = std::basic_string_view<typename TStr::value_type, typename TStr::traits_type>;
+        using _make_view = OP::utils::view_from_str_t<TStr>;
     }//ns:details
+
     /**
     *   Split string by one of the separators
     *@tparam Str1, Str2 sequence to split

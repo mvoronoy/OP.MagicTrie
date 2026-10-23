@@ -56,6 +56,7 @@ namespace OP::trie
     };
 
     using node_version_t = std::uint32_t;
+    using trie_version_t = std::uint64_t;
 
     // Forward declare the class so the concept can refer to it
     struct TriePosition;

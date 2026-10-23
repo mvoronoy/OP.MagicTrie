@@ -96,6 +96,7 @@ void compare_containers(OP::utest::TestRuntime &tresult, const Trie& trie, const
     //order must be the same
     for (; ti != range_end && mi != std::end(map); ++ti, ++mi, ++n)
     {
+        //tresult.info() << "==[" << std::setw(5) << n << "]==\n";
         //print_hex(tresult.info() << "1)", ti.key());
         //print_hex(tresult.info() << "2)", mi->first);
         tresult.assert_that<equals>(ti.key().size(), mi->first.size(),

@@ -3,106 +3,55 @@
 
 #include <op/vtm/SegmentManager.h>
 #include <op/common/Unsigned.h>
-namespace OP
+#include <op/trie/TriePosition.h>
+
+namespace OP::trie
 {
-    namespace trie
+    namespace details
     {
-        /**
-        *   Small slot to keep arbitrary Trie information in 0 segment
-        */
-        struct TrieResidence : public vtm::Slot
+        template <typename  ... Cx>
+        constexpr std::uint64_t sign_code(Cx ... c) noexcept
         {
-            using FarAddress = vtm::FarAddress;
-            using segment_idx_t = vtm::segment_idx_t;
-            using segment_pos_t = vtm::segment_pos_t;
+            std::uint64_t result = 0;
+            auto step = [&](std::uint64_t ch){ result = (result << 8) | ch; };
+            ((step(c)),...);
+            return result;
+        }
 
-            /** Plain data structure to store metainformation of trie */
-            struct TrieHeader
-            {
-                TrieHeader()
-                    : _root{}
-                    , _count(0)
-                    , _nodes_allocated(0)
-                    , _version(0)
-                {}
-                /**Where root resides*/
-                FarAddress _root;
-                /**Total count of terminal entries*/
-                std::uint64_t _count;
-                /**Number of nodes (pages) allocated*/
-                std::uint64_t _nodes_allocated;
-                /** Total version of trie */
-                std::uint64_t _version;
-            };
+    }//ns::details
 
-            template <class TSegmentManager, class Payload, class TKeyString, std::uint32_t initial_node_count>
-            friend struct Trie;
-        
-            explicit TrieResidence(vtm::SegmentManager& manager) noexcept
-                : Slot(manager)
-            {
-            }
+    /** Plain data structure to store metainformation of trie */
+    struct TrieHeader
+    {
+        using FarAddress = vtm::FarAddress;
 
-            /** Snapshot of Trie current state */
-            TrieHeader get_header() const
-            {
-                return
-                    *vtm::view<TrieHeader>(segment_manager(), _segment_address);
-            }
+        constexpr static inline std::uint64_t signature_c = details::sign_code('O', 'P', 'M', 't', 'r', 'i', 'e');
 
-        private:
-            
-            FarAddress _segment_address;
-        protected:
-            /**
-            *   Set new root node for Trie
-            * \throws OP::Exception if method called outside of transaction scope
-            * \tparam F - callback in the form `void(TrieHeader&)`
-            */
-            template <class F>
-            void update(F callback)
-            {
-                auto wr = vtm::accessor<TrieHeader>(segment_manager(), _segment_address);
-                callback(*wr);
-            }
+        TrieHeader()
+            : _root{}
+            , _count(0)
+            , _nodes_allocated(0)
+            , _version(0)
+        {
+        }
 
-            //
-            //  Overrides
-            //
-            /**Slot resides in zero-segment only*/
-            bool has_residence(segment_idx_t segment_idx) const override
-            {
-                return segment_idx == 0; //true only for 0
-            }
+        constexpr bool is_valid() const noexcept
+        {
+            return _signature == signature_c;
+        }
 
-            /**Reserve enough to keep TrieHeader*/
-            segment_pos_t byte_size(FarAddress segment_address) const override
-            {
-                assert(segment_address.segment() == 0);
-                return vtm::memory_requirement<TrieHeader>::requirement;
-            }
-            
-            void on_new_segment(FarAddress segment_address) override
-            {
-                assert(segment_address.segment() == 0);
-                _segment_address = segment_address;
+        const std::uint64_t _signature = signature_c;
 
-                *segment_manager().wr_at<TrieHeader>(segment_address, OP::vtm::WritableBlockHint::new_c)
-                    = TrieHeader(); //init with null
-            }
+        /**Where root resides*/
+        FarAddress _root;
+        /**Total count of terminal entries*/
+        std::uint64_t _count;
+        /**Number of nodes (pages) allocated*/
+        std::uint64_t _nodes_allocated;
+        /** Total version of trie */
+        trie_version_t _version;
+    };
 
-            void open(FarAddress segment_address) override
-            {
-                assert(segment_address.segment() == 0);
-                _segment_address = segment_address;
-            }
-
-            void release_segment(segment_idx_t segment_index) override
-            {
-                /* do nothing */
-            }
-        };
-    }//ns:trie
-}//ns::OP
+}//ns:OP::trie
 
 #endif //_OP_TRIE_TRIERESIDENCE__H_

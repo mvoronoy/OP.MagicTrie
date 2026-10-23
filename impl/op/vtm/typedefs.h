@@ -46,7 +46,7 @@ namespace OP::vtm
         constexpr static segment_idx_t null_block_idx_c = OP::vtm::null_block_idx_c;
         constexpr static segment_pos_t eos_c = OP::vtm::eos_c;
         constexpr static far_pos_t far_null_c = OP::vtm::far_null_c;
-        constexpr static size_t align_c = alignof(std::max_align_t);//16;
+        constexpr static segment_pos_t align_c = alignof(std::max_align_t);//16;
     };
 
 
@@ -217,7 +217,6 @@ namespace OP::vtm
         
         return os;
     }
-
 
 }//ns:OP::vtm
 

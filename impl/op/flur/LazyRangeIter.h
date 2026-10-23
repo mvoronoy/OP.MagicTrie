@@ -61,14 +61,14 @@ namespace OP::flur
             return details::get_reference(cget()).current();
         }
 
-        bool operator == (const this_t& right) const
+        bool operator == (const this_t& right) const noexcept
         {
             if( out_of_range() )
                 return right.out_of_range();
             return false; //if this has some value no chance this is the same as `right`
         }
 
-        bool operator != (const this_t& right) const
+        bool operator != (const this_t& right) const noexcept
         {
             return !operator==(right);
         }
@@ -133,5 +133,8 @@ namespace OP::flur
         }
 
     }//ns:details
+
+    
 } //ns:OP::flur
+
 #endif //_OP_FLUR_LAZYRANGEITER__H_

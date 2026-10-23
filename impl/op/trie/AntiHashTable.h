@@ -3,12 +3,14 @@
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/PersistedReference.h>
+
+#include <op/trie/TrieOptions.h>
 #include <op/trie/KeyValueContainer.h>
 
 namespace OP::trie::containers
 {
-    /** Implement full-sized (256 byte) table to persist Payload by key.
-    * In compare to HashTable<Payload> class doesn't use additional key manipulation
+    /** Implement full-size (256 byte) table to persist Payload by key.
+    * In compare to BitIndexedPayload class doesn't use additional key manipulation
     * and provide straight access to Payload by key.
     */ 
     template <class Payload, class ParentInfo>
@@ -23,6 +25,7 @@ namespace OP::trie::containers
         using typename base_t::fast_dim_t;
         using typename base_t::FarAddress;
         using typename base_t::payload_factory_t;
+        using typename base_t::cforeach_callback_t;
         using typename base_t::foreach_callback_t;
 
         using persisted_table_t = vtm::PersistedArray<Payload>;
@@ -32,15 +35,11 @@ namespace OP::trie::containers
         /**
         * \tparam some specialization of SegmentTopology with mandatory slot `HeapManagerSlot`
         */
-        template <class TSegmentTopology>
-        AntiHashTable(TSegmentTopology& topology, 
-                const ParentInfo& node_info,
-                dim_t capacity)
-            : _segment_manager(topology.segment_manager())
-            , _heap_manager(topology.template slot<vtm::HeapManagerSlot>())
-            , _node_info(node_info)
+        AntiHashTable(TrieOptions& options, 
+                const ParentInfo& node_info)
+            : _options(options)
+            , _parent_node(node_info)
         {
-            assert(capacity == capacity_c);
         }
         
         virtual fast_dim_t capacity() const override
@@ -50,28 +49,41 @@ namespace OP::trie::containers
 
         FarAddress create() override
         {
-            constexpr auto byte_size = persisted_table_t::memory_requirement(capacity_c);
+            FarAddress result =
+                _options.allocator_service().allocate_for<DataVector>();
+            _options.memory_service().make_new<DataVector>(result);
+            return result;
+        }
 
-            persisted_table_t result { _heap_manager.allocate(byte_size) };
-            auto* container = result.ref(_segment_manager, capacity_c);
-            for(dim_t i = 0; i < capacity_c; ++i)
-                container[i] = {};
-            return result.address;
+        virtual FarAddress create_from(const base_t& from) override
+        {
+            assert(from.capacity() < capacity()); //this object must be bigger
+            FarAddress residence = _options.allocator_service().allocate_for<DataVector>();
+            auto data_vector = _options.memory_service().make_new<DataVector>(residence);
+
+            auto move_source_item = [&](fast_atom_t key, const Payload& v){
+                data_vector->_payload[key] = v;
+            };
+
+            using local_callback_t = decltype(&move_source_item);
+
+            from.cforeach(source_items_callback_adapter<local_callback_t>, &move_source_item);
+            return residence;
         }
         
         /** Destroy on persisted layer entire table block previously allocated by this #create */
         void destroy(FarAddress tbl) override
         {
-            _heap_manager.deallocate(tbl);
+            _options.allocator_service().deallocate(tbl);
         }
         
         KvInsert insert(
             atom_t key, payload_factory_t payload_factory, void* user_data) override
         {
-            assert(!_node_info.presence(key));
-            persisted_table_t ref_data(_node_info.reindex_table());
-            auto& content = ref_data.ref_element(
-                _segment_manager, key );
+            assert(!_parent_node.presence(key));
+            auto wr_element = _options.memory_service().access_element<Payload>(
+                _parent_node.reindex_table() + data_offset_c, key);
+            auto& content = *wr_element;
             payload_factory(content, user_data);
             return KvInsert::ok;
         }
@@ -86,83 +98,79 @@ namespace OP::trie::containers
         */
         dim_t find(atom_t key) const 
         {
-            if(_node_info.presence(key))
+            if(_parent_node.presence(key))
                 return key;
             return ~dim_t{ 0 };
         }
         
-        Payload* get(atom_t key) override
+        Payload& get(atom_t key) override
         {
-            if(!_node_info.presence(key))
-                return nullptr;
-            persisted_table_t ref_data(_node_info.reindex_table());
-            return &ref_data.ref_element( _segment_manager, key );
+            assert(_parent_node.presence(key));
+            return *_options.memory_service().access_element<Payload>(
+                _parent_node.reindex_table() + data_offset_c, key);
         }
         
-        std::optional<Payload> cget(atom_t key) const override
+        vtm::ReadonlyAccess<Payload> cget(atom_t key) const override
         {
-            if(_node_info.presence(key)) 
-            {
-                const_persisted_table_t ref_data(_node_info.reindex_table());
-                MemoryAlignedStorage<Payload> value;
-                ref_data.ref_element(_segment_manager, key, *value.data());
-                return std::optional<Payload>(std::move(*value.data()));
-            }
-            return std::optional<Payload>();
+            assert(_parent_node.presence(key));        
+            return _options.memory_service().view_element<Payload>(
+                _parent_node.reindex_table() + data_offset_c, key);
         }
 
         bool erase(atom_t key) override
         {
-            assert(_node_info.presence(key));
-            persisted_table_t ref_data(_node_info.reindex_table());
-
-            auto& content = ref_data.ref_element( _segment_manager, key );
-            std::destroy_at(&content);
+            assert(_parent_node.presence(key));
+            auto element = _options.memory_service().access_element<Payload>(
+                _parent_node.reindex_table() + data_offset_c, key);
+            std::destroy_at(&element);
             return true;
         }
 
-        void foreach(foreach_callback_t callback, void* user_data) override
+        void cforeach(cforeach_callback_t callback, void* user_data) const override
         {
-            const_persisted_table_t ref_data(_node_info.reindex_table());
-            MemoryAlignedStorage<Payload> value;
+            auto ro_data = _options.memory_service().view<DataVector>(_parent_node.reindex_table());
+            const auto* payload = ro_data->_payload;
             //iterate only over occupied slots
-            for(auto i = _node_info.presence_first_set();
+            for(auto i = _parent_node.presence_first_set();
                !vtm::is_nil(i);
-               i = _node_info.presence_next_set(i))
+               i = _parent_node.presence_next_set(i))
             {
-                ref_data.ref_element(_segment_manager, i, *value.data());
-                if(!callback(i, *value.data(), user_data))
+                if(!callback(i, payload[i], user_data))
                     break;
             }
         }
 
-        bool grow_from(base_t& from) override
+        void foreach(foreach_callback_t callback, void* user_data) override
         {
-            assert(from.capacity() < capacity()); //this object must be bigger
+            auto wr_data = _options.memory_service().access<DataVector>(_parent_node.reindex_table());
+            auto* payload = wr_data->_payload;
 
-            persisted_table_t to_ref(_node_info.reindex_table());
-            auto* to_data = to_ref.ref(_segment_manager, capacity_c);
-
-            auto move_source_item = [&](fast_atom_t key, Payload& v){
-                to_data[key] = std::move(v);
-            };
-
-            using local_callback_t = decltype(&move_source_item);
-
-            foreach_callback_t source_items_callback_adapter = +[](fast_atom_t key, Payload& value, void* user_data) -> bool{
-                (*reinterpret_cast<local_callback_t>(user_data))(key, value);
-                return true; 
-            };
-
-            from.foreach(source_items_callback_adapter, &move_source_item);
-            return true;
+            for(auto i = _parent_node.presence_first_set();
+                !vtm::is_nil(i);
+                i = _parent_node.presence_next_set(i))
+            {
+                //allow early exit
+                if (!callback(static_cast<atom_t>(i), payload[i], user_data))
+                    break;
+            }
         }
 
-    private:
-        
-        vtm::SegmentManager& _segment_manager;
-        vtm::HeapManagerSlot& _heap_manager;
-        const ParentInfo& _node_info;
+    private:                                                        
+        struct DataVector
+        {
+            Payload _payload[capacity_c] = {};
+        };
+        constexpr static inline vtm::segment_pos_t data_offset_c = offsetof(DataVector, _payload);
+
+
+        template <class FCallback>
+        static bool source_items_callback_adapter(fast_atom_t key, const Payload& value, void* user_data)
+        {
+            (*reinterpret_cast<FCallback>(user_data))(key, value);
+            return true;
+        }
+        TrieOptions& _options;
+        const ParentInfo& _parent_node;
     
     };
 }//ns: OP::trie::containers

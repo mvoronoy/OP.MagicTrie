@@ -40,20 +40,20 @@ namespace OP::vtm
                     SegmentDef::align_c);
             }
 
-            constexpr size_t entry_index(size_t key) const noexcept
+            constexpr segment_pos_t entry_index(segment_pos_t key) const noexcept
             {
-                size_t base = 0;
-                const size_t low_strat = 256;
+                segment_pos_t base = 0;
+                const segment_pos_t low_strat = 256;
                 if (key < low_strat)
                     return key * 3 / low_strat;
                 base = 3;
                 key -= low_strat;
-                const size_t mid_strat = 4096;
+                const segment_pos_t mid_strat = 4096;
                 if (key < mid_strat)/*Just an assumption about biggest payload stored in virtual memory*/
                     return base + ((key * (smallest_c / 2/*aka 16*/)) / (mid_strat));
                 base += smallest_c / 2;
                 key -= mid_strat;
-                size_t result = base + (key * (smallest_c - 3 - smallest_c / 2/*aka 13*/)) / _largest;
+                segment_pos_t result = base + (key * (smallest_c - 3 - smallest_c / 2/*aka 13*/)) / _largest;
                 if (result >= smallest_c)
                     return smallest_c - 1;
                 return result;
@@ -102,7 +102,7 @@ namespace OP::vtm
             * \return std::pair: first is FarAddress of HeapBlockHeader (may be nil if list has no big enough block) and second 
             *   is size of result block.
             */
-            std::pair<FarAddress, segment_pos_t> pull_not_less(size_t key)
+            std::pair<FarAddress, segment_pos_t> pull_not_less(segment_pos_t key)
             {
                 //trick to use additional mutex that grants that ro-access is enough to 
                 //find matched block then upgrade to wr
@@ -150,7 +150,7 @@ namespace OP::vtm
                     { // support ordering of same `index` block by size
                         auto header = _segment_manager.view<HeapBlockHeader>(current);
 
-                        if (!less(header->size(), key))
+                        if (key <= header->size())
                         {//ready to insert
 
                             memory_block
@@ -168,11 +168,6 @@ namespace OP::vtm
             }
 
         private:
-            /**Compare 2 FreeMemoryBlock by the size*/
-            constexpr static bool less(size_t left, size_t right) noexcept
-            {
-                return left < right;
-            }
 
             //used together with `update_header_next` to support forward-list update 
             //of previous item in `pull_from_bucket`
@@ -203,7 +198,7 @@ namespace OP::vtm
                 while(!current.is_nil())
                 {
                     auto ro_header = _segment_manager.view<HeapBlockHeader>(current);
-                    if (!less(ro_header->size(), key))
+                    if (key <= ro_header->size())
                     {
                         auto header = WritableAccess<HeapBlockHeader>(
                             _segment_manager.upgrade_to_writable_block(ro_header));
@@ -225,7 +220,7 @@ namespace OP::vtm
             FarAddress _list_pos;
             //use recursive since `pull` can consequentially call `insert`
             std::recursive_mutex _list_acc;
-            const size_t _largest;
+            const segment_pos_t _largest;
 
     };
     

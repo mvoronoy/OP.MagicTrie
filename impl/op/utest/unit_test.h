@@ -234,7 +234,7 @@ namespace OP::utest
 
     struct TestCase;
     struct TestFixture;
-    struct TestSuite;
+    class TestSuite;
     struct TestRun;
     struct TestRuntime;
 
@@ -426,7 +426,7 @@ namespace OP::utest
         using suite_event_t = std::tuple<TestSuite&, event_time_t>;
         using start_case_event_t = std::tuple<TestRuntime&, TestCase&, TestFixture&, event_time_t>;
         using end_case_event_t = std::tuple<TestRuntime&, TestFixture&, TestResult&, event_time_t>;
-        using load_exec_event_t = std::tuple<TestRuntime&, TestResult&, unsigned>;
+        using load_exec_event_t = std::tuple<TestRuntime&, TestResult&, size_t>;
 
 
         using test_event_manager_t = OP::events::EventSupplier<
@@ -646,6 +646,49 @@ namespace OP::utest
             throw TestFail();
         }
 
+        /**
+        * `evidence` is named flag to test if some code was called or reached some value. 
+        * Method sets the value of named evidence.
+        * @return true if evidence was insert and false if emplace was assigned.
+        */ 
+        template <class StringLike, class T>
+        [[maybe_unused]] bool set_evidence(StringLike&& key, T&& value)
+        {                     
+            std::unique_lock guard(_evidences_acc);
+            auto[_, succ] = _evidences.insert_or_assign(
+                std::forward<StringLike>(key), std::any(std::forward<T>(value)));
+            return succ;
+        }
+
+        /**
+        * Important note for multithread environment: while method is safe in multithread usage of TestRuntime, but
+        *   caller must ensure that altering result of `T&` is safe.
+        * @throws std::bad_any_cast if evidence was previously assigned another type than T.
+        * @throws td::out_of_range if the container does not have an evidence with the specified key.
+        */
+        template <class T, class StringLike>
+        [[nodiscard]] T& evidence(const StringLike& key)
+        {
+            std::unique_lock guard(_evidences_acc);
+            auto& v = _evidences.at(key);
+            return std::any_cast<T&>(v);
+        }
+
+        template <class StringLike>
+        [[nodiscard]] bool evidence_exists(const StringLike& key) const
+        {
+            std::unique_lock guard(_evidences_acc);
+            return  _evidences.find(key) != _evidences.end();
+        }
+
+        template <const auto& AssertOperation, class T, class ...Args, class StringLike>
+        void check_evidence(const StringLike& key, T&& expecting, Args&& ...assert_args)
+        {
+            this->assert_that<AssertOperation>(
+                evidence<T>(key), std::forward<T>(expecting), std::forward<Args>(assert_args)...);
+        }
+
+
         /** Run callback functor `f` several times and measure median time. To reduce 
         * influence of statistical outlier method can run `f` several times to warm-up.
         * \param f callback to measure;
@@ -685,6 +728,9 @@ namespace OP::utest
         _inner::null_buffer _null_buffer;
         mutable std::ostream _null_stream{ &_null_buffer };
         TestRunOptions _run_options;
+
+        std::unordered_map<std::string, std::any> _evidences;
+        std::mutex _evidences_acc;
     };
 
     using namespace OP::currying;
@@ -739,7 +785,7 @@ namespace OP::utest
         *   @param warm_up - some number of executions before measure time begins. Allows
          *                  warm-up CPU, internal cache and so on...
         */
-        inline TestResult load_execute(test_run_shared_args_t& run_args, unsigned run_number, unsigned warm_up);
+        inline TestResult load_execute(test_run_shared_args_t& run_args, size_t run_number, size_t warm_up);
         
         /** Conduct particular test */
         virtual void run(test_run_shared_args_t& retval) = 0;
@@ -797,6 +843,16 @@ namespace OP::utest
             }
             catch (...)
             { //stop propagation of any other exception
+                std::exception_ptr ex = std::current_exception();
+                try
+                {
+                    std::rethrow_exception(ex);
+                }
+                catch (std::bad_exception const&)
+                {
+                    // This will be printed.
+                    std::cout << "Bad exception" << std::endl;
+                }
                 retval._status = TestResult::Status::exception;
             }
         }
@@ -1819,7 +1875,7 @@ namespace OP::utest
         return true;
     }
 
-    TestResult TestCase::load_execute(test_run_shared_args_t& run_args, unsigned run_number, unsigned warm_up)
+    TestResult TestCase::load_execute(test_run_shared_args_t& run_args, size_t run_number, size_t warm_up)
     {
         auto& runtime = run_args.eval_arg<TestRuntime>();
         auto& env = run_args.eval_arg<TestRun>();
@@ -1837,7 +1893,7 @@ namespace OP::utest
             if (!tr) //warm-up failed
                 return tr;
         }
-        std::get<unsigned>(event_args) = run_number;
+        std::get<size_t>(event_args) = run_number;
         env.event_supplier().send_event<UnitTestEventSupplier::load_execute_run>(event_args);
 
         //measurement cycles:

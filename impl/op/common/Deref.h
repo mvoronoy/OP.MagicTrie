@@ -64,6 +64,13 @@ namespace OP::common
     }
 
     template <typename U>
+    decltype(auto) get_reference(U* u) 
+    {
+        return *u;
+    }
+
+
+    template <typename U>
     U& get_reference(std::shared_ptr<U>&& u) noexcept; /*
     {
         //invoking this code means very-very bad lost control, used only for type-deduction only

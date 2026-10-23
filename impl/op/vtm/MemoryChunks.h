@@ -258,13 +258,23 @@ namespace OP::vtm
         
         /** In-place construct type T from constructor arguments `Ts...` */
         template <class ... Ts>
-        void make_new(Ts&&... args)
+        [[maybe_unused]] T* make_new(Ts&&... args)
         {
             if ( this->count() < OP::utils::memory_requirement<T>::requirement )
                 throw std::out_of_range("too small block to allocate T");
-            new (pos()) T(std::forward<Ts>(args)...);
+            return new (pos()) T(std::forward<Ts>(args)...);
+        }
+        
+        T* begin() noexcept
+        {
+            return MemoryChunk::at<T>(0);
         }
 
+        T* end() noexcept
+        {
+            const auto size = this->count() / OP::utils::memory_requirement<T>::element_size_c;
+            return begin() + size;
+        }
     };
 
     /**Hint allows specify how writable block will be used*/
@@ -310,7 +320,7 @@ namespace OP::vtm
         
     /**
     *   Create read/write accessor to virtual memory occupied by array of `T` elements of length `number_elements`
-    * \tparam T some type that resides at accesed readonly memory
+    * \tparam T some type that resides at accessed readonly memory
     * \tparam SMProvider some type that either castable to SegmentManager or resolved by resolve_segment_manager() (like a SegmentTopology)
     * \param number_elements number of items in accessed array
     * \return accessor that provide readonly (const) access to array of `T`s

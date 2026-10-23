@@ -5,10 +5,10 @@
 #include <op/common/StackAlloc.h>
 
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/SegmentTopology.h>
 #include <op/vtm/PersistedReference.h>
 #include <op/vtm/slots/HeapManager.h>
 
+#include <op/trie/TrieOptions.h>
 #include <op/trie/KeyValueContainer.h>
 
 namespace OP::trie::containers
@@ -50,48 +50,34 @@ namespace OP::trie::containers
         using typename base_t::fast_dim_t;
         using typename base_t::FarAddress;
         using typename base_t::payload_factory_t;
+        using typename base_t::cforeach_callback_t;
         using typename base_t::foreach_callback_t;
-        
+
+        static inline constexpr fast_dim_t capacity_c = MaxEntries;
+        static_assert(capacity_c % 4 == 0 && capacity_c < 256);
+
         using presence_item_t = std::uint64_t;
         constexpr static inline fast_dim_t bits_c = std::numeric_limits<presence_item_t>::digits; //=64
-        /** number of items (uint64_t) in presence array */
-        constexpr static inline fast_dim_t presence_capacity_c = 256 / bits_c; // 4 == (256 / 64)
-
-        static_assert(MaxEntries % 4 == 0 && MaxEntries < 256);
-
-        struct Header
-        {
-            presence_item_t _presence[presence_capacity_c] = {};
-        };
 
         struct DataVector
         {
-            Payload _payload[MaxEntries] = {};
+            Payload _payload[capacity_c] = {};
         };
 
-        struct FullData
-        {
-            Header _header = {};
-            DataVector _data = {};
-        };
-
-        constexpr static inline vtm::segment_pos_t header_offset_c = offsetof(FullData, _header);
-        constexpr static inline vtm::segment_pos_t data_offset_c = offsetof(FullData, _data);
-
+        constexpr static inline vtm::segment_pos_t data_offset_c = offsetof(DataVector, _payload);
 
     public:
         
         template <class ...Tx>
-        BitIndexedVector(vtm::SegmentTopology<Tx...>& topology, FarAddress residence = {})
-            : _segment_manager(topology.segment_manager())
-            , _heap_manager(topology.template slot<vtm::HeapManagerSlot>())
-            , _residence(residence)
+        BitIndexedVector(TrieOptions& options, const ParentInfo& node_info)
+            : _options(options)
+            , _parent_node(node_info)
         {
         }
 
         virtual fast_dim_t capacity() const override
         {
-            return MaxEntries;
+            return capacity_c;
         }
 
         /**
@@ -100,189 +86,156 @@ namespace OP::trie::containers
         */
         FarAddress create() override
         {
-            assert(_residence.is_nil());
-            std::tie(_residence, std::ignore) = _heap_manager.get().make_new<FullData>();
-            return _residence;
+            FarAddress result =
+                _options.get().allocator_service().allocate_for<DataVector>();
+            vmem().make_new<DataVector>(result);
+            return result;
+        }
+
+        FarAddress create_from(const base_t& from) override
+        {
+            assert(from.capacity() < capacity()); //this object must be bigger
+
+            FarAddress result =
+                _options.get().allocator_service().allocate_for<DataVector>();
+            auto wr_data = vmem().make_new<DataVector>(result);
+            auto* payload = wr_data->_payload;
+
+            size_t value_pos = 0;
+            auto move_item_from = [&](fast_atom_t key, const Payload& value){
+                payload[value_pos++] = value;
+            };
+            using local_callback_t = decltype(&move_item_from);
+            from.cforeach(source_items_callback_adapter<local_callback_t>, &move_item_from);
+            return result;
         }
 
         /** Destroy entire table block */
-        void destroy(FarAddress htbl) override
+        void destroy(FarAddress tbl) override
         {
-            _heap_manager.get().deallocate(htbl);
-            _residence = {}; //just for case
+            _options.get().allocator_service().deallocate(tbl);
         }
         
         /**
-        *   @return insert position or #end() if no more capacity
+        *   @return KvInsert::ok on success or KvInsert::need_grow if no more capacity
         */
         KvInsert insert(
             atom_t key, payload_factory_t payload_factory, void* user_data) override
         {
-            const fast_dim_t word_idx = key / bits_c;
-            const std::uint64_t bit_mask = 1ULL << (key % bits_c);
-
-            auto wr_head = _segment_manager.get().accessor<Header>(_residence + header_offset_c);
-
-            if (wr_head->_presence[word_idx] & bit_mask)
-                return KvInsert::already_exists;
-
             //get current vector size as number of bits presenting
-            size_t size = OP::rawbits::count_bits(wr_head->_presence);
+            auto size = parent_node().size();
         
-            if (size == MaxEntries)//no capacity
+            if (size >= capacity_c)//no capacity
                 return KvInsert::need_grow;
 
-            auto pos = key2pos(*wr_head, key); 
+            auto pos = parent_node().count_bits_before(key);
 
-            wr_head->_presence[word_idx] |= bit_mask;
-
-            auto wr_data = _segment_manager.get().accessor<DataVector>(_residence + data_offset_c);
-
-            auto* ins_pos = &wr_data->_payload[pos];
-            std::shift_right(ins_pos, &wr_data->_payload[size+1]/*out-of-range*/, 1);
-            payload_factory(*ins_pos, user_data); //assign value
+            auto wr_data = vmem().access<DataVector>(parent_node().reindex_table());
+            auto* payload = wr_data->_payload;
+            std::shift_right(&payload[pos], &payload[size+1]/*out-of-range*/, 1);
+            payload_factory(payload[pos], user_data); //assign value
             return KvInsert::ok;
         }
 
 
-        bool contains(uint16_t key) const 
-        {
-            const fast_dim_t word_idx = key / bits_c;
-            const std::uint64_t bit_mask = 1ULL << (key % bits_c);
+        //bool contains(uint16_t key) const 
+        //{
+        //    const fast_dim_t word_idx = key / bits_c;
+        //    const std::uint64_t bit_mask = 1ULL << (key % bits_c);
 
-            Header h;
-            _segment_manager.get().view(_residence + header_offset_c, h);
-            return h._presence[word_idx] & bit_mask;
-        }
+        //    Header h;
+        //    _segment_manager.get().view(_residence + header_offset_c, h);
+        //    return h._presence[word_idx] & bit_mask;
+        //}
         
         bool erase(atom_t key) override
         {
-            const fast_dim_t word_idx = key / bits_c;
-            const std::uint64_t bit_mask = 1ULL << (key % bits_c);
-
-            auto wr_head = _segment_manager.get().accessor<Header>(_residence + header_offset_c);
-
-            if (!(wr_head->_presence[word_idx] & bit_mask))
-                return false; // Key not found
-
             //get current vector size as number of bits presenting
-            size_t size = OP::rawbits::count_bits(wr_head->_presence);
-            // Update bitset
-            wr_head->_presence[word_idx] &= ~bit_mask;
+            auto size = parent_node().size();
             // Update vector
-            auto wr_data = _segment_manager.get().accessor<DataVector>(_residence + data_offset_c);
+            auto wr_data = vmem().access<DataVector>(
+                parent_node().reindex_table());
 
-            auto pos = key2pos(*wr_head, key); 
+            auto pos = parent_node().count_bits_before(key);
             auto* del_pos = &wr_data->_payload[pos];
             std::destroy_at(del_pos);
             std::shift_left(del_pos, &wr_data->_payload[size]/*out-of-range*/, 1);
             return true;
         }
 
-        Payload* get(atom_t key) override
+        Payload& get(atom_t key) override
         {
-            const fast_dim_t word_idx = key / bits_c;
-            const std::uint64_t bit_mask = 1ULL << (key % bits_c);
-
-            Header h;
-            _segment_manager.get().view(_residence + header_offset_c, h);
-            if( h._presence[word_idx] & bit_mask )
-            {
-                auto pos = key2pos(h, key);
-                vtm::PersistedArray<Payload> ref_data(_residence + data_offset_c);
-                return &ref_data.ref_element(_segment_manager.get(), pos);
-            }
-            
-            return nullptr;
+            assert(parent_node().presence(key));
+            auto pos = parent_node().count_bits_before(key);
+            return *vmem().access_element<Payload>(
+                parent_node().reindex_table() + data_offset_c, pos);
         }
         
-        std::optional<Payload> cget(atom_t key) const override
+        virtual vtm::ReadonlyAccess<Payload> cget(atom_t key) const override
         {
-            const fast_dim_t word_idx = key / bits_c;
-            const std::uint64_t bit_mask = 1ULL << (key % bits_c);
-
-            Header h;
-            _segment_manager.get().view(_residence + header_offset_c, h);
-            if( h._presence[word_idx] & bit_mask )
-            {
-                auto pos = key2pos(h, key);
-                vtm::ConstantPersistedArray<Payload> cref_data(_residence + data_offset_c);
-                MemoryAlignedStorage<Payload> value;
-                cref_data.ref_element(_segment_manager.get(), pos, *value);
-                return *value;
-            }
-            
-            return {};
+            assert(parent_node().presence(key));
+            auto pos = parent_node().count_bits_before(key);
+            return vmem().view_element<Payload>(
+                parent_node().reindex_table() + data_offset_c, pos);
         }
 
-        void foreach(foreach_callback_t callback, void* user_data) override
+        void cforeach(cforeach_callback_t callback, void* user_data) const override
         {
-            Header h;
-            _segment_manager.get().view(_residence + header_offset_c, h);
-            auto wr_data = _segment_manager.get().accessor<DataVector>(_residence + data_offset_c);
-
+            auto ro_data = vmem().view<DataVector>(parent_node().reindex_table());
+            const auto* payload = ro_data->_payload;
             size_t i = 0;
-            for(auto key = OP::rawbits::first_set(h._presence);
-                key != OP::rawbits::nil_c;
-                key = OP::rawbits::next_set(h._presence, key), ++i)
+            for(auto key = parent_node().presence_first_set();
+                !vtm::is_nil(key);
+                key = parent_node().presence_next_set(static_cast<atom_t>(key)), ++i)
             {
                 //make some heuristic optimization
-                if (!callback(key, wr_data->_payload[i], user_data))
+                if (!callback(static_cast<atom_t>(key), payload[i], user_data))
                     break;
             }
         }
 
-        /**
-        *   @param from [in/out] origin hash table that will be changed during grow. When table exceeds 128, 
-        *   this became nil since no table should be used above 128
-        * @return tuple of new dimension and functor that can be used as ruler how key is converted to new indexes 
-        */
-        bool grow_from(base_t& from) override
+        void foreach(foreach_callback_t callback, void* user_data) override
         {
-            assert(from.capacity() < capacity()); //this object must be bigger
+            auto wr_data = vmem().access<DataVector>(parent_node().reindex_table());
+            auto* payload = wr_data->_payload;
 
-            auto wr_head = _segment_manager.get().accessor<Header>(_residence + header_offset_c);
-            // Update vector
-            auto wr_data = _segment_manager.get().accessor<DataVector>(_residence + data_offset_c);
-            size_t value_pos = 0;
+            size_t i = 0;
+            for(auto key = parent_node().presence_first_set();
+                !vtm::is_nil(key);
+                key = parent_node().presence_next_set(static_cast<atom_t>(key)), ++i)
+            {
+                //allow early exit
+                if (!callback(static_cast<atom_t>(key), payload[i], user_data))
+                    break;
+            }
 
-            auto move_item_from = [&](fast_atom_t key, Payload& value){
-                OP::rawbits::set(wr_head->_presence, key);
-                wr_data->_payload[value_pos++] = std::move(value);
-            };
-            using local_callback_t = decltype(&move_item_from);
-            foreach_callback_t source_items_callback_adapter = +[](fast_atom_t key, Payload& value, void* user_data) -> bool{
-                (*reinterpret_cast<local_callback_t>(user_data))(key, value);
-                return true; 
-            };
-            from.foreach(source_items_callback_adapter, &move_item_from);
-            return true;
         }
 
     private:
-
-        static inline size_t key2pos(const Header& head, atom_t key) noexcept
+        template <class FCallback>
+        static bool source_items_callback_adapter(fast_atom_t key, const Payload& value, void* user_data)
         {
-            constexpr auto header_offset = offsetof(FullData, _header);
-            constexpr auto data_offset = offsetof(FullData, _data);
+            (*reinterpret_cast<FCallback>(user_data))(key, value);
+            return true;
+        };
 
-            const fast_dim_t word_idx = key / bits_c;
-            const std::uint64_t bit_mask = 1ULL << (key % bits_c);
-
-            // calculate rank: how many bits are set before this one?
-            size_t pos = 0;
-            for (size_t i = 0; i < word_idx; ++i) 
-            {
-                pos += std::popcount(head._presence[i]);
-            }
-            pos += std::popcount(head._presence[word_idx] & (bit_mask - 1));
-
-            return pos;
+        const ParentInfo& parent_node() const noexcept
+        {
+            return _parent_node.get();
+        }
+        
+        TrieMemoryService& vmem() const noexcept
+        {
+            return _options.get().memory_service();
         }
 
-        std::reference_wrapper<vtm::SegmentManager> _segment_manager;
-        std::reference_wrapper<vtm::HeapManagerSlot> _heap_manager;
-        FarAddress _residence;
+        inline fast_dim_t key2pos(atom_t key) noexcept
+        {
+            return parent_node().count_bits_before(key);
+        }
+
+        std::reference_wrapper<TrieOptions> _options;
+        std::reference_wrapper<const ParentInfo> _parent_node;
     };
 
 }//ns: OP::trie::containers

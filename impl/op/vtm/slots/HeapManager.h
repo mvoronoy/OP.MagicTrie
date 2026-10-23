@@ -131,7 +131,7 @@ namespace OP::vtm
             FarAddress header(HeapBlockHeader::get_header_addr(address));
 
             auto header_block = segment_manager().accessor<HeapBlockHeader>(header);
-            if (!header_block->check_signature() || header_block->is_free())
+            if (auto& ref = *header_block; !ref.check_signature() || ref.is_free())
                 throw Exception(vtm::ErrorCodes::er_invalid_block);
 
             do_deallocate(header_block);

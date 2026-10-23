@@ -13,48 +13,77 @@ namespace OP::rawbits
 
     constexpr inline fast_dim_t nil_c = std::numeric_limits<fast_dim_t>::max();
 
-    /** @return index of first bit that is set, or `nil_c` if no bits*/
-    template <std::unsigned_integral UInt, size_t N>
-    constexpr inline fast_dim_t first_set(const UInt (&target)[N]) noexcept
+    /** 
+    * @brief Taken multiple arrays `target` each of size N, finds first non-zero bit in any of them.
+    * @return index of first bit that is set, or `nil_c` if no bits
+    * Examples: 
+    *   - find first bit in single array of ints: @code
+    *   std::uint64_t ints[4] = {0, 0, 0, 0x10000};
+    *   auto index = first_any_set(ints); //returns 0xD0
+    *   @endcode
+    *
+    *   - find first bit in 2 arrays of ints: @code
+    *   std::uint64_t ints1[4] = {0, 0, 0, 0x10000}, ints2[4] = {0, 0, 1, 0};
+    *   auto index = first_any_set(ints1, ints2); //returns 0x80
+    *   @endcode
+    */
+    template <size_t N, std::unsigned_integral ...Ux>
+    constexpr inline fast_dim_t first_any_set(const Ux (& ...target)[N]) noexcept
     {
-        constexpr auto bits_c = std::numeric_limits<UInt>::digits;
+        using x_t = std::tuple<Ux...>;
+        constexpr auto bits_c = std::numeric_limits<std::tuple_element_t<0, x_t> >::digits;
+
         for (auto i = 0; i < N; ++i)
         {
-            if (target[i] != 0) //test all bits are set
+            const auto x = (target[i] | ...);
+            if (x) //test any bit is set
             {
                 //count Trailing(!) zeros
-                return static_cast<fast_dim_t>(std::countr_zero(target[i]) + i * bits_c);
+                return static_cast<fast_dim_t>(std::countr_zero(x) + i * bits_c);
             }
         }
         return nil_c;
     }
 
-    /** @return index of last bit that is set, or `nil_c` if no bits */
-    template <std::unsigned_integral UInt, size_t N>
-    inline fast_dim_t last_set(const UInt (&target)[N]) noexcept
+
+    /** 
+    *   @brief same as #first_any_set but scans in reverse order.
+    * @return index of last bit that is set, or `nil_c` if no bits. 
+    */
+    template <size_t N, std::unsigned_integral ...Ux>
+    constexpr inline fast_dim_t last_any_set(const Ux (& ...target)[N]) noexcept
     {
-        constexpr auto bits_c = std::numeric_limits<UInt>::digits;
+        using x_t = std::tuple<Ux...>;
+        constexpr auto bits_c = std::numeric_limits<std::tuple_element_t<0, x_t> >::digits;
+
         for (auto i = N; i > 0; --i)
         {
             const auto j = i - 1u;
-            if (target[j] != 0) //test all bits are set
+            const auto x = (target[j] | ...);
+            if (x) //test all bits are set
             {
-                return static_cast<fast_dim_t >(std::bit_width(target[j]) + j*bits_c - 1);
+                return static_cast<fast_dim_t>(std::bit_width(x) + j*bits_c - 1);
             }
         }
         return nil_c;
     }
 
-    /**Return index of bit that is set after 'prev' one. May return `nil_c` if no bits are set.*/
-    template <std::unsigned_integral UInt, size_t N>
-    constexpr inline fast_dim_t next_set(const UInt (&target)[N], fast_dim_t prev) noexcept
+    /** @brief Return index of bit that is set after 'prev' searching in multiple arrays `target`. 
+    * @return index of bit after 'prev' or `nil_c` if no more bits are set.
+    */
+    template <size_t N, std::unsigned_integral ...Ux>
+    constexpr inline fast_dim_t next_any_set(fast_dim_t prev, const Ux (&...target)[N]) noexcept
     {
+        using x_t = std::tuple<Ux...>;
+        using UInt = std::tuple_element_t<0, x_t>;
+
         constexpr auto bits_c = std::numeric_limits<UInt>::digits;
+
         UInt mask = (UInt{1} << (prev % bits_c));
         mask |= mask - 1;
         for (auto i = prev / bits_c; i < N; ++i)
         {
-            auto x = target[i] & ~mask;
+            auto x = (target[i] | ...) & ~mask;
             if (x != 0) //test all bits are set
             {
                 return static_cast<fast_dim_t>(std::countr_zero(x) + i*bits_c);
@@ -112,7 +141,7 @@ namespace OP::rawbits
         target[entry] |= 1ull << offset;
     }
 
-    /** Set value of bit to 1 at N-size-array of unsigned integral type at position `index` */
+    /** Set value of bit to 0 at N-size-array of unsigned integral type at position `index` */
     template <std::unsigned_integral UInt, size_t N>
     constexpr void clear(UInt (&target)[N], fast_dim_t index) noexcept
     {
@@ -123,7 +152,17 @@ namespace OP::rawbits
         target[entry] &= ~(1ULL << offset);
     }
 
-    /** Invert bit at specified `index`.. 
+    /** Set value of all bits to 0 at N-size-array of unsigned integral type */
+    template <size_t N, std::unsigned_integral ...Ux>
+    constexpr void clear_all(Ux(&...target)[N]) noexcept
+    {
+        for (size_t i = 0; i < N; ++i)
+        {
+            ((target[i] = 0), ...);
+        }
+    }
+
+    /** Invert bit at specified `index`..
     * @return previous state
     */
     template <std::unsigned_integral UInt, size_t N>
@@ -556,18 +595,18 @@ namespace OP::common
         /** @return index of first bit that is set, or `nil_c` if no bits*/
         constexpr inline fast_dim_t first_set() const noexcept
         {
-            return rawbits::first_set(_presence);
+            return rawbits::first_any_set(_presence);
         }
 
         constexpr inline fast_dim_t last_set() const noexcept
         {
-            return rawbits::last_set(_presence);
+            return rawbits::last_any_set(_presence);
         }
 
         /**Return index of bit that is set after 'prev' one. May return `nil_c` if no bits are set.*/
         constexpr inline fast_dim_t next_set(fast_dim_t prev) const noexcept
         {
-            return rawbits::next_set(_presence, prev);
+            return rawbits::next_any_set(prev, _presence);
         }
         
         /**Return index of set bit that is equal or follow after 'prev'. May return `nil_c` if no bits are set.*/

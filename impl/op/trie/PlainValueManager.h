@@ -5,8 +5,8 @@
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/PersistedReference.h>
-#include <op/vtm/StringMemoryManager.h>
 
+#include <op/trie/StringMemoryManager.h>
 #include <op/trie/StoreConverter.h>
 
 namespace OP::trie
@@ -84,15 +84,12 @@ namespace OP::trie
 
         using storage_converter_t = store_converter::Storage<source_payload_t>; 
 
-        template <class TSegmentTopology>
-        static void allocate(TSegmentTopology& topology, data_storage_t &storage)
+        static void allocate(TrieOptions& options, data_storage_t &storage)
         {
             if constexpr( data_storage_t::big_payload_c )
             {
-                auto& heap_manager = topology.template slot<vtm::HeapManagerSlot> ();
-                auto address = heap_manager.allocate(
-                    utils::memory_requirement<payload_t>::requirement);
-                *std::launder(reinterpret_cast<FarAddress*>(storage._data)) = address;
+                *std::launder(reinterpret_cast<FarAddress*>(storage._data)) = 
+                    options.allocator_service().allocate_for<payload_t>();
             }
             else
             {
@@ -104,15 +101,16 @@ namespace OP::trie
         /**
         * @tparam TAssign - either functor without arg `assign()` or value to assign on construct.
         */
-        template <class TSegmentTopology, class TAssign>
-        static auto make_new(TSegmentTopology& topology, data_storage_t &storage, TAssign&& assign)
+        template <class TAssign>
+        static auto make_new(TrieOptions& options, data_storage_t &storage, TAssign&& assign)
         {
             if constexpr( data_storage_t::big_payload_c )
             {
-                auto& heap_manager = topology.template slot<vtm::HeapManagerSlot>();
-                auto [address, ptr] = heap_manager.template make_new<payload_t>();
+                auto address = options.allocator_service().allocate_for<payload_t>();
+                auto ptr = options.memory_service().make_new<payload_t>(address);
+
                 *std::launder(reinterpret_cast<FarAddress*>(storage._data)) = address;
-                storage_converter_t::serialize(topology,
+                storage_converter_t::serialize(options,
                      details::forward_constructor_arg(std::forward<TAssign>(assign)),
                      *ptr
                 );
@@ -122,68 +120,63 @@ namespace OP::trie
             {
                 //nothing to do, memory already available
                 auto *ptr = ::new (storage._data) payload_t{};
-                storage_converter_t::serialize(topology,
+                storage_converter_t::serialize(options,
                      details::forward_constructor_arg(std::forward<TAssign>(assign)),
                      *ptr
                 );
                 return ptr;
-
             }
         }
 
-        template <class TSegmentTopology>
-        static void destroy(TSegmentTopology& topology, data_storage_t &storage)
+        static void destroy(TrieOptions& options, data_storage_t &storage)
         {
             if constexpr( data_storage_t::big_payload_c )
             {
-                auto& heap_manager = topology.template slot<vtm::HeapManagerSlot>();
                 auto& address = *std::launder(reinterpret_cast<FarAddress*>(storage._data));
-                auto wr_block = resolve_segment_manager(topology).writable_block(
+                auto wr_block = options.memory_service().writable_block(
                     address,
                     utils::memory_requirement<payload_t>::requirement);
                 auto& val = *wr_block.template at<payload_t>(0);
-                storage_converter_t::destroy(topology, val);
-                heap_manager.deallocate(address);
+                storage_converter_t::destroy(options, val);
+                options.allocator_service().deallocate(address);
             }
             else
             {
                 auto& val = *std::launder(reinterpret_cast<payload_t*>(storage._data));
-                storage_converter_t::destroy(topology, val);
+                storage_converter_t::destroy(options, val);
             }
         }
 
-        template <class TSegmentTopology, class FRawDataCallback,
+        template <class FRawDataCallback,
             //specialization to assign data from callback(value_holder)
             std::enable_if_t<std::is_invocable_v<FRawDataCallback, payload_t&>, int> = 0>
-        static void raw(TSegmentTopology& tsegment, data_storage_t &storage, FRawDataCallback&& payload_callback)
+        static void raw(TrieOptions& options, data_storage_t &storage, FRawDataCallback&& payload_callback)
         {
             if constexpr( data_storage_t::big_payload_c )
             {
                 auto& address = *std::launder(reinterpret_cast<FarAddress*>(storage._data));
-                auto wr_data = OP::vtm::resolve_segment_manager(tsegment)
-                    .writable_block(address, utils::memory_requirement< payload_t>::requirement);
-                payload_callback(*wr_data.template at<payload_t>(0));
+                auto wr_data = options.memory_service().access<payload_t>(address);
+                payload_callback(*wr_data);
             }
             else
             {
                 payload_callback( 
                     *std::launder(reinterpret_cast<payload_t*>(storage._data))
-                    );
+                );
             }
         }
 
-        template <class TSegmentTopology, class TData,
+        template <class TData,
             //specialization to assign data directly
             std::enable_if_t<std::is_convertible_v<TData, payload_t>, int> = 0
         >
-        static void raw(TSegmentTopology& tsegment, data_storage_t &storage, TData&& value)
+        static void raw(TrieOptions& options, data_storage_t &storage, TData&& value)
         {
             if constexpr( data_storage_t::big_payload_c )
             {
                 auto& address = *std::launder(reinterpret_cast<FarAddress*>(storage._data));
-                auto wr_data = OP::vtm::resolve_segment_manager(tsegment)
-                    .writable_block(address, utils::memory_requirement< payload_t>::requirement);
-                *wr_data.template at<payload_t>(0) = std::forward<TData>(value);
+                auto wr_data = options.memory_service().access<payload_t>(address);
+                *wr_data = std::forward<TData>(value);
             }
             else
             {
@@ -191,15 +184,14 @@ namespace OP::trie
             }
         }
 
-        template <class TSegmentTopology, class FDataCallback>
-        static auto rawc(TSegmentTopology& tsegment, const data_storage_t &storage, FDataCallback&& payload_callback)
+        template <class FDataCallback>
+        static auto rawc(TrieOptions& options, const data_storage_t &storage, FDataCallback&& payload_callback)
         {
             if constexpr (data_storage_t::big_payload_c)
             {
                 const auto& address = *std::launder(reinterpret_cast<const FarAddress*>(storage._data));
-                auto ro_data = OP::vtm::resolve_segment_manager(tsegment)
-                    .readonly_block(address, utils::memory_requirement< payload_t>::requirement);
-                return payload_callback(*ro_data.template at<payload_t>(0));
+                auto ro_data = options.memory_service().view<payload_t>(address);
+                return payload_callback(*ro_data);
             }
             else
             {

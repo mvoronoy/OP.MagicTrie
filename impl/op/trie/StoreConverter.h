@@ -5,8 +5,8 @@
 
 #include <op/vtm/SegmentManager.h>
 #include <op/vtm/PersistedReference.h>
-#include <op/vtm/StringMemoryManager.h>
 
+#include <op/trie/StringMemoryManager.h>
 #include <op/trie/StoreConverter.h>
 
 namespace OP::trie::store_converter
@@ -39,29 +39,25 @@ namespace OP::trie::store_converter
         using storage_type_t = T;
 
         /** Default implementation copies c++ plain type to the dedicated storage */
-        template <class TTopology>
-        static void serialize(TTopology& topology, const type_t& source, storage_type_t& dest)
+        static void serialize(TrieOptions&, const type_t& source, storage_type_t& dest)
         {
             dest = source;
         }
 
         /** Default implementation copies c++ plain type to the dedicated storage */
-        template <class TTopology>
-        static void reassign(TTopology& topology, const type_t& source, storage_type_t& dest)
+        static void reassign(TrieOptions&, const type_t& source, storage_type_t& dest)
         {
             dest = source;
         }
 
         /** Default implementation copies c++ plain type frome the dedicated storage */
-        template <class TTopology>
-        static const type_t& deserialize(TTopology& topology, const storage_type_t& storage)
+        static const type_t& deserialize(TrieOptions&, const storage_type_t& storage)
         {
             return storage;
         }
 
         /** Default implementation just use `std::destroy_at` to clean storage */
-        template <class TTopology>
-        static void destroy(TTopology& topology, storage_type_t& dest)
+        static void destroy(TrieOptions&, storage_type_t& dest)
         {
             std::destroy_at(&dest);
         }
@@ -76,40 +72,36 @@ namespace OP::trie::store_converter
     {
         using type_t = std::string;
 
-        using storage_type_t = OP::vtm::smm::SmartStringAddress<>;
+        using storage_type_t = smm::SmartStringAddress<>;
 
-        template <class TTopology>
-        static void serialize(TTopology& topology, const type_t& source, storage_type_t& dest)
+        static void serialize(TrieOptions& options, const type_t& source, storage_type_t& dest)
         {
-            vtm::StringMemoryManager memmngr(topology);
-            dest = memmngr.smart_insert(source);
+            StringMemoryManager str_manager(options);
+            dest = str_manager.smart_insert(source);
         }
 
-        template <class TTopology>
-        static void reassign(TTopology& topology, const type_t& source, storage_type_t& dest)
+        static void reassign(TrieOptions& options, const type_t& source, storage_type_t& dest)
         {
-            vtm::StringMemoryManager memmngr(topology);
+            StringMemoryManager str_manager(options);
             if(!dest.is_nil()) 
-                memmngr.destroy(dest);    
-            dest = memmngr.smart_insert(source);
+                str_manager.destroy(dest);
+            dest = str_manager.smart_insert(source);
         }
 
-        template <class TTopology>
-        static type_t deserialize(TTopology& topology, const storage_type_t& source)
+        static type_t deserialize(TrieOptions& options, const storage_type_t& source)
         {
-            vtm::StringMemoryManager memmngr(topology);
+            StringMemoryManager str_manager(options);
             type_t result;
-            memmngr.get(source, std::back_inserter(result));
+            str_manager.get(source, std::back_inserter(result));
             return result;
         }
 
-        template <class TTopology>
-        static void destroy(TTopology& topology, storage_type_t& dest)
+        static void destroy(TrieOptions& options, storage_type_t& dest)
         {
             if(!dest.is_nil()) 
             {
-                vtm::StringMemoryManager memmngr(topology);
-                memmngr.destroy(dest);    
+                StringMemoryManager str_manager(options);
+                str_manager.destroy(dest);
                 dest = {};
             }
         }
@@ -128,24 +120,20 @@ namespace OP::trie::store_converter
         struct dummy{};
         using storage_type_t = dummy;
 
-        template <class TTopology>
-        static void serialize(TTopology& topology, const type_t&, storage_type_t& )
+        static void serialize(TrieOptions& topology, const type_t&, storage_type_t& )
         {
         }
 
-        template <class TTopology>
-        static void reassign(TTopology& topology, const type_t& source, storage_type_t& dest)
+        static void reassign(TrieOptions& topology, const type_t& source, storage_type_t& dest)
         {
         }
 
-        template <class TTopology>
-        static type_t deserialize(TTopology& topology, const storage_type_t& source)
+        static type_t deserialize(TrieOptions& topology, const storage_type_t& source)
         {
             return type_t{};
         }
 
-        template <class TTopology>
-        static void destroy(TTopology& topology, storage_type_t& dest)
+        static void destroy(TrieOptions& topology, storage_type_t& dest)
         {
             std::destroy_at(&dest);
         }
@@ -218,8 +206,7 @@ namespace OP::trie::store_converter
         using storage_type_t = PersistedVariant<
             typename Storage<Tx>::storage_type_t ...>;
 
-        template <class TTopology>
-        static void serialize(TTopology& topology, const type_t& source, storage_type_t& dest)
+        static void serialize(TrieOptions& topology, const type_t& source, storage_type_t& dest)
         {
             std::visit([&](const auto& v) {
                 using arg_t = std::decay_t<decltype(v)>;
@@ -231,8 +218,7 @@ namespace OP::trie::store_converter
                 }, source);
         }
 
-        template <class TTopology>
-        static void reassign(TTopology& topology, const type_t& source, storage_type_t& dest)
+        static void reassign(TrieOptions& topology, const type_t& source, storage_type_t& dest)
         {
             std::visit([&](const auto& v) {
                 using arg_t = std::decay_t<decltype(v)>;
@@ -353,54 +339,50 @@ const auto& pt_get(const PersistedTuple<Tx...>& tup)
         using storage_type_t = PersistedTuple<
             typename Storage<Tx>::storage_type_t ...>;
 
-        template <class TTopology>
-        static void serialize(TTopology& topology, const type_t& source, storage_type_t& dest)
+        static void serialize(TrieOptions& topology, const type_t& source, storage_type_t& dest)
         {
             serialize_impl(topology, source, dest, 
                   std::make_index_sequence<sizeof ...(Tx)>{});
         }
 
-        template <class TTopology>
-        static void reassign(TTopology& topology, const type_t& source, storage_type_t& dest)
+        static void reassign(TrieOptions& topology, const type_t& source, storage_type_t& dest)
         {
             reassign_impl(topology, source, dest, 
                   std::make_index_sequence<sizeof...(Tx)>{});
         }
 
-        template <class TTopology>
-        static type_t deserialize(TTopology& topology, const storage_type_t& source)
+        static type_t deserialize(TrieOptions& topology, const storage_type_t& source)
         {
             return deserialize_impl(topology, source, std::make_index_sequence<sizeof...(Tx)>{});
         }
 
-        template <class TTopology>
-        static void destroy(TTopology& topology, storage_type_t& dest)
+        static void destroy(TrieOptions& topology, storage_type_t& dest)
         {
             destroy_impl(topology, dest, std::make_index_sequence<sizeof ...(Tx)>{});
             std::destroy_at(&dest); //call destructor for PersistedTuple
         }
     private:
-        template <class TTopology, size_t ... I>
-        static void serialize_impl(TTopology& topology, const type_t& src, storage_type_t& dest, std::index_sequence<I...>)
+        template <size_t ... I>
+        static void serialize_impl(TrieOptions& topology, const type_t& src, storage_type_t& dest, std::index_sequence<I...>)
         {
             (Storage<std::tuple_element_t<I, type_t>>::serialize(
                     topology, std::get<I>(src), pt_get<I>(dest)), ...);
         }
-        template <class TTopology, size_t ... I>
-        static void reassign_impl(TTopology& topology, const type_t& src, storage_type_t& dest, std::index_sequence<I...>)
+        template <size_t ... I>
+        static void reassign_impl(TrieOptions& topology, const type_t& src, storage_type_t& dest, std::index_sequence<I...>)
         {
             (Storage<std::tuple_element_t<I, type_t>>::reassign(
                     topology, std::get<I>(src), pt_get<I>(dest)), ...);
         }
-        template <class TTopology, size_t ... I>
-        static type_t deserialize_impl(TTopology& topology, const storage_type_t& source, std::index_sequence<I...>)
+        template <size_t ... I>
+        static type_t deserialize_impl(TrieOptions& topology, const storage_type_t& source, std::index_sequence<I...>)
         {
             return std::make_tuple (
                 Storage<std::tuple_element_t<I, type_t>>::deserialize(
                     topology, pt_get<I>(source)) ...);
         }
-        template <class TTopology, size_t ... I>
-        static void destroy_impl(TTopology& topology, storage_type_t& dest, std::index_sequence<I...>)
+        template <size_t ... I>
+        static void destroy_impl(TrieOptions& topology, storage_type_t& dest, std::index_sequence<I...>)
         {
             (Storage<std::tuple_element_t<I, type_t>>::destroy(topology, pt_get<I>(dest)), ...);
         }

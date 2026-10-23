@@ -2,6 +2,11 @@
 #ifndef _OP_UTEST_FRONTEND_JSONFROTEND__H_
 #define _OP_UTEST_FRONTEND_JSONFROTEND__H_
 
+#if defined( _MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+//disable warnings of use `gmtime`/`localtime
+#define _CRT_SECURE_NO_WARNINGS 1
+#endif //_MSC_VER
+
 #include <array>
 #include <functional>
 #include <fstream>
@@ -450,7 +455,7 @@ namespace OP::utest::frontend
         virtual void on_load_execute_warm(const load_exec_event_t& payload)
         {
             TestRuntime& runtime = std::get<TestRuntime&>(payload);
-            unsigned warm_up_cycles = std::get<unsigned>(payload);
+            auto warm_up_cycles = std::get<size_t>(payload);
             formatter(
                 kv(kw_warm_up_cycles, warm_up_cycles)
              );
@@ -460,7 +465,7 @@ namespace OP::utest::frontend
         virtual void on_load_execute_run(const load_exec_event_t& payload)
         {
             TestRuntime& runtime = std::get<TestRuntime&>(payload);
-            unsigned run_number = std::get<unsigned>(payload);
+            auto run_number = std::get<size_t>(payload);
             formatter(
                 kv(kw_measurement_cycles, run_number)
              );

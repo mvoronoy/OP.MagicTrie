@@ -28,7 +28,7 @@ namespace OP::vtm
             get_last_accessed() = {};
         }
 
-        void put(size_t pos, region_entry_t value)
+        void put(segment_idx_t pos, region_entry_t value)
         {
             std::unique_lock guard(_chunked_data_acc);
             ensure(pos);
@@ -36,7 +36,7 @@ namespace OP::vtm
         }
 
         template <class Factory>
-        reference_t get(size_t pos, Factory&& factory)
+        reference_t get(segment_idx_t pos, Factory&& factory)
         {
             auto& last_accessed = get_last_accessed();
             if (last_accessed._last_region != nullptr

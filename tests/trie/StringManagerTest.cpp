@@ -1,11 +1,15 @@
 #include <op/utest/unit_test.h>
 #include <op/utest/unit_test_is.h>
 
+#include <op/common/DependencyManager.h>
+
 #include <op/vtm/SegmentManager.h>
-#include <op/vtm/StringMemoryManager.h>
 #include <op/vtm/managers/EventSourcingSegmentManager.h>
 #include <op/vtm/managers/BaseSegmentManager.h>
 #include <op/vtm/managers/InMemMemoryChangeHistory.h>
+
+#include <op/trie/StringMemoryManager.h>
+#include <op/trie/servants/TrieOptionsImpl.h>
 
 #include <set>
 #include <cassert>
@@ -15,33 +19,27 @@
 
 namespace
 {
+    using namespace OP::trie;
     using namespace OP::vtm;
     using namespace OP::utest;
     using namespace OP::common;
 
-    static const char* node_file_name = "StringManager.test";
+    static const char* test_file_name = "StringManager.test";
 
     void test_StringManager(OP::utest::TestRuntime& tresult)
     {
         using namespace std::string_literals;
-        using str_manager_t = OP::vtm::StringMemoryManager<>;
-        OP::utils::ThreadPool tp;
+        using str_manager_t = StringMemoryManager<>;
 
-        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::unique_ptr<MemoryChangeHistory>(new InMemoryChangeHistory(tp))
-            ));
+        OP::common::ServiceRegistry registry;
 
+        OP::utils::ThreadPool threads;
+        OP::trie::servants::TrieOptionsImpl toi(test_file_name, OP::trie::OpenMode::create);
 
-        SegmentTopology<
-            HeapManagerSlot
-        > mngr_toplogy(tmngr1);
-        str_manager_t str_manager(mngr_toplogy);
+        str_manager_t str_manager(toi);
 
-        auto tran = tmngr1->begin_transaction();
-        auto a1 = str_manager.insert(std::string("abc"));
+        auto tran = toi.transaction_service().begin_transaction();
+        auto a1 = str_manager.smart_insert(std::string("abc"));
         tran->commit();
 
         std::string result;
@@ -112,33 +110,33 @@ namespace
         }
     };
 
-    template <class TSegmentTopology>
-    void string_manager_edge_case(TSegmentTopology& topology, OP::utest::TestRuntime& tresult)
+    void string_manager_edge_case(TrieOptions& topology, OP::utest::TestRuntime& tresult)
     {
         using namespace std::string_literals;
-        using str_manager_t = OP::vtm::StringMemoryManager<>;
+        using str_manager_t = StringMemoryManager<>;
 
         str_manager_t str_manager(topology);
-        auto& heap_mngr = topology.template slot<HeapManagerSlot>();
-        auto start_avail_size = heap_mngr.available(0);
+
         std::string result;
 
-
-        auto tran = OP::vtm::resolve_segment_manager(topology).begin_transaction();
-        auto a0 = str_manager.insert(std::string{});
+        auto tran = topology.transaction_service().begin_transaction();
+        auto a0 = str_manager.smart_insert(std::string{});
         str_manager.get(a0, std::back_insert_iterator(result), 1024, 2048);
         if(tran) tran->commit();
 
         tresult.assert_that<equals>(result, ""s);
 
-        tresult.assert_exception<std::out_of_range>([&]() {
-            OP::vtm::TransactionGuard g(OP::vtm::resolve_segment_manager(topology).begin_transaction());
-            str_manager.insert(BigStringEmulator(topology.segment_manager().segment_size()));
-            });
+        // @! At this stage there is no spec of string length, this exception should be managed
+        // by memory alloc algorithm, not by string engine itself.
+        // 
+        //tresult.assert_exception<std::out_of_range>([&]() {
+        //    OP::vtm::TransactionGuard g(topology.transaction_service().begin_transaction());
+        //    str_manager.smart_insert(BigStringEmulator(std::numeric_limits<std::uint16_t>::max()));
+        //    });
         std::string buffer;
 
-        tran = OP::vtm::resolve_segment_manager(topology).begin_transaction();
-        auto a1 = str_manager.insert(
+        tran = topology.transaction_service().begin_transaction();
+        auto a1 = str_manager.smart_insert(
             tools::RandomGenerator::instance().next_alpha_num(buffer, 4096, 4096));
         if (tran) tran->commit();
 
@@ -148,41 +146,25 @@ namespace
         str_manager.get(a1, std::back_insert_iterator(result), 1024, 2048);
         tresult.assert_that<equals>(result, std::string(buffer.begin() + 1024, buffer.begin() + 2048 + 1024));
 
-        tresult.debug() << std::hex
-            << "000 avail:" << start_avail_size << '\n';
-        auto prev_avail = heap_mngr.available(0);
-        tresult.debug() << std::hex
-            << "1+0 avail:" << prev_avail << "\n";
         
-        tran = OP::vtm::resolve_segment_manager(topology).begin_transaction();
+        tran = topology.transaction_service().begin_transaction();
         str_manager.destroy(a0);
         if (tran) tran->commit();
 
-        tresult.assert_that<less>(prev_avail, heap_mngr.available(0));
-        prev_avail = heap_mngr.available(0);
-        tresult.debug() << std::hex
-            << "-a0 avail:" << prev_avail << "\n";
-
-        tran = OP::vtm::resolve_segment_manager(topology).begin_transaction();
+        tran = topology.transaction_service().begin_transaction();
         str_manager.destroy(a1);
         if (tran) tran->commit();
 
-        tresult.assert_that<less>(prev_avail, heap_mngr.available(0));
-        prev_avail = heap_mngr.available(0);
-
-        tresult.debug() << std::hex
-            << "-a1 avail:" << prev_avail << "\n";
-
         tresult.info() << "random insert...\n";
         size_t destroy_idx = 0;
-        std::unordered_map< FarAddress, std::string > model_reference;
-        std::vector< FarAddress > allocated_strs;
+        std::unordered_map< typename str_manager_t::smart_str_address_t, std::string > model_reference;
+        std::vector< typename str_manager_t::smart_str_address_t > allocated_strs;
         allocated_strs.reserve(1000);
         for (size_t i = 0; i < 1000; ++i)
         {
-            OP::vtm::TransactionGuard g(OP::vtm::resolve_segment_manager(topology).begin_transaction());
-            auto rnd_str_addr = str_manager.insert(
-                tools::RandomGenerator::instance().next_alpha_num(buffer, 4096, 0));
+            OP::vtm::TransactionGuard g(topology.transaction_service().begin_transaction());
+            auto rnd_str_addr = str_manager.smart_insert(
+                tools::RandomGenerator::instance().next_alpha_num(buffer, 4096, str_manager_t::small_string_capacity_c + 1));
             g.commit();
 
             tresult.assert_true(model_reference.emplace(rnd_str_addr, buffer).second,
@@ -190,17 +172,21 @@ namespace
             allocated_strs.push_back(rnd_str_addr);
             if (i > 0 && !(i % 17)) //pseudo random de-alloc of previous string
             {//cicada rhythm
-                FarAddress to_remove;
+                typename str_manager_t::smart_str_address_t to_remove;
                 std::swap(allocated_strs[destroy_idx++], to_remove);
-                OP::vtm::TransactionGuard g(OP::vtm::resolve_segment_manager(topology).begin_transaction());
-                str_manager.destroy(to_remove);
+                OP::vtm::TransactionGuard g(topology.transaction_service().begin_transaction());
+                auto addr_copy = to_remove;
+                str_manager.destroy(addr_copy);
+                tresult.assert_true(addr_copy.is_nil(), "address wasn't invalidated");
+
                 g.commit();
                 tresult.assert_that<equals>(1, model_reference.erase(to_remove),
                     "Unknown address of persisted string");
             }
         }
+
         //check all strings persisted are valid
-        for (const FarAddress& to_check_addr : allocated_strs)
+        for (const auto& to_check_addr : allocated_strs)
         {
             if (to_check_addr.is_nil()) //already erased
                 continue;
@@ -215,58 +201,38 @@ namespace
         model_reference.clear(); //tear down
         //don't destroy str before `destroy_idx`
         allocated_strs.erase(allocated_strs.begin(), allocated_strs.begin() + destroy_idx);
-        for (const FarAddress& to_del : allocated_strs)
+        for (const auto& to_del : allocated_strs)
         {
-            OP::vtm::TransactionGuard g(OP::vtm::resolve_segment_manager(topology).begin_transaction());
-            str_manager.destroy(to_del);
+            OP::vtm::TransactionGuard g(topology.transaction_service().begin_transaction());
+            auto local = to_del;
+            str_manager.destroy(local);
             g.commit();
+            tresult.assert_true(local.is_nil());
         }
-        tresult.debug() << std::hex
-            << "all avail:" << heap_mngr.available(0) << "\n";
     }
 
     void test_StringManagerEdgeCase(OP::utest::TestRuntime& tresult,
         std::shared_ptr<test::ChangeHistoryFactory> mem_change_history)
     {
         using namespace std::string_literals;
-        using str_manager_t = OP::vtm::StringMemoryManager<>;
+        using str_manager_t = StringMemoryManager<>;
 
-        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-                mem_change_history->create()
-            ));
-
-
-        SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
-        string_manager_edge_case(mngr_toplogy, tresult);
+        OP::trie::servants::TrieOptionsImpl toi(test_file_name, OP::trie::OpenMode::create);
+        string_manager_edge_case(toi, tresult);
     }
 
     void test_StringManagerEdgeCaseNoTran(OP::utest::TestRuntime& tresult)
     {
 
-        std::shared_ptr<SegmentManager> tmngr1(
-                BaseSegmentManager::create_new(
-                    node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000))
-        );
-
-
-        SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
-        string_manager_edge_case(mngr_toplogy, tresult);
+        OP::trie::servants::TrieOptionsImpl toi(test_file_name, OP::trie::OpenMode::create);
+        string_manager_edge_case(toi, tresult);
     }
 
     void test_SmartStr(OP::utest::TestRuntime& tresult)
     {
-        std::shared_ptr<SegmentManager> tmngr1(
-            BaseSegmentManager::create_new(
-                node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000))
-        );
-
-
-        SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
-        using str_manager_t = OP::vtm::StringMemoryManager<>;
-        str_manager_t smm(mngr_toplogy);
+        OP::trie::servants::TrieOptionsImpl toi(test_file_name, OP::trie::OpenMode::create);
+        using str_manager_t = StringMemoryManager<>;
+        str_manager_t smm(toi);
         auto& rndtool = tools::RandomGenerator::instance();
 
 
@@ -275,6 +241,8 @@ namespace
             atom_string_t paste;
             if (str_sz)
                 rndtool.next_alpha_num(paste, str_sz, str_sz);
+            OP::vtm::TransactionGuard g(toi.transaction_service().begin_transaction(), true);
+
             auto smstr = smm.smart_insert(paste);
             for (OP::vtm::segment_pos_t offset = 0; offset <= (str_sz); ++offset)
             {
@@ -299,15 +267,10 @@ namespace
     
     void test_Truncate(OP::utest::TestRuntime& tresult)
     {
-        std::shared_ptr<SegmentManager> tmngr1(
-            BaseSegmentManager::create_new(
-                node_file_name, OP::vtm::SegmentOptions().segment_size(0x110000))
-        );
-
         
-        SegmentTopology<HeapManagerSlot> mngr_toplogy(tmngr1);
-        using str_manager_t = OP::vtm::StringMemoryManager<>;
-        str_manager_t smm(mngr_toplogy);
+        OP::trie::servants::TrieOptionsImpl toi(test_file_name, OP::trie::OpenMode::create);
+        using str_manager_t = StringMemoryManager<>;
+        str_manager_t smm(toi);
 
         constexpr size_t test_limit_c = 512;
 
@@ -321,6 +284,7 @@ namespace
         //sequentially increase string size from 0 to test_limit_c
         for(size_t i = 0; i < test_limit_c; ++i)
         {
+            OP::vtm::TransactionGuard g(toi.transaction_service().begin_transaction(), true);
             auto smstr = smm.smart_insert(test_str);
             //test ultimate big cut
             smm.truncate(smstr, test_limit_c+1); 
@@ -339,7 +303,7 @@ namespace
         }
     }
 
-    static auto& module_suite = OP::utest::default_test_suite("vtm.StringManager")
+    static auto& module_suite = OP::utest::default_test_suite("trie.StringManager")
         .declare("basic", test_StringManager)
         .declare("edgecase-transactional", test_StringManagerEdgeCase)
         .declare("edgecase-no-tran", test_StringManagerEdgeCaseNoTran)

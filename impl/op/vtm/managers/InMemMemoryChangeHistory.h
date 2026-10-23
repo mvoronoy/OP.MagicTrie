@@ -50,8 +50,7 @@ namespace OP::vtm
             {
                 _garbage_collection_future.get();
             }
-            guard.release();
-
+            guard.unlock();
             _global_history.clear();
         }
 

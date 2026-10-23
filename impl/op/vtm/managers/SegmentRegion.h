@@ -53,9 +53,11 @@ namespace OP::vtm
     {
         friend struct SegmentManager;
 
-        SegmentRegion(bip::file_mapping& mapping, bip::offset_t offset, std::size_t size) 
+        SegmentRegion(bip::file_mapping& mapping, bip::offset_t offset, std::size_t size, bool next_soon) 
             : _mapped_region(mapping, bip::read_write, offset, size)
         {
+            if (next_soon)
+                _mapped_region.advise(_mapped_region.advice_willneed);
         }
 
         SegmentHeader& get_header() const

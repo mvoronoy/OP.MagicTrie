@@ -464,13 +464,11 @@ namespace OP
 
         [[nodiscard]] TInterface* get() 
         {
-            if (!has_value())
-                throw not_initialized_error{};
 
             return std::visit([](auto& instance) -> TInterface* {
                 if constexpr (std::is_same_v<std::monostate, std::decay_t<decltype(instance)>>)
-                {//impossible case, just to calm-down compiler as `!has_value` already excluded this
-                    return nullptr;
+                {
+                    throw not_initialized_error{};
                 }
                 else
                 {
@@ -482,13 +480,10 @@ namespace OP
 
         [[nodiscard]] const TInterface* get() const
         {
-            if (!has_value())
-                throw not_initialized_error{};
-
             return std::visit([](const auto& instance) -> const TInterface* {
                 if constexpr (std::is_same_v<std::monostate, std::decay_t<decltype(instance)>>)
-                {//impossible case, just to calm-down compiler as `!has_value` already excluded this
-                    return nullptr;
+                {//
+                    throw not_initialized_error{};
                 }
                 else
                 {

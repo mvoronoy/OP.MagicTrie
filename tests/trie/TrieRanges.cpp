@@ -9,6 +9,7 @@
 
 #include <op/trie/Trie.h>
 #include <op/trie/PlainValueManager.h>
+#include <op/trie/servants/TrieOptionsImpl.h>
 
 #include <op/vtm/managers/InMemMemoryChangeHistory.h>
 
@@ -31,8 +32,8 @@ namespace
     using namespace OP::common;
 
     const char* test_file_name = "trie.test";
-    using test_trie_t = Trie<
-        EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
+    
+    using test_trie_t = Trie<OP::common::atom_string_t, PlainValueManager<double>>;
 
     template <class TStr = std::string>
     struct lexicographic_less {
@@ -64,12 +65,8 @@ namespace
         //take randomizer configured by test engine
         auto random_gen = tools::RandomGenerator::instance().generator();
 
-        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::move(mem_change_history)
-            ));
+        std::shared_ptr<TrieOptions> tmngr1(
+            new OP::trie::servants::TrieOptionsImpl(test_file_name, OP::trie::OpenMode::create));
 
         using trie_t = test_trie_t;
         std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
@@ -106,10 +103,8 @@ namespace
         trie.reset();
         auto mem_change_history2 = history_factory->create();
 
-        tmngr1.reset(new EventSourcingSegmentManager(
-            BaseSegmentManager::open(test_file_name),
-            std::move(mem_change_history2)
-        ));
+        tmngr1.reset(new OP::trie::servants::TrieOptionsImpl(
+            test_file_name, OP::trie::OpenMode::open));
 
         trie = trie_t::open(tmngr1);
         //
@@ -171,12 +166,8 @@ namespace
         std::shared_ptr<test::ChangeHistoryFactory> history_factory)
     {
         auto mem_change_history = history_factory->create();
-        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::move(mem_change_history)
-            ));
+        std::shared_ptr<TrieOptions> tmngr1(
+            new servants::TrieOptionsImpl(test_file_name, OpenMode::create));
 
         using trie_t = test_trie_t;
 
@@ -317,19 +308,15 @@ namespace
     {
         using namespace OP::flur;
 
-        auto mem_change_history = history_factory->create();
-
-        std::shared_ptr<EventSourcingSegmentManager> tmngr(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::move(mem_change_history)
+        std::shared_ptr<TrieOptions> toi(
+            new servants::TrieOptionsImpl(
+                    test_file_name, OpenMode::create
             ));
 
 
         using trie_t = test_trie_t;
 
-        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+        std::shared_ptr<trie_t> trie = trie_t::create_new(toi);
 
         typedef std::pair<const atom_string_t, double> p_t;
         /*Test data organized as group of prefixes each owns by 3 suffixes that intersect and have corresponding suffixes as well*/
@@ -455,16 +442,14 @@ namespace
         )
     {
         auto mem_change_history = history_factory->create();
-        std::shared_ptr<EventSourcingSegmentManager> tmngr(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::move(mem_change_history)
+        std::shared_ptr<TrieOptions> toi(
+            new servants::TrieOptionsImpl(
+                    test_file_name, OpenMode::create
             ));
 
         using trie_t = test_trie_t;
 
-        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+        std::shared_ptr<trie_t> trie = trie_t::create_new(toi);
 
         typedef std::pair<const atom_string_t, double> p_t;
         auto pair_extractor = [](const auto& i) {
@@ -544,16 +529,13 @@ namespace
         using namespace OP::flur;
         auto mem_change_history = history_factory->create();
 
-        std::shared_ptr<EventSourcingSegmentManager> tmngr(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::move(mem_change_history)
+        std::shared_ptr<TrieOptions> toi(
+            new servants::TrieOptionsImpl(
+                    test_file_name, OpenMode::create
             ));
 
-        using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
-        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+        using trie_t = Trie<OP::common::atom_string_t, PlainValueManager<double>>;
+        std::shared_ptr<trie_t> trie = trie_t::create_new(toi);
 
         typedef std::pair<atom_string_t, double> p_t;
         std::map<atom_string_t, double> test_values;
@@ -613,17 +595,14 @@ namespace
         src1.emplace("g"_atom, 1.0);
         src1.emplace("xyz"_atom, 1.0);
 
-        //note: no transactions!
-        std::shared_ptr<SegmentManager> tmngr1(
-            BaseSegmentManager::create_new("trie2range.test",
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000)
+        std::shared_ptr<TrieOptions> toi(new servants::TrieOptionsImpl(
+            "trie2range.test", OpenMode::create
         ));
 
         using trie_t = OP::trie::Trie<
-            OP::vtm::SegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
+            OP::common::atom_string_t, PlainValueManager<double>>;
 
-        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr1);
+        std::shared_ptr<trie_t> trie = trie_t::create_new(toi);
         for (const auto& pair : src1) trie->insert(pair.first, pair.second);
         auto g_pos = trie->find("g"_astr);
         auto flt_src = (trie
@@ -664,32 +643,26 @@ namespace
 
         auto mem_change_history1 = history_factory->create();
 
-        std::shared_ptr<EventSourcingSegmentManager> tmngr1(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::move(mem_change_history1)
+        std::shared_ptr<TrieOptions> tmngr1(
+            new servants::TrieOptionsImpl(
+                    test_file_name, OpenMode::create
             ));
 
         auto mem_change_history2 = history_factory->create();
-        std::shared_ptr<EventSourcingSegmentManager> tmngr2(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    (std::string("2_") + test_file_name).c_str(), OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::move(mem_change_history2)
+        std::shared_ptr<TrieOptions> tmngr2(
+            new servants::TrieOptionsImpl(
+                    (std::string("2_") + test_file_name).c_str(), OpenMode::create
             ));
 
         auto mem_change_history3 = history_factory->create();
-        std::shared_ptr<EventSourcingSegmentManager> tmngr3(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    (std::string("3_") + test_file_name).c_str(), OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::move(mem_change_history3)
+        std::shared_ptr<TrieOptions> tmngr3(
+            new servants::TrieOptionsImpl(
+                    (std::string("3_") + test_file_name).c_str(), OpenMode::create
             ));
 
 
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<size_t>, OP::common::atom_string_t>;
+            OP::common::atom_string_t, PlainValueManager<size_t>>;
         tresult.info() << "create trie #1...\n";
         std::shared_ptr<trie_t> trie1 = trie_t::create_new(tmngr1);
 
@@ -1009,32 +982,18 @@ namespace
         typedef std::pair<atom_string_t, double> p_t;
         std::map<atom_string_t, double> test_values;
 
-        std::shared_ptr<EventSourcingSegmentManager> tmngr(
-            new EventSourcingSegmentManager(
-                BaseSegmentManager::create_new(
-                    test_file_name, OP::vtm::SegmentOptions().segment_size(0x110000)),
-                std::move(mem_change_history) ));
+        std::shared_ptr<TrieOptions> toi(
+            new servants::TrieOptionsImpl(
+                    test_file_name, OpenMode::create));
         
         using trie_t = Trie<
-            EventSourcingSegmentManager, PlainValueManager<double>, OP::common::atom_string_t>;
+             OP::common::atom_string_t, PlainValueManager<double>>;
 
-        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+        std::shared_ptr<trie_t> trie = trie_t::create_new(toi);
         const atom_string_t to_erase
         { 0x17, 0x80, 0x04, 0x5d, 0x48, 0x29, 0x4b, 0x40, 0xad, 0xee, 0x40, 0xe3, 0x4c, 0x0b, 0x9f, 0x84, 0x37, 0x44, 0xf1, 0x01, 0x00, 0x00, 0x00, 0x0a };
         const atom_string_t to_add
         { 0x17,0x00,0x04,0x5d,0x48,0x29,0x4b,0x40,0xad,0xee,0x40,0xe3,0x4c,0x0b,0x9f,0x84,0x37,0x44,0xf1,0x01,0x00,0x00,0x00,0x0a };
-
-        /*const atom_string_t
-            comm_suffix{ 0x17,0x43,0x08,0x00,0x00,0x00,0x1e,0x41,0x04,0x43,0x04,0x49,0x04,0x35,0x04,0x41,0x04,0x42,0x04,0x32,0x04,0x38,0x04,0x42,0x04,0x35,0x04,0x3b,0x04,0x4c,0x04,0x3d,0x04,0x3e,0x04,0x35,0x04,0x01,0x00,0x00,0x00,0x08 };
-        for (int i = 0; i < 10;++i) {
-            atom_string_t s{ (unsigned char)i };
-            //trie->insert(s, 10);
-            //test_values.emplace(s, 10);
-            s += comm_suffix;
-            trie->insert(s, 20);
-            test_values.emplace(s, 20);
-        } */
-
 
         std::for_each(std::begin(source_seq), std::end(source_seq), [&](const atom_string_t& s) {
             trie->insert(s, 0);
@@ -1057,14 +1016,10 @@ namespace
 
     void test_10k(OP::utest::TestRuntime& tresult)
     {
-        std::shared_ptr<SegmentManager> tmngr = OP::vtm::BaseSegmentManager::create_new(
-            "10k.trie",
-            OP::vtm::SegmentOptions()
-            .segment_size(0x110000)
-        );
-        using trie_t = Trie<
-            SegmentManager, PlainValueManager<std::uint64_t>, OP::common::atom_string_t>;
-        std::shared_ptr<trie_t> trie = trie_t::create_new(tmngr);
+        std::shared_ptr<TrieOptions> toi(new servants::TrieOptionsImpl(
+            "10k.trie", OpenMode::create));
+        using trie_t = Trie<OP::common::atom_string_t, PlainValueManager<std::uint64_t>>;
+        std::shared_ptr<trie_t> trie = trie_t::create_new(toi);
         constexpr std::uint32_t N = 0x3000;
         constexpr std::uint32_t expecting_sum_c = (N * (N - 1)) / 2;
         std::cout << "Expecting \tsum=" << expecting_sum_c << "\n";
@@ -1149,28 +1104,28 @@ namespace
                 std::future<std::uint64_t> future_sum{};
                 src::of_iota(0, 3)
                     >> then::mapping([&](auto i) {
-                    atom_string_t buffer = "a"_astr;
-                    to_hext(i, buffer, 1);
-                    auto range = trie->prefixed_range(buffer);
-                    return std::make_shared<decltype(range)>(std::move(range));
-                })
-                    >> then::minibatch<2>(tp)
+                        atom_string_t buffer = "a"_astr;
+                        to_hext(i, buffer, 1);
+                        auto range = trie->prefixed_range(buffer);
+                        return std::make_shared<decltype(range)>(std::move(range));
+                    })
+//                    >> then::minibatch<2>(tp)
                     >>= Reduce(
                         future_sum,
-                        [&](std::future<std::uint64_t>& previous, auto&& range) -> void
-                {
-                    previous = std::move(
-                        tp.async([fut = std::move(previous), r2 = range]() mutable
-                    {
-                        std::uint64_t local_sum = 0;
-                        for (auto& iter : *r2)
-                            local_sum += iter.value();
-                        return fut.valid()
-                            ? fut.get() + local_sum
-                            //first entry
-                            : local_sum;
-                    }));
-                });
+                        [&](std::future<std::uint64_t>& previous, auto&& range) -> void {
+                            previous = std::move(
+                                tp.async([fut = std::move(previous), r2 = range]() mutable
+                            {
+                                std::uint64_t local_sum = 0;
+                                for (auto& iter : *r2)
+                                    local_sum += iter.value();
+                                return fut.valid()
+                                    ? fut.get() + local_sum
+                                    //first entry
+                                    : local_sum;
+                            }));
+                        })
+                ;
                 sum = future_sum.get();
             };
             std::cout << "minibatch=" << measure(minibatch) << "\tsum=" << sum << "\n";

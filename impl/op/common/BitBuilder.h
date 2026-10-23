@@ -147,6 +147,11 @@ namespace OP::common
             return this->append_uint(std::numeric_limits<byte_t>::max(), _uninhabited);
         }
 
+        constexpr const TByteHolder& raw() const noexcept
+        {
+            return _buffer;
+        }
+
         inline std::string to_string() const
         {
             std::string result;

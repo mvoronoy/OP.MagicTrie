@@ -100,17 +100,6 @@ namespace OP::vtm
                 {//only one entry left, so need rebuild further list
                     result->address = header->_next; //return exactly `block` address
                     header->_next = block->_next;
-                    //@@@@!!! Must research multithread env
-                    ////be proactive in predicting new segment allocation but only for single addr requested
-                    //if (n == 1 && block->_next == SegmentDef::far_null_c)
-                    //{
-                    //    //`n == 1` used to ensure no thread-waiting mechanic needed
-                    //    _segment_manager->thread_pool().one_way(
-                    //        [](SegmentManager* sm, segment_idx_t avail) {
-                    //            sm->ensure_segment(avail);
-                    //        },
-                    //        _segment_manager, avail_segments);
-                    //}
                 }
                 constr(i, sm.template wr_at<payload_t>(*result));
                 --header->_in_free;

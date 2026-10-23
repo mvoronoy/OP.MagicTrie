@@ -8,27 +8,25 @@
 namespace
 {
 
-void test_SegmentManager(OP::utest::TestRuntime& result)
-{
-    using namespace OP::vtm;
-    const char seg_file_name[] = "segmentation.test";
-    GenericMemoryTest::test_MemoryManager(
-        result,
-        //create new
-        [&]() {
-            return BaseSegmentManager::create_new(seg_file_name,
-                SegmentOptions().segment_size(0x110000));
-        },
-        //open 
-        [&]() {
-            return BaseSegmentManager::open(seg_file_name);
-        }
-    );
-}
-              
-
-//using std::placeholders;
-static auto& module_suite = OP::utest::default_test_suite("vtm.SegmentManager")
-    .declare("HeapManagerSlot", test_SegmentManager)
-;
+    void test_SegmentManager(OP::utest::TestRuntime& result)
+    {
+        using namespace OP::vtm;
+        const char seg_file_name[] = "segmentation.test";
+        GenericMemoryTest::test_MemoryManager(
+            result,
+            //create new
+            [&]() {
+                return BaseSegmentManager::create_new(seg_file_name,
+                    SegmentOptions().segment_size(0x110000));
+            },
+            //open 
+            [&]() {
+                return BaseSegmentManager::open(seg_file_name);
+            }
+        );
+    }
+                  
+    static auto& module_suite = OP::utest::default_test_suite("vtm.SegmentManager")
+        .declare("generic", test_SegmentManager)
+    ;
 }//ns:

@@ -35,7 +35,7 @@ namespace OP::vtm
             /** transaction going to rollback, argument: Transaction& */
             before_rollback,
             /** transaction has been rolled back, argument: Transaction& */
-            rolledback,
+            rollback,
         };
         
         using event_supplier_t = OP::events::EventSupplier<
@@ -43,7 +43,7 @@ namespace OP::vtm
             Assoc<before_commit, transaction_id_t>,
             Assoc<committed, transaction_id_t>,
             Assoc<before_rollback, transaction_id_t>,
-            Assoc<rolledback, transaction_id_t>
+            Assoc<rollback, transaction_id_t>
         >;
     };
 
@@ -53,6 +53,8 @@ namespace OP::vtm
     struct Transaction
     {
         using transaction_id_t = typename TransactionEvent::transaction_id_t;
+
+        using event_commited_t = std::function<void()>;
 
         explicit Transaction(transaction_id_t id) noexcept:
             _transaction_id(id)
@@ -76,8 +78,18 @@ namespace OP::vtm
 
         virtual void rollback() = 0;
         virtual void commit() = 0;
+
+        /** Allows other thread resolve same transaction id as this one started in other thread. Useful for parallel RO (!) processing.
+        *   Must be called from a thread without other transaction.
+        */
         virtual std::shared_ptr<Transaction> attach_thread() = 0;
+
+        /**
+        *   un-attach current thread from this transaction
+        */
         virtual void unattach_thread() = 0;
+
+        virtual void on_committed(event_commited_t)  = 0;
 
     private:
         const transaction_id_t _transaction_id;
@@ -120,6 +132,7 @@ namespace OP::vtm
     /** No-op transaction implementation */
     struct NoOpTransaction : public Transaction, std::enable_shared_from_this<Transaction>
     {
+        using Transaction::event_commited_t;
 
         explicit NoOpTransaction(transaction_id_t id) noexcept
             : Transaction(id)
@@ -139,9 +152,12 @@ namespace OP::vtm
         virtual void commit() override
         {
             //invoke events on transaction end
+            std::unique_lock guard(_committed_subs_acc);
+            for(auto& handler: _committed_subs)
+                handler();
         }
 
-        virtual std::shared_ptr<Transaction>  attach_thread() override
+        virtual std::shared_ptr<Transaction> attach_thread() override
         {
             return shared_from_this();
         }
@@ -150,6 +166,16 @@ namespace OP::vtm
         {
             //do nothing
         }
+
+        virtual void on_committed(event_commited_t handler) override
+        {
+            std::unique_lock guard(_committed_subs_acc);
+            _committed_subs.emplace_back(std::move(handler));
+        }
+
+    private:
+        std::vector<event_commited_t> _committed_subs;
+        std::mutex _committed_subs_acc;
     };
 
     /** \brief RAII guard that grants pair methods Transaction::attach_thread/Transaction::unattach_thread be called.

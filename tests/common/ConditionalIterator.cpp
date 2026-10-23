@@ -10,7 +10,11 @@ namespace
     using namespace OP::utest;
 
     // Validate against the C++20 output_iterator concept at compile time
-    static_assert(std::output_iterator<OP::common::filtered_back_insert_iterator<std::vector<int>, bool(*)(int)>, int>);
+    static_assert(
+        std::output_iterator<decltype(OP::common::filter_back_inserter(
+            std::declval<std::vector<int>&>(),
+            static_cast<bool(*)(int)>(nullptr))), int >
+        );
 
     void test_Basic(OP::utest::TestRuntime& tresult) 
     {

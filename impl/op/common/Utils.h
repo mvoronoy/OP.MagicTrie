@@ -349,5 +349,8 @@ namespace OP::utils
         return TView{source.data() + pos, n};
     }
 
+    template <class TStr>
+    using view_from_str_t = std::basic_string_view<typename TStr::value_type, typename TStr::traits_type>;
+    
 } //OP::utils
 #endif //_OP_TRIE_UTILS__H_
