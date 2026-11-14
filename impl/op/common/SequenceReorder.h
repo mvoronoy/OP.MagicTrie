@@ -5,6 +5,7 @@
 
 #include <compare> //for partial_order
 #include <utility>
+#include <functional>
 
 namespace OP::common
 {
