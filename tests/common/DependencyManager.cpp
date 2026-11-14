@@ -111,13 +111,17 @@ namespace
         {
             using DependencyManager::base_t;
             const static inline std::string report_evidence_c = "SomeLateManager::report"s;
-            const std::string virtual_constructor_evidence;//unique for each class instance
+            const static inline std::string dtor_evidence_c = "SomeLateManager::~SomeLateManager"s;
 
             SomeLateManager(OP::utest::TestRuntime& tresult)
                 : _tresult(tresult)
-                , virtual_constructor_evidence(std::format("SomeLateManager#{}::on_complete", instance_unique_id()))
             {
-                tresult.set_evidence(virtual_constructor_evidence, 0);
+                _tresult.set_evidence(dtor_evidence_c, 0);
+            }
+
+            ~SomeLateManager()
+            {
+                ++_tresult.evidence<int>(dtor_evidence_c);
             }
 
             RawMemoryManager& get_memory_manager()
@@ -129,7 +133,10 @@ namespace
             {
                 return resolve<ThreadService>();
             }
-
+            int complete_called() const noexcept
+            {
+                return _complete_called;
+            }
             void report()
             {
                 _tresult.set_evidence(report_evidence_c, 1);
@@ -142,22 +149,33 @@ namespace
 
                 _tresult.assert_true(base_t::resolve<RawMemoryManager>()._marker_constructor_called,
                     "RawMemoryManagerImpl constructed with wrong constructor");
-                
+                _tresult.assert_that<equals>(1, _complete_called, "virtual constructor must be called exactly once");
+
             }
         protected:
             
             virtual void on_complete()
             {
-                ++_tresult.evidence<int>(virtual_constructor_evidence);
+                ++_complete_called;
             }
 
         private:
-            static int instance_unique_id() noexcept
+            static std::uint16_t instance_unique_id() noexcept
             {
-                static int id_gen = 0;
+                static std::uint16_t id_gen = 0;
                 return ++id_gen;
             }
+            static std::string render_id(const char* source, std::uint16_t x)
+            {
+                auto p = reinterpret_cast<const char*>(&x);
+                auto end = p + sizeof(x);
+                std::string result{ source };
+                for (auto i = result.find('_'); i != result.npos && p < end; ++p, i = result.find('_', i + 1))
+                    result[i] = *p;
+                return result;
+            }
             OP::utest::TestRuntime& _tresult;
+            int _complete_called = 0;
         };
 
     }//ns:test
@@ -242,13 +260,6 @@ namespace
         auto& dep_graph1 = registry.resolve_dependencies(
             std::ref(reference_service),
             test::SomeLateManager{ tresult } //virtual constructor going to call default factory
-        
-        );
-
-        tresult.check_evidence<equals>(
-            dep_graph1.get<test::SomeLateManager>().virtual_constructor_evidence, //uses uniq id of each SomeLateManager instance
-            1,
-            OP_CODE_DETAILS("virtual constructor wasn't called")
         );
 
         dep_graph1.get<test::SomeLateManager>().report();
@@ -265,13 +276,9 @@ namespace
             std::ref(reference_service),
             test::SomeLateManager(tresult)
         );
-        tresult.check_evidence<equals>(
-            dep_graph2.get<test::SomeLateManager>().virtual_constructor_evidence, //uses uniq id of each SomeLateManager instance
-            1,
-            OP_CODE_DETAILS("virtual constructor wasn't called")
-        );
+        dep_graph2.get<test::SomeLateManager>().report();
 
-
+        //check both graph works
         tresult.assert_that<not_equals>(
             &dep_graph1.get<test::SomeLateManager>().get_memory_manager(),
             &dep_graph2.get<test::SomeLateManager>().get_memory_manager(),
@@ -284,8 +291,7 @@ namespace
             &dep_graph1.get<test::SomeLateManager>().get_transaction_service(),
             &dep_graph2.get<test::SomeLateManager>().get_transaction_service(),
             OP_CODE_DETAILS("2 instances must own the same references to TransactionService")
-
-            );
+        );
 
     }
 

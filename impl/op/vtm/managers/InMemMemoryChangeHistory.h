@@ -42,21 +42,25 @@ namespace OP::vtm
             : _thread_pool(thread_pool)
         {
         }
-        
+
         ~InMemoryChangeHistory()
         {
-            std::unique_lock guard(_garbage_collection_future_acc);
-            if(_garbage_collection_future.valid())
-            {
-                _garbage_collection_future.get();
-            }
-            guard.unlock();
+            wait_completion();
             _global_history.clear();
         }
 
         OP::utils::ThreadPool& thread_pool() noexcept
         {
             return _thread_pool;
+        }
+
+        void wait_completion() override
+        {
+            std::unique_lock guard(_garbage_collection_future_acc);
+            if (_garbage_collection_future.valid())
+            {
+                _garbage_collection_future.get();
+            }
         }
 
         [[nodiscard]] query_region_result_t buffer_of_region(

@@ -26,7 +26,12 @@ namespace OP::common
 
     namespace details
     {
-        using memory_retainer_t = std::unique_ptr<void, void(*)(void*)>;
+        struct ChainDestructible
+        {
+            virtual ~ChainDestructible() = default;
+        };
+
+        using memory_retainer_t = std::unique_ptr<ChainDestructible>;
 
         template <class T>
         class Wrap
@@ -44,8 +49,6 @@ namespace OP::common
                 return value->get();
             }
 
-            unsigned _delete_priority = 0;
-            bool _deleted = false;
             OP::MemBuf<T> _value;
 
         public:
@@ -54,13 +57,20 @@ namespace OP::common
                 decltype(at_impl(std::declval<OP::MemBuf<T>&>()))>;
             
             template <class U>
-            Wrap(U&& value)
+            constexpr explicit Wrap(U&& value) noexcept
                 : _value{ std::forward<U>(value) }
             {
             }
             
-            Wrap(Wrap&&) = default;
+            constexpr Wrap(Wrap&& other) noexcept
+                : _value(std::move(other._value))
+            {
+            }
+
             Wrap(const Wrap&) = delete;
+    
+            constexpr Wrap& operator = (Wrap&& other) = delete;
+            constexpr Wrap& operator = (const Wrap&) = delete;
 
             ~Wrap()
             {
@@ -69,23 +79,19 @@ namespace OP::common
 
             void destroy() noexcept
             {
-                if (!_deleted)
-                {
-                    _value.destroy();
-                    _deleted = true;
-                }
+                _value.destroy();
             }
             
             element_t& at()
             {
-                assert(!_deleted);
+                assert(_value.has_value());
                 return at_impl(_value);
             }
 
         };
 
         template <class ...Tx>
-        auto make_wrap_tuple(Tx ...tx)
+        auto make_wrap_tuple(Tx&& ...tx)
         {
             return std::tuple{ Wrap<std::decay_t<Tx>>{std::forward<Tx>(tx)}... };
         }
@@ -101,7 +107,7 @@ namespace OP::common
     * Instances of this class are created exclusively by ServiceRegistry.
     */
     template <class Tuple>
-    class DependencyGraph
+    class DependencyGraph : public details::ChainDestructible
     {
         using this_t = DependencyGraph<Tuple>;
 
@@ -294,25 +300,6 @@ namespace OP::common
     */
     class ServiceRegistry 
     {
-
-        template <class T>
-        static void custom_deleter(void* instance) noexcept
-        {
-            delete reinterpret_cast<T*>(instance);
-        }
-        
-        template <class T>
-        [[maybe_unused]] T& setup_retainer(T* instance)
-        {
-            auto service_set = details::memory_retainer_t(instance, &custom_deleter<T>);
-            instance->kick();
-            _memory_retainer = std::move(service_set);
-            //instance->when_complete();
-            return *instance;
-        }
-
-        details::memory_retainer_t _memory_retainer{nullptr, nullptr};
-
     public:
 
         /**
@@ -345,14 +332,18 @@ namespace OP::common
         template <class ...Tx>
         auto& resolve_dependencies(Tx&& ...services)
         {
-            auto& result = setup_retainer(
-                new DependencyGraph(
-                    std::move(_memory_retainer),
-                    details::make_wrap_tuple(std::forward<Tx>(services)...))
-            );
-            result.when_complete();
-            return result;
+            auto* result = new DependencyGraph(
+                std::move(_memory_retainer),
+                details::make_wrap_tuple(std::forward<Tx>(services)...));
+            _memory_retainer.reset(result);
+            result->kick();
+            result->when_complete();
+            return *result;
         }
+
+    private:
+
+        details::memory_retainer_t _memory_retainer{};
     };
 
     struct MetaMarker { enum Order { priority = 1, alternatives = 2}; };

@@ -108,7 +108,7 @@ namespace OP::trie
         //using block_result_t = std::variant<buffer_t, vtm::ConcurrentLockException>;
 
         [[nodiscard]] virtual vtm::ReadonlyMemoryChunk readonly_block(FarAddress pos, segment_pos_t size) const noexcept = 0;
-        [[nodiscard]] virtual vtm::MemoryChunk writable_block(FarAddress pos, segment_pos_t size, bool need_previous_content = true) noexcept = 0;
+        [[nodiscard]] virtual vtm::MemoryChunk writable_block(FarAddress pos, segment_pos_t size, bool need_previous_content = true) = 0;
 
 
         template <class T>

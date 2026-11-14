@@ -24,11 +24,16 @@ namespace flur
 
             constexpr CyclicBuffer() noexcept = default;
             
+            CyclicBuffer(const CyclicBuffer&) = delete;
+            CyclicBuffer& operator = (const CyclicBuffer&) = delete;
+
             CyclicBuffer(CyclicBuffer&& other) noexcept
             {
                 while ( other._r_current < other._w_current)
                     _buffer[_w_current++] = std::move(other._buffer[other._r_current++ % N]);
             }
+
+            CyclicBuffer& operator = (CyclicBuffer&& other) = delete;
 
             bool has_elements() const
             {
@@ -93,13 +98,13 @@ namespace flur
 
         Src _src;
         TThreads& _thread_pool;
-        details::CyclicBuffer< src_element_t, N> _batch;
+        details::CyclicBuffer<src_element_t, N> _batch;
 
         background_t _work;
         mutable std::mutex _work_acc;
 
         /**Apply move operator to source, but wait until all background work done*/
-        Src&& safe_take()
+        Src&& safe_take(background_t& dest)
         {
             std::lock_guard guard(_work_acc);
             if (_work.valid())
@@ -116,16 +121,19 @@ namespace flur
 
         Minibatch(const this_t& src) noexcept = delete;
 
-        constexpr Minibatch(Minibatch&& src) /*noexcept - safe_take may raise*/
-            : _src(src.safe_take())
+        constexpr Minibatch(Minibatch&& src) noexcept
+            : _src = std::move(src._src);
             , _batch(std::move(src._batch))
             , _thread_pool(src._thread_pool)
         {
+            std::lock_guard other_guard(src._work_acc);
         }
 
         Minibatch& operator = (const this_t& src) = delete;
         Minibatch& operator = (this_t&& src)
         {
+            std::scoped_lock lock(this->_work_acc, src._work_acc);
+            _work = 
             _src = std::move(src.safe_take());
             _batch = std::move(src._batch);
             return *this;

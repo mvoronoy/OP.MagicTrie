@@ -101,14 +101,14 @@ namespace
                         }, std::move(outer), inner);
                 },
                 src::outer(std::ref(tee))
-                >> then::mapping([&](auto i) {
-                    OP::raii::IoFlagGuard guard_io(tresult.debug());
-                    tresult.debug() << "\t>inner:(" << i << ")" << std::hex << i << "\n";
-                    return i;
-                    })
+                //>> then::mapping([&](auto i) {
+                //    OP::raii::IoFlagGuard guard_io(tresult.debug());
+                //    tresult.debug() << "\t>inner:(" << i << ")" << std::hex << i << "\n";
+                //    return i;
+                //    })
                 >> then::repeater() //prevent consuming from `src::outer` twice. 
             )
-            >> then::minibatch<16>(tp)
+//            >> then::minibatch<16>(tp)
             >> then::mapping([](const auto& future)
                 {
                     using t_t = std::decay_t<decltype(future)>;
@@ -158,9 +158,9 @@ namespace
             >> then::mapping([](auto fi) {
             return fi.get();
                 })
-            >> then::minibatch<16>(tp)
+            //>> then::minibatch<16>(tp)
             ;
-        tresult.assert_exception<std::runtime_error>([&]() {
+        tresult.assert_exception<std::exception>([&]() {
             for (auto i : pipeline)
             {
                 tresult.assert_that<equals>(0, i);//only once

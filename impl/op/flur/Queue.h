@@ -35,7 +35,7 @@ namespace OP::flur
             process.get();
         \encode
 
-        Queue implmentation cannot be re-started second time, if needed use `repeater()` 
+        Queue implementation cannot be re-started second time, if needed use `repeater()` 
         element:
         \code
             QueueSequence<int> queue;

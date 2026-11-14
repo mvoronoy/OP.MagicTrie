@@ -187,6 +187,8 @@ namespace OP::trie
         using smart_str_address_t = smm::SmartStringAddress<smart_string_allowance>;
         static_assert(std::is_standard_layout_v<smart_str_address_t>, "smm::SmartStringAddress must have standard layout");
 
+        constexpr static inline size_t small_string_capacity_c = smart_string_allowance;
+
         explicit StringMemoryManager(TrieOptions& options) noexcept
             : _options(options)
         {
@@ -521,7 +523,7 @@ namespace OP::trie
 
 namespace std
 {
-    /** Define specialization of std::has for FarAddress */
+    /** Define specialization of std::hash for SmartStringAddress */
     template<size_t inline_byte_size_limit>
     struct hash<OP::trie::smm::SmartStringAddress<inline_byte_size_limit>>
     {

@@ -33,7 +33,6 @@ namespace OP::trie::containers
 
         static inline constexpr fast_dim_t capacity_c = 256;
         /**
-        * \tparam some specialization of SegmentTopology with mandatory slot `HeapManagerSlot`
         */
         AntiHashTable(TrieOptions& options, 
                 const ParentInfo& node_info)

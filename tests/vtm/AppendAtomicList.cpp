@@ -105,13 +105,14 @@ namespace
         tresult.assert_that<equals>(last, al2.end());
         result = std::accumulate(al2.begin(), al2.end(), size_t{ 0 });
         tresult.assert_that<equals>(result, sum - del_item - del_item2);
+
     }
 
     void test_append_remove_clear(OP::utest::TestRuntime& tresult)
     {
 
 #ifdef OP_COMMON_OS_WINDOWS
-        _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+        int previous_crt_flag = _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
         // Send all reports to STDOUT
         _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
         _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDOUT);
@@ -128,6 +129,8 @@ namespace
 #endif //#ifdef OP_COMMON_OS_WINDOWS
 
         _generic_impl(tresult);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 #ifdef OP_COMMON_OS_WINDOWS
         //new int(0x55aa); 
         // Take a snapshot of the memory state at the end
@@ -145,9 +148,13 @@ namespace
             _CrtMemDumpAllObjectsSince(&st_old);
 
             // Optional: Dump all leaks detected since program start
-            // _CrtDumpMemoryLeaks(); 
+            // _CrtDumpMemoryLeaks();
+            // 
+            _CrtSetDbgFlag(previous_crt_flag); //restore
             tresult.fail();
         }
+        else
+            _CrtSetDbgFlag(previous_crt_flag); //restore
 #endif //#ifdef OP_COMMON_OS_WINDOWS
     }
 

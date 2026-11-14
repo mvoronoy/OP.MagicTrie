@@ -69,6 +69,9 @@ namespace OP::vtm
         MemoryChangeHistory& operator = (const MemoryChangeHistory&) = delete;
         MemoryChangeHistory& operator =(MemoryChangeHistory&&) = delete;
 
+        virtual void wait_completion()
+        {
+        }
 
         /** \brief Inside specific transaction retrieve memory buffer that must be used for 
         *   read or write operations for logical region. 
@@ -154,7 +157,10 @@ namespace OP::vtm
         {
         }
 
-        virtual ~EventSourcingSegmentManager() = default;
+        virtual ~EventSourcingSegmentManager()
+        {
+            _change_history_manager->wait_completion();
+        }
 
 
         virtual segment_pos_t segment_size() const noexcept override
@@ -386,9 +392,9 @@ namespace OP::vtm
                 return _framed_tx->attach_thread();
             }
 
-            virtual void unattach_thread() override
+            virtual void detach_thread() override
             {
-                _framed_tx->unattach_thread();
+                _framed_tx->detach_thread();
             }
 
             virtual void on_committed(event_commited_t handler) override
@@ -614,7 +620,7 @@ namespace OP::vtm
                 return current;
             }
 
-            virtual void unattach_thread() override
+            virtual void detach_thread() override
             {
                 auto current = _owner._opened_transactions.lock();
                 if (!current || !_thread_merge_count)

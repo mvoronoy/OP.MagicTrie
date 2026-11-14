@@ -87,7 +87,7 @@ namespace OP::vtm
         /**
         *   un-attach current thread from this transaction
         */
-        virtual void unattach_thread() = 0;
+        virtual void detach_thread() = 0;
 
         virtual void on_committed(event_commited_t)  = 0;
 
@@ -162,7 +162,7 @@ namespace OP::vtm
             return shared_from_this();
         }
 
-        virtual void unattach_thread() override
+        virtual void detach_thread() override
         {
             //do nothing
         }
@@ -178,7 +178,7 @@ namespace OP::vtm
         std::mutex _committed_subs_acc;
     };
 
-    /** \brief RAII guard that grants pair methods Transaction::attach_thread/Transaction::unattach_thread be called.
+    /** \brief RAII guard that grants pair methods Transaction::attach_thread/Transaction::detach_thread be called.
     */
     struct ThreadMergeGuard final
     {
@@ -198,7 +198,7 @@ namespace OP::vtm
 
         ThreadMergeGuard& operator = (ThreadMergeGuard&& other)
         {
-            unattach_thread();
+            detach_thread();
             _ro_instance = std::move(other._ro_instance);
             _is_merged = other._is_merged;
             other._is_merged = false;
@@ -211,14 +211,14 @@ namespace OP::vtm
 
         ~ThreadMergeGuard()
         {
-            unattach_thread();
+            detach_thread();
         }
 
-        void unattach_thread()
+        void detach_thread()
         {
             if(_is_merged)
             {
-                _ro_instance->unattach_thread();
+                _ro_instance->detach_thread();
                 _is_merged = false;
             }
         }

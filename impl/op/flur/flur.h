@@ -29,7 +29,6 @@
 #include <op/flur/Diff.h>
 #include <op/flur/OnException.h>
 #include <op/flur/Repeater.h>
-#include <op/flur/Minibatch.h>
 #include <op/flur/StringInput.h>
 #include <op/flur/Distinct.h>
 #include <op/flur/OrderedJoin.h>
@@ -843,11 +842,6 @@ namespace OP::flur
             return RepeaterFactory<TContainer>();
         }
 
-        template <size_t N, class TThreads>
-        constexpr auto minibatch(TThreads& thread_pool) noexcept
-        {
-            return MinibatchFactory<N, TThreads>{thread_pool};
-        }
 
         /** Treate source sequence as a roots of hierarchy and then iterate over children elements
         * using deep-first algorithm. Implementation doesn't use recursion so depth of hierarchy 

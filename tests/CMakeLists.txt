@@ -42,77 +42,71 @@ endif(MSVC)
 
 
 # Add source to this project's executable.
-add_executable (trie_test 
-    "common/BitsetTest.cpp"
-    "common/UtilsTest.cpp"
-    "common/EventSupplier.cpp"
-    "common/CmdLine.cpp"
-    "common/ZoneTest.cpp"
-    "common/ThreadPool.cpp"
-    "common/Currying.cpp"
-    "common/Multiimplementation.cpp"
-    "common/basic.cpp"
-    "common/FixedString.cpp"
-    "common/BitBuilder.cpp"
-    "common/ConditionalIterator.cpp"
-    "common/DependencyManager.cpp"
-    "common/SequenceReorder.cpp"
+add_executable ( ${PROJECT_NAME} 
 
-    "lexico/testGolomb.cpp"
-    "lexico/testLexico.cpp"
+tr.cpp
 
-    "vtm/AppendOnlyLog.cpp"
-    "vtm/AppendOnlySkipList.cpp"
-    "vtm/AppendAtomicList.cpp"
-    
-    "vtm/SegmentManagerTest.cpp"
-    "vtm/SegmentToplogyTest.cpp"
-    "vtm/InMemMemoryChangeHistory.cpp"
-    "vtm/GenericMemoryTest.h"
-    "vtm/SizeRadixRoutingIndex.cpp"
+common/basic.cpp
+common/BitBuilder.cpp
+common/BitsetTest.cpp
+common/CmdLine.cpp
+common/ConditionalIterator.cpp
+common/Currying.cpp
+common/DependencyManager.cpp
+common/EventSupplier.cpp
+common/FixedString.cpp
+common/Multiimplementation.cpp
+common/SequenceReorder.cpp
+common/ThreadPool.cpp
+common/UtilsTest.cpp
+common/ZoneTest.cpp
 
-    "tr.cpp"
+flur/Applicator.cpp
+flur/Cartesian.cpp
+flur/Filter.cpp
+flur/Generator.cpp
+flur/Iterators.cpp
+flur/Join.cpp
+flur/JoinUnordered.cpp
+flur/maf.cpp
+flur/MergeSortUnion.cpp
+flur/Mt.cpp
+flur/OfLazyValue.cpp
+flur/ParallelSort.cpp
+flur/Polymorphic.cpp
+flur/StlContainers.cpp
+flur/StringInput.cpp
+flur/ThenDefault.cpp
+flur/ThenDiff.cpp
+flur/ThenDistinct.cpp
+flur/ThenException.cpp
+flur/ThenFlatMap.cpp
+flur/ThenHierarchy.cpp
+flur/ThenMap.cpp
+flur/ThenOrderingFlatMap.cpp
+flur/UnionAll.cpp
+flur/Zip.cpp
 
-    "vtm/EventSourcedSegmentManagerTest.cpp"
-    
-    "trie/TrieServant.cpp"
-    "trie/Trie.cpp"
-    "trie/TrieRanges.cpp"
-    "trie/testMixedAdapter.cpp"
-    "trie/trieValueManager.cpp"
-    "trie/TrieFixedString.cpp"
-    "trie/BitIndexedVector.cpp"
-    "trie/StringManagerTest.cpp"
-    "trie/ResidenceManager.cpp"
-    
+lexico/testGolomb.cpp
+lexico/testLexico.cpp
 
-    "flur/StlContainers.cpp" 
-    "flur/ThenDefault.cpp" 
-    "flur/Mt.cpp" 
-    "flur/Filter.cpp" 
-    "flur/maf.cpp" 
-    "flur/Cartesian.cpp"
-    "flur/Zip.cpp"
-    "flur/Generator.cpp"
-    "flur/ThenFlatMap.cpp"
-    "flur/ThenMap.cpp"
-    "flur/ThenOrderingFlatMap.cpp"
-    "flur/Minibatch.cpp"
-    "flur/ThenException.cpp" 
-    "flur/ThenDistinct.cpp"
-    "flur/ThenDiff.cpp"
-    "flur/Polymorphic.cpp" 
-    "flur/StringInput.cpp"
-    "flur/Join.cpp"
-    "flur/UnionAll.cpp"
-    "flur/MergeSortUnion.cpp"
-    "flur/Iterators.cpp"
-    "flur/ThenHierarchy.cpp"
-    "flur/OfLazyValue.cpp"
-    "flur/JoinUnordered.cpp"
-    "flur/ParallelSort.cpp"
-    "flur/Applicator.cpp"
- 
+trie/BitIndexedVector.cpp
+trie/ResidenceManager.cpp
+trie/StringManagerTest.cpp
+trie/testMixedAdapter.cpp
+trie/Trie.cpp
+trie/TrieAllocatorImpl.cpp
+trie/TrieFixedString.cpp
+trie/TrieMemoryServiceImpl.cpp
+trie/TrieRanges.cpp
+trie/trieValueManager.cpp
+
+vtm/AppendAtomicList.cpp
+vtm/AppendOnlyLog.cpp
+vtm/AppendOnlySkipList.cpp
+vtm/InMemMemoryChangeHistory.cpp
+vtm/SizeRadixRoutingIndex.cpp
+
 )
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)

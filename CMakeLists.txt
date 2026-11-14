@@ -5,6 +5,8 @@ cmake_minimum_required (VERSION 3.27)
 
 project ("OP.MagicTrie")
 include(CTest)
+#Following option is needed as some IDEs rely on compile_commands.json for code analysis and navigation
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
 set(CMAKE_CXX_STANDARD 20)

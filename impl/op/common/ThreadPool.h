@@ -9,6 +9,7 @@
 #include <thread>
 #include <functional>
 #include <future>
+
 #include <op/common/SysLog.h>
 #include <op/common/StackAlloc.h>
 
@@ -48,8 +49,9 @@ namespace OP::utils
             using result_t = function_res_t<F>;
             using this_t = Functor<F>;
 
-            explicit Functor(F&& f) noexcept
-                : _f(std::move(f))
+            template <class U>
+            explicit Functor(U&& f) noexcept
+                : _f(std::forward<U>(f))
             {
             }
 
@@ -110,8 +112,9 @@ namespace OP::utils
         template <class F>
         struct Action : Task
         {
-            explicit Action(F&& f) noexcept
-                : _f(std::move(f))
+            template <class U>
+            explicit Action(U&& f) noexcept
+                : _f(std::forward<U>(f))
             {
             }
 
@@ -178,11 +181,11 @@ namespace OP::utils
         * \tparam F - function to execute in thread pool. If return value is needed use `async` method instead.
         * \tparam Args - variadic optional args for function F
         */
-        template <class F, class... Args>
-        void one_way(F&& f, Args&&... args)
+        template <class F, class... TArgs>
+        void one_way(F&& f, TArgs&&... args)
         {
             ensure_workers();
-            auto action_bind = make_bind(std::forward<F>(f), std::forward<Args>(args)...);
+            auto action_bind = make_bind(std::forward<F>(f), std::forward<TArgs>(args)...);
             put_task(
                 task_t{ new Action<decltype(action_bind)>(std::move(action_bind)) }
             );
@@ -196,12 +199,12 @@ namespace OP::utils
         [[nodiscard]] auto async( F&& f, TArgs&&... args ) -> std::future<function_res_t<F, TArgs...>>
         {
             ensure_workers();
-            using bind_t = decltype(make_bind(std::forward<F>(f), std::forward<TArgs>(args)...));
-            using task_impl_t = Functor<bind_t>;
+
+            auto action_bind = make_bind(std::forward<F>(f), std::forward<TArgs>(args)...);
+            using task_impl_t = Functor<decltype(action_bind)>;
+
             auto impl = std::unique_ptr<task_impl_t>{
-                new task_impl_t(
-                    make_bind(std::forward<F>(f), std::forward<TArgs>(args)...)
-                )
+                new task_impl_t(std::move(action_bind))
             };
 
             auto result = impl->get_future();
@@ -225,22 +228,20 @@ namespace OP::utils
     private: 
         
         template <class F, class ...TArgs>
-        static auto make_bind(F&& f, TArgs&&... args)
+        static auto make_bind(F&& f, TArgs&&... args) noexcept
         {
             return 
-            [f = std::forward<F>(f), ax = std::make_tuple(std::forward<TArgs>(args) ...)]
-            () mutable -> auto
-                {
-                    return std::apply([&](auto& ... x) {
-                        //this function can be called only once, so use std::move instead forward
-                        return f(std::move(x)...);
-                        }, ax);
+            [f = std::forward<F>(f), ...ax = std::forward<TArgs>(args) ]
+            () mutable -> auto {
+                    return f(std::forward<decltype(ax)>(ax)...);
                 };
         }
 
         template <class TaskPtr>
         void put_task(TaskPtr&& t)
         {
+            if (_end)
+                throw std::runtime_error("Thread pool in shutdown mode and cannot accept new tasks");
             uniq_guard_t g(_acc_tasks);
             _task_list.emplace_back(std::move(t));
             g.unlock();
