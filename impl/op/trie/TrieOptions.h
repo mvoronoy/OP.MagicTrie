@@ -29,7 +29,7 @@ namespace OP::trie
         [[nodiscard]] virtual vtm::FarAddress residence(unsigned) const = 0;
         [[nodiscard]] virtual std::uint64_t count() const = 0;
         [[nodiscard]] virtual vtm::FarAddress root() const = 0;
-        [[nodiscard]] virtual void store_residence(vtm::FarAddress, unsigned) = 0;
+        virtual void store_residence(vtm::FarAddress, unsigned) = 0;
         [[nodiscard]] virtual std::uint64_t nodes_allocated() const = 0;
 
     private:

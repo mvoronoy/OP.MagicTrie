@@ -973,24 +973,7 @@ namespace OP::trie
             return { node_addr, node };
         }
             
-        
-        static void remove_deleted_nodes(
-            std::vector<FarAddress>&& to_remove, std::future<void>&& previous_run, TrieOptions& options)
-        {
-            auto size_to_remove = to_remove.size();
-            if (previous_run.valid()) //complete previous cycle of GC
-                previous_run.get();
-            OP::vtm::TransactionGuard op_g(
-                options.transaction_service().begin_transaction(), true);
-            for (const auto& node_addr : to_remove) {
-                auto wr_node = options.memory_service().access<node_t>(node_addr);
-                auto& node_ref = *wr_node;
-                assert(node_ref.magic_word_c == node_ref.expected_magic_word);
-                node_ref.destroy_interior(options);
-                options.allocator_service().deallocate(node_addr, sizeof(TrieNode));
-            }
-        }
-
+      
         /** Ensures that nodes at address specified in vector `to_remove` will be destroyed at transaction end on background 
         * 
         */

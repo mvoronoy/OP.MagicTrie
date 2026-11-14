@@ -292,7 +292,7 @@ namespace OP::trie
         /**Get associated data if present, otherwise exception is thrown*/
         payload_t get_value(TrieOptions& options, atom_t key) const
         {
-            if (OP::rawbits::get(!_value_presence, key))
+            if (!OP::rawbits::get(_value_presence, key))
                 throw std::invalid_argument("key doesn't contain data");
             wrap_key_value_t container;
             kv_container(options, container); //resolve correct instance implemented by this node

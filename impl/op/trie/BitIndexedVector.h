@@ -88,7 +88,7 @@ namespace OP::trie::containers
         {
             FarAddress result =
                 _options.get().allocator_service().allocate_for<DataVector>();
-            vmem().make_new<DataVector>(result);
+            vmem().template make_new<DataVector>(result);
             return result;
         }
 
@@ -98,7 +98,7 @@ namespace OP::trie::containers
 
             FarAddress result =
                 _options.get().allocator_service().allocate_for<DataVector>();
-            auto wr_data = vmem().make_new<DataVector>(result);
+            auto wr_data = vmem().template make_new<DataVector>(result);
             auto* payload = wr_data->_payload;
 
             size_t value_pos = 0;
