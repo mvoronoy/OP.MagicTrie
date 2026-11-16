@@ -91,8 +91,8 @@ namespace
                     << "\tts = "  << &base_t::resolve<ThreadService>() << '\n'
                     << "\tmem = " << &base_t::resolve<RawMemoryManager>()
                     << "\n";
-                _tresult.assert_true(&base_t::resolve<ThreadService>());
-                _tresult.assert_true(&base_t::resolve<RawMemoryManager>());
+                std::ignore = base_t::resolve<ThreadService>();
+                std::ignore = base_t::resolve<RawMemoryManager>();
             }
         private:
             OP::utest::TestRuntime& _tresult;
@@ -145,8 +145,10 @@ namespace
                 _tresult.debug() << "Owns:\n"
                     << "\tts = " << &base_t::resolve<ThreadService>() << '\n'
                     << "\tmem = " << &base_t::resolve<RawMemoryManager>() << "\n";
-                _tresult.assert_true(&base_t::resolve<ThreadService>(), "ThreadService is not assigned");
-                _tresult.assert_true(&base_t::resolve<RawMemoryManager>(), "RawMemoryManager interface is not assigned");
+                //compile-time checking of reference validity 
+                std::ignore = base_t::resolve<ThreadService>();
+                //compile-time checking of reference validity 
+                std::ignore = base_t::resolve<RawMemoryManager>();
 
                 _tresult.assert_true(base_t::resolve<RawMemoryManager>()._marker_constructor_called,
                     "RawMemoryManagerImpl constructed with wrong constructor");

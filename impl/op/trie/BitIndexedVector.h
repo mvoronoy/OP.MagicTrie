@@ -196,7 +196,7 @@ namespace OP::trie::containers
 
         void foreach(foreach_callback_t callback, void* user_data) override
         {
-            auto wr_data = vmem().access<DataVector>(parent_node().reindex_table());
+            auto wr_data = vmem().template access<DataVector>(parent_node().reindex_table());
             auto* payload = wr_data->_payload;
 
             size_t i = 0;

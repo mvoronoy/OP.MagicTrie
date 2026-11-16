@@ -660,7 +660,7 @@ namespace OP::utest
             return succ;
         }
 
-        /** Allows update existing value of evidence. 
+        /** Allows thread safe update existing value of evidence. 
         @return true if value has been updated and false when no such value yet.
         */
         template <class StringLike, class FCallback>
