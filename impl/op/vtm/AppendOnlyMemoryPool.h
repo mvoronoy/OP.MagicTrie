@@ -110,7 +110,7 @@ namespace OP::vtm
                 if (i == check_last)
                 { //apply double-check pattern 
                     guard_t guard_header(_header_acc);
-                    check_last = header->_end; //update indicator, if changed
+                    check_last = header._end; //update indicator, if changed
                     if (i == check_last)
                         break;
                 }

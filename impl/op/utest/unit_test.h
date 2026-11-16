@@ -660,6 +660,25 @@ namespace OP::utest
             return succ;
         }
 
+        /** Allows update existing value of evidence. 
+        @return true if value has been updated and false when no such value yet.
+        */
+        template <class StringLike, class FCallback>
+        [[maybe_unused]] bool visit_evidence(StringLike&& key, FCallback&& alter)
+        {                     
+            using alter_traits_t = OP::utils::function_traits<FCallback>;
+            using arg0_t = typename alter_traits_t::template arg_i<0>; //callback must have 1 arg
+
+            std::unique_lock guard(_evidences_acc);
+            auto found = _evidences.find(std::forward<StringLike>(key));
+            if (found != _evidences.end())
+            {
+                alter(std::any_cast<arg0_t&>(found->second));
+                return true;
+            }
+            return false;
+        }
+
         /**
         * Important note for multithread environment: while method is safe in multithread usage of TestRuntime, but
         *   caller must ensure that altering result of `T&` is safe.
@@ -667,11 +686,11 @@ namespace OP::utest
         * @throws td::out_of_range if the container does not have an evidence with the specified key.
         */
         template <class T, class StringLike>
-        [[nodiscard]] T& evidence(const StringLike& key)
+        [[nodiscard]] const T& evidence(const StringLike& key) const
         {
             std::unique_lock guard(_evidences_acc);
-            auto& v = _evidences.at(key);
-            return std::any_cast<T&>(v);
+            const auto& v = _evidences.at(key);
+            return std::any_cast<const T&>(v);
         }
 
         template <class StringLike>
@@ -730,7 +749,7 @@ namespace OP::utest
         TestRunOptions _run_options;
 
         std::unordered_map<std::string, std::any> _evidences;
-        std::mutex _evidences_acc;
+        mutable std::mutex _evidences_acc;
     };
 
     using namespace OP::currying;

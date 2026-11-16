@@ -130,7 +130,7 @@ namespace OP::trie::containers
 
             auto pos = parent_node().count_bits_before(key);
 
-            auto wr_data = vmem().access<DataVector>(parent_node().reindex_table());
+            auto wr_data = vmem().template access<DataVector>(parent_node().reindex_table());
             auto* payload = wr_data->_payload;
             std::shift_right(&payload[pos], &payload[size+1]/*out-of-range*/, 1);
             payload_factory(payload[pos], user_data); //assign value
@@ -153,7 +153,7 @@ namespace OP::trie::containers
             //get current vector size as number of bits presenting
             auto size = parent_node().size();
             // Update vector
-            auto wr_data = vmem().access<DataVector>(
+            auto wr_data = vmem().template access<DataVector>(
                 parent_node().reindex_table());
 
             auto pos = parent_node().count_bits_before(key);
@@ -167,7 +167,7 @@ namespace OP::trie::containers
         {
             assert(parent_node().presence(key));
             auto pos = parent_node().count_bits_before(key);
-            return *vmem().access_element<Payload>(
+            return *vmem().template access_element<Payload>(
                 parent_node().reindex_table() + data_offset_c, pos);
         }
         
@@ -175,13 +175,13 @@ namespace OP::trie::containers
         {
             assert(parent_node().presence(key));
             auto pos = parent_node().count_bits_before(key);
-            return vmem().view_element<Payload>(
+            return vmem().template view_element<Payload>(
                 parent_node().reindex_table() + data_offset_c, pos);
         }
 
         void cforeach(cforeach_callback_t callback, void* user_data) const override
         {
-            auto ro_data = vmem().view<DataVector>(parent_node().reindex_table());
+            auto ro_data = vmem().template view<DataVector>(parent_node().reindex_table());
             const auto* payload = ro_data->_payload;
             size_t i = 0;
             for(auto key = parent_node().presence_first_set();

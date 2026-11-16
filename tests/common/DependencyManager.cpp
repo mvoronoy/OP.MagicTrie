@@ -116,12 +116,13 @@ namespace
             SomeLateManager(OP::utest::TestRuntime& tresult)
                 : _tresult(tresult)
             {
-                _tresult.set_evidence(dtor_evidence_c, 0);
             }
 
             ~SomeLateManager()
             {
-                ++_tresult.evidence<int>(dtor_evidence_c);
+                _tresult.visit_evidence(dtor_evidence_c, [](int& v) {
+                    ++v; 
+                    });
             }
 
             RawMemoryManager& get_memory_manager()
@@ -255,43 +256,50 @@ namespace
     void test_OrDefault(OP::utest::TestRuntime& tresult)
     {
         test::ThreadService reference_service;
-        OP::common::ServiceRegistry registry;
+        if (1 == 1) //scope of ServiceRegistry existence
+        {
+            OP::common::ServiceRegistry registry;
+            tresult.set_evidence(test::SomeLateManager::dtor_evidence_c, 0);
 
-        auto& dep_graph1 = registry.resolve_dependencies(
-            std::ref(reference_service),
-            test::SomeLateManager{ tresult } //virtual constructor going to call default factory
-        );
+            auto& dep_graph1 = registry.resolve_dependencies(
+                std::ref(reference_service),
+                test::SomeLateManager{ tresult } //virtual constructor going to call default factory
+            );
+            tresult.check_evidence<equals>(test::SomeLateManager::dtor_evidence_c, 1);
 
-        dep_graph1.get<test::SomeLateManager>().report();
+            dep_graph1.get<test::SomeLateManager>().report();
 
-        tresult.check_evidence<equals>(
-            test::SomeLateManager::report_evidence_c,
-            1,
-            OP_CODE_DETAILS("test method wasn't called")
-        );
+            tresult.check_evidence<equals>(
+                test::SomeLateManager::report_evidence_c,
+                1,
+                OP_CODE_DETAILS("test method wasn't called")
+            );
 
-        //test can call twice, test default isn't same as provided
-        auto& dep_graph2 = registry.resolve_dependencies(
-            std::shared_ptr<test::RawMemoryManager>{ new test::RawMemoryManagerImpl(test::RawMemoryManagerMarker{}) },
-            std::ref(reference_service),
-            test::SomeLateManager(tresult)
-        );
-        dep_graph2.get<test::SomeLateManager>().report();
+            //test can call twice, test default isn't same as provided
+            auto& dep_graph2 = registry.resolve_dependencies(
+                std::shared_ptr<test::RawMemoryManager>{ new test::RawMemoryManagerImpl(test::RawMemoryManagerMarker{}) },
+                std::ref(reference_service),
+                test::SomeLateManager(tresult)
+            );
+            tresult.check_evidence<equals>(test::SomeLateManager::dtor_evidence_c, 2);
+            dep_graph2.get<test::SomeLateManager>().report();
 
-        //check both graph works
-        tresult.assert_that<not_equals>(
-            &dep_graph1.get<test::SomeLateManager>().get_memory_manager(),
-            &dep_graph2.get<test::SomeLateManager>().get_memory_manager(),
-            OP_CODE_DETAILS("2 instances must own different references of resolved RawMemoryManager, because of `or_default_factory`")
-        );
-        
-        // but test::ThreadService must be the same:
+            //check both graph works
+            tresult.assert_that<not_equals>(
+                &dep_graph1.get<test::SomeLateManager>().get_memory_manager(),
+                &dep_graph2.get<test::SomeLateManager>().get_memory_manager(),
+                OP_CODE_DETAILS("2 instances must own different references of resolved RawMemoryManager, because of `or_default_factory`")
+            );
 
-        tresult.assert_that<equals>(
-            &dep_graph1.get<test::SomeLateManager>().get_transaction_service(),
-            &dep_graph2.get<test::SomeLateManager>().get_transaction_service(),
-            OP_CODE_DETAILS("2 instances must own the same references to TransactionService")
-        );
+            // but test::ThreadService must be the same:
+
+            tresult.assert_that<equals>(
+                &dep_graph1.get<test::SomeLateManager>().get_transaction_service(),
+                &dep_graph2.get<test::SomeLateManager>().get_transaction_service(),
+                OP_CODE_DETAILS("2 instances must own the same references to TransactionService")
+            );
+        }//end of ServiceRegistry scope
+        tresult.check_evidence<equals>(test::SomeLateManager::dtor_evidence_c, 4);
 
     }
 
