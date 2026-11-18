@@ -50,7 +50,7 @@ namespace OP::trie::servants
         }
 
         template <eval_node_size_functor FEvalNodeSize>
-        constexpr TrieOptionsImpl(
+        TrieOptionsImpl(
             FEvalNodeSize&& eval_node_size,
             const std::filesystem::path& path,
             OpenMode open_mode
@@ -65,7 +65,6 @@ namespace OP::trie::servants
                     OP::utils::memory_requirement<vtm::FarAddress>::array_size(static_cast<unsigned>(ServiceUID::_last_)),
                     vtm::SegmentDef::align_c
                 );
-
 
             if( open_mode == OpenMode::create )
             {
@@ -178,12 +177,12 @@ namespace OP::trie::servants
             throw std::invalid_argument("Invalid service ID, use indexes defined in ServiceUID");
         }
         
-        [[nodiscard]] virtual std::uint64_t nodes_allocated() const 
+        [[nodiscard]] virtual std::uint64_t nodes_allocated() const override
         {
             return std::atomic_ref<trie_version_t>(_trie_header->_nodes_allocated).load();
         }
 
-        [[nodiscard]] virtual void store_residence(vtm::FarAddress address, unsigned uid) override
+        virtual void store_residence(vtm::FarAddress address, unsigned uid) override
         {
             if (uid < ServiceUID::_last_)
                 std::atomic_ref<vtm::FarAddress>(_service_addresses[uid]).store(address);

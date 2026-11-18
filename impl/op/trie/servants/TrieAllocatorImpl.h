@@ -149,7 +149,7 @@ namespace OP::trie::servants
             }
         }
 
-        virtual void deallocate(std::vector<vtm::FarAddress> to_remove)
+        virtual void deallocate(std::vector<vtm::FarAddress> to_remove) override
         {
             auto& ts = resolve<OP::trie::TrieTransactionService>();
             std::optional<transaction_id_t> tid = ts.current_transaction_id();
