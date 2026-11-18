@@ -52,7 +52,7 @@ namespace OP::trie::servants
         template <eval_node_size_functor FEvalNodeSize>
         constexpr TrieOptionsImpl(
             FEvalNodeSize&& eval_node_size,
-            std::filesystem::path path,
+            const std::filesystem::path& path,
             OpenMode open_mode
             )
             : _eval_node_size(std::forward<FEvalNodeSize>(eval_node_size))

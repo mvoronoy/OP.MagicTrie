@@ -165,7 +165,7 @@ namespace OP::vtm
             using transaction_ptr_t = OP::vtm::transaction_ptr_t;
 
             static std::unique_ptr<SegmentManager> create_new(
-                std::filesystem::path file_name,
+                const std::filesystem::path& file_name,
                 const SegmentOptions& options)
             {
                 using io = std::ios_base;
@@ -186,7 +186,7 @@ namespace OP::vtm
                 );
             }
 
-            static std::unique_ptr<SegmentManager> open(std::filesystem::path file_name)
+            static std::unique_ptr<SegmentManager> open(const std::filesystem::path& file_name)
             {
                 using io = std::ios_base;
                 auto file = open_file(file_name, io::in | io::out | io::binary);
