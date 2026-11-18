@@ -121,7 +121,7 @@ namespace OP::vtm
 
                 if(notify_prepare_next && segment_manager.offset_of(i)*10 >= 9*segment_manager.offset_of(last_byte_addr) )
                 {
-                    ensure_segment(current_segment, ensure_hint_t::query_next);//notify to prepare next
+                    ensure_segment(current_segment, ensure_hint_t::next_soon);//notify to prepare next
                     notify_prepare_next = false; //prevent next checks inside this segment
                 }
 
