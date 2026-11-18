@@ -320,7 +320,7 @@ namespace OP::vtm
         SkipPointer* skip_pointer_array(far_t page_addr, segment_pos_t bucket_size)
         {
             auto wr_block = _sm.writable_block(page_addr, OP::utils::memory_requirement<SkipPointer>::array_size(bucket_size));
-            return wr_block.at<SkipPointer>(0);
+            return wr_block.template at<SkipPointer>(0);
         }
 
         constexpr static segment_pos_t page_size(segment_pos_t level) noexcept
@@ -346,7 +346,7 @@ namespace OP::vtm
             const auto n = page_size(level);
             const auto bucket_size = OP::utils::memory_requirement<SkipPointer>::array_size(n);
             auto block = _sm.readonly_block(bucket_addr, bucket_size);
-            const SkipPointer* bucket = block.at<SkipPointer>(0);
+            const SkipPointer* bucket = block.template at<SkipPointer>(0);
 
             const auto slot_size = (level_capacity + n - 1) / n;
 

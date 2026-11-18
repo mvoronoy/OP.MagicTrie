@@ -168,7 +168,7 @@ namespace OP::vtm
             return _base_manager.segment_size();
         }
 
-        virtual std::pair<FarAddress, segment_pos_t> user_space(segment_idx_t index) const noexcept
+        virtual std::pair<FarAddress, segment_pos_t> user_space(segment_idx_t index) const noexcept override
         {
             return _base_manager.user_space(index);
         }
