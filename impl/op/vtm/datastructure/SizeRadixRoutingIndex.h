@@ -173,7 +173,7 @@ namespace OP::vtm
         }
 
         template <class FCallback>
-            requires concepts::LambdaAcceptingPayload<const Payload&>
+            requires concepts::LambdaAcceptingPayload<FCallback, const Payload&>
         void for_each(FCallback callback) const
         {
             dump_recursive_step(callback, _root_page, 0);
