@@ -25,7 +25,7 @@ namespace OP::trie
             deserialize(); //place all records (if ever exists) from persistent state to cache
         }
 
-        static [[nodiscard]] ResidenceManager create(OP::vtm::SegmentManager& manager, OP::vtm::AppendOnlyMemoryPool& pool)
+        [[nodiscard]] static ResidenceManager create(OP::vtm::SegmentManager& manager, OP::vtm::AppendOnlyMemoryPool& pool)
         {
             return ResidenceManager(manager, pool, create_page(manager, pool));
         }
